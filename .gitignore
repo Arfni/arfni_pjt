@@ -460,6 +460,16 @@ pip-selfcheck.json
 **/*.log
 **/*.tmp
 
+# infracanvas 로컬 볼륨 데이터 전부 제외
+TEST/my-app/.infracanvas/data/**
+
+# (선택) 빈 폴더 유지용 파일만 허용하고 싶다면
+!TEST/my-app/.infracanvas/data/.keep
+
+# (선택) 해당 데이터 폴더의 pem 키/인증서 무시
+TEST/my-app/.infracanvas/data/**/*.pem
+
+
 # (선택) 도커/compose 생성 산출물 무시 예시
 # .infracanvas/compose/.env
 
