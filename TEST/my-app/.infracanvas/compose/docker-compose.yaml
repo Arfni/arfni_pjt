@@ -1,0 +1,76 @@
+version: "3.9"
+services:
+    fastapi:
+        build:
+            context: ../../apps/fastapi
+        environment:
+            DATABASE_URL: mysql://app:${MYSQL_APP_PASS}@mysql:3306/app
+            REDIS_URL: redis://redis:6379/0
+        depends_on:
+            mysql:
+                condition: service_started
+            redis:
+                condition: service_started
+        ports:
+            - 8000:8000
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - wget -qO- http://127.0.0.1:8000/health || exit 1
+            interval: 10s
+            timeout: 3s
+            retries: 12
+    mysql:
+        image: mysql:8.0
+        environment:
+            MYSQL_DATABASE: app
+            MYSQL_PASSWORD: ${MYSQL_APP_PASS}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASS}
+            MYSQL_USER: app
+        ports:
+            - 3307:3306
+        volumes:
+            - ../data/mysql:/var/lib/mysql
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - nc -z 127.0.0.1 3306
+            interval: 10s
+            timeout: 3s
+            retries: 10
+    redis:
+        image: redis:7
+        ports:
+            - 6379:6379
+        volumes:
+            - ../data/redis:/data
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - nc -z 127.0.0.1 6379
+            interval: 10s
+            timeout: 3s
+            retries: 10
+    spring:
+        build:
+            context: ../../apps/spring
+        environment:
+            REDIS_HOST: redis
+            SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASS}
+            SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/app?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=UTC
+            SPRING_DATASOURCE_USERNAME: app
+            SPRING_PROFILES_ACTIVE: local
+        depends_on:
+            mysql:
+                condition: service_started
+            redis:
+                condition: service_started
+        ports:
+            - 8080:8080
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - wget -qO- http://127.0.0.1:8080/actuator/health || exit 1
+            interval: 10s
+            timeout: 3s
+            retries: 12

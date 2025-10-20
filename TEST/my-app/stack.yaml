@@ -1,0 +1,62 @@
+apiVersion: v0.1
+name: local-spring-fastapi-mysql-redis
+targets:
+  local: { type: docker-desktop }
+secrets: [ MYSQL_ROOT_PASS, MYSQL_APP_PASS ]
+services:
+  mysql:
+    kind: docker.container
+    target: local
+    spec:
+      image: mysql:8.0
+      env:
+        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASS}
+        MYSQL_DATABASE: app
+        MYSQL_USER: app
+        MYSQL_PASSWORD: ${MYSQL_APP_PASS}
+      ports: ["3307:3306"]
+      volumes:
+        - { host: ./.infracanvas/data/mysql, mount: /var/lib/mysql }
+      health:
+        tcp: { port: 3306 }
+  redis:
+    kind: docker.container
+    target: local
+    spec:
+      image: redis:7
+      command: ["redis-server","--appendonly","yes"]
+      ports: ["6379:6379"]
+      volumes:
+        - { host: ./.infracanvas/data/redis, mount: /data }
+      health:
+        tcp: { port: 6379 }
+  spring:
+    kind: docker.container
+    target: local
+    spec:
+      build: ./apps/spring
+      env:
+        SPRING_PROFILES_ACTIVE: local
+        SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/app?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=UTC
+        SPRING_DATASOURCE_USERNAME: app
+        SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASS}
+        REDIS_HOST: redis
+      dependsOn: [ mysql, redis ]
+      ports: ["8080:8080"]
+      health:
+        httpGet: { path: /actuator/health, port: 8080 }
+  fastapi:
+    kind: docker.container
+    target: local
+    spec:
+      build: ./apps/fastapi
+      env:
+        DATABASE_URL: mysql://app:${MYSQL_APP_PASS}@mysql:3306/app
+        REDIS_URL: redis://redis:6379/0
+      dependsOn: [ mysql, redis ]
+      ports: ["8000:8000"]
+      health:
+        httpGet: { path: /health, port: 8000 }
+outputs:
+  spring_url:  http://${ref:spring.publicHost}:8080/
+  fastapi_url: http://${ref:fastapi.publicHost}:8000/
