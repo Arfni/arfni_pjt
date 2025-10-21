@@ -1,0 +1,28 @@
+# Auto-generated Dockerfile for Node.js application
+FROM node:18-alpine AS build
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source
+COPY . .
+
+# Build if needed
+RUN if [ -f "package.json" ] && grep -q "\"build\":" package.json; then npm run build; fi
+
+# Runtime stage
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy from build stage
+COPY --from=build /app .
+
+EXPOSE 3000
+
+CMD ["node", "index.js"]
