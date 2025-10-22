@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Plus, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { NewProjectModal } from '@pages/settings/ui/NewProjectModal';

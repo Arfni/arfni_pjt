@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Terminal, Play, CheckCircle, Trash2, StopCircle, FolderOpen } from 'lucide-react';
 

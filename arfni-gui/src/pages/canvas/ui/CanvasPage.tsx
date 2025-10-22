@@ -1,4 +1,3 @@
-import React from 'react';
 import { CanvasEditor } from '@widgets/canvas-editor';
 import { PropertyPanel } from '@widgets/property-panel';
 import { LogViewer } from '@widgets/log-viewer';
