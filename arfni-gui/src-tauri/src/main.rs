@@ -10,7 +10,9 @@ mod features;
 fn main() {
     tauri::Builder::default()
             .invoke_handler(tauri::generate_handler![
-      commands::ssh::ssh_exec_system, commands::plugin::run_plugin  // ← 등록
+      commands::ssh::ssh_exec_system, commands::plugin::run_plugin, 
+      commands::plugin_check::list_targets ,
+       commands::plugin_check::read_plugins, // ← 등록
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
