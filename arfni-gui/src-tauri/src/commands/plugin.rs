@@ -36,7 +36,7 @@ pub async fn run_plugin(app: AppHandle, plugin: String) -> Result<String, String
   // 1) 배포 리소스 경로
   let resource_candidate = app.path()
     .resolve(
-      &format!("plugins/{plugin}/{exe_name}"),
+      &format!("plugins/{exe_name}"),
       BaseDirectory::Resource
     )
     .ok();
@@ -52,7 +52,7 @@ pub async fn run_plugin(app: AppHandle, plugin: String) -> Result<String, String
     .into_iter()
     .flatten()
     .find(|p| p.exists())
-    .ok_or_else(|| format!("plugin exe not found: plugins/{plugin}/{exe_name}"))?;
+    .ok_or_else(|| format!("plugin exe not found: plugins/{exe_name}"))?;
 
   // 4) 블로킹 프로세스는 별 스레드에서 실행
   let out = tauri::async_runtime::spawn_blocking(move || {
