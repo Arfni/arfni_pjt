@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function LogViewer() {
   return (
     <div className="h-full flex flex-col bg-black text-green-400 font-mono text-sm">

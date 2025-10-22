@@ -1,4 +1,3 @@
-import React from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { TargetNodeData } from '@shared/config/nodeTypes';
 

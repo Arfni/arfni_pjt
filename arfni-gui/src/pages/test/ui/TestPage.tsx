@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
@@ -10,18 +11,35 @@ type TargetEntry = {
   path: string;
 };
 
+
 export default function TestPage() {
   const navigate = useNavigate();
 
   const [items, setItems] = useState<TargetEntry[]>([]);
+  const [items2, setItems2] = useState<TargetEntry[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function fetchPlugins() {
+      try {
+        const list2 = await invoke<TargetEntry[]>("read_plugins");
+        setItems2(list2);
+      } catch (err) {
+        console.error("Failed to read plugins:", err);
+      }
+    }
+
+    fetchPlugins();
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(false);
     try {
       const list = await invoke<TargetEntry[]>("list_targets");
+      const list2 = await invoke<TargetEntry[]>("read_plugins");
       setItems(list);
       setLoading(true);
+      setItems2(list2);
     } catch (e) {
       console.error(e);
     } finally {
@@ -65,13 +83,18 @@ export default function TestPage() {
             <ul className="list-disc list-inside bg-white rounded-lg shadow p-4">
               {items.map((item) => (
                 <li key={item.file_name}>
-                  {item.file_name} ({item.size} bytes)
+                  {item.target_name} ({item.size} bytes)
                 </li>
               ))}
             </ul>
           </div>
         )}
       </div>
+              {items2.map((item) => (
+                <li key={item.file_name}>
+                  {item.target_name} ({item.size} bytes)
+                </li>
+              ))}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { tauriCommands, type LogEntry, type DeploymentResult } from './commands';
+import { tauriCommands, type LogEntry } from './commands';
 
 // 로그 스트림 훅
 export function useLogStream() {

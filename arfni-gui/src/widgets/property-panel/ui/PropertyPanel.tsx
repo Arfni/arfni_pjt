@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function PropertyPanel() {
   return (
     <div className="h-full p-4 bg-gray-50">

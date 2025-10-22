@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FolderOpen, CheckCircle, Loader } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
