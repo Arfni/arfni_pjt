@@ -4,8 +4,8 @@ import { Node, Edge } from 'reactflow';
 export interface ServiceNodeData {
   id: string;
   name: string;
-  kind: 'docker.container' | 'k8s.pod';
-  target: string;
+  kind?: 'docker.container' | 'k8s.pod';
+  target?: string;
   image?: string;
   build?: string;
   ports?: string[];

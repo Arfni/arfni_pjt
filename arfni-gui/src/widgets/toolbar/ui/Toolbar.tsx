@@ -1,8 +1,12 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Home } from 'lucide-react';
 
 export function Toolbar() {
+  const navigate = useNavigate();
+
   return (
-    <div className="h-12 bg-gray-800 text-white flex items-center px-4 border-b border-gray-600">
+    <div className="h-12 bg-gray-800 text-white flex items-center justify-between px-4 border-b border-gray-600">
       <div className="flex items-center space-x-4">
         <h1 className="text-lg font-semibold">ARFNI Canvas</h1>
         <div className="flex space-x-2">
@@ -20,6 +24,14 @@ export function Toolbar() {
           </button>
         </div>
       </div>
+
+      <button
+        onClick={() => navigate('/')}
+        className="flex items-center gap-2 px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
+      >
+        <Home className="w-4 h-4" />
+        Home
+      </button>
     </div>
   );
 }
