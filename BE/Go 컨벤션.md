@@ -22,6 +22,7 @@ time.Duration 사용: 숫자 대신 5 * time.Second로 명시.
 문자열 루프: for _, r := range s로 한글 등 멀티바이트 문자를 정확히 처리.
 
 폴더 구조
+```
 arfni/
 ├─ go.mod
 ├─ README.md
@@ -74,4 +75,5 @@ arfni/
 │     └─ expected-compose.yaml
 └─ scripts/
    └─ build_release.sh                # 임시 빌드/릴리스 스크립트
+```
 는 이것을 베이스로 추가 업데이트가 가능하도록 모듈화 구조 유지

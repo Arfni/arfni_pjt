@@ -1,0 +1,29 @@
+{{.Name}}:
+  {{if .Image}}image: {{.Image}}{{end}}
+  {{if .Build}}build: {{.Build}}{{end}}
+  container_name: {{.ContainerName}}
+  restart: unless-stopped
+  {{if .Environment}}
+  environment:
+    {{range $key, $value := .Environment}}
+    {{$key}}: {{$value}}
+    {{end}}
+  {{end}}
+  {{if .Ports}}
+  ports:
+    {{range .Ports}}
+    - "{{.}}"
+    {{end}}
+  {{end}}
+  {{if .Volumes}}
+  volumes:
+    {{range .Volumes}}
+    - "{{.}}"
+    {{end}}
+  {{end}}
+  {{if .Networks}}
+  networks:
+    {{range .Networks}}
+    - {{.}}
+    {{end}}
+  {{end}}

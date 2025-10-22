@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+{{range .Services}}
+  {{.Name}}:
+    {{if .Image}}image: {{.Image}}{{end}}
+    {{if .Build}}build: {{.Build}}{{end}}
+    {{if .Environment}}
+    environment:
+      {{range $key, $value := .Environment}}
+      {{$key}}: {{$value}}
+      {{end}}
+    {{end}}
+    {{if .Ports}}
+    ports:
+      {{range .Ports}}
+      - "{{.}}"
+      {{end}}
+    {{end}}
+    {{if .Volumes}}
+    volumes:
+      {{range .Volumes}}
+      - "{{.Host}}:{{.Mount}}"
+      {{end}}
+    {{end}}
+    {{if .DependsOn}}
+    depends_on:
+      {{range .DependsOn}}
+      - {{.}}
+      {{end}}
+    {{end}}
+{{end}}
+
+networks:
+  default:
+    name: arfni-network
