@@ -13,3 +13,8 @@
     Rust가 파일 직접 관리 + notify 크레이트로 파일 감시
     → Canvas ↔ stack.yaml 양방향 동기화 구현
     → GO CLI는 `./ic run -f stack.yaml`로 배포만 담당
+
+# 2025.10.22
+- stack.yaml 명세 문서 제작
+- 발표 ppt 제작
+- 발표 스크립트 제작
