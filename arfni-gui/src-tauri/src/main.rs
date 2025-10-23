@@ -15,8 +15,10 @@ fn main() {
       commands::ssh::ssh_exec_system, 
       commands::plugin::run_plugin, 
       commands::plugin_check::list_targets ,
-       commands::plugin_check::read_plugins, 
-        commands::ssh::ec2_add_entry,
+      commands::plugin_check::read_plugins, 
+      commands::ssh::ec2_add_entry,
+      commands::ssh::ec2_read_entry,
+      commands::ssh::ec2_delete_entry,
        
        // ← 등록
     ])

@@ -16,6 +16,12 @@ pub struct SshValue {
   pub pem_path: String, //key 위치
 }
 
+#[derive(Deserialize)]
+pub struct DeletePayload {
+    pub host: String,
+    pub user: String,
+}
+
 //ec2 단일 커맨드 호출
 #[tauri::command]
 pub async fn ssh_exec_system(params: SshSimpleParams) -> Result<String, String> {
@@ -40,4 +46,16 @@ pub fn ec2_add_entry(params: SshValue) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
+//SSH 목록조회
+#[tauri::command]
+pub fn ec2_read_entry() -> Result<Vec<crate::features::ssh_exec::SshParams>, String> {
+    crate::features::ssh_exec::read_all_entries()
+        .map_err(|e| e.to_string())
+}
 
+
+#[tauri::command]
+pub fn ec2_delete_entry(params: DeletePayload) -> Result<bool, String> {
+    crate::features::ssh_exec::delete_entry(&params.host, &params.user)
+        .map_err(|e| e.to_string())
+}

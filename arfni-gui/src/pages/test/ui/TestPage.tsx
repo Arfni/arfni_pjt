@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ChevronDown, ChevronRight, Bug } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+// ✅ Tauri v2: dialog/confirm 모두 plugin에서 import
+import { open, confirm } from "@tauri-apps/plugin-dialog";
 
 type TargetEntry = {
   file_name: string;
@@ -72,6 +73,9 @@ export default function TestPage() {
   const [execCmd, setExecCmd] = useState("uname -a");
   const [execOut, setExecOut] = useState<string>("");
 
+  // 삭제 진행 표시용
+  const [delBusyKey, setDelBusyKey] = useState<string | null>(null);
+
   // 플러그인 목록 미리 로드
   useEffect(() => {
     async function fetchPlugins() {
@@ -108,15 +112,9 @@ export default function TestPage() {
         title: "PEM 파일 선택",
       });
       console.log("dialog open() result:", selected);
-      if (selected === null) {
-        // 사용자가 취소
-        return;
-      }
-      if (Array.isArray(selected)) {
-        setPemPath(selected[0] ?? "");
-      } else if (typeof selected === "string") {
-        setPemPath(selected);
-      }
+      if (selected === null) return;
+      if (Array.isArray(selected)) setPemPath(selected[0] ?? "");
+      else if (typeof selected === "string") setPemPath(selected);
     } catch (e) {
       console.error("open() failed:", e);
       setSaveStatus("❌ 파일 선택 실패: " + String(e));
@@ -145,7 +143,7 @@ export default function TestPage() {
   const loadEc2List = useCallback(async () => {
     setEc2Loading(true);
     try {
-      const list = await invoke<Ec2Entry[]>("ec2_list_targets");
+      const list = await invoke<Ec2Entry[]>("ec2_read_entry");
       setEc2List(list);
     } catch (err) {
       console.error(err);
@@ -157,6 +155,45 @@ export default function TestPage() {
   useEffect(() => {
     loadEc2List();
   }, [loadEc2List]);
+
+  // === 삭제 ===
+  const deleteEntry = useCallback(
+    async (host: string, user: string) => {
+      // 이미 삭제 진행 중이면 무시
+      if (delBusyKey) return;
+
+      // 1) 먼저 확인 모달(비동기)
+      const ok = await confirm(`삭제하시겠습니까?\n${user}@${host}`, {
+        title: "삭제 확인",
+        kind: "warning",
+        okLabel: "삭제",
+        cancelLabel: "취소",
+      });
+      if (!ok) return;
+
+      // 2) 확인 후에만 실제 삭제 실행
+      const key = `${host}__${user}`;
+      setDelBusyKey(key);
+      try {
+        // 백엔드가 host/user만 받도록 바뀌었다면 아래 그대로.
+        // (아직 SshValue면 params에 pem_path: ""를 추가하세요)
+        const removed = await invoke<boolean>("ec2_delete_entry", {
+          params: { host, user },
+        });
+        if (removed) {
+          setEc2List((prev) => prev.filter((e) => !(e.host === host && e.user === user)));
+        } else {
+          alert("삭제 대상이 없습니다.");
+        }
+      } catch (e) {
+        console.error(e);
+        alert("삭제 실패: " + String(e));
+      } finally {
+        setDelBusyKey(null);
+      }
+    },
+    [delBusyKey]
+  );
 
   // === SSH 단일 커맨드 실행 ===
   const runSSH = useCallback(async () => {
@@ -208,8 +245,6 @@ export default function TestPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-xl font-semibold">테스트 페이지</h1>
-
-          {/* 디버그: dialog 플러그인 동작 확인 */}
           <button
             onClick={testDialog}
             className="ml-auto flex items-center gap-1 px-2 py-1 border rounded hover:bg-gray-100 text-sm"
@@ -294,7 +329,7 @@ export default function TestPage() {
                   className="flex-1 border rounded px-2 py-1"
                   value={pemPath}
                   onChange={(e) => setPemPath(e.target.value)}
-                  placeholder="C:\Users\me\my-key.pem"
+                  placeholder="C:\\Users\\me\\my-key.pem"
                 />
                 <button
                   onClick={pickPemFile}
@@ -332,33 +367,47 @@ export default function TestPage() {
             {ec2List.length === 0 && (
               <div className="text-gray-500 text-sm">저장된 항목이 없습니다.</div>
             )}
-            {ec2List.map((e) => (
-              <div
-                key={`${e.host}-${e.user}`}
-                className="flex items-center justify-between border rounded p-2"
-              >
-                <div>
-                  <div className="font-mono text-sm">
-                    {e.user}@{e.host}
+            {ec2List.map((e) => {
+              const busy = delBusyKey === `${e.host}__${e.user}`;
+              return (
+                <div
+                  key={`${e.host}-${e.user}`}
+                  className="flex items-center justify-between border rounded p-2"
+                >
+                  <div>
+                    <div className="font-mono text-sm">
+                      {e.user}@{e.host}
+                    </div>
+                    <div className="text-gray-600 text-xs">{e.pem_path}</div>
                   </div>
-                  <div className="text-gray-600 text-xs">{e.pem_path}</div>
+                  <div className="flex gap-2">
+                    <button
+                      className="px-2 py-1 border rounded hover:bg-gray-100 text-sm"
+                      onClick={() => {
+                        setExecHost(e.host);
+                        setExecUser(e.user);
+                        setExecPemPath(e.pem_path);
+                        setOpenExec(true);
+                      }}
+                    >
+                      실행에 사용
+                    </button>
+                    <button
+                      className="px-2 py-1 border rounded hover:bg-red-50 text-sm text-red-600 disabled:opacity-50"
+                      onClick={(evt) => {
+                        evt.preventDefault(); // 폼 submit 등 기본 동작 방지
+                        evt.stopPropagation(); // 상위 버튼/섹션 클릭으로 버블링 방지
+                        deleteEntry(e.host, e.user);
+                      }}
+                      disabled={busy}
+                      title="이 항목 삭제"
+                    >
+                      {busy ? "삭제 중..." : "삭제"}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    className="px-2 py-1 border rounded hover:bg-gray-100 text-sm"
-                    onClick={() => {
-                      setExecHost(e.host);
-                      setExecUser(e.user);
-                      setExecPemPath(e.pem_path);
-                      // 자동으로 실행 섹션 펼치기
-                      setOpenExec(true);
-                    }}
-                  >
-                    실행에 사용
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Section>
 
@@ -388,7 +437,7 @@ export default function TestPage() {
                 className="w-full border rounded px-2 py-1"
                 value={execPemPath}
                 onChange={(e) => setExecPemPath(e.target.value)}
-                placeholder="C:\Users\me\my-key.pem"
+                placeholder="C:\\Users\\me\\my-key.pem"
               />
             </div>
             <div className="md:col-span-2">
