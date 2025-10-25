@@ -1,21 +1,37 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Provider as ReduxProvider } from 'react-redux';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { store } from './app/store';
 import DashboardPage from "./pages/dashboard/ui/DashboardPage";
 import { CanvasPage } from "./pages/canvas/ui/CanvasPage";
 import TestPage from "./pages/test/ui/TestPage";
 import LogPage from "./pages/logs/ui/LogPage";
 import ProjectsPage from "./pages/logs/ui/ProjectsPage";
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/canvas" element={<CanvasPage />} />
-        <Route path="/test" element={<TestPage />} />
-        <Route path="/logs" element={<LogPage />} />
-        <Route path="/projects" element={<ProjectsPage />} />
-      </Routes>
-    </BrowserRouter>
+    <ReduxProvider store={store}>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/canvas" element={<CanvasPage />} />
+            <Route path="/test" element={<TestPage />} />
+            <Route path="/logs" element={<LogPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+          </Routes>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ReduxProvider>
   );
 }
 

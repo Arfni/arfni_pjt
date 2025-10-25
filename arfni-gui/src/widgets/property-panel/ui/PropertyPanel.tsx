@@ -1,39 +1,24 @@
+import { useAppSelector } from '@app/hooks';
+import { selectSelectedNode } from '@features/canvas/model/canvasSlice';
+import { DynamicPropertyForm } from '@features/canvas/ui/DynamicPropertyForm';
+
 export function PropertyPanel() {
+  const selectedNode = useAppSelector(selectSelectedNode);
+
+  console.log('PropertyPanel - selectedNode:', selectedNode);
+
   return (
-    <div className="h-full p-4 bg-gray-50">
-      <h2 className="text-lg font-semibold mb-4">Properties</h2>
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Service Name
-          </label>
-          <input
-            type="text"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter service name"
-          />
+    <div className="h-full bg-gray-50 flex flex-col">
+      {selectedNode ? (
+        <DynamicPropertyForm node={selectedNode} />
+      ) : (
+        <div className="flex-1 flex items-center justify-center p-4 text-gray-500">
+          <div className="text-center">
+            <p className="text-lg font-medium mb-2">No Node Selected</p>
+            <p className="text-sm">Click on a node in the canvas to edit its properties</p>
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Image
-          </label>
-          <input
-            type="text"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="docker.io/library/nginx"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Port
-          </label>
-          <input
-            type="number"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="8080"
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

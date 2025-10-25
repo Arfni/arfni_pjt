@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Read(//c/Users/SSAFY/Downloads/**)",
+      "Read(//c/Users/SSAFY/Desktop/yaml-test/test/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
