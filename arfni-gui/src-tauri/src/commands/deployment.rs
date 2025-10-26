@@ -66,24 +66,18 @@ pub async fn deploy_stack(
         outputs: None,
     }).unwrap_or(());
 
-    // Go 백엔드 플러그인 경로 찾기
-    let plugin_name = "arfni-deploy";
-    let plugin_path = find_plugin_path(&app, plugin_name)?;
+    // Go 백엔드 실행 파일 경로 찾기
+    let go_binary_path = find_go_binary(&app)?;
 
     // 새 스레드에서 배포 실행
     let app_clone = app.clone();
     std::thread::spawn(move || {
-        // 배포 명령 실행
-        let mut cmd = Command::new("powershell")
-            .arg("-ExecutionPolicy")
-            .arg("Bypass")
-            .arg("-File")
-            .arg(&plugin_path)
-            .arg("-Command")
+        // 배포 명령 실행 - Go 바이너리 직접 실행
+        let mut cmd = Command::new(&go_binary_path)
             .arg("run")
             .arg("-f")
             .arg(&stack_yaml_path)
-            .arg("-ProjectDir")
+            .arg("-project-dir")
             .arg(&project_path)
             .current_dir(&project_path)
             .stdout(Stdio::piped())
@@ -202,7 +196,48 @@ pub fn check_docker_compose() -> Result<bool, String> {
 
 // 헬퍼 함수들
 
-/// Go 플러그인 경로 찾기
+/// Go 바이너리 경로 찾기
+fn find_go_binary(app: &AppHandle) -> Result<String, String> {
+    // OS별 실행 파일 확장자
+    let extension = if cfg!(windows) { ".exe" } else { "" };
+    let binary_name = format!("arfni-go{}", extension);
+
+    // 1. 절대 경로로 빌드된 Go 바이너리 시도
+    let absolute_go_path = Path::new("C:\\Users\\SSAFY\\Desktop\\code\\arfni_pjt\\BE\\arfni\\bin")
+        .join(&binary_name);
+    if absolute_go_path.exists() {
+        println!("✅ Found Go binary at: {:?}", absolute_go_path);
+        return Ok(absolute_go_path.to_string_lossy().to_string());
+    }
+
+    // 2. 상대 경로로 시도 (개발 모드)
+    let relative_go_path = Path::new("../../BE/arfni/bin").join(&binary_name);
+    if relative_go_path.exists() {
+        println!("✅ Found Go binary at: {:?}", relative_go_path);
+        return Ok(relative_go_path.to_string_lossy().to_string());
+    }
+
+    // 3. 타겟 폴더 시도
+    let dev_go_path = Path::new("../BE/arfni/bin").join(&binary_name);
+    if dev_go_path.exists() {
+        println!("✅ Found Go binary at: {:?}", dev_go_path);
+        return Ok(dev_go_path.to_string_lossy().to_string());
+    }
+
+    // 4. 프로덕션 모드: resources/bin/
+    if let Ok(resource_path) = app.path().resource_dir() {
+        let prod_path = resource_path.join("bin").join(&binary_name);
+        if prod_path.exists() {
+            println!("✅ Found Go binary at: {:?}", prod_path);
+            return Ok(prod_path.to_string_lossy().to_string());
+        }
+    }
+
+    Err(format!("Go 바이너리를 찾을 수 없습니다: {}. 경로를 확인하세요:\n  - {:?}\n  - {:?}",
+        binary_name, absolute_go_path, relative_go_path))
+}
+
+/// Go 플러그인 경로 찾기 (레거시 - 사용하지 않음)
 fn find_plugin_path(app: &AppHandle, plugin_name: &str) -> Result<String, String> {
     use tauri::Manager;
 
