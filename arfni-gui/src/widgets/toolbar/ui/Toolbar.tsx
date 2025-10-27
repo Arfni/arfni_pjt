@@ -27,7 +27,6 @@ import {
 import { stackYamlGenerator, stackToYamlString } from '@features/canvas/lib/stackYamlGenerator';
 import {
   deploymentCommands,
-  projectCommands,
   CanvasNode,
   CanvasEdge,
 } from '@shared/api/tauri/commands';

@@ -3,7 +3,6 @@ import { useAppSelector } from '@app/hooks';
 import { selectNodes, selectEdges } from '@features/canvas';
 import { selectCurrentProject } from '@features/project';
 import { stackYamlGenerator, stackToYamlString } from '@features/canvas/lib/stackYamlGenerator';
-import { CanvasNode, CanvasEdge } from '@shared/api/tauri/commands';
 import { Copy, Download } from 'lucide-react';
 
 export function YamlEditor() {

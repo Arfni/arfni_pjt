@@ -15,12 +15,7 @@ export interface Project {
   };
 }
 
-export interface ProjectState {
-  currentProject: Project | null;
-  recentProjects: Project[];
-  isLoading: boolean;
-  error: string | null;
-}
+// ProjectState는 projectSlice.ts에 정의되어 있음
 
 export interface CreateProjectParams {
   name: string;
