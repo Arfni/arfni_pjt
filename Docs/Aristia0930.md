@@ -81,3 +81,27 @@ Tauri Command 등록:
 
 ec2_delete_entry — SSH 항목 삭제
 ec2_read_entry — 전제 조회
+🧾 개발일지 — 2025.10.27
+
+🛠️ 주요 개발 내용
+1. 실시간 SSH 세션 기능 구현 (Tauri v2 + Rust)
+
+Rust 측
+
+ssh_rt.rs 모듈 신규 작성
+
+ssh2 크레이트 기반 실시간 인터랙티브 SSH 세션 구현
+
+주요 구조체 및 로직
+
+SshParams: 호스트, 사용자, PEM 경로
+
+start_interactive_session: SSH 접속 및 세션 생성
+
+send_command: 실시간 명령 송신
+
+close_session: 세션 종료 및 정리
+
+AppHandle.emit()을 활용해 stdout/stderr를 프런트로 이벤트 스트리밍
+
+전역 세션 관리용 OnceCell<Mutex<HashMap<Uuid, SshHandle>>> 구조 설계
