@@ -32,7 +32,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
+    "resources": [
+      "../../BE/arfni/bin/arfni-go.exe"
     ]
   }
 }
