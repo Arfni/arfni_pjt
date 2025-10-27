@@ -223,102 +223,11 @@ function CanvasEditorInner() {
     [dispatch, project]
   );
 
-  // 캔버스 클릭 시 노드 추가 (클릭 방식 유지)
-  const onPaneClick = useCallback(
-    (event: React.MouseEvent) => {
-      if (!selectedTemplate) return;
-
-      // ReactFlow 좌표계로 변환
-      const position = project({
-        x: event.clientX - (reactFlowWrapper.current?.getBoundingClientRect().left || 0),
-        y: event.clientY - (reactFlowWrapper.current?.getBoundingClientRect().top || 0),
-      });
-
-      const { type: nodeType, category } = selectedTemplate;
-      let newNode;
-
-      if (category === 'service') {
-        // 서비스 노드
-        const serviceData: any = {
-          name: nodeType.toUpperCase(),
-          serviceType: nodeType  // serviceType 추가
-        };
-
-        switch (nodeType) {
-          case 'react':
-            serviceData.build = './apps/react';
-            serviceData.ports = ['3000:80'];
-            break;
-          case 'nextjs':
-            serviceData.build = './apps/nextjs';
-            serviceData.ports = ['3000:3000'];
-            break;
-          case 'spring':
-            serviceData.build = './apps/spring';
-            serviceData.ports = ['8080:8080'];
-            break;
-          case 'nodejs':
-            serviceData.build = './apps/nodejs';
-            serviceData.ports = ['3000:3000'];
-            break;
-          case 'python':
-            serviceData.build = './apps/python';
-            serviceData.ports = ['8000:8000'];
-            break;
-          case 'fastapi':
-            serviceData.build = './apps/fastapi';
-            serviceData.ports = ['8000:8000'];
-            break;
-          default:
-            serviceData.image = 'nginx:latest';
-            serviceData.ports = ['80:80'];
-        }
-
-        newNode = createServiceNode(serviceData, position);
-      } else if (category === 'database') {
-        // 데이터베이스 노드
-        const dbData: any = {
-          name: nodeType.toUpperCase(),
-          type: nodeType as 'mysql' | 'postgres' | 'redis' | 'mongodb'
-        };
-
-        switch (nodeType) {
-          case 'mysql':
-            dbData.version = '8.0';
-            dbData.ports = ['3306:3306'];
-            break;
-          case 'postgres':
-            dbData.version = '15';
-            dbData.ports = ['5432:5432'];
-            break;
-          case 'redis':
-            dbData.version = '7';
-            dbData.ports = ['6379:6379'];
-            break;
-          case 'mongodb':
-            dbData.version = '6';
-            dbData.ports = ['27017:27017'];
-            break;
-        }
-
-        newNode = createDatabaseNode(dbData, position);
-      } else if (category === 'target') {
-        // 타겟 노드
-        const targetData: any = {
-          name: nodeType === 'docker-local' ? 'Docker Local' : 'EC2',
-          type: nodeType === 'docker-local' ? 'docker-desktop' : 'ec2.ssh'
-        };
-
-        newNode = createTargetNode(targetData, position);
-      } else {
-        return;
-      }
-
-      dispatch(addNode(newNode as any));
-      // 노드 추가 후 템플릿 선택 유지 (연속 추가 가능)
-    },
-    [dispatch, project, reactFlowWrapper, selectedTemplate]
-  );
+  // 캔버스 클릭 시 선택 해제만 처리
+  const onPaneClick = useCallback(() => {
+    // 빈 캔버스 클릭 시 노드 선택 해제
+    dispatch(selectNode(null));
+  }, [dispatch]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: any) => {
     dispatch(selectNode(node.id));
@@ -342,7 +251,6 @@ function CanvasEditorInner() {
         nodeTypes={nodeTypes}
         fitView
         deleteKeyCode={null}
-        style={{ cursor: selectedTemplate ? 'crosshair' : 'default' }}
         defaultEdgeOptions={{
           type: 'smoothstep',
           style: { strokeWidth: 2, stroke: '#94a3b8' },
@@ -359,11 +267,6 @@ function CanvasEditorInner() {
         />
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#d1d5db" />
       </ReactFlow>
-      {selectedTemplate && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-10 text-sm">
-          {selectedTemplate.type.toUpperCase()} 블록을 추가할 위치를 클릭하세요 (ESC로 취소)
-        </div>
-      )}
 
       {/* Auto-save 인디케이터 */}
       {isSaving && (

@@ -105,16 +105,17 @@ export function NodePalette() {
   const [activeTab, setActiveTab] = useState<TabKey>('DB');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleTemplateClick = (nodeType: string, category: 'runtime' | 'database' | 'infra' | 'monitor') => {
-    // Map category to canvas category
-    const canvasCategory = category === 'database' ? 'database' : category === 'runtime' ? 'service' : 'target';
+  // 클릭 방식 제거 - 드래그 앤 드롭만 사용
+  // const handleTemplateClick = (nodeType: string, category: 'runtime' | 'database' | 'infra' | 'monitor') => {
+  //   // Map category to canvas category
+  //   const canvasCategory = category === 'database' ? 'database' : category === 'runtime' ? 'service' : 'target';
 
-    if (selectedTemplate?.type === nodeType) {
-      dispatch(selectTemplate(null));
-    } else {
-      dispatch(selectTemplate({ type: nodeType, category: canvasCategory as any }));
-    }
-  };
+  //   if (selectedTemplate?.type === nodeType) {
+  //     dispatch(selectTemplate(null));
+  //   } else {
+  //     dispatch(selectTemplate({ type: nodeType, category: canvasCategory as any }));
+  //   }
+  // };
 
   const onDragStart = (event: React.DragEvent, nodeType: string, category: 'runtime' | 'database' | 'infra' | 'monitor') => {
     const canvasCategory = category === 'database' ? 'database' : category === 'runtime' ? 'service' : 'target';
@@ -179,12 +180,7 @@ export function NodePalette() {
                 key={node.type}
                 draggable
                 onDragStart={(e) => onDragStart(e, node.type, node.category)}
-                onClick={() => handleTemplateClick(node.type, node.category)}
-                className={`
-                  bg-white border rounded-lg p-2.5 cursor-grab active:cursor-grabbing
-                  hover:shadow-md hover:border-blue-300 transition-all
-                  ${isSelected ? 'border-blue-500 shadow-md ring-2 ring-blue-200' : 'border-gray-200'}
-                `}
+                className="bg-white border border-gray-200 rounded-lg p-2.5 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 transition-all"
               >
                 <div className="flex items-start gap-2">
                   <img src={node.icon} alt={node.label} className="w-8 h-8 flex-shrink-0 pointer-events-none" />
