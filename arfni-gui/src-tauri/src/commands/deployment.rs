@@ -56,7 +56,21 @@ pub async fn deploy_stack(
         return Err("이미 배포가 진행 중입니다".to_string());
     }
 
-    // 배포 시작 플래그 설정
+    // Go 백엔드 실행 파일 경로 찾기 (플래그 설정 전에 먼저 확인)
+    let go_binary_path = match find_go_binary(&app) {
+        Ok(path) => path,
+        Err(e) => {
+            // Go 바이너리를 찾지 못한 경우 상세한 에러 메시지와 함께 실패 이벤트 전송
+            app.emit("deployment-failed", DeploymentStatus {
+                status: "failed".to_string(),
+                message: Some(format!("Go 바이너리를 찾을 수 없습니다: {}", e)),
+                outputs: None,
+            }).unwrap_or(());
+            return Err(e);
+        }
+    };
+
+    // 배포 시작 플래그 설정 (바이너리 확인 후에만 설정)
     DEPLOYMENT_RUNNING.store(true, Ordering::SeqCst);
 
     // 배포 시작 이벤트 전송
@@ -65,9 +79,6 @@ pub async fn deploy_stack(
         message: Some("배포를 시작합니다...".to_string()),
         outputs: None,
     }).unwrap_or(());
-
-    // Go 백엔드 실행 파일 경로 찾기
-    let go_binary_path = find_go_binary(&app)?;
 
     // 새 스레드에서 배포 실행
     let app_clone = app.clone();
@@ -160,6 +171,14 @@ pub fn stop_deployment() -> Result<(), String> {
     // TODO: 실제 프로세스 종료 구현
     DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
     Ok(())
+}
+
+/// 배포 상태 초기화 (디버깅용)
+#[tauri::command]
+pub fn reset_deployment_state() -> Result<bool, String> {
+    let was_running = DEPLOYMENT_RUNNING.load(Ordering::SeqCst);
+    DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+    Ok(was_running)
 }
 
 /// Docker 설치 확인
