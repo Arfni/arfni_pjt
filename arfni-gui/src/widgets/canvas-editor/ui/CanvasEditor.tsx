@@ -1,27 +1,43 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   MiniMap,
   Controls,
   Background,
-  useNodesState,
-  useEdgesState,
-  addEdge,
   Connection,
   Edge,
   BackgroundVariant,
+  NodeChange,
+  EdgeChange,
+  useReactFlow,
+  ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+
+import { useAppDispatch, useAppSelector } from '@app/hooks';
+import {
+  selectNodes,
+  selectEdges,
+  selectSelectedTemplate,
+  selectSelectedNodeId,
+  onNodesChange as handleNodesChange,
+  onEdgesChange as handleEdgesChange,
+  addEdge as addEdgeAction,
+  addNode,
+  selectNode,
+  selectTemplate,
+  deleteNode,
+} from '@features/canvas';
 
 import { ServiceNode } from '@entities/service/ui/ServiceNode';
 import { TargetNode } from '@entities/target/ui/TargetNode';
 import { DatabaseNode } from '@entities/service/ui/DatabaseNode';
 import {
-  CustomNode,
   createServiceNode,
   createTargetNode,
   createDatabaseNode
 } from '@shared/config/nodeTypes';
+import { useAutoSave } from '@features/canvas/hooks/useAutoSave';
 
 // 노드 타입 등록
 const nodeTypes = {
@@ -30,101 +46,209 @@ const nodeTypes = {
   database: DatabaseNode,
 };
 
-const initialNodes: CustomNode[] = [
-  createServiceNode(
-    {
-      name: 'API Service',
-      image: 'nginx:latest',
-      ports: ['8080:80'],
-      target: 'local',
-    },
-    { x: 250, y: 250 }
-  ),
-  createTargetNode(
-    {
-      name: 'Local Docker',
-      type: 'docker-desktop',
-    },
-    { x: 100, y: 100 }
-  ),
-  createDatabaseNode(
-    {
-      name: 'PostgreSQL',
-      type: 'postgres',
-      version: '15',
-      ports: ['5432:5432'],
-    },
-    { x: 400, y: 100 }
-  ),
-];
+function CanvasEditorInner() {
+  const dispatch = useAppDispatch();
+  const nodes = useAppSelector(selectNodes);
+  const edges = useAppSelector(selectEdges);
+  const selectedTemplate = useAppSelector(selectSelectedTemplate);
+  const selectedNodeId = useAppSelector(selectSelectedNodeId);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const reactFlowInstance = useReactFlow();
+  const { screenToFlowPosition, project } = reactFlowInstance;
 
-const initialEdges: Edge[] = [];
+  // Auto-save: Canvas 변경 후 2초 뒤 자동 저장
+  const { isSaving, lastSaved } = useAutoSave(2000);
 
-export function CanvasEditor() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  // 초기 노드 설정 (첫 렌더링시만)
+  useEffect(() => {
+    if (nodes.length === 0) {
+      // 빈 캔버스로 시작 - 사용자가 직접 노드 추가
+      // 원하면 아래 주석 해제하여 샘플 노드 추가 가능
+      /*
+      dispatch(addNode(createTargetNode(
+        {
+          name: 'Local Docker',
+          type: 'docker-desktop',
+        },
+        { x: 100, y: 100 }
+      )));
 
-  const onConnect = useCallback((params: Edge | Connection) => {
-    setEdges((eds) => addEdge(params, eds));
-  }, [setEdges]);
-
-  const onDragOver = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
+      dispatch(addNode(createDatabaseNode(
+        {
+          name: 'PostgreSQL',
+          type: 'postgres',
+          version: '15',
+          ports: ['5432:5432'],
+        },
+        { x: 400, y: 100 }
+      )));
+      */
+    }
   }, []);
 
-  const onDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault();
+  // ESC 키로 템플릿 선택 취소, Del 키로 노드 삭제
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        dispatch(selectTemplate(null));
+        dispatch(selectNode(null));
+      } else if (e.key === 'Delete' && selectedNodeId) {
+        dispatch(deleteNode(selectedNodeId));
+      }
+    };
 
-      const type = event.dataTransfer.getData('application/reactflow');
-      if (typeof type === 'undefined' || !type) {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [dispatch, selectedNodeId]);
+
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    dispatch(handleNodesChange(changes));
+  }, [dispatch]);
+
+  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    dispatch(handleEdgesChange(changes));
+  }, [dispatch]);
+
+  const onConnect = useCallback((params: Edge | Connection) => {
+    dispatch(addEdgeAction(params));
+  }, [dispatch]);
+
+  // 캔버스 클릭 시 노드 추가
+  const onPaneClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (!selectedTemplate) return;
+
+      // ReactFlow 좌표계로 변환
+      const position = project({
+        x: event.clientX - (reactFlowWrapper.current?.getBoundingClientRect().left || 0),
+        y: event.clientY - (reactFlowWrapper.current?.getBoundingClientRect().top || 0),
+      });
+
+      const { type: nodeType, category } = selectedTemplate;
+      let newNode;
+
+      if (category === 'service') {
+        // 서비스 노드
+        const serviceData: any = {
+          name: nodeType.toUpperCase(),
+          serviceType: nodeType  // serviceType 추가
+        };
+
+        switch (nodeType) {
+          case 'react':
+            serviceData.build = './apps/react';
+            serviceData.ports = ['3000:80'];
+            break;
+          case 'spring':
+            serviceData.build = './apps/spring';
+            serviceData.ports = ['8080:8080'];
+            break;
+          case 'fastapi':
+            serviceData.build = './apps/fastapi';
+            serviceData.ports = ['8000:8000'];
+            break;
+          default:
+            serviceData.image = 'nginx:latest';
+            serviceData.ports = ['80:80'];
+        }
+
+        newNode = createServiceNode(serviceData, position);
+      } else if (category === 'database') {
+        // 데이터베이스 노드
+        const dbData: any = {
+          name: nodeType.toUpperCase(),
+          type: nodeType as 'mysql' | 'postgres' | 'redis' | 'mongodb'
+        };
+
+        switch (nodeType) {
+          case 'mysql':
+            dbData.version = '8.0';
+            dbData.ports = ['3306:3306'];
+            break;
+          case 'postgres':
+            dbData.version = '15';
+            dbData.ports = ['5432:5432'];
+            break;
+          case 'redis':
+            dbData.version = '7';
+            dbData.ports = ['6379:6379'];
+            break;
+          case 'mongodb':
+            dbData.version = '6';
+            dbData.ports = ['27017:27017'];
+            break;
+        }
+
+        newNode = createDatabaseNode(dbData, position);
+      } else if (category === 'target') {
+        // 타겟 노드
+        const targetData: any = {
+          name: nodeType === 'docker-local' ? 'Docker Local' : 'EC2',
+          type: nodeType === 'docker-local' ? 'docker-desktop' : 'ec2.ssh'
+        };
+
+        newNode = createTargetNode(targetData, position);
+      } else {
         return;
       }
 
-      const position = {
-        x: event.clientX - 200,
-        y: event.clientY - 100,
-      };
-
-      let newNode: CustomNode;
-
-      switch (type) {
-        case 'service':
-          newNode = createServiceNode({}, position);
-          break;
-        case 'target':
-          newNode = createTargetNode({}, position);
-          break;
-        case 'database':
-          newNode = createDatabaseNode({}, position);
-          break;
-        default:
-          return;
-      }
-
-      setNodes((nds) => nds.concat(newNode));
+      dispatch(addNode(newNode));
+      // 노드 추가 후 템플릿 선택 유지 (연속 추가 가능)
     },
-    [setNodes]
+    [dispatch, project, reactFlowWrapper, selectedTemplate]
   );
 
+  const onNodeClick = useCallback((event: React.MouseEvent, node: any) => {
+    dispatch(selectNode(node.id));
+  }, [dispatch]);
+
   return (
-    <div className="h-full w-full">
+    <div ref={reactFlowWrapper} className="h-full w-full">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
+        onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         fitView
+        deleteKeyCode={null}
+        style={{ cursor: selectedTemplate ? 'crosshair' : 'default' }}
       >
         <Controls />
         <MiniMap />
         <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
       </ReactFlow>
+      {selectedTemplate && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-10">
+          {selectedTemplate.type.toUpperCase()} 노드를 추가할 위치를 클릭하세요 (ESC로 취소)
+        </div>
+      )}
+
+      {/* Auto-save 인디케이터 */}
+      {isSaving && (
+        <div className="absolute top-4 right-4 bg-yellow-500 text-white px-3 py-1.5 rounded-lg shadow-lg z-10 flex items-center gap-2">
+          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          저장 중...
+        </div>
+      )}
+      {!isSaving && lastSaved && (
+        <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1.5 rounded-lg shadow-lg z-10 text-sm">
+          ✓ 저장됨 {lastSaved.toLocaleTimeString()}
+        </div>
+      )}
     </div>
+  );
+}
+
+export function CanvasEditor() {
+  return (
+    <ReactFlowProvider>
+      <CanvasEditorInner />
+    </ReactFlowProvider>
   );
 }

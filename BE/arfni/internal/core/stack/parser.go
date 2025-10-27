@@ -22,6 +22,11 @@ func Parse(filepath string) (*Stack, error) {
 	return &stack, nil
 }
 
+// ParseFile은 Parse의 별칭입니다 (호환성)
+func ParseFile(filepath string) (*Stack, error) {
+	return Parse(filepath)
+}
+
 // ParseBytes는 바이트 데이터를 파싱하여 Stack 구조체로 변환합니다
 func ParseBytes(data []byte) (*Stack, error) {
 	var stack Stack

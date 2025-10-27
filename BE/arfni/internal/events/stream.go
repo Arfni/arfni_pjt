@@ -49,9 +49,17 @@ func (s *Stream) Progress(message string, percent int) error {
 
 // Error emits an error event
 func (s *Stream) Error(message string, err error) error {
-	return s.Emit(TypeError, message, map[string]interface{}{
-		"error": err.Error(),
-	})
+	if err != nil {
+		return s.Emit(TypeError, message, map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+	return s.Emit(TypeError, message, nil)
+}
+
+// ErrorStr emits an error event with string message
+func (s *Stream) ErrorStr(message string) error {
+	return s.Emit(TypeError, message, nil)
 }
 
 // Log emits a log event
@@ -62,4 +70,9 @@ func (s *Stream) Log(message string) error {
 // Success emits a success event
 func (s *Stream) Success(message string) error {
 	return s.Emit(TypeSuccess, message, nil)
+}
+
+// Info emits an info/log event
+func (s *Stream) Info(message string) error {
+	return s.Emit(TypeLog, message, nil)
 }
