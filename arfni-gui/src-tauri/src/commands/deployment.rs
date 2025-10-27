@@ -198,33 +198,47 @@ pub fn check_docker_compose() -> Result<bool, String> {
 
 /// Go 바이너리 경로 찾기
 fn find_go_binary(app: &AppHandle) -> Result<String, String> {
+    use std::env;
+
     // OS별 실행 파일 확장자
     let extension = if cfg!(windows) { ".exe" } else { "" };
     let binary_name = format!("arfni-go{}", extension);
 
-    // 1. 절대 경로로 빌드된 Go 바이너리 시도
-    let absolute_go_path = Path::new("C:\\Users\\SSAFY\\Desktop\\code\\arfni_pjt\\BE\\arfni\\bin")
-        .join(&binary_name);
-    if absolute_go_path.exists() {
-        println!("✅ Found Go binary at: {:?}", absolute_go_path);
-        return Ok(absolute_go_path.to_string_lossy().to_string());
+    // 1. 환경변수 우선 확인
+    if let Ok(env_path) = env::var("ARFNI_GO_BINARY_PATH") {
+        let env_binary_path = Path::new(&env_path);
+        if env_binary_path.exists() {
+            println!("✅ Found Go binary from ARFNI_GO_BINARY_PATH: {:?}", env_binary_path);
+            return Ok(env_binary_path.to_string_lossy().to_string());
+        }
     }
 
-    // 2. 상대 경로로 시도 (개발 모드)
+    // 2. 프로젝트 루트 찾기 (현재 작업 디렉토리에서 .git 폴더 탐색)
+    if let Ok(current_dir) = env::current_dir() {
+        if let Some(project_root) = find_project_root(&current_dir) {
+            let root_based_path = project_root.join("BE").join("arfni").join("bin").join(&binary_name);
+            if root_based_path.exists() {
+                println!("✅ Found Go binary at project root: {:?}", root_based_path);
+                return Ok(root_based_path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    // 3. 상대 경로로 시도 (개발 모드 - Tauri 작업 디렉토리 기준)
     let relative_go_path = Path::new("../../BE/arfni/bin").join(&binary_name);
     if relative_go_path.exists() {
         println!("✅ Found Go binary at: {:?}", relative_go_path);
         return Ok(relative_go_path.to_string_lossy().to_string());
     }
 
-    // 3. 타겟 폴더 시도
+    // 4. 또 다른 상대 경로 시도
     let dev_go_path = Path::new("../BE/arfni/bin").join(&binary_name);
     if dev_go_path.exists() {
         println!("✅ Found Go binary at: {:?}", dev_go_path);
         return Ok(dev_go_path.to_string_lossy().to_string());
     }
 
-    // 4. 프로덕션 모드: resources/bin/
+    // 5. 프로덕션 모드: resources/bin/
     if let Ok(resource_path) = app.path().resource_dir() {
         let prod_path = resource_path.join("bin").join(&binary_name);
         if prod_path.exists() {
@@ -233,45 +247,60 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
         }
     }
 
-    Err(format!("Go 바이너리를 찾을 수 없습니다: {}. 경로를 확인하세요:\n  - {:?}\n  - {:?}",
-        binary_name, absolute_go_path, relative_go_path))
+    Err(format!("Go 바이너리를 찾을 수 없습니다: {}. 다음을 확인하세요:\n  1. ARFNI_GO_BINARY_PATH 환경변수 설정\n  2. BE/arfni/bin/{} 경로에 바이너리 존재 여부\n  3. Go 바이너리 빌드 완료 여부",
+        binary_name, binary_name))
+}
+
+/// 프로젝트 루트 디렉토리 찾기 (.git 폴더 탐색)
+fn find_project_root(start_path: &Path) -> Option<std::path::PathBuf> {
+    let mut current = start_path;
+
+    loop {
+        // .git 폴더가 있으면 프로젝트 루트로 간주
+        if current.join(".git").exists() {
+            return Some(current.to_path_buf());
+        }
+
+        // 부모 디렉토리로 이동
+        match current.parent() {
+            Some(parent) => current = parent,
+            None => return None, // 루트 디렉토리에 도달
+        }
+    }
 }
 
 /// Go 플러그인 경로 찾기 (레거시 - 사용하지 않음)
+#[allow(dead_code)]
 fn find_plugin_path(app: &AppHandle, plugin_name: &str) -> Result<String, String> {
     use tauri::Manager;
+    use std::env;
 
     // OS별 실행 파일 확장자
     let extension = if cfg!(windows) { ".exe" } else { "" };
 
-    // 1. 개발 모드: BE/arfni 바이너리 직접 사용
+    // 1. 프로젝트 루트에서 찾기
+    if let Ok(current_dir) = env::current_dir() {
+        if let Some(project_root) = find_project_root(&current_dir) {
+            let root_based_path = project_root.join("BE").join(format!("arfni{}", extension));
+            if root_based_path.exists() {
+                println!("✅ Found Go binary at project root: {:?}", root_based_path);
+                return Ok(root_based_path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    // 2. 개발 모드: 상대 경로로 BE/arfni 바이너리 찾기
     let be_path = Path::new("..").join("BE").join(format!("arfni{}", extension));
     if be_path.exists() {
         println!("✅ Found Go binary at: {:?}", be_path);
         return Ok(be_path.to_string_lossy().to_string());
     }
 
-    // 2. 상대 경로로 한 번 더 시도
+    // 3. 상대 경로로 한 번 더 시도
     let be_path_alt = Path::new("../../BE").join(format!("arfni{}", extension));
     if be_path_alt.exists() {
         println!("✅ Found Go binary at: {:?}", be_path_alt);
         return Ok(be_path_alt.to_string_lossy().to_string());
-    }
-
-    // 3. 절대 경로로 시도 (bin 폴더 - PowerShell 스크립트)
-    let absolute_be_path_ps1 = Path::new("C:\\Users\\SSAFY\\Desktop\\code\\arfni_pjt\\BE\\arfni\\bin")
-        .join("arfni.exe.ps1");
-    if absolute_be_path_ps1.exists() {
-        println!("✅ Found PowerShell script at: {:?}", absolute_be_path_ps1);
-        return Ok(absolute_be_path_ps1.to_string_lossy().to_string());
-    }
-
-    // 4. .exe 시도
-    let absolute_be_path = Path::new("C:\\Users\\SSAFY\\Desktop\\code\\arfni_pjt\\BE\\arfni\\bin")
-        .join(format!("arfni{}", extension));
-    if absolute_be_path.exists() {
-        println!("✅ Found Go binary at: {:?}", absolute_be_path);
-        return Ok(absolute_be_path.to_string_lossy().to_string());
     }
 
     // 4. 타겟 트리플 방식 (플러그인 폴더)
@@ -285,7 +314,7 @@ fn find_plugin_path(app: &AppHandle, plugin_name: &str) -> Result<String, String
 
     let plugin_filename = format!("{}-{}{}", plugin_name, target_triple, extension);
 
-    // 개발 모드: src-tauri/plugins/
+    // 5. 개발 모드: src-tauri/plugins/
     let dev_path = Path::new("src-tauri")
         .join("plugins")
         .join(plugin_name)
@@ -295,7 +324,7 @@ fn find_plugin_path(app: &AppHandle, plugin_name: &str) -> Result<String, String
         return Ok(dev_path.to_string_lossy().to_string());
     }
 
-    // 프로덕션 모드: resources/plugins/
+    // 6. 프로덕션 모드: resources/plugins/
     if let Ok(resource_path) = app.path().resource_dir() {
         let prod_path = resource_path
             .join("plugins")
@@ -307,8 +336,8 @@ fn find_plugin_path(app: &AppHandle, plugin_name: &str) -> Result<String, String
         }
     }
 
-    Err(format!("플러그인을 찾을 수 없습니다: {}. 경로를 확인하세요:\n  - {:?}\n  - {:?}\n  - {:?}",
-        plugin_name, be_path, be_path_alt, absolute_be_path))
+    Err(format!("플러그인을 찾을 수 없습니다: {}. 경로를 확인하세요:\n  - {:?}\n  - {:?}",
+        plugin_name, be_path, be_path_alt))
 }
 
 /// NDJSON 로그 파싱
