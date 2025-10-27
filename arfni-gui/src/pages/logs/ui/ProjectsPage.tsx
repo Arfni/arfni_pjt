@@ -1,8 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
-import { ArrowLeft, FolderOpen, Calendar, Server, Loader2, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, FolderOpen, Calendar, Server, Loader2, AlertCircle, RefreshCw, Trash2, X } from 'lucide-react';
 import { projectCommands, Project } from '@shared/api/tauri/commands';
-import { confirm } from '@tauri-apps/plugin-dialog';
+import { confirm, open } from '@tauri-apps/plugin-dialog';
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -11,6 +11,12 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingProjectPath, setDeletingProjectPath] = useState<string | null>(null);
+
+  // 프로젝트 생성 모달 상태
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectPath, setNewProjectPath] = useState('');
+  const [creating, setCreating] = useState(false);
 
   // 프로젝트 목록 로드 함수
   const loadProjects = useCallback(async () => {
@@ -103,6 +109,53 @@ export default function ProjectsPage() {
     }
   }, [deletingProjectPath]);
 
+  // 폴더 선택 핸들러
+  const handleSelectFolder = useCallback(async () => {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: '프로젝트 폴더 선택',
+    });
+
+    if (selected && typeof selected === 'string') {
+      setNewProjectPath(selected);
+    }
+  }, []);
+
+  // 프로젝트 생성 핸들러
+  const handleCreateProject = useCallback(async () => {
+    if (!newProjectName.trim()) {
+      alert('프로젝트 이름을 입력하세요.');
+      return;
+    }
+    if (!newProjectPath.trim()) {
+      alert('프로젝트 경로를 선택하세요.');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const project = await projectCommands.createProject(
+        newProjectName.trim(),
+        newProjectPath.trim()
+      );
+      console.log('프로젝트 생성 완료:', project);
+
+      // 모달 닫기 및 초기화
+      setShowCreateModal(false);
+      setNewProjectName('');
+      setNewProjectPath('');
+
+      // 빈 캔버스로 이동 (프로젝트 정보 전달)
+      navigate('/canvas', { state: { project } });
+    } catch (err) {
+      console.error('프로젝트 생성 실패:', err);
+      alert(`프로젝트 생성에 실패했습니다: ${err}`);
+    } finally {
+      setCreating(false);
+    }
+  }, [newProjectName, newProjectPath, navigate]);
+
   // 페이지 마운트 및 location 변경 시마다 목록 로드
   useEffect(() => {
     loadProjects();
@@ -137,7 +190,7 @@ export default function ProjectsPage() {
         <div className="mb-3 flex items-center justify-between flex-shrink-0">
           <p className="text-sm text-gray-600">Total {projects.length} projects</p>
           <button
-            onClick={() => navigate('/canvas')}
+            onClick={() => setShowCreateModal(true)}
             className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 text-sm"
           >
             Create New Project
@@ -262,6 +315,86 @@ export default function ProjectsPage() {
           </div>
         )}
       </main>
+
+      {/* 프로젝트 생성 모달 */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold">새 프로젝트 만들기</h2>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewProjectName('');
+                  setNewProjectPath('');
+                }}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  프로젝트 이름
+                </label>
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="프로젝트 이름을 입력하세요"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={creating}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  프로젝트 경로
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newProjectPath}
+                    readOnly
+                    placeholder="폴더를 선택하세요"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleSelectFolder}
+                    disabled={creating}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    찾아보기
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-6 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewProjectName('');
+                  setNewProjectPath('');
+                }}
+                disabled={creating}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleCreateProject}
+                disabled={creating || !newProjectName.trim() || !newProjectPath.trim()}
+                className="flex-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {creating ? '생성 중...' : '생성'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
