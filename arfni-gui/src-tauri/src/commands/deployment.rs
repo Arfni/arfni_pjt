@@ -83,6 +83,21 @@ pub async fn deploy_stack(
     // 새 스레드에서 배포 실행
     let app_clone = app.clone();
     std::thread::spawn(move || {
+        // 디버깅: 실행할 명령어 정보 출력
+        app_clone.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: format!("Go 바이너리 실행: {}", go_binary_path),
+            data: None,
+        }).unwrap_or(());
+
+        app_clone.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: format!("프로젝트 경로: {}", project_path),
+            data: None,
+        }).unwrap_or(());
+
         // 배포 명령 실행 - Go 바이너리 직접 실행
         let mut cmd = Command::new(&go_binary_path)
             .arg("run")
@@ -97,26 +112,59 @@ pub async fn deploy_stack(
 
         match cmd {
             Ok(mut child) => {
-                // stdout 읽기
-                if let Some(stdout) = child.stdout.take() {
-                    let reader = BufReader::new(stdout);
-                    for line in reader.lines() {
-                        if let Ok(line) = line {
-                            // NDJSON 파싱 시도
-                            if let Ok(log_entry) = parse_ndjson_log(&line) {
-                                // 로그 이벤트 전송
-                                app_clone.emit("deployment-log", log_entry).unwrap_or(());
-                            } else {
-                                // 일반 텍스트 로그
-                                app_clone.emit("deployment-log", DeploymentLog {
+                // stdout과 stderr를 동시에 읽기 위해 스레드 사용
+                let stdout = child.stdout.take();
+                let stderr = child.stderr.take();
+                let app_clone_stdout = app_clone.clone();
+                let app_clone_stderr = app_clone.clone();
+
+                // stdout 읽기 스레드
+                let stdout_handle = stdout.map(|stdout| {
+                    std::thread::spawn(move || {
+                        let reader = BufReader::new(stdout);
+                        for line in reader.lines() {
+                            if let Ok(line) = line {
+                                // NDJSON 파싱 시도
+                                if let Ok(log_entry) = parse_ndjson_log(&line) {
+                                    app_clone_stdout.emit("deployment-log", log_entry).unwrap_or(());
+                                } else {
+                                    // 일반 텍스트 로그
+                                    app_clone_stdout.emit("deployment-log", DeploymentLog {
+                                        timestamp: chrono::Utc::now().to_rfc3339(),
+                                        level: "info".to_string(),
+                                        message: line,
+                                        data: None,
+                                    }).unwrap_or(());
+                                }
+                            }
+                        }
+                    })
+                });
+
+                // stderr 읽기 스레드
+                let stderr_handle = stderr.map(|stderr| {
+                    std::thread::spawn(move || {
+                        let reader = BufReader::new(stderr);
+                        for line in reader.lines() {
+                            if let Ok(line) = line {
+                                // stderr는 에러 레벨로 처리
+                                app_clone_stderr.emit("deployment-log", DeploymentLog {
                                     timestamp: chrono::Utc::now().to_rfc3339(),
-                                    level: "info".to_string(),
+                                    level: "error".to_string(),
                                     message: line,
                                     data: None,
                                 }).unwrap_or(());
                             }
                         }
-                    }
+                    })
+                });
+
+                // 스레드 종료 대기
+                if let Some(handle) = stdout_handle {
+                    let _ = handle.join();
+                }
+                if let Some(handle) = stderr_handle {
+                    let _ = handle.join();
                 }
 
                 // 프로세스 종료 대기
