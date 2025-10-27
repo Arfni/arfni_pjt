@@ -59,15 +59,47 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
     }
   };
 
-  const simulateDockerValidation = () => {
+  const simulateDockerValidation = async () => {
     setIsValidating(true);
     setValidationSuccess(false);
+    setValidationFailed(false);
+    setValidationError('');
 
-    // 2초 후 성공
-    setTimeout(() => {
+    try {
+      // 1. Docker 설치 확인
+      const dockerInstalled = await invoke<boolean>('check_docker');
+      if (!dockerInstalled) {
+        setIsValidating(false);
+        setValidationFailed(true);
+        setValidationError('Docker가 설치되어 있지 않습니다. Docker Desktop을 설치해주세요.');
+        return;
+      }
+
+      // 2. Docker 실행 확인
+      try {
+        await invoke<boolean>('check_docker_running');
+      } catch (error) {
+        setIsValidating(false);
+        setValidationFailed(true);
+        setValidationError(String(error));
+        return;
+      }
+
+      // 3. Docker Compose 확인 (선택적)
+      const composeAvailable = await invoke<boolean>('check_docker_compose');
+      if (!composeAvailable) {
+        console.warn('Docker Compose를 사용할 수 없습니다. 일부 기능이 제한될 수 있습니다.');
+      }
+
+      // 모든 검증 성공
       setIsValidating(false);
       setValidationSuccess(true);
-    }, 2000);
+    } catch (error) {
+      setIsValidating(false);
+      setValidationFailed(true);
+      setValidationError(`Docker 검증 실패: ${error}`);
+      console.error('Docker validation failed:', error);
+    }
   };
 
   const simulateEC2Validation = async () => {
@@ -112,7 +144,7 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
       console.log('PEM 파일 경로:', pemFilePath);
     }
     handleClose();
-    navigate('/logs');
+    navigate('/projects');
   };
 
   const handleRemoteFormSubmit = () => {

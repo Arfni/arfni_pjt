@@ -194,6 +194,22 @@ pub fn check_docker_compose() -> Result<bool, String> {
     }
 }
 
+/// Docker 데몬 실행 상태 확인
+#[tauri::command]
+pub fn check_docker_running() -> Result<bool, String> {
+    match Command::new("docker").arg("ps").output() {
+        Ok(output) => {
+            if output.status.success() {
+                Ok(true)
+            } else {
+                let error = String::from_utf8_lossy(&output.stderr);
+                Err(format!("Docker 데몬이 실행되고 있지 않습니다: {}", error.trim()))
+            }
+        }
+        Err(e) => Err(format!("Docker 실행 상태 확인 실패: {}", e)),
+    }
+}
+
 // 헬퍼 함수들
 
 /// Go 바이너리 경로 찾기

@@ -38,6 +38,7 @@ fn main() {
       commands::deployment::stop_deployment,
       commands::deployment::check_docker,
       commands::deployment::check_docker_compose,
+      commands::deployment::check_docker_running,
 
       // 파일 감시 명령어
       commands::file_watcher::watch_stack_yaml,

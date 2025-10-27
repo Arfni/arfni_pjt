@@ -36,7 +36,7 @@ export default function ProjectsPage() {
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/logs')}
+            onClick={() => navigate('/')}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -50,7 +50,7 @@ export default function ProjectsPage() {
         <div className="mb-3 flex items-center justify-between flex-shrink-0">
           <p className="text-sm text-gray-600">Total {projects.length} projects</p>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/canvas')}
             className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 text-sm"
           >
             Create New Project
@@ -101,6 +101,7 @@ export default function ProjectsPage() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    navigate('/logs')
                     console.log('View logs:', project.name);
                   }}
                   className="flex-1 px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
@@ -114,7 +115,7 @@ export default function ProjectsPage() {
                   }}
                   className="flex-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                 >
-                  Edit
+                  Edit In Canvas
                 </button>
               </div>
             </div>
