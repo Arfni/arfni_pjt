@@ -50,50 +50,53 @@ export function YamlEditor() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div className="h-full flex flex-col bg-white border-b border-gray-200">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
-        <h3 className="text-sm font-semibold text-gray-200">stack.yaml</h3>
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-gray-800">Stack.yaml</h3>
+        </div>
+        <div className="flex gap-1">
           <button
             onClick={handleCopy}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
             title="Copy to clipboard"
           >
-            <Copy className="w-4 h-4" />
+            <Copy className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={handleDownload}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
             title="Download YAML"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {/* Copy success message */}
       {copied && (
-        <div className="px-4 py-2 bg-green-600 text-white text-sm">
+        <div className="px-3 py-1.5 bg-green-50 border-b border-green-200 text-green-700 text-xs">
           ✓ Copied to clipboard!
         </div>
       )}
 
-      {/* YAML Content */}
-      <div className="flex-1 overflow-y-auto overflow-x-auto">
-        <pre className="p-4 text-sm font-mono text-gray-100 whitespace-pre">
-          {yamlContent}
-        </pre>
-      </div>
-
-      {/* Footer info */}
-      <div className="px-4 py-2 bg-gray-800 border-t border-gray-700 text-xs text-gray-400">
-        <span>{yamlContent.split('\n').length} lines</span>
-        {currentProject && (
-          <span className="ml-4">
-            Project: <span className="text-gray-300">{currentProject.name}</span>
-          </span>
-        )}
+      {/* YAML Content with line numbers */}
+      <div className="flex-1 overflow-y-auto overflow-x-auto bg-white">
+        <div className="flex text-xs font-mono">
+          {/* Line Numbers */}
+          <div className="bg-gray-50 border-r border-gray-200 px-2 py-3 text-gray-400 select-none">
+            {yamlContent.split('\n').map((_, i) => (
+              <div key={i} className="text-right leading-5">
+                {i + 1}
+              </div>
+            ))}
+          </div>
+          {/* Content */}
+          <pre className="flex-1 px-3 py-3 text-gray-800 leading-5 whitespace-pre">
+            {yamlContent}
+          </pre>
+        </div>
       </div>
     </div>
   );

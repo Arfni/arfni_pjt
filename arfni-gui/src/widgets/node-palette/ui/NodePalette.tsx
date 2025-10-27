@@ -1,158 +1,211 @@
-import { Database, Server, Globe, Container } from 'lucide-react';
+import { useState } from 'react';
+import { Search } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { selectTemplate, selectSelectedTemplate } from '@features/canvas';
+
+import postgresqlImg from '../../../assets/postgresql.png';
+import mysqlImg from '../../../assets/mysql.png';
+import redisImg from '../../../assets/redis.png';
+import mongodbImg from '../../../assets/mongodb.png';
+import reactImg from '../../../assets/react.png';
+import springbootImg from '../../../assets/springboot.png';
+import nodejsImg from '../../../assets/nodejs.png';
+import nextjsImg from '../../../assets/nextjs.png';
+import pythonImg from '../../../assets/python.png';
 
 interface NodeTemplate {
   type: string;
   label: string;
-  icon: React.ReactNode;
-  category: 'service' | 'database' | 'target';
-  color: string;
+  description: string;
+  icon: string;
+  category: 'runtime' | 'database' | 'infra' | 'monitor';
 }
 
 const nodeTemplates: NodeTemplate[] = [
-  // Targets
-  {
-    type: 'docker-local',
-    label: 'Docker Local',
-    icon: <Container className="w-5 h-5" />,
-    category: 'target',
-    color: 'bg-blue-500',
-  },
-  {
-    type: 'ec2',
-    label: 'EC2 Instance',
-    icon: <Server className="w-5 h-5" />,
-    category: 'target',
-    color: 'bg-orange-500',
-  },
-
-  // Services
-  {
-    type: 'react',
-    label: 'React App',
-    icon: <Globe className="w-5 h-5" />,
-    category: 'service',
-    color: 'bg-cyan-500',
-  },
-  {
-    type: 'spring',
-    label: 'Spring Boot',
-    icon: <Server className="w-5 h-5" />,
-    category: 'service',
-    color: 'bg-green-500',
-  },
-  {
-    type: 'fastapi',
-    label: 'FastAPI',
-    icon: <Server className="w-5 h-5" />,
-    category: 'service',
-    color: 'bg-teal-500',
-  },
-
-  // Databases
-  {
-    type: 'mysql',
-    label: 'MySQL',
-    icon: <Database className="w-5 h-5" />,
-    category: 'database',
-    color: 'bg-blue-600',
-  },
+  // DB
   {
     type: 'postgres',
     label: 'PostgreSQL',
-    icon: <Database className="w-5 h-5" />,
+    description: 'Leading RDBMS',
+    icon: postgresqlImg,
     category: 'database',
-    color: 'bg-indigo-600',
+  },
+  {
+    type: 'mysql',
+    label: 'MySQL',
+    description: 'Open-source DB',
+    icon: mysqlImg,
+    category: 'database',
   },
   {
     type: 'redis',
     label: 'Redis',
-    icon: <Database className="w-5 h-5" />,
+    description: 'In-memory cache',
+    icon: redisImg,
     category: 'database',
-    color: 'bg-red-500',
   },
   {
     type: 'mongodb',
     label: 'MongoDB',
-    icon: <Database className="w-5 h-5" />,
+    description: 'Document NoSQL',
+    icon: mongodbImg,
     category: 'database',
-    color: 'bg-green-600',
+  },
+
+  // Runtime
+  {
+    type: 'react',
+    label: 'React',
+    description: 'Frontend library',
+    icon: reactImg,
+    category: 'runtime',
+  },
+  {
+    type: 'nextjs',
+    label: 'Next.js',
+    description: 'React framework',
+    icon: nextjsImg,
+    category: 'runtime',
+  },
+  {
+    type: 'spring',
+    label: 'Spring Boot',
+    description: 'Java framework',
+    icon: springbootImg,
+    category: 'runtime',
+  },
+  {
+    type: 'nodejs',
+    label: 'Node.js',
+    description: 'JavaScript runtime',
+    icon: nodejsImg,
+    category: 'runtime',
+  },
+  {
+    type: 'python',
+    label: 'Python',
+    description: 'Python runtime',
+    icon: pythonImg,
+    category: 'runtime',
   },
 ];
+
+type TabKey = 'DB' | 'Runtime' | 'Infra' | 'Monitor';
+
+const tabCategories: Record<TabKey, 'database' | 'runtime' | 'infra' | 'monitor'> = {
+  DB: 'database',
+  Runtime: 'runtime',
+  Infra: 'infra',
+  Monitor: 'monitor',
+};
 
 export function NodePalette() {
   const dispatch = useAppDispatch();
   const selectedTemplate = useAppSelector(selectSelectedTemplate);
+  const [activeTab, setActiveTab] = useState<TabKey>('DB');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const handleTemplateClick = (nodeType: string, category: 'service' | 'database' | 'target') => {
-    // 같은 템플릿을 다시 클릭하면 선택 해제
-    if (selectedTemplate?.type === nodeType && selectedTemplate?.category === category) {
+  const handleTemplateClick = (nodeType: string, category: 'runtime' | 'database' | 'infra' | 'monitor') => {
+    // Map category to canvas category
+    const canvasCategory = category === 'database' ? 'database' : category === 'runtime' ? 'service' : 'target';
+
+    if (selectedTemplate?.type === nodeType) {
       dispatch(selectTemplate(null));
     } else {
-      dispatch(selectTemplate({ type: nodeType, category }));
+      dispatch(selectTemplate({ type: nodeType, category: canvasCategory as any }));
     }
   };
 
-  const categories = [
-    { key: 'target', label: 'Deployment Targets' },
-    { key: 'service', label: 'Services' },
-    { key: 'database', label: 'Databases' },
-  ];
+  const onDragStart = (event: React.DragEvent, nodeType: string, category: 'runtime' | 'database' | 'infra' | 'monitor') => {
+    const canvasCategory = category === 'database' ? 'database' : category === 'runtime' ? 'service' : 'target';
+    event.dataTransfer.setData('application/reactflow', JSON.stringify({ type: nodeType, category: canvasCategory }));
+    event.dataTransfer.effectAllowed = 'move';
+  };
+
+  const filteredNodes = nodeTemplates
+    .filter((node) => node.category === tabCategories[activeTab])
+    .filter((node) =>
+      node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      node.description.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
   return (
-    <div className="w-64 bg-gray-50 border-r border-gray-200 p-4 overflow-y-auto">
-      <h2 className="text-lg font-semibold mb-4 text-gray-800">Components</h2>
+    <div className="w-52 bg-white border-r border-gray-200 flex flex-col">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-200">
+        <h2 className="text-base font-semibold text-gray-800">Blocks</h2>
+      </div>
 
-      {selectedTemplate && (
-        <div className="mb-4 p-2 bg-blue-100 border border-blue-300 rounded text-sm text-blue-800">
-          <p className="font-medium">선택됨: {selectedTemplate.type.toUpperCase()}</p>
-          <p className="text-xs">캔버스를 클릭하여 추가하세요</p>
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200">
+        {(['DB', 'Runtime', 'Infra', 'Monitor'] as TabKey[]).map((tab) => (
           <button
-            onClick={() => dispatch(selectTemplate(null))}
-            className="mt-1 text-xs underline hover:text-blue-900"
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`
+              flex-1 px-3 py-2 text-xs font-medium transition-colors
+              ${activeTab === tab
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+              }
+            `}
           >
-            선택 취소 (ESC)
+            {tab}
           </button>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {categories.map((category) => (
-        <div key={category.key} className="mb-6">
-          <h3 className="text-sm font-medium text-gray-600 mb-2">{category.label}</h3>
-          <div className="space-y-2">
-            {nodeTemplates
-              .filter((node) => node.category === category.key)
-              .map((node) => {
-                const isSelected = selectedTemplate?.type === node.type && selectedTemplate?.category === node.category;
-                return (
-                  <div
-                    key={node.type}
-                    onClick={() => handleTemplateClick(node.type, node.category)}
-                    className={`
-                      ${node.color} text-white
-                      p-3 rounded-lg cursor-pointer
-                      flex items-center gap-2
-                      hover:opacity-80 transition-all
-                      shadow-sm
-                      ${isSelected ? 'ring-4 ring-blue-400 scale-105' : ''}
-                    `}
-                  >
-                    {node.icon}
-                    <span className="text-sm font-medium">
+      {/* Search */}
+      <div className="px-3 py-2 border-b border-gray-200">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Block Search..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+      </div>
+
+      {/* Block List */}
+      <div className="flex-1 overflow-y-auto px-3 py-2">
+        <div className="space-y-2">
+          {filteredNodes.map((node) => {
+            const isSelected = selectedTemplate?.type === node.type;
+            return (
+              <div
+                key={node.type}
+                draggable
+                onDragStart={(e) => onDragStart(e, node.type, node.category)}
+                onClick={() => handleTemplateClick(node.type, node.category)}
+                className={`
+                  bg-white border rounded-lg p-2.5 cursor-grab active:cursor-grabbing
+                  hover:shadow-md hover:border-blue-300 transition-all
+                  ${isSelected ? 'border-blue-500 shadow-md ring-2 ring-blue-200' : 'border-gray-200'}
+                `}
+              >
+                <div className="flex items-start gap-2">
+                  <img src={node.icon} alt={node.label} className="w-8 h-8 flex-shrink-0 pointer-events-none" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-gray-900 truncate">
                       {node.label}
-                    </span>
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">
+                      {node.description}
+                    </div>
                   </div>
-                );
-              })}
-          </div>
+                </div>
+              </div>
+            );
+          })}
+          {filteredNodes.length === 0 && (
+            <div className="text-center py-8 text-sm text-gray-500">
+              No blocks found
+            </div>
+          )}
         </div>
-      ))}
-
-      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-xs text-blue-800">
-          💡 컴포넌트를 클릭한 후 캔버스를 클릭하여 추가하세요
-        </p>
       </div>
     </div>
   );

@@ -5,20 +5,30 @@ import { DynamicPropertyForm } from '@features/canvas/ui/DynamicPropertyForm';
 export function PropertyPanel() {
   const selectedNode = useAppSelector(selectSelectedNode);
 
-  console.log('PropertyPanel - selectedNode:', selectedNode);
-
   return (
-    <div className="h-full bg-gray-50 flex flex-col">
-      {selectedNode ? (
-        <DynamicPropertyForm node={selectedNode} />
-      ) : (
-        <div className="flex-1 flex items-center justify-center p-4 text-gray-500">
-          <div className="text-center">
-            <p className="text-lg font-medium mb-2">No Node Selected</p>
-            <p className="text-sm">Click on a node in the canvas to edit its properties</p>
+    <div className="h-full bg-white flex flex-col">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-200">
+        <h2 className="text-base font-semibold text-gray-800">Properties</h2>
+        {selectedNode && (
+          <p className="text-xs text-gray-500 mt-1">
+            {selectedNode.data.name || 'Unnamed'} Configuration
+          </p>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        {selectedNode ? (
+          <DynamicPropertyForm node={selectedNode} />
+        ) : (
+          <div className="flex items-center justify-center h-full p-4 text-gray-400">
+            <div className="text-center">
+              <p className="text-sm">Select a node to edit properties</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

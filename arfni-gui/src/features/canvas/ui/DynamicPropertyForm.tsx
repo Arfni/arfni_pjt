@@ -68,10 +68,10 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
   };
 
   return (
-    <div className="dynamic-property-form" style={{ padding: '1rem', overflowY: 'auto' }}>
-      <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem', fontWeight: 600 }}>
-        {config.name} Configuration
-      </h3>
+    <div className="dynamic-property-form p-4 space-y-4">
+      <div className="pb-3 border-b border-gray-200">
+        <h3 className="text-sm font-semibold text-gray-700">Basic Information</h3>
+      </div>
 
       {/* Service Name */}
       <FormField label="Service Name" required>
@@ -144,9 +144,9 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
       {/* Required Environment Variables */}
       {config.requiredEnvVars && config.requiredEnvVars.length > 0 && (
         <>
-          <h4 style={{ marginTop: '1.5rem', marginBottom: '0.75rem', fontSize: '0.95rem', fontWeight: 600 }}>
-            Environment Variables
-          </h4>
+          <div className="pt-4 pb-2 border-t border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-700">Environment Variables</h4>
+          </div>
           {config.requiredEnvVars.map((envVar) => {
             const currentValue = data.env?.[envVar.key] || envVar.defaultValue || '';
 
@@ -230,9 +230,9 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
       {/* Additional Fields (service-specific) */}
       {config.additionalFields && config.additionalFields.length > 0 && (
         <>
-          <h4 style={{ marginTop: '1.5rem', marginBottom: '0.75rem', fontSize: '0.95rem', fontWeight: 600 }}>
-            Additional Settings
-          </h4>
+          <div className="pt-4 pb-2 border-t border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-700">Additional Settings</h4>
+          </div>
           {config.additionalFields.map((field) => {
             const currentValue = (data as any)[field.key] || field.defaultValue || '';
 

@@ -115,7 +115,115 @@ function CanvasEditorInner() {
     dispatch(addEdgeAction(params));
   }, [dispatch]);
 
-  // 캔버스 클릭 시 노드 추가
+  // 드래그 오버 처리
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  // 드롭 처리
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const data = event.dataTransfer.getData('application/reactflow');
+      if (!data) return;
+
+      const { type: nodeType, category } = JSON.parse(data);
+
+      if (!reactFlowWrapper.current) return;
+
+      const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
+      const position = project({
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
+      });
+
+      let newNode;
+
+      if (category === 'service') {
+        // 서비스 노드
+        const serviceData: any = {
+          name: nodeType.toUpperCase(),
+          serviceType: nodeType
+        };
+
+        switch (nodeType) {
+          case 'react':
+            serviceData.build = './apps/react';
+            serviceData.ports = ['3000:80'];
+            break;
+          case 'nextjs':
+            serviceData.build = './apps/nextjs';
+            serviceData.ports = ['3000:3000'];
+            break;
+          case 'spring':
+            serviceData.build = './apps/spring';
+            serviceData.ports = ['8080:8080'];
+            break;
+          case 'nodejs':
+            serviceData.build = './apps/nodejs';
+            serviceData.ports = ['3000:3000'];
+            break;
+          case 'python':
+            serviceData.build = './apps/python';
+            serviceData.ports = ['8000:8000'];
+            break;
+          case 'fastapi':
+            serviceData.build = './apps/fastapi';
+            serviceData.ports = ['8000:8000'];
+            break;
+          default:
+            serviceData.image = 'nginx:latest';
+            serviceData.ports = ['80:80'];
+        }
+
+        newNode = createServiceNode(serviceData, position);
+      } else if (category === 'database') {
+        // 데이터베이스 노드
+        const dbData: any = {
+          name: nodeType.toUpperCase(),
+          type: nodeType as 'mysql' | 'postgres' | 'redis' | 'mongodb'
+        };
+
+        switch (nodeType) {
+          case 'mysql':
+            dbData.version = '8.0';
+            dbData.ports = ['3306:3306'];
+            break;
+          case 'postgres':
+            dbData.version = '15';
+            dbData.ports = ['5432:5432'];
+            break;
+          case 'redis':
+            dbData.version = '7';
+            dbData.ports = ['6379:6379'];
+            break;
+          case 'mongodb':
+            dbData.version = '6';
+            dbData.ports = ['27017:27017'];
+            break;
+        }
+
+        newNode = createDatabaseNode(dbData, position);
+      } else if (category === 'target') {
+        // 타겟 노드
+        const targetData: any = {
+          name: nodeType === 'docker-local' ? 'Docker Local' : 'EC2',
+          type: nodeType === 'docker-local' ? 'docker-desktop' : 'ec2.ssh'
+        };
+
+        newNode = createTargetNode(targetData, position);
+      } else {
+        return;
+      }
+
+      dispatch(addNode(newNode as any));
+    },
+    [dispatch, project]
+  );
+
+  // 캔버스 클릭 시 노드 추가 (클릭 방식 유지)
   const onPaneClick = useCallback(
     (event: React.MouseEvent) => {
       if (!selectedTemplate) return;
@@ -141,9 +249,21 @@ function CanvasEditorInner() {
             serviceData.build = './apps/react';
             serviceData.ports = ['3000:80'];
             break;
+          case 'nextjs':
+            serviceData.build = './apps/nextjs';
+            serviceData.ports = ['3000:3000'];
+            break;
           case 'spring':
             serviceData.build = './apps/spring';
             serviceData.ports = ['8080:8080'];
+            break;
+          case 'nodejs':
+            serviceData.build = './apps/nodejs';
+            serviceData.ports = ['3000:3000'];
+            break;
+          case 'python':
+            serviceData.build = './apps/python';
+            serviceData.ports = ['8000:8000'];
             break;
           case 'fastapi':
             serviceData.build = './apps/fastapi';
@@ -205,7 +325,12 @@ function CanvasEditorInner() {
   }, [dispatch]);
 
   return (
-    <div ref={reactFlowWrapper} className="h-full w-full">
+    <div
+      ref={reactFlowWrapper}
+      className="h-full w-full bg-gray-50"
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -218,26 +343,37 @@ function CanvasEditorInner() {
         fitView
         deleteKeyCode={null}
         style={{ cursor: selectedTemplate ? 'crosshair' : 'default' }}
+        defaultEdgeOptions={{
+          type: 'smoothstep',
+          style: { strokeWidth: 2, stroke: '#94a3b8' },
+        }}
       >
-        <Controls />
-        <MiniMap />
-        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+        <Controls className="!bg-white !border !border-gray-200 !shadow-md" />
+        <MiniMap
+          className="!bg-white !border !border-gray-200 !shadow-md"
+          nodeColor={(node) => {
+            if (node.type === 'database') return '#3b82f6';
+            if (node.type === 'service') return '#06b6d4';
+            return '#6b7280';
+          }}
+        />
+        <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#d1d5db" />
       </ReactFlow>
       {selectedTemplate && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-10">
-          {selectedTemplate.type.toUpperCase()} 노드를 추가할 위치를 클릭하세요 (ESC로 취소)
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-10 text-sm">
+          {selectedTemplate.type.toUpperCase()} 블록을 추가할 위치를 클릭하세요 (ESC로 취소)
         </div>
       )}
 
       {/* Auto-save 인디케이터 */}
       {isSaving && (
-        <div className="absolute top-4 right-4 bg-yellow-500 text-white px-3 py-1.5 rounded-lg shadow-lg z-10 flex items-center gap-2">
-          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        <div className="absolute top-4 right-4 bg-white border border-yellow-300 text-yellow-700 px-3 py-1.5 rounded-lg shadow-md z-10 flex items-center gap-2 text-sm">
+          <div className="w-3 h-3 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
           저장 중...
         </div>
       )}
       {!isSaving && lastSaved && (
-        <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1.5 rounded-lg shadow-lg z-10 text-sm">
+        <div className="absolute top-4 right-4 bg-white border border-green-300 text-green-700 px-3 py-1.5 rounded-lg shadow-md z-10 text-sm">
           ✓ 저장됨 {lastSaved.toLocaleTimeString()}
         </div>
       )}
