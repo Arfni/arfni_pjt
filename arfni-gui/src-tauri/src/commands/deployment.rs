@@ -266,6 +266,7 @@ pub fn check_docker_compose() -> Result<bool, String> {
 /// Go 바이너리 경로 찾기
 fn find_go_binary(app: &AppHandle) -> Result<String, String> {
     use std::env;
+    use tauri::Manager;
 
     // OS별 실행 파일 확장자
     let extension = if cfg!(windows) { ".exe" } else { "" };
@@ -280,7 +281,19 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
         }
     }
 
-    // 2. 프로젝트 루트 찾기 (현재 작업 디렉토리에서 .git 폴더 탐색)
+    // 2. 프로덕션 모드: Tauri sidecar (번들에 포함된 바이너리)
+    // externalBin으로 패키징되면 자동으로 여기서 찾아짐
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        // Windows: resources/arfni-go.exe
+        // Linux/Mac: resources/arfni-go
+        let sidecar_path = resource_dir.join(&binary_name);
+        if sidecar_path.exists() {
+            println!("✅ Found Go binary as sidecar: {:?}", sidecar_path);
+            return Ok(sidecar_path.to_string_lossy().to_string());
+        }
+    }
+
+    // 3. 프로젝트 루트 찾기 (개발 모드)
     if let Ok(current_dir) = env::current_dir() {
         if let Some(project_root) = find_project_root(&current_dir) {
             let root_based_path = project_root.join("BE").join("arfni").join("bin").join(&binary_name);
@@ -291,30 +304,21 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
         }
     }
 
-    // 3. 상대 경로로 시도 (개발 모드 - Tauri 작업 디렉토리 기준)
+    // 4. 상대 경로로 시도 (개발 모드)
     let relative_go_path = Path::new("../../BE/arfni/bin").join(&binary_name);
     if relative_go_path.exists() {
         println!("✅ Found Go binary at: {:?}", relative_go_path);
         return Ok(relative_go_path.to_string_lossy().to_string());
     }
 
-    // 4. 또 다른 상대 경로 시도
+    // 5. 또 다른 상대 경로 시도
     let dev_go_path = Path::new("../BE/arfni/bin").join(&binary_name);
     if dev_go_path.exists() {
         println!("✅ Found Go binary at: {:?}", dev_go_path);
         return Ok(dev_go_path.to_string_lossy().to_string());
     }
 
-    // 5. 프로덕션 모드: resources/bin/
-    if let Ok(resource_path) = app.path().resource_dir() {
-        let prod_path = resource_path.join("bin").join(&binary_name);
-        if prod_path.exists() {
-            println!("✅ Found Go binary at: {:?}", prod_path);
-            return Ok(prod_path.to_string_lossy().to_string());
-        }
-    }
-
-    Err(format!("Go 바이너리를 찾을 수 없습니다: {}. 다음을 확인하세요:\n  1. ARFNI_GO_BINARY_PATH 환경변수 설정\n  2. BE/arfni/bin/{} 경로에 바이너리 존재 여부\n  3. Go 바이너리 빌드 완료 여부",
+    Err(format!("Go 바이너리를 찾을 수 없습니다: {}. 다음을 확인하세요:\n  1. ARFNI_GO_BINARY_PATH 환경변수 설정\n  2. BE/arfni/bin/{} 경로에 바이너리 존재 여부\n  3. Go 바이너리 빌드 완료 여부\n  4. 프로덕션 빌드인 경우 externalBin 설정 확인",
         binary_name, binary_name))
 }
 
