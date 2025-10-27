@@ -36,6 +36,7 @@ fn main() {
       commands::deployment::validate_stack_yaml,
       commands::deployment::deploy_stack,
       commands::deployment::stop_deployment,
+      commands::deployment::reset_deployment_state,
       commands::deployment::check_docker,
       commands::deployment::check_docker_compose,
 
