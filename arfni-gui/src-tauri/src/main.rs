@@ -20,6 +20,8 @@ fn main() {
 
       // 플러그인 명령어
       commands::plugin::run_plugin,
+      commands::plugin::run_plugin_with_args,
+      commands::plugin::run_plugin_with_mode,
       commands::plugin_check::list_targets,
       commands::plugin_check::read_plugins,
 

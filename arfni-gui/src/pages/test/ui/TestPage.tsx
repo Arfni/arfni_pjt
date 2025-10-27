@@ -245,6 +245,13 @@ export default function TestPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-xl font-semibold">테스트 페이지</h1>
+
+          <button
+              onClick={() => navigate("/test2")}
+              className="ml-auto px-3 py-1 border rounded hover:bg-gray-100 text-sm"
+              title="PluginRunner 페이지로 이동">
+              Plugin Runner
+          </button>
           <button
             onClick={testDialog}
             className="ml-auto flex items-center gap-1 px-2 py-1 border rounded hover:bg-gray-100 text-sm"
