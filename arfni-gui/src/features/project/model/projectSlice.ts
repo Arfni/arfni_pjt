@@ -28,7 +28,7 @@ const initialState: ProjectState = {
 // Async Thunks
 export const createProject = createAsyncThunk(
   'project/create',
-  async (params: { name: string; path: string; description?: string }, { dispatch }) => {
+  async (params: { name: string; path: string; description?: string }) => {
     const project = await projectCommands.createProject(
       params.name,
       params.path,

@@ -54,7 +54,7 @@ function CanvasEditorInner() {
   const selectedNodeId = useAppSelector(selectSelectedNodeId);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useReactFlow();
-  const { screenToFlowPosition, project } = reactFlowInstance;
+  const { project } = reactFlowInstance;
 
   // Auto-save: Canvas 변경 후 2초 뒤 자동 저장
   const { isSaving, lastSaved } = useAutoSave(2000);
@@ -194,13 +194,13 @@ function CanvasEditorInner() {
         return;
       }
 
-      dispatch(addNode(newNode));
+      dispatch(addNode(newNode as any));
       // 노드 추가 후 템플릿 선택 유지 (연속 추가 가능)
     },
     [dispatch, project, reactFlowWrapper, selectedTemplate]
   );
 
-  const onNodeClick = useCallback((event: React.MouseEvent, node: any) => {
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: any) => {
     dispatch(selectNode(node.id));
   }, [dispatch]);
 

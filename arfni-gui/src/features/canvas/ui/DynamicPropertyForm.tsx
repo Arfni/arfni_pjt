@@ -1,8 +1,7 @@
-import React from 'react';
 import { useAppDispatch } from '@app/hooks';
 import { updateNode } from '../model/canvasSlice';
 import { CustomNode, ServiceNodeData, DatabaseNodeData } from '../model/types';
-import { getServiceConfig, ServiceTypeConfig } from '../config/serviceConfigs';
+import { getServiceConfig } from '../config/serviceConfigs';
 import { FormField, Input, Select, Checkbox, KeyValueEditor } from '../../../shared/ui/form';
 
 interface DynamicPropertyFormProps {
@@ -319,13 +318,13 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 />
               </FormField>
             )}
-            {config.defaultHealthCheck.httpGet && (
+            {config.defaultHealthCheck?.httpGet && (
               <>
                 <FormField label="HTTP Path">
                   <Input
-                    value={data.health?.httpGet?.path || config.defaultHealthCheck.httpGet.path}
+                    value={(data.health && 'httpGet' in data.health) ? data.health.httpGet?.path || config.defaultHealthCheck?.httpGet?.path || '/health' : config.defaultHealthCheck?.httpGet?.path || '/health'}
                     onChange={(e) => {
-                      const currentPort = data.health?.httpGet?.port || config.defaultHealthCheck.httpGet?.port || 8080;
+                      const currentPort = (data.health && 'httpGet' in data.health) ? data.health.httpGet?.port || config.defaultHealthCheck?.httpGet?.port || 8080 : 8080;
                       updateField('health', { httpGet: { path: e.target.value, port: currentPort } });
                     }}
                   />
@@ -333,9 +332,9 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 <FormField label="HTTP Port">
                   <Input
                     type="number"
-                    value={data.health?.httpGet?.port || config.defaultHealthCheck.httpGet.port}
+                    value={(data.health && 'httpGet' in data.health) ? data.health.httpGet?.port || config.defaultHealthCheck?.httpGet?.port || 8080 : config.defaultHealthCheck?.httpGet?.port || 8080}
                     onChange={(e) => {
-                      const currentPath = data.health?.httpGet?.path || config.defaultHealthCheck.httpGet?.path || '/health';
+                      const currentPath = (data.health && 'httpGet' in data.health) ? data.health.httpGet?.path || config.defaultHealthCheck?.httpGet?.path || '/health' : '/health';
                       updateField('health', { httpGet: { path: currentPath, port: Number(e.target.value) } });
                     }}
                   />

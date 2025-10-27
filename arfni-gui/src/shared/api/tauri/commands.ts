@@ -186,6 +186,7 @@ export interface SshParams {
   user: string;
   pemPath: string;
   cmd: string;
+  [key: string]: unknown;
 }
 
 export const sshCommands = {
