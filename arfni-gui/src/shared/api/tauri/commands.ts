@@ -99,6 +99,16 @@ export const projectCommands = {
   addToRecentProjects: async (project: Project): Promise<void> => {
     return await invoke('add_to_recent_projects', { project });
   },
+
+  // 최근 프로젝트 목록에서 제거
+  removeFromRecentProjects: async (projectPath: string): Promise<void> => {
+    return await invoke('remove_from_recent_projects', { projectPath });
+  },
+
+  // 프로젝트 완전 삭제 (파일 시스템에서 삭제)
+  deleteProject: async (projectPath: string): Promise<void> => {
+    return await invoke('delete_project', { projectPath });
+  },
 };
 
 // ============= 배포 명령어 =============

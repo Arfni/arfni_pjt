@@ -5,7 +5,7 @@ import {
   Project,
   StackYamlData
 } from '@shared/api/tauri/commands';
-import { loadCanvasState } from '@features/canvas/model/canvasSlice';
+import { loadCanvasState, clearCanvas } from '@features/canvas/model/canvasSlice';
 
 export interface ProjectState {
   currentProject: Project | null;
@@ -48,9 +48,12 @@ export const createProject = createAsyncThunk(
 export const openProject = createAsyncThunk(
   'project/open',
   async (path: string, { dispatch }) => {
+    // 1. 먼저 캔버스 초기화 (이전 프로젝트 상태 제거)
+    dispatch(clearCanvas());
+
     const project = await projectCommands.openProject(path);
 
-    // Canvas 상태 복원
+    // 2. Canvas 상태 복원
     const canvasState = await projectCommands.loadCanvasState(path);
     if (canvasState.nodes.length > 0 || canvasState.edges.length > 0) {
       // Canvas store에 상태 로드
@@ -65,10 +68,10 @@ export const openProject = createAsyncThunk(
       }));
     }
 
-    // 최근 프로젝트에 추가
+    // 3. 최근 프로젝트에 추가
     await projectCommands.addToRecentProjects(project);
 
-    // 파일 감시 시작
+    // 4. 파일 감시 시작
     await fileWatcherCommands.watchStackYaml(project.path);
 
     return project;

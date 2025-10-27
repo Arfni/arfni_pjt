@@ -31,6 +31,8 @@ fn main() {
       commands::project::load_canvas_state,
       commands::project::get_recent_projects,
       commands::project::add_to_recent_projects,
+      commands::project::remove_from_recent_projects,
+      commands::project::delete_project,
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,

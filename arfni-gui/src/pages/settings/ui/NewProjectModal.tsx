@@ -5,6 +5,7 @@ import { ProjectInfoStep } from './steps/ProjectInfoStep';
 import { DeployEnvironmentStep } from './steps/DeployEnvironmentStep';
 import { RemoteConfigStep } from './steps/RemoteConfigStep';
 import { ValidationStep } from './steps/ValidationStep';
+import { projectCommands } from '@shared/api/tauri/commands';
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -133,18 +134,30 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
     }
   };
 
-  const handleStartProject = () => {
-    console.log('프로젝트 시작');
-    console.log('프로젝트 이름:', projectName);
-    console.log('작업 디렉토리:', workingDirectory);
-    console.log('배포 환경:', deployEnvironment);
-    if (deployEnvironment === 'remote') {
-      console.log('EC2 주소:', ec2Address);
-      console.log('사용자명:', ec2Username);
-      console.log('PEM 파일 경로:', pemFilePath);
+  const handleStartProject = async () => {
+    try {
+      console.log('프로젝트 생성 중...');
+
+      // 1. 프로젝트 생성
+      const newProject = await projectCommands.createProject(
+        projectName,
+        workingDirectory
+      );
+
+      console.log('프로젝트 생성 완료:', newProject);
+
+      // 2. 최근 프로젝트 목록에 추가
+      await projectCommands.addToRecentProjects(newProject);
+
+      console.log('프로젝트가 최근 목록에 추가되었습니다');
+
+      // 3. 모달 닫고 프로젝트 목록으로 이동
+      handleClose();
+      navigate('/projects');
+    } catch (error) {
+      console.error('프로젝트 생성 실패:', error);
+      alert(`프로젝트 생성에 실패했습니다: ${error}`);
     }
-    handleClose();
-    navigate('/projects');
   };
 
   const handleRemoteFormSubmit = () => {
