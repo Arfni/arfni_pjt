@@ -20,6 +20,8 @@ fn main() {
 
       // 플러그인 명령어
       commands::plugin::run_plugin,
+      commands::plugin::run_plugin_with_args,
+      commands::plugin::run_plugin_with_mode,
       commands::plugin_check::list_targets,
       commands::plugin_check::read_plugins,
 
@@ -31,6 +33,8 @@ fn main() {
       commands::project::load_canvas_state,
       commands::project::get_recent_projects,
       commands::project::add_to_recent_projects,
+      commands::project::remove_from_recent_projects,
+      commands::project::delete_project,
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,
@@ -39,6 +43,7 @@ fn main() {
       commands::deployment::reset_deployment_state,
       commands::deployment::check_docker,
       commands::deployment::check_docker_compose,
+      commands::deployment::check_docker_running,
 
       // 파일 감시 명령어
       commands::file_watcher::watch_stack_yaml,
