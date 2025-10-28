@@ -1,12 +1,112 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
-import { ArrowLeft, FolderOpen, Calendar, Server, Loader2, AlertCircle, RefreshCw, Trash2, X } from 'lucide-react';
-import { projectCommands, Project } from '@shared/api/tauri/commands';
+import { ArrowLeft, FolderOpen, Calendar, Server, Loader2, AlertCircle, RefreshCw, Trash2, X, Monitor, Laptop } from 'lucide-react';
+import { projectCommands, Project, ec2ServerCommands, EC2Server, CanvasNode, CanvasEdge } from '@shared/api/tauri/commands';
 import { confirm, open } from '@tauri-apps/plugin-dialog';
+
+// Canvas 미리보기 컴포넌트
+function CanvasPreview({ nodes, edges }: { nodes: CanvasNode[], edges: CanvasEdge[] }) {
+  if (!nodes || nodes.length === 0) {
+    return null;
+  }
+
+  // 노드 위치의 바운딩 박스 계산
+  const positions = nodes.map(n => n.position);
+  const minX = Math.min(...positions.map(p => p.x));
+  const maxX = Math.max(...positions.map(p => p.x)) + 200; // 노드 너비 고려
+  const minY = Math.min(...positions.map(p => p.y));
+  const maxY = Math.max(...positions.map(p => p.y)) + 100; // 노드 높이 고려
+
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const viewBox = `${minX - 20} ${minY - 20} ${width + 40} ${height + 40}`;
+
+  // 노드 타입별 색상
+  const getNodeColor = (nodeType: string) => {
+    switch (nodeType) {
+      case 'service': return '#60A5FA'; // blue
+      case 'database': return '#34D399'; // green
+      case 'target': return '#F59E0B'; // orange
+      default: return '#9CA3AF'; // gray
+    }
+  };
+
+  return (
+    <svg className="w-full h-full" viewBox={viewBox} preserveAspectRatio="xMidYMid meet">
+      {/* 엣지 렌더링 */}
+      {edges.map((edge) => {
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        const targetNode = nodes.find(n => n.id === edge.target);
+        if (!sourceNode || !targetNode) return null;
+
+        const x1 = sourceNode.position.x + 100; // 노드 중심
+        const y1 = sourceNode.position.y + 40;
+        const x2 = targetNode.position.x;
+        const y2 = targetNode.position.y + 40;
+
+        return (
+          <line
+            key={edge.id}
+            x1={x1}
+            y1={y1}
+            x2={x2}
+            y2={y2}
+            stroke="#9CA3AF"
+            strokeWidth="2"
+            markerEnd="url(#arrowhead)"
+          />
+        );
+      })}
+
+      {/* 화살표 마커 정의 */}
+      <defs>
+        <marker
+          id="arrowhead"
+          markerWidth="10"
+          markerHeight="10"
+          refX="9"
+          refY="3"
+          orient="auto"
+        >
+          <polygon points="0 0, 10 3, 0 6" fill="#9CA3AF" />
+        </marker>
+      </defs>
+
+      {/* 노드 렌더링 */}
+      {nodes.map((node) => {
+        const color = getNodeColor(node.node_type);
+        return (
+          <g key={node.id}>
+            <rect
+              x={node.position.x}
+              y={node.position.y}
+              width="200"
+              height="80"
+              fill={color}
+              rx="6"
+              opacity="0.9"
+            />
+            <text
+              x={node.position.x + 100}
+              y={node.position.y + 45}
+              textAnchor="middle"
+              fill="white"
+              fontSize="14"
+              fontWeight="600"
+            >
+              {node.data?.name || 'Node'}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [selectedTab, setSelectedTab] = useState<'local' | 'ec2'>('local');
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,14 +118,37 @@ export default function ProjectsPage() {
   const [newProjectPath, setNewProjectPath] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // 프로젝트 목록 로드 함수
-  const loadProjects = useCallback(async () => {
+  // EC2 서버 관련
+  const [ec2Servers, setEc2Servers] = useState<EC2Server[]>([]);
+  const [selectedEC2ServerId, setSelectedEC2ServerId] = useState<string>('');
+
+  // Canvas 미리보기 데이터
+  const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
+
+  // 환경별 프로젝트 목록 로드 함수
+  const loadProjects = useCallback(async (environment: 'local' | 'ec2') => {
     setLoading(true);
     setError(null);
     try {
-      const projectList = await projectCommands.getRecentProjects();
+      const projectList = await projectCommands.getProjectsByEnvironment(environment);
       setProjects(projectList);
-      console.log('프로젝트 목록 로드 완료:', projectList);
+      console.log(`${environment} 프로젝트 목록 로드 완료:`, projectList);
+
+      // 각 프로젝트의 canvas 데이터 로드
+      const previews: Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }> = {};
+      for (const project of projectList) {
+        try {
+          const canvasData = await projectCommands.loadCanvasState(project.path);
+          previews[project.id] = {
+            nodes: canvasData.nodes,
+            edges: canvasData.edges,
+          };
+        } catch (err) {
+          console.log(`Canvas 데이터 로드 실패 (${project.name}):`, err);
+          // 실패해도 계속 진행
+        }
+      }
+      setCanvasPreviews(previews);
     } catch (err) {
       console.error('프로젝트 목록 불러오기 실패:', err);
       setError('프로젝트 목록을 불러오는데 실패했습니다.');
@@ -122,6 +245,22 @@ export default function ProjectsPage() {
     }
   }, []);
 
+  // EC2 서버 목록 로드 (페이지 로드 시)
+  useEffect(() => {
+    const loadEC2Servers = async () => {
+      try {
+        const servers = await ec2ServerCommands.getAllServers();
+        setEc2Servers(servers);
+        if (servers.length > 0) {
+          setSelectedEC2ServerId(servers[0].id);
+        }
+      } catch (err) {
+        console.error('EC2 서버 목록 로드 실패:', err);
+      }
+    };
+    loadEC2Servers();
+  }, []);
+
   // 프로젝트 생성 핸들러
   const handleCreateProject = useCallback(async () => {
     if (!newProjectName.trim()) {
@@ -132,12 +271,18 @@ export default function ProjectsPage() {
       alert('프로젝트 경로를 선택하세요.');
       return;
     }
+    if (selectedTab === 'ec2' && !selectedEC2ServerId) {
+      alert('EC2 서버를 선택하세요.');
+      return;
+    }
 
     setCreating(true);
     try {
       const project = await projectCommands.createProject(
         newProjectName.trim(),
-        newProjectPath.trim()
+        newProjectPath.trim(),
+        selectedTab, // 현재 선택된 탭 (local or ec2)
+        selectedTab === 'ec2' ? selectedEC2ServerId : undefined
       );
       console.log('프로젝트 생성 완료:', project);
 
@@ -145,6 +290,9 @@ export default function ProjectsPage() {
       setShowCreateModal(false);
       setNewProjectName('');
       setNewProjectPath('');
+
+      // 프로젝트 목록 새로고침
+      loadProjects(selectedTab);
 
       // 빈 캔버스로 이동 (프로젝트 정보 전달)
       navigate('/canvas', { state: { project } });
@@ -154,29 +302,23 @@ export default function ProjectsPage() {
     } finally {
       setCreating(false);
     }
-  }, [newProjectName, newProjectPath, navigate]);
+  }, [newProjectName, newProjectPath, selectedTab, selectedEC2ServerId, navigate, loadProjects]);
 
-  // 페이지 마운트 및 location 변경 시마다 목록 로드
+  // 탭 변경 시 프로젝트 목록 로드
   useEffect(() => {
-    loadProjects();
-  }, [loadProjects, location.key]); // location.key가 변경되면 재로드
+    loadProjects(selectedTab);
+  }, [selectedTab, loadProjects, location.key]);
 
   return (
     <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
             <FolderOpen className="w-6 h-6 text-gray-600" />
-            <h1 className="text-xl font-semibold">Projects List</h1>
+            <h1 className="text-xl font-semibold">ARFNI Projects</h1>
           </div>
           <button
-            onClick={loadProjects}
+            onClick={() => loadProjects(selectedTab)}
             disabled={loading}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
             title="새로고침"
@@ -186,15 +328,76 @@ export default function ProjectsPage() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-6 py-3 overflow-hidden min-h-0">
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar */}
+        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
+          <div className="p-4 flex-1 flex flex-col">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Environment</h2>
+            <nav className="space-y-1 mb-4">
+              <button
+                onClick={() => setSelectedTab('local')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                  selectedTab === 'local'
+                    ? 'bg-blue-50 text-blue-700 font-medium'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Laptop className="w-5 h-5" />
+                <span>Local</span>
+              </button>
+              <button
+                onClick={() => setSelectedTab('ec2')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                  selectedTab === 'ec2'
+                    ? 'bg-blue-50 text-blue-700 font-medium'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Server className="w-5 h-5" />
+                <span>EC2</span>
+              </button>
+            </nav>
+
+            {/* EC2 Server Selection */}
+            {selectedTab === 'ec2' && (
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Select Server
+                </label>
+                {ec2Servers.length === 0 ? (
+                  <p className="text-xs text-gray-500 px-3 py-2">No servers available</p>
+                ) : (
+                  <select
+                    value={selectedEC2ServerId}
+                    onChange={(e) => setSelectedEC2ServerId(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {ec2Servers.map((server) => (
+                      <option key={server.id} value={server.id}>
+                        {server.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* Create Project Button */}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+            >
+              Create New Project
+            </button>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col px-6 py-3 overflow-hidden min-h-0">
         <div className="mb-3 flex items-center justify-between flex-shrink-0">
-          <p className="text-sm text-gray-600">Total {projects.length} projects</p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 text-sm"
-          >
-            Create New Project
-          </button>
+          <p className="text-sm text-gray-600">
+            {selectedTab === 'local' ? 'Local' : 'EC2'} Projects ({projects.length})
+          </p>
         </div>
 
         {/* 로딩 상태 */}
@@ -249,64 +452,79 @@ export default function ProjectsPage() {
                 return (
                   <div
                     key={project.id}
-                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                    className="bg-white rounded-lg border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
                     onClick={() => !isDeleting && navigate('/canvas', { state: { project } })}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {/* Canvas Thumbnail Preview */}
+                    <div className="h-32 bg-gray-100 relative overflow-hidden">
+                      {canvasPreviews[project.id] && canvasPreviews[project.id].nodes.length > 0 ? (
+                        <CanvasPreview nodes={canvasPreviews[project.id].nodes} edges={canvasPreviews[project.id].edges} />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <p className="text-gray-400 text-sm">빈 캔버스</p>
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2">
+                        <button
+                          onClick={(e) => handleDeleteProject(project, e)}
+                          disabled={isDeleting}
+                          className="p-1.5 bg-white/90 backdrop-blur-sm text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 shadow-sm"
+                          title="프로젝트 삭제"
+                        >
+                          {isDeleting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Project Info */}
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-3">
                         <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <FolderOpen className="w-5 h-5 text-blue-600" />
+                          {project.environment === 'ec2' ? (
+                            <Server className="w-5 h-5 text-blue-600" />
+                          ) : (
+                            <Laptop className="w-5 h-5 text-blue-600" />
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="font-semibold text-gray-900 text-sm">{project.name}</h3>
-                          <p className="text-xs text-gray-500 truncate">{project.path}</p>
+                          <p className="text-xs text-gray-500">{project.environment === 'ec2' ? 'EC2' : 'Local Docker'}</p>
                         </div>
                       </div>
-                      <button
-                        onClick={(e) => handleDeleteProject(project, e)}
-                        disabled={isDeleting}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                        title="프로젝트 삭제"
-                      >
-                        {isDeleting ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                      </button>
-                    </div>
 
-                    <div className="space-y-1 text-xs text-gray-600">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-3 h-3" />
-                        <span>Created: {new Date(project.created_at).toLocaleDateString()}</span>
+                      <div className="space-y-1 text-xs text-gray-600 mt-2">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-3 h-3" />
+                          <span>Created: {new Date(project.created_at).toLocaleDateString()}</span>
+                        </div>
                       </div>
-                      {project.description && (
-                        <p className="text-xs text-gray-500 mt-2">{project.description}</p>
-                      )}
-                    </div>
 
-                    <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate('/logs', { state: { project } });
-                        }}
-                        disabled={isDeleting}
-                        className="flex-1 px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
-                      >
-                        View Logs
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate('/canvas', { state: { project } });
-                        }}
-                        disabled={isDeleting}
-                        className="flex-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        Edit In Canvas
-                      </button>
+                      <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate('/logs', { state: { project } });
+                          }}
+                          disabled={isDeleting}
+                          className="flex-1 px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
+                        >
+                          View Log
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate('/canvas', { state: { project } });
+                          }}
+                          disabled={isDeleting}
+                          className="flex-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          Edit
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -314,14 +532,17 @@ export default function ProjectsPage() {
             </div>
           </div>
         )}
-      </main>
+        </main>
+      </div>
 
-      {/* 프로젝트 생성 모달 */}
+      {/* 프로젝트 생성 모달 - 간단한 버전 */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold">새 프로젝트 만들기</h2>
+              <h2 className="text-xl font-semibold">
+                Create {selectedTab === 'local' ? 'Local' : 'EC2'} Project
+              </h2>
               <button
                 onClick={() => {
                   setShowCreateModal(false);
@@ -346,6 +567,7 @@ export default function ProjectsPage() {
                   placeholder="프로젝트 이름을 입력하세요"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={creating}
+                  autoFocus
                 />
               </div>
 
@@ -370,8 +592,17 @@ export default function ProjectsPage() {
                   </button>
                 </div>
               </div>
+
+              {selectedTab === 'ec2' && selectedEC2ServerId && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-900">
+                    <span className="font-medium">Server:</span> {ec2Servers.find(s => s.id === selectedEC2ServerId)?.name}
+                  </p>
+                </div>
+              )}
             </div>
 
+            {/* Footer Buttons */}
             <div className="flex gap-3 p-6 border-t border-gray-200">
               <button
                 onClick={() => {
@@ -387,7 +618,7 @@ export default function ProjectsPage() {
               <button
                 onClick={handleCreateProject}
                 disabled={creating || !newProjectName.trim() || !newProjectPath.trim()}
-                className="flex-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {creating ? '생성 중...' : '생성'}
               </button>

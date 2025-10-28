@@ -5,7 +5,7 @@ import { ProjectInfoStep } from './steps/ProjectInfoStep';
 import { DeployEnvironmentStep } from './steps/DeployEnvironmentStep';
 import { RemoteConfigStep } from './steps/RemoteConfigStep';
 import { ValidationStep } from './steps/ValidationStep';
-import { projectCommands } from '@shared/api/tauri/commands';
+import { projectCommands, ec2ServerCommands } from '@shared/api/tauri/commands';
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -138,24 +138,41 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
     try {
       console.log('프로젝트 생성 중...');
 
-      // 1. 프로젝트 생성 (SSH 정보 포함)
+      let ec2ServerId: string | undefined = undefined;
+
+      // 1. EC2 환경인 경우, 먼저 서버 등록
+      if (deployEnvironment === 'remote') {
+        const serverParams = {
+          name: `${ec2Address} (${projectName})`,
+          host: ec2Address,
+          user: ec2Username,
+          pemPath: pemFilePath,
+          workdir: undefined,
+          mode: undefined,
+        };
+
+        const server = await ec2ServerCommands.createServer(serverParams);
+        ec2ServerId = server.id;
+        console.log('EC2 서버 등록 완료:', server);
+      }
+
+      // 2. 프로젝트 생성
       const newProject = await projectCommands.createProject(
         projectName,
         workingDirectory,
-        undefined, // description
-        ec2Address || undefined,
-        ec2Username || undefined,
-        pemFilePath || undefined
+        deployEnvironment === 'remote' ? 'ec2' : 'local',
+        ec2ServerId,
+        undefined // description
       );
 
       console.log('프로젝트 생성 완료:', newProject);
 
-      // 2. 최근 프로젝트 목록에 추가
-      await projectCommands.addToRecentProjects(newProject);
+      // 3. 최근 프로젝트 목록에 추가
+      await projectCommands.addToRecentProjects(newProject.id);
 
       console.log('프로젝트가 최근 목록에 추가되었습니다');
 
-      // 3. 모달 닫고 프로젝트 목록으로 이동
+      // 4. 모달 닫고 프로젝트 목록으로 이동
       handleClose();
       navigate('/projects');
     } catch (error) {

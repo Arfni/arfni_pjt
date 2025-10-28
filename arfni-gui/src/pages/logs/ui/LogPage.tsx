@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Terminal, Play, CheckCircle, Trash2, StopCircle, FolderOpen } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
+import { ec2ServerCommands, EC2Server } from '@shared/api/tauri/commands';
 
 interface LogEntry {
   timestamp: string;
@@ -14,6 +15,7 @@ interface LogEntry {
 export default function LogPage() {
   const navigate = useNavigate();
   const currentProject = useSelector(selectCurrentProject);
+  const [ec2Server, setEc2Server] = useState<EC2Server | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([
     { timestamp: '2024-10-21 14:35:12', message: 'Project initialization started...', type: 'info' },
     { timestamp: '2024-10-21 14:35:13', message: 'Docker connection verified', type: 'info' },
@@ -25,6 +27,21 @@ export default function LogPage() {
     { timestamp: '2024-10-21 14:35:20', message: 'Project initialization complete!', type: 'success' },
   ]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // EC2 서버 정보 로드
+  useEffect(() => {
+    const loadEc2Server = async () => {
+      if (currentProject?.environment === 'ec2' && currentProject?.ec2_server_id) {
+        try {
+          const server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
+          setEc2Server(server);
+        } catch (error) {
+          console.error('EC2 서버 정보 로드 실패:', error);
+        }
+      }
+    };
+    loadEc2Server();
+  }, [currentProject]);
 
   const addLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
     const timestamp = new Date().toLocaleString('sv-SE', {
@@ -44,35 +61,44 @@ export default function LogPage() {
       return;
     }
 
-    if (!currentProject.ssh_host || !currentProject.ssh_user || !currentProject.ssh_pem_path) {
-      addLog('프로젝트에 SSH 설정이 없습니다. 로컬 Docker를 사용하는 프로젝트인 것 같습니다.', 'error');
+    // Local 환경 체크
+    if (currentProject.environment === 'local') {
+      addLog('로컬 Docker 환경입니다. 로컬 상태 확인 기능은 아직 구현되지 않았습니다.', 'warning');
       return;
     }
 
-    setIsLoading(true);
-    addLog('컨테이너 상태 확인 중...', 'info');
+    // EC2 환경 체크
+    if (currentProject.environment === 'ec2') {
+      if (!ec2Server) {
+        addLog('EC2 서버 정보를 불러오지 못했습니다.', 'error');
+        return;
+      }
 
-    try {
-      const result = await invoke<string>('ssh_exec_system', {
-        params: {
-          host: currentProject.ssh_host,
-          user: currentProject.ssh_user,
-          pem_path: currentProject.ssh_pem_path,
-          cmd: 'docker ps'
-        }
-      });
+      setIsLoading(true);
+      addLog('EC2 컨테이너 상태 확인 중...', 'info');
 
-      addLog('=== Docker 컨테이너 상태 ===', 'success');
-      result.split('\n').forEach(line => {
-        if (line.trim()) {
-          addLog(line, 'info');
-        }
-      });
-      addLog('=== 상태 확인 완료 ===', 'success');
-    } catch (error) {
-      addLog(`상태 확인 실패: ${error}`, 'error');
-    } finally {
-      setIsLoading(false);
+      try {
+        const result = await invoke<string>('ssh_exec_system', {
+          params: {
+            host: ec2Server.host,
+            user: ec2Server.user,
+            pem_path: ec2Server.pem_path,
+            cmd: 'docker ps'
+          }
+        });
+
+        addLog('=== Docker 컨테이너 상태 ===', 'success');
+        result.split('\n').forEach(line => {
+          if (line.trim()) {
+            addLog(line, 'info');
+          }
+        });
+        addLog('=== 상태 확인 완료 ===', 'success');
+      } catch (error) {
+        addLog(`상태 확인 실패: ${error}`, 'error');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 

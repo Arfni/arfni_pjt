@@ -1,0 +1,9 @@
+apiVersion: v0.1
+name: sdf
+
+targets:
+  local:
+    type: docker-desktop
+
+services:
+  # 서비스를 여기에 추가하세요

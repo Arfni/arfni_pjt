@@ -239,6 +239,7 @@ export function stackToYamlString(stack: StackYaml): string {
     if (config.sshKey) yaml += `    sshKey: ${config.sshKey}\n`;
     if (config.port) yaml += `    port: ${config.port}\n`;
     if (config.workdir) yaml += `    workdir: ${config.workdir}\n`;
+    if ((config as any).mode) yaml += `    mode: ${(config as any).mode}\n`;
   });
   yaml += '\n';
 

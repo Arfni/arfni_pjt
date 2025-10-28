@@ -1,18 +1,31 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
-// ============= 프로젝트 관리 타입 =============
+// ============= 프로젝트 관리 타입 (업데이트됨) =============
 export interface Project {
   id: string;
   name: string;
   path: string;
+  environment: 'local' | 'ec2'; // 새로 추가
+  ec2_server_id?: string; // 새로 추가
   created_at: string;
   updated_at: string;
   stack_yaml_path?: string;
   description?: string;
-  ssh_host?: string;
-  ssh_user?: string;
-  ssh_pem_path?: string;
+}
+
+// ============= EC2 서버 타입 (신규) =============
+export interface EC2Server {
+  id: string;
+  name: string;
+  host: string;
+  user: string;
+  pem_path: string;
+  workdir?: string;
+  mode?: 'all-in-one' | 'hybrid' | 'no-monitoring';
+  created_at: string;
+  updated_at: string;
+  last_connected_at?: string;
 }
 
 export interface StackYamlData {
@@ -58,30 +71,33 @@ export interface FileChangePayload {
   event_type: 'modified' | 'created' | 'deleted';
 }
 
-// ============= 프로젝트 명령어 =============
+// ============= 프로젝트 명령어 (업데이트됨) =============
 export const projectCommands = {
-  // 프로젝트 생성
+  // 프로젝트 생성 (environment 추가)
   createProject: async (
     name: string,
     path: string,
-    description?: string,
-    sshHost?: string,
-    sshUser?: string,
-    sshPemPath?: string
+    environment: 'local' | 'ec2',
+    ec2ServerId?: string,
+    description?: string
   ): Promise<Project> => {
     return await invoke('create_project', {
       name,
       path,
+      environment,
+      ec2ServerId,
       description,
-      sshHost,
-      sshUser,
-      sshPemPath
     });
   },
 
-  // 프로젝트 열기
-  openProject: async (path: string): Promise<Project> => {
-    return await invoke('open_project', { path });
+  // 프로젝트 열기 (ID로)
+  openProject: async (projectId: string): Promise<Project> => {
+    return await invoke('open_project', { projectId });
+  },
+
+  // 프로젝트 경로로 열기
+  openProjectByPath: async (path: string): Promise<Project> => {
+    return await invoke('open_project_by_path', { path });
   },
 
   // stack.yaml 저장
@@ -107,24 +123,94 @@ export const projectCommands = {
     return await invoke('load_canvas_state', { projectPath });
   },
 
+  // 모든 프로젝트 가져오기 (신규)
+  getAllProjects: async (): Promise<Project[]> => {
+    return await invoke('get_all_projects');
+  },
+
+  // 환경별 프로젝트 가져오기 (신규)
+  getProjectsByEnvironment: async (environment: 'local' | 'ec2'): Promise<Project[]> => {
+    return await invoke('get_projects_by_environment', { environment });
+  },
+
+  // 서버별 프로젝트 가져오기 (신규)
+  getProjectsByServer: async (serverId: string): Promise<Project[]> => {
+    return await invoke('get_projects_by_server', { serverId });
+  },
+
   // 최근 프로젝트 목록
   getRecentProjects: async (): Promise<Project[]> => {
     return await invoke('get_recent_projects');
   },
 
-  // 최근 프로젝트에 추가
-  addToRecentProjects: async (project: Project): Promise<void> => {
-    return await invoke('add_to_recent_projects', { project });
+  // 최근 프로젝트에 추가 (ID로)
+  addToRecentProjects: async (projectId: string): Promise<void> => {
+    return await invoke('add_to_recent_projects', { projectId });
   },
 
-  // 최근 프로젝트 목록에서 제거
-  removeFromRecentProjects: async (projectPath: string): Promise<void> => {
-    return await invoke('remove_from_recent_projects', { projectPath });
+  // 최근 프로젝트 목록에서 제거 (ID로)
+  removeFromRecentProjects: async (projectId: string): Promise<void> => {
+    return await invoke('remove_from_recent_projects', { projectId });
   },
 
-  // 프로젝트 완전 삭제 (파일 시스템에서 삭제)
-  deleteProject: async (projectPath: string): Promise<void> => {
-    return await invoke('delete_project', { projectPath });
+  // 프로젝트 완전 삭제 (ID로)
+  deleteProject: async (projectId: string): Promise<void> => {
+    return await invoke('delete_project', { projectId });
+  },
+};
+
+// ============= EC2 서버 명령어 (신규) =============
+export const ec2ServerCommands = {
+  // EC2 서버 생성
+  createServer: async (params: {
+    name: string;
+    host: string;
+    user: string;
+    pemPath: string;
+    workdir?: string;
+    mode?: 'all-in-one' | 'hybrid' | 'no-monitoring';
+  }): Promise<EC2Server> => {
+    return await invoke('create_ec2_server', {
+      name: params.name,
+      host: params.host,
+      user: params.user,
+      pemPath: params.pemPath,
+      workdir: params.workdir,
+      mode: params.mode,
+    });
+  },
+
+  // 모든 EC2 서버 조회
+  getAllServers: async (): Promise<EC2Server[]> => {
+    return await invoke('get_all_ec2_servers');
+  },
+
+  // ID로 EC2 서버 조회
+  getServerById: async (serverId: string): Promise<EC2Server> => {
+    return await invoke('get_ec2_server_by_id', { serverId });
+  },
+
+  // EC2 서버 업데이트
+  updateServer: async (params: {
+    id: string;
+    name?: string;
+    host?: string;
+    user?: string;
+    pemPath?: string;
+    workdir?: string;
+    mode?: 'all-in-one' | 'hybrid' | 'no-monitoring';
+  }): Promise<EC2Server> => {
+    return await invoke('update_ec2_server', params);
+  },
+
+  // EC2 서버 삭제
+  deleteServer: async (serverId: string): Promise<void> => {
+    return await invoke('delete_ec2_server', { serverId });
+  },
+
+  // 마지막 접속 시간 업데이트
+  updateLastConnected: async (serverId: string): Promise<void> => {
+    return await invoke('update_ec2_server_last_connected', { serverId });
   },
 };
 
@@ -153,6 +239,11 @@ export const deploymentCommands = {
   // Docker Compose 설치 확인
   checkDockerCompose: async (): Promise<boolean> => {
     return await invoke('check_docker_compose');
+  },
+
+  // Docker 실행 확인
+  checkDockerRunning: async (): Promise<boolean> => {
+    return await invoke('check_docker_running');
   },
 };
 
@@ -207,7 +298,7 @@ export const eventListeners = {
   },
 };
 
-// ============= 기존 SSH 명령어 (유지) =============
+// ============= 기존 SSH 명령어 (레거시 호환) =============
 export interface SshParams {
   host: string;
   user: string;
@@ -221,6 +312,7 @@ export const sshCommands = {
     return await invoke('ssh_exec_system', params);
   },
 
+  // 레거시 (호환성 유지)
   addEntry: async (params: Omit<SshParams, 'cmd'>): Promise<void> => {
     return await invoke('ec2_add_entry', params);
   },
@@ -229,8 +321,8 @@ export const sshCommands = {
     return await invoke('ec2_read_entry');
   },
 
-  deleteEntry: async (host: string): Promise<void> => {
-    return await invoke('ec2_delete_entry', { host });
+  deleteEntry: async (host: string, user: string): Promise<void> => {
+    return await invoke('ec2_delete_entry', { host, user });
   },
 };
 

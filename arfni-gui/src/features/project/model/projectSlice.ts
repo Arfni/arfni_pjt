@@ -2,10 +2,11 @@ import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import {
   projectCommands,
   fileWatcherCommands,
+  ec2ServerCommands,
   Project,
   StackYamlData
 } from '@shared/api/tauri/commands';
-import { loadCanvasState, clearCanvas } from '@features/canvas/model/canvasSlice';
+import { loadCanvasState, clearCanvas, addNode } from '@features/canvas/model/canvasSlice';
 
 export interface ProjectState {
   currentProject: Project | null;
@@ -32,11 +33,13 @@ export const createProject = createAsyncThunk(
     const project = await projectCommands.createProject(
       params.name,
       params.path,
+      'local', // 기본값: local 환경
+      undefined, // ec2_server_id
       params.description
     );
 
     // 최근 프로젝트에 추가
-    await projectCommands.addToRecentProjects(project);
+    await projectCommands.addToRecentProjects(project.id);
 
     // 파일 감시 시작
     await fileWatcherCommands.watchStackYaml(project.path);
@@ -51,7 +54,7 @@ export const openProject = createAsyncThunk(
     // 1. 먼저 캔버스 초기화 (이전 프로젝트 상태 제거)
     dispatch(clearCanvas());
 
-    const project = await projectCommands.openProject(path);
+    const project = await projectCommands.openProjectByPath(path);
 
     // 2. Canvas 상태 복원
     const canvasState = await projectCommands.loadCanvasState(path);
@@ -68,8 +71,56 @@ export const openProject = createAsyncThunk(
       }));
     }
 
+    // 2.5. EC2 프로젝트인 경우 서버 정보 로드하여 Target 노드 업데이트
+    if (project.environment === 'ec2' && project.ec2_server_id) {
+      try {
+        const ec2Server = await ec2ServerCommands.getServerById(project.ec2_server_id);
+
+        // Canvas에서 EC2 Target 노드 찾기
+        const targetNode = canvasState.nodes.find(n => n.node_type === 'target');
+
+        if (targetNode) {
+          // 기존 Target 노드가 있으면 EC2 서버 정보로 업데이트
+          const updatedNode = {
+            ...targetNode,
+            data: {
+              ...targetNode.data,
+              host: ec2Server.host,
+              user: ec2Server.user,
+              sshKey: ec2Server.pem_path,
+              workdir: ec2Server.workdir || '/home/ubuntu',
+              mode: ec2Server.mode || 'all-in-one',
+            }
+          };
+
+          // 업데이트된 노드로 재로드 (이미 loadCanvasState가 호출되었으므로 개별 업데이트는 필요 없음)
+          console.log('EC2 Target 노드 정보 업데이트:', updatedNode);
+        } else {
+          // Target 노드가 없으면 자동 생성
+          const newTargetNode = {
+            id: 'ec2-target-1',
+            type: 'target' as const,
+            position: { x: 400, y: 200 },
+            data: {
+              name: ec2Server.name,
+              host: ec2Server.host,
+              user: ec2Server.user,
+              sshKey: ec2Server.pem_path,
+              workdir: ec2Server.workdir || '/home/ubuntu',
+              mode: ec2Server.mode || 'all-in-one',
+            }
+          };
+
+          dispatch(addNode(newTargetNode));
+          console.log('EC2 Target 노드 자동 생성:', newTargetNode);
+        }
+      } catch (error) {
+        console.error('EC2 서버 정보 로드 실패:', error);
+      }
+    }
+
     // 3. 최근 프로젝트에 추가
-    await projectCommands.addToRecentProjects(project);
+    await projectCommands.addToRecentProjects(project.id);
 
     // 4. 파일 감시 시작
     await fileWatcherCommands.watchStackYaml(project.path);

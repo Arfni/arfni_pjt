@@ -1,20 +1,22 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::AppHandle;
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, State};
+use rusqlite::{params, Connection};
+use crate::db::Database;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Project {
     pub id: String,
     pub name: String,
     pub path: String,
+    pub environment: String, // "local" | "ec2"
+    pub ec2_server_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub stack_yaml_path: Option<String>,
     pub description: Option<String>,
-    pub ssh_host: Option<String>,
-    pub ssh_user: Option<String>,
-    pub ssh_pem_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -46,16 +48,26 @@ pub struct CanvasEdge {
     pub target: String,
 }
 
-/// 프로젝트 생성 - 프로젝트 폴더와 .arfni 디렉토리 생성
+/// 프로젝트 생성 - 프로젝트 폴더와 .arfni 디렉토리 생성 + DB 저장
 #[tauri::command]
 pub fn create_project(
+    db: State<Database>,
     name: String,
     path: String,
+    environment: String, // "local" | "ec2"
+    ec2_server_id: Option<String>,
     description: Option<String>,
-    ssh_host: Option<String>,
-    ssh_user: Option<String>,
-    ssh_pem_path: Option<String>,
 ) -> Result<Project, String> {
+    // 환경 검증
+    if environment != "local" && environment != "ec2" {
+        return Err("환경은 'local' 또는 'ec2'여야 합니다".to_string());
+    }
+
+    // EC2인 경우 서버 ID 필수
+    if environment == "ec2" && ec2_server_id.is_none() {
+        return Err("EC2 환경에서는 서버 ID가 필요합니다".to_string());
+    }
+
     let project_path = Path::new(&path).join(&name);
     let arfni_path = project_path.join(".arfni");
 
@@ -76,29 +88,46 @@ pub fn create_project(
         .map_err(|e| format!("compose 폴더 생성 실패: {}", e))?;
 
     // 프로젝트 메타데이터 생성
+    let project_id = uuid::Uuid::new_v4().to_string();
+    let created_at = chrono::Utc::now().to_rfc3339();
+    let stack_yaml_path = project_path.join("stack.yaml").to_string_lossy().to_string();
+
     let project = Project {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: project_id.clone(),
         name: name.clone(),
         path: project_path.to_string_lossy().to_string(),
-        created_at: chrono::Utc::now().to_rfc3339(),
-        updated_at: chrono::Utc::now().to_rfc3339(),
-        stack_yaml_path: Some(project_path.join("stack.yaml").to_string_lossy().to_string()),
-        description,
-        ssh_host,
-        ssh_user,
-        ssh_pem_path,
+        environment: environment.clone(),
+        ec2_server_id: ec2_server_id.clone(),
+        created_at: created_at.clone(),
+        updated_at: created_at.clone(),
+        stack_yaml_path: Some(stack_yaml_path),
+        description: description.clone(),
     };
 
-    // 프로젝트 메타데이터 저장
-    let project_json = serde_json::to_string_pretty(&project)
-        .map_err(|e| format!("프로젝트 직렬화 실패: {}", e))?;
+    // 데이터베이스에 프로젝트 저장
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
 
-    fs::write(arfni_path.join("project.json"), project_json)
-        .map_err(|e| format!("프로젝트 메타데이터 저장 실패: {}", e))?;
+    conn.execute(
+        "INSERT INTO projects (id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            &project.id,
+            &project.name,
+            &project.path,
+            &project.environment,
+            &project.ec2_server_id,
+            &project.created_at,
+            &project.updated_at,
+            &project.description,
+            &project.stack_yaml_path,
+        ],
+    ).map_err(|e| format!("프로젝트 DB 저장 실패: {}", e))?;
 
-    // 초기 stack.yaml 생성
-    let initial_stack = r#"apiVersion: v0.1
-name: %PROJECT_NAME%
+    // 초기 stack.yaml 생성 (환경에 따라 다르게)
+    let initial_stack = if environment == "local" {
+        format!(r#"apiVersion: v0.1
+name: {}
 
 targets:
   local:
@@ -106,7 +135,21 @@ targets:
 
 services:
   # 서비스를 여기에 추가하세요
-"#.replace("%PROJECT_NAME%", &name);
+"#, name)
+    } else {
+        // EC2는 TypeScript에서 서버 정보를 포함하여 생성할 것임
+        format!(r#"apiVersion: v0.1
+name: {}
+
+targets:
+  ec2:
+    type: ec2.ssh
+    # EC2 서버 정보는 프론트엔드에서 추가됩니다
+
+services:
+  # 서비스를 여기에 추가하세요
+"#, name)
+    };
 
     fs::write(project_path.join("stack.yaml"), initial_stack)
         .map_err(|e| format!("초기 stack.yaml 생성 실패: {}", e))?;
@@ -114,25 +157,65 @@ services:
     Ok(project)
 }
 
-/// 프로젝트 열기
+/// 프로젝트 열기 (DB에서 조회)
 #[tauri::command]
-pub fn open_project(path: String) -> Result<Project, String> {
-    let project_path = Path::new(&path);
-    let arfni_path = project_path.join(".arfni");
-    let project_json_path = arfni_path.join("project.json");
+pub fn open_project(db: State<Database>, project_id: String) -> Result<Project, String> {
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
 
-    if !project_json_path.exists() {
-        return Err("유효한 ARFNI 프로젝트가 아닙니다".to_string());
-    }
+    let mut stmt = conn.prepare(
+        "SELECT id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path
+         FROM projects WHERE id = ?1"
+    ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
-    let project_json = fs::read_to_string(project_json_path)
-        .map_err(|e| format!("프로젝트 파일 읽기 실패: {}", e))?;
-
-    let mut project: Project = serde_json::from_str(&project_json)
-        .map_err(|e| format!("프로젝트 파일 파싱 실패: {}", e))?;
+    let project = stmt.query_row(params![&project_id], |row| {
+        Ok(Project {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            path: row.get(2)?,
+            environment: row.get(3)?,
+            ec2_server_id: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+            description: row.get(7)?,
+            stack_yaml_path: row.get(8)?,
+        })
+    }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
     // 업데이트 시간 갱신
-    project.updated_at = chrono::Utc::now().to_rfc3339();
+    let updated_at = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE projects SET updated_at = ?1 WHERE id = ?2",
+        params![&updated_at, &project_id],
+    ).map_err(|e| format!("업데이트 시간 갱신 실패: {}", e))?;
+
+    Ok(project)
+}
+
+/// 프로젝트 경로로 열기 (기존 호환성)
+#[tauri::command]
+pub fn open_project_by_path(db: State<Database>, path: String) -> Result<Project, String> {
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path
+         FROM projects WHERE path = ?1"
+    ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
+
+    let project = stmt.query_row(params![&path], |row| {
+        Ok(Project {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            path: row.get(2)?,
+            environment: row.get(3)?,
+            ec2_server_id: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+            description: row.get(7)?,
+            stack_yaml_path: row.get(8)?,
+        })
+    }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
     Ok(project)
 }
@@ -140,35 +223,35 @@ pub fn open_project(path: String) -> Result<Project, String> {
 /// stack.yaml 저장 (Canvas 데이터를 YAML로 변환하여 저장)
 #[tauri::command]
 pub fn save_stack_yaml(
+    db: State<Database>,
     project_path: String,
     yaml_content: String,
     canvas_data: StackYamlData,
 ) -> Result<(), String> {
-    let project_path = Path::new(&project_path);
-    let stack_yaml_path = project_path.join("stack.yaml");
-    let arfni_path = project_path.join(".arfni");
+    let project_path_buf = Path::new(&project_path);
+    let stack_yaml_path = project_path_buf.join("stack.yaml");
+    let arfni_path = project_path_buf.join(".arfni");
 
     // stack.yaml 파일 저장
     fs::write(&stack_yaml_path, yaml_content)
         .map_err(|e| format!("stack.yaml 저장 실패: {}", e))?;
 
-    // Canvas 상태를 .arfni/canvas-state.json에 저장 (나중에 불러오기 위해)
+    // Canvas 상태를 .arfni/canvas-state.json에 저장
     let canvas_json = serde_json::to_string_pretty(&canvas_data)
         .map_err(|e| format!("Canvas 데이터 직렬화 실패: {}", e))?;
 
     fs::write(arfni_path.join("canvas-state.json"), canvas_json)
         .map_err(|e| format!("Canvas 상태 저장 실패: {}", e))?;
 
-    // 프로젝트 메타데이터 업데이트
-    if let Ok(mut project) = open_project(project_path.to_string_lossy().to_string()) {
-        project.updated_at = chrono::Utc::now().to_rfc3339();
+    // DB에서 프로젝트 업데이트 시간 갱신
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
 
-        let project_json = serde_json::to_string_pretty(&project)
-            .map_err(|e| format!("프로젝트 직렬화 실패: {}", e))?;
-
-        fs::write(arfni_path.join("project.json"), project_json)
-            .map_err(|e| format!("프로젝트 메타데이터 업데이트 실패: {}", e))?;
-    }
+    let updated_at = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE projects SET updated_at = ?1 WHERE path = ?2",
+        params![&updated_at, &project_path],
+    ).map_err(|e| format!("프로젝트 업데이트 실패: {}", e))?;
 
     Ok(())
 }
@@ -208,112 +291,167 @@ pub fn load_canvas_state(project_path: String) -> Result<StackYamlData, String> 
         .map_err(|e| format!("Canvas 상태 파싱 실패: {}", e))
 }
 
-/// 최근 프로젝트 목록 가져오기
+/// 모든 프로젝트 가져오기
 #[tauri::command]
-pub fn get_recent_projects(app: AppHandle) -> Result<Vec<Project>, String> {
-    use tauri::Manager;
+pub fn get_all_projects(db: State<Database>) -> Result<Vec<Project>, String> {
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
 
-    let app_data_dir = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("앱 데이터 디렉토리를 찾을 수 없습니다: {}", e))?;
+    let mut stmt = conn.prepare(
+        "SELECT id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path
+         FROM projects ORDER BY updated_at DESC"
+    ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
-    let recent_projects_file = app_data_dir.join("recent-projects.json");
+    let projects = stmt.query_map([], |row| {
+        Ok(Project {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            path: row.get(2)?,
+            environment: row.get(3)?,
+            ec2_server_id: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+            description: row.get(7)?,
+            stack_yaml_path: row.get(8)?,
+        })
+    }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
+    .collect::<Result<Vec<_>, _>>()
+    .map_err(|e| format!("프로젝트 목록 변환 실패: {}", e))?;
 
-    if !recent_projects_file.exists() {
-        return Ok(vec![]);
-    }
+    Ok(projects)
+}
 
-    let json = fs::read_to_string(recent_projects_file)
-        .map_err(|e| format!("최근 프로젝트 목록 읽기 실패: {}", e))?;
+/// 환경별 프로젝트 가져오기
+#[tauri::command]
+pub fn get_projects_by_environment(db: State<Database>, environment: String) -> Result<Vec<Project>, String> {
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
 
-    serde_json::from_str(&json)
-        .map_err(|e| format!("최근 프로젝트 목록 파싱 실패: {}", e))
+    let mut stmt = conn.prepare(
+        "SELECT id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path
+         FROM projects WHERE environment = ?1 ORDER BY updated_at DESC"
+    ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
+
+    let projects = stmt.query_map(params![&environment], |row| {
+        Ok(Project {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            path: row.get(2)?,
+            environment: row.get(3)?,
+            ec2_server_id: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+            description: row.get(7)?,
+            stack_yaml_path: row.get(8)?,
+        })
+    }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
+    .collect::<Result<Vec<_>, _>>()
+    .map_err(|e| format!("프로젝트 목록 변환 실패: {}", e))?;
+
+    Ok(projects)
+}
+
+/// EC2 서버별 프로젝트 가져오기
+#[tauri::command]
+pub fn get_projects_by_server(db: State<Database>, server_id: String) -> Result<Vec<Project>, String> {
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path
+         FROM projects WHERE ec2_server_id = ?1 ORDER BY updated_at DESC"
+    ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
+
+    let projects = stmt.query_map(params![&server_id], |row| {
+        Ok(Project {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            path: row.get(2)?,
+            environment: row.get(3)?,
+            ec2_server_id: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+            description: row.get(7)?,
+            stack_yaml_path: row.get(8)?,
+        })
+    }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
+    .collect::<Result<Vec<_>, _>>()
+    .map_err(|e| format!("프로젝트 목록 변환 실패: {}", e))?;
+
+    Ok(projects)
+}
+
+/// 최근 프로젝트 목록 가져오기 (최근 열은 순서)
+#[tauri::command]
+pub fn get_recent_projects(db: State<Database>) -> Result<Vec<Project>, String> {
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.name, p.path, p.environment, p.ec2_server_id, p.created_at, p.updated_at, p.description, p.stack_yaml_path
+         FROM projects p
+         INNER JOIN recent_projects r ON p.id = r.project_id
+         ORDER BY r.opened_at DESC
+         LIMIT 10"
+    ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
+
+    let projects = stmt.query_map([], |row| {
+        Ok(Project {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            path: row.get(2)?,
+            environment: row.get(3)?,
+            ec2_server_id: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+            description: row.get(7)?,
+            stack_yaml_path: row.get(8)?,
+        })
+    }).map_err(|e| format!("최근 프로젝트 조회 실패: {}", e))?
+    .collect::<Result<Vec<_>, _>>()
+    .map_err(|e| format!("프로젝트 목록 변환 실패: {}", e))?;
+
+    Ok(projects)
 }
 
 /// 최근 프로젝트 목록에 추가
 #[tauri::command]
-pub fn add_to_recent_projects(app: AppHandle, project: Project) -> Result<(), String> {
-    use tauri::Manager;
+pub fn add_to_recent_projects(db: State<Database>, project_id: String) -> Result<(), String> {
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
 
-    let app_data_dir = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("앱 데이터 디렉토리를 찾을 수 없습니다: {}", e))?;
+    let opened_at = chrono::Utc::now().to_rfc3339();
 
-    // 앱 데이터 디렉토리가 없으면 생성
-    fs::create_dir_all(&app_data_dir)
-        .map_err(|e| format!("앱 데이터 디렉토리 생성 실패: {}", e))?;
-
-    let recent_projects_file = app_data_dir.join("recent-projects.json");
-
-    // 기존 최근 프로젝트 목록 읽기
-    let mut recent_projects = if recent_projects_file.exists() {
-        let json = fs::read_to_string(&recent_projects_file)
-            .map_err(|e| format!("최근 프로젝트 목록 읽기 실패: {}", e))?;
-
-        serde_json::from_str::<Vec<Project>>(&json).unwrap_or_default()
-    } else {
-        vec![]
-    };
-
-    // 중복 제거 (같은 경로의 프로젝트가 있으면 제거)
-    recent_projects.retain(|p| p.path != project.path);
-
-    // 새 프로젝트를 맨 앞에 추가
-    recent_projects.insert(0, project);
-
-    // 최대 10개까지만 유지
-    recent_projects.truncate(10);
-
-    // 저장
-    let json = serde_json::to_string_pretty(&recent_projects)
-        .map_err(|e| format!("최근 프로젝트 목록 직렬화 실패: {}", e))?;
-
-    fs::write(recent_projects_file, json)
-        .map_err(|e| format!("최근 프로젝트 목록 저장 실패: {}", e))?;
+    // REPLACE INTO: 이미 있으면 업데이트, 없으면 삽입
+    conn.execute(
+        "REPLACE INTO recent_projects (project_id, opened_at) VALUES (?1, ?2)",
+        params![&project_id, &opened_at],
+    ).map_err(|e| format!("최근 프로젝트 추가 실패: {}", e))?;
 
     Ok(())
 }
 
 /// 최근 프로젝트 목록에서 제거
 #[tauri::command]
-pub fn remove_from_recent_projects(app: AppHandle, project_path: String) -> Result<(), String> {
-    use tauri::Manager;
+pub fn remove_from_recent_projects(db: State<Database>, project_id: String) -> Result<(), String> {
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
 
-    let app_data_dir = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("앱 데이터 디렉토리를 찾을 수 없습니다: {}", e))?;
-
-    let recent_projects_file = app_data_dir.join("recent-projects.json");
-
-    if !recent_projects_file.exists() {
-        return Ok(()); // 파일이 없으면 그냥 성공
-    }
-
-    // 기존 최근 프로젝트 목록 읽기
-    let json = fs::read_to_string(&recent_projects_file)
-        .map_err(|e| format!("최근 프로젝트 목록 읽기 실패: {}", e))?;
-
-    let mut recent_projects: Vec<Project> = serde_json::from_str(&json).unwrap_or_default();
-
-    // 해당 경로의 프로젝트 제거
-    recent_projects.retain(|p| p.path != project_path);
-
-    // 저장
-    let json = serde_json::to_string_pretty(&recent_projects)
-        .map_err(|e| format!("최근 프로젝트 목록 직렬화 실패: {}", e))?;
-
-    fs::write(recent_projects_file, json)
-        .map_err(|e| format!("최근 프로젝트 목록 저장 실패: {}", e))?;
+    conn.execute(
+        "DELETE FROM recent_projects WHERE project_id = ?1",
+        params![&project_id],
+    ).map_err(|e| format!("최근 프로젝트 제거 실패: {}", e))?;
 
     Ok(())
 }
 
-/// 프로젝트 완전 삭제 (파일 시스템에서 삭제 + 최근 목록에서 제거)
+/// 프로젝트 완전 삭제 (파일 시스템에서 삭제 + DB에서 제거)
 #[tauri::command]
-pub fn delete_project(app: AppHandle, project_path: String) -> Result<(), String> {
-    use tauri::Manager;
+pub fn delete_project(db: State<Database>, project_id: String) -> Result<(), String> {
+    // DB에서 프로젝트 조회
+    let project = open_project(db.clone(), project_id.clone())?;
 
-    let project_path_buf = PathBuf::from(&project_path);
+    let project_path_buf = PathBuf::from(&project.path);
 
     // 프로젝트 경로 존재 확인
     if !project_path_buf.exists() {
@@ -330,8 +468,14 @@ pub fn delete_project(app: AppHandle, project_path: String) -> Result<(), String
     fs::remove_dir_all(&project_path_buf)
         .map_err(|e| format!("프로젝트 삭제 실패: {}", e))?;
 
-    // 최근 프로젝트 목록에서도 제거
-    remove_from_recent_projects(app, project_path)?;
+    // DB에서 삭제 (CASCADE로 recent_projects도 자동 삭제됨)
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    conn.execute(
+        "DELETE FROM projects WHERE id = ?1",
+        params![&project_id],
+    ).map_err(|e| format!("DB에서 프로젝트 삭제 실패: {}", e))?;
 
     Ok(())
 }

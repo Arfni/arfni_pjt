@@ -38,6 +38,7 @@ export interface TargetNodeData {
   sshKey?: string;
   port?: number;
   workdir?: string;
+  mode?: 'all-in-one' | 'hybrid' | 'no-monitoring';
 }
 
 // Database 노드 타입

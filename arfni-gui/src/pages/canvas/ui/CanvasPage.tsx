@@ -26,25 +26,12 @@ export function CanvasPage() {
   const passedProject = location.state?.project as Project | undefined;
 
   useEffect(() => {
-    // 전달받은 프로젝트가 있고, 현재 프로젝트와 다른 경우 로드
-    if (passedProject && passedProject.path !== currentProject?.path) {
+    // 전달받은 프로젝트가 있으면 로드 (같은 프로젝트여도 canvas 상태 재로드)
+    if (passedProject) {
       console.log('프로젝트 로드:', passedProject.name, passedProject.path);
       dispatch(openProject(passedProject.path));
     }
-  }, [passedProject, currentProject, dispatch]);
-
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">프로젝트를 불러오는 중...</p>
-        </div>
-      </div>
-    );
-  }
-
-  
+  }, [passedProject, dispatch]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -98,6 +85,18 @@ export function CanvasPage() {
       document.body.style.userSelect = '';
     };
   }, [isResizing, handleMouseMove, handleMouseUp]);
+
+  // 로딩 중일 때
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p className="text-gray-600">프로젝트를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
