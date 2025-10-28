@@ -326,32 +326,6 @@ function CanvasEditorInner() {
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#d1d5db" />
       </ReactFlow>
 
-      {/* 선 위에 삭제 버튼 표시 */}
-      {selectedEdgeId && (() => {
-        const position = getEdgeCenterPosition();
-        if (!position) return null;
-
-        return (
-          <div
-            style={{
-              position: 'absolute',
-              left: `${position.x}px`,
-              top: `${position.y}px`,
-              transform: 'translate(-50%, -50%)',
-              zIndex: 1000,
-              pointerEvents: 'auto',
-            }}
-          >
-            <button
-              onClick={handleDeleteEdge}
-              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded shadow-lg text-xs font-medium transition-colors"
-            >
-              삭제
-            </button>
-          </div>
-        );
-      })()}
-
       {/* Auto-save 인디케이터 */}
       {isSaving && (
         <div className="absolute top-4 right-4 bg-white border border-yellow-300 text-yellow-700 px-3 py-1.5 rounded-lg shadow-md z-10 flex items-center gap-2 text-sm">
