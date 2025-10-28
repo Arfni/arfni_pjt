@@ -1,27 +1,16 @@
-//! Tauri v2 / 실시간 인터랙티브 SSH 세션 매니저
-//! - 세션 시작: ssh_start(params) → session_id 반환
-//! - 명령 전송: ssh_send(id, cmd)
-//! - 세션 종료: ssh_close(id)
-//! - 이벤트:
-//!   * "ssh:data"   : stdout chunk
-//!   * "ssh:stderr" : stderr chunk
-//!   * "ssh:closed" : 세션 종료 알림
-
 use anyhow::{Context, Result};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use ssh2::{Channel, Session};
 use std::{
   collections::HashMap,
-  io::{Read, Write},
-  net::TcpStream,
-  path::Path,
+  io::{BufRead, BufReader, Write},
+  process::{Child, ChildStdin, Command, Stdio},
   sync::mpsc::{self, Sender},
   thread,
   time::Duration,
 };
-use tauri::{AppHandle, Emitter}; // v2: emit()은 Emitter 트레이트 필요
+use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 // ============ Public Types ============
@@ -41,11 +30,9 @@ pub struct SshDataEvent {
 
 // ============ Session Handle ============
 
-// Debug 파생 금지: ssh2::{Session, Channel}은 Debug 미구현
 struct SshHandle {
   id: Uuid,
-  session: Session,
-  chan: Channel,
+  child: Child,
   tx_cmd: Sender<String>,
   tx_close: Sender<()>,
   _stdout_join: thread::JoinHandle<()>,
@@ -60,42 +47,32 @@ fn sessions() -> &'static Mutex<HashMap<Uuid, SshHandle>> {
 
 // ============ Low-level Connect ============
 
-fn connect_interactive(params: &SshParams) -> Result<(Session, Channel)> {
-  let addr = format!("{}:22", params.host);
-  let tcp = TcpStream::connect(&addr)
-    .with_context(|| format!("connect {}", addr))?;
-  tcp.set_read_timeout(Some(Duration::from_secs(2))).ok();
-  tcp.set_write_timeout(Some(Duration::from_secs(2))).ok();
+fn connect_interactive(params: &SshParams) -> Result<(Child, ChildStdin)> {
+  let target = format!("{}@{}", params.user, params.host);
+  println!("[DEBUG] Launching system SSH to {target}");
 
-  let mut sess = Session::new().context("create ssh session")?;
-  sess.set_tcp_stream(tcp);
-  sess.handshake().context("ssh handshake failed")?;
+  let mut child = Command::new("ssh")
+    .args([
+      "-i", &params.pem_path,
+      "-tt", // force pseudo-terminal for interactive commands
+      "-o", "StrictHostKeyChecking=accept-new",
+      &target,
+    ])
+    .stdin(Stdio::piped())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    .context("failed to spawn ssh")?;
 
-  // 키 인증
-  let key_path = Path::new(&params.pem_path);
-  sess
-    .userauth_pubkey_file(&params.user, None, key_path, None)
-    .context("pubkey auth failed")?;
-
-  if !sess.authenticated() {
-    anyhow::bail!("not authenticated");
-  }
-
-  // 인터랙티브 셸
-  let mut ch = sess.channel_session().context("open channel")?;
-  // 필요한 경우만 PTY (tail -f, top 등은 PTY가 자연스러움)
-  ch.request_pty("xterm", None, None).ok();
-  ch.shell().context("start shell failed")?;
-
-  // 기본 모드(ExtendedData::Normal)면 stderr는 ch.stderr()로 분리 읽기 가능
-  Ok((sess, ch))
+  let stdin = child.stdin.take().context("failed to open stdin")?;
+  Ok((child, stdin))
 }
 
 // ============ Session API (Rust) ============
 
 /// 세션 시작: stdout/stderr를 이벤트로 지속 푸시
 pub fn start_interactive_session(app: AppHandle, params: SshParams) -> Result<Uuid> {
-  let (sess, ch) = connect_interactive(&params)?;
+  let (mut child, mut stdin) = connect_interactive(&params)?;
 
   let (tx_cmd, rx_cmd) = mpsc::channel::<String>();
   let (tx_close, rx_close) = mpsc::channel::<()>();
@@ -105,24 +82,18 @@ pub fn start_interactive_session(app: AppHandle, params: SshParams) -> Result<Uu
   // --- stdout reader ---
   let app_stdout = app.clone();
   let stdout_id = id;
-  // stream(0) == stdout
-  let mut ch_stdout = ch.stream(0);
+  let stdout = child.stdout.take().context("no stdout")?;
   let stdout_join = thread::spawn(move || {
-    let mut buf = [0u8; 4096];
-    loop {
+    let reader = BufReader::new(stdout);
+    for line in reader.lines() {
       if rx_close.try_recv().is_ok() {
         break;
       }
-      match ch_stdout.read(&mut buf) {
-        Ok(0) => break, // EOF
-        Ok(n) => {
-          let s = String::from_utf8_lossy(&buf[..n]).to_string();
-          let _ = app_stdout.emit(
-            "ssh:data",
-            SshDataEvent { id: stdout_id.to_string(), chunk: s },
-          );
-        }
-        Err(_) => thread::sleep(Duration::from_millis(20)),
+      if let Ok(s) = line {
+        let _ = app_stdout.emit(
+          "ssh:data",
+          SshDataEvent { id: stdout_id.to_string(), chunk: s },
+        );
       }
     }
   });
@@ -130,42 +101,35 @@ pub fn start_interactive_session(app: AppHandle, params: SshParams) -> Result<Uu
   // --- stderr reader ---
   let app_stderr = app.clone();
   let stderr_id = id;
-  let mut ch_stderr = ch.stderr();
+  let stderr = child.stderr.take().context("no stderr")?;
   let stderr_join = thread::spawn(move || {
-    let mut buf = [0u8; 4096];
-    loop {
-      match ch_stderr.read(&mut buf) {
-        Ok(0) => break,
-        Ok(n) => {
-          let s = String::from_utf8_lossy(&buf[..n]).to_string();
-          let _ = app_stderr.emit(
-            "ssh:stderr",
-            SshDataEvent { id: stderr_id.to_string(), chunk: s },
-          );
-        }
-        Err(_) => thread::sleep(Duration::from_millis(20)),
+    let reader = BufReader::new(stderr);
+    for line in reader.lines() {
+      if let Ok(s) = line {
+        let _ = app_stderr.emit(
+          "ssh:stderr",
+          SshDataEvent { id: stderr_id.to_string(), chunk: s },
+        );
       }
     }
   });
 
   // --- writer (명령 큐 소비) ---
-  let mut ch_writer = ch.clone();
   thread::spawn(move || {
     while let Ok(cmd) = rx_cmd.recv() {
-      // 한 줄 보장 (엔터)
       let line = if cmd.ends_with('\n') { cmd } else { format!("{cmd}\n") };
-      if let Err(_e) = ch_writer.write_all(line.as_bytes()) {
+      if let Err(e) = stdin.write_all(line.as_bytes()) {
+        println!("[DEBUG] write error: {:?}", e);
         break;
       }
-      let _ = ch_writer.flush();
+      let _ = stdin.flush();
     }
   });
 
   // 핸들 등록
   let handle = SshHandle {
     id,
-    session: sess,
-    chan: ch,
+    child,
     tx_cmd,
     tx_close,
     _stdout_join: stdout_join,
@@ -173,6 +137,7 @@ pub fn start_interactive_session(app: AppHandle, params: SshParams) -> Result<Uu
   };
   sessions().lock().insert(id, handle);
 
+  println!("[DEBUG] SSH session {id} started ✅");
   Ok(id)
 }
 
@@ -189,36 +154,23 @@ pub fn send_command(id: Uuid, cmd: String) -> Result<()> {
 /// 세션 종료
 pub fn close_session(app: &AppHandle, id: Uuid) -> Result<()> {
   if let Some(mut h) = sessions().lock().remove(&id) {
-    let _ = h.tx_close.send(());      // reader 루프 종료 유도
-    let _ = h.chan.close();           // 채널 닫기
-    let _ = h.chan.wait_close();      // 원격 종료 대기
-    let _ = app.emit("ssh:closed", SshDataEvent {
-      id: id.to_string(),
-      chunk: String::from("session closed"),
-    });
+    let _ = h.tx_close.send(()); // reader 루프 종료 유도
+    let _ = h.child.kill(); // ssh 프로세스 종료
+    let _ = app.emit(
+      "ssh:closed",
+      SshDataEvent { id: id.to_string(), chunk: "session closed".into() },
+    );
+    println!("[DEBUG] Session {id} closed");
     Ok(())
   } else {
     anyhow::bail!("session not found");
   }
 }
 
-// ============ Tauri Commands (v2) ============
-
-#[tauri::command]
-pub async fn ssh_start(app: AppHandle, params: SshParams) -> Result<String, String> {
-  start_interactive_session(app, params)
-    .map(|id| id.to_string())
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn ssh_send(id: String, cmd: String) -> Result<(), String> {
-  let id = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
-  send_command(id, cmd).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn ssh_close(app: AppHandle, id: String) -> Result<(), String> {
-  let id = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
-  close_session(&app, id).map_err(|e| e.to_string())
+/// 앱 종료 시, 살아있는 세션들 정리
+pub fn close_all_sessions(app: &AppHandle) {
+  let ids: Vec<Uuid> = sessions().lock().keys().cloned().collect();
+  for id in ids {
+    let _ = close_session(app, id);
+  }
 }

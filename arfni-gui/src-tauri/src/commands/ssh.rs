@@ -1,6 +1,7 @@
 use serde::{Serialize, Deserialize};
 use anyhow::Result;
 use crate::features::ssh_exec::SshParams;
+
 #[derive(Deserialize)]
 pub struct SshSimpleParams {
   pub host: String,     // "ec2-13-...amazonaws.com"

@@ -8,6 +8,7 @@ import TestPage from "./pages/test/ui/TestPage";
 import LogPage from "./pages/logs/ui/LogPage";
 import ProjectsPage from "./pages/logs/ui/ProjectsPage";
 import TestPage2 from "./pages/test/ui/TestPage2";
+import SshTerminal from "./pages/test/ui/SshTerminal";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,7 +30,8 @@ function App() {
             <Route path="/test" element={<TestPage />} />
             <Route path="/logs" element={<LogPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
-             <Route path="/test2" element={<TestPage2 />} />
+            <Route path="/test2" element={<TestPage2 />} />
+            <Route path="/test3" element={<SshTerminal />} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>
