@@ -131,7 +131,7 @@ export function NodePalette() {
     );
 
   return (
-    <div className="w-52 bg-white border-r border-gray-200 flex flex-col">
+    <div className="w-52 h-full bg-white border-r border-gray-200 flex flex-col">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200">
         <h2 className="text-base font-semibold text-gray-800">Blocks</h2>

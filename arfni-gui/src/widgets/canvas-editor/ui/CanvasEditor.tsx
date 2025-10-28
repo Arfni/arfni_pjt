@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -27,6 +27,7 @@ import {
   selectNode,
   selectTemplate,
   deleteNode,
+  deleteEdge,
 } from '@features/canvas';
 
 import { ServiceNode } from '@entities/service/ui/ServiceNode';
@@ -55,6 +56,7 @@ function CanvasEditorInner() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useReactFlow();
   const { project } = reactFlowInstance;
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   // Auto-save: Canvas 변경 후 2초 뒤 자동 저장
   const { isSaving, lastSaved } = useAutoSave(2000);
@@ -86,14 +88,20 @@ function CanvasEditorInner() {
     }
   }, []);
 
-  // ESC 키로 템플릿 선택 취소, Del 키로 노드 삭제
+  // ESC 키로 템플릿 선택 취소, Del 키로 노드/엣지 삭제
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         dispatch(selectTemplate(null));
         dispatch(selectNode(null));
-      } else if (e.key === 'Delete' && selectedNodeId) {
-        dispatch(deleteNode(selectedNodeId));
+        setSelectedEdgeId(null);
+      } else if (e.key === 'Delete') {
+        if (selectedNodeId) {
+          dispatch(deleteNode(selectedNodeId));
+        } else if (selectedEdgeId) {
+          dispatch(deleteEdge(selectedEdgeId));
+          setSelectedEdgeId(null);
+        }
       }
     };
 
@@ -101,7 +109,7 @@ function CanvasEditorInner() {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [dispatch, selectedNodeId]);
+  }, [dispatch, selectedNodeId, selectedEdgeId]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     dispatch(handleNodesChange(changes));
@@ -225,13 +233,56 @@ function CanvasEditorInner() {
 
   // 캔버스 클릭 시 선택 해제만 처리
   const onPaneClick = useCallback(() => {
-    // 빈 캔버스 클릭 시 노드 선택 해제
+    // 빈 캔버스 클릭 시 노드/엣지 선택 해제
     dispatch(selectNode(null));
+    setSelectedEdgeId(null);
   }, [dispatch]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: any) => {
     dispatch(selectNode(node.id));
+    setSelectedEdgeId(null);
   }, [dispatch]);
+
+  const onEdgeClick = useCallback((event: React.MouseEvent, edge: any) => {
+    event.stopPropagation();
+    setSelectedEdgeId(edge.id);
+    dispatch(selectNode(null));
+  }, [dispatch]);
+
+  const handleDeleteEdge = useCallback((e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    if (selectedEdgeId) {
+      dispatch(deleteEdge(selectedEdgeId));
+      setSelectedEdgeId(null);
+    }
+  }, [dispatch, selectedEdgeId]);
+
+  // 선택된 엣지의 중간점 계산
+  const getEdgeCenterPosition = useCallback(() => {
+    if (!selectedEdgeId || !reactFlowWrapper.current) return null;
+
+    const selectedEdge = edges.find(e => e.id === selectedEdgeId);
+    if (!selectedEdge) return null;
+
+    const sourceNode = nodes.find(n => n.id === selectedEdge.source);
+    const targetNode = nodes.find(n => n.id === selectedEdge.target);
+
+    if (!sourceNode || !targetNode) return null;
+
+    // 노드 중심점 계산
+    const sourceX = sourceNode.position.x + (sourceNode.width || 140) / 2;
+    const sourceY = sourceNode.position.y + (sourceNode.height || 80) / 2;
+    const targetX = targetNode.position.x + (targetNode.width || 140) / 2;
+    const targetY = targetNode.position.y + (targetNode.height || 80) / 2;
+
+    // 중간점 계산
+    const centerX = (sourceX + targetX) / 2;
+    const centerY = (sourceY + targetY) / 2;
+
+    return { x: centerX, y: centerY };
+  }, [selectedEdgeId, edges, nodes]);
 
   return (
     <div
@@ -242,11 +293,18 @@ function CanvasEditorInner() {
     >
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={edges.map(edge => ({
+          ...edge,
+          style: {
+            strokeWidth: edge.id === selectedEdgeId ? 3 : 2,
+            stroke: edge.id === selectedEdgeId ? '#ef4444' : '#94a3b8',
+          },
+        }))}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         fitView
@@ -267,6 +325,32 @@ function CanvasEditorInner() {
         />
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#d1d5db" />
       </ReactFlow>
+
+      {/* 선 위에 삭제 버튼 표시 */}
+      {selectedEdgeId && (() => {
+        const position = getEdgeCenterPosition();
+        if (!position) return null;
+
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${position.x}px`,
+              top: `${position.y}px`,
+              transform: 'translate(-50%, -50%)',
+              zIndex: 1000,
+              pointerEvents: 'auto',
+            }}
+          >
+            <button
+              onClick={handleDeleteEdge}
+              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded shadow-lg text-xs font-medium transition-colors"
+            >
+              삭제
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Auto-save 인디케이터 */}
       {isSaving && (

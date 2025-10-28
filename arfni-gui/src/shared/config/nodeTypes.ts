@@ -11,6 +11,7 @@ export interface ServiceNodeData {
   ports?: string[];
   env?: Record<string, string>;
   dependsOn?: string[];
+  serviceType?: 'react' | 'nextjs' | 'spring' | 'nodejs' | 'python' | 'fastapi' | 'custom';
 }
 
 export interface TargetNodeData {
