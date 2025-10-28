@@ -184,8 +184,42 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 	return nil
 }
 
+// getTargetType은 서비스들이 사용하는 target type을 반환합니다
+func (r *Runner) getTargetType() string {
+	// 첫 번째 서비스의 target을 확인
+	for _, service := range r.stack.Services {
+		if target, exists := r.stack.Targets[service.Target]; exists {
+			return target.Type
+		}
+	}
+	return "docker-desktop" // 기본값
+}
+
+// getTarget은 서비스들이 사용하는 target을 반환합니다
+func (r *Runner) getTarget() (stack.Target, error) {
+	for _, service := range r.stack.Services {
+		if target, exists := r.stack.Targets[service.Target]; exists {
+			return target, nil
+		}
+	}
+	return stack.Target{}, fmt.Errorf("no valid target found")
+}
+
 // buildImages는 docker-compose build를 실행합니다
 func (r *Runner) buildImages(stream *events.Stream) error {
+	targetType := r.getTargetType()
+
+	// EC2인 경우 원격 빌드
+	if targetType == "ec2.ssh" {
+		return r.buildImagesEC2(stream)
+	}
+
+	// 로컬 빌드
+	return r.buildImagesLocal(stream)
+}
+
+// buildImagesLocal은 로컬에서 docker-compose build를 실행합니다
+func (r *Runner) buildImagesLocal(stream *events.Stream) error {
 	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
 	composeFile := filepath.Join(composeDir, "docker-compose.yml")
 
@@ -241,8 +275,76 @@ func (r *Runner) buildImages(stream *events.Stream) error {
 	return nil
 }
 
+// buildImagesEC2는 EC2에서 docker-compose build를 실행합니다
+func (r *Runner) buildImagesEC2(stream *events.Stream) error {
+	target, err := r.getTarget()
+	if err != nil {
+		return err
+	}
+
+	sshClient := NewSSHClient(target, r.projectDir)
+
+	// 1. Docker 설치 확인
+	if err := sshClient.CheckDockerInstalled(stream); err != nil {
+		return err
+	}
+
+	// 2. 작업 디렉토리 준비
+	if err := sshClient.PrepareWorkdir(stream); err != nil {
+		return err
+	}
+
+	workdir := sshClient.GetWorkdir()
+
+	// 3. 프로젝트 파일들 전송
+	stream.Info("Uploading project files to EC2...")
+
+	// .arfni/compose 디렉토리 전송
+	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
+	remoteComposeDir := workdir + "/.arfni/compose"
+	if err := sshClient.UploadDirectory(stream, composeDir, remoteComposeDir); err != nil {
+		return fmt.Errorf("failed to upload compose files: %w", err)
+	}
+
+	// 빌드 컨텍스트 디렉토리들 전송 (apps 디렉토리 등)
+	for name, service := range r.stack.Services {
+		if service.Spec.Build != "" {
+			localBuildPath := filepath.Join(r.projectDir, service.Spec.Build)
+			remoteBuildPath := workdir + "/" + service.Spec.Build
+
+			stream.Info(fmt.Sprintf("Uploading build context for %s...", name))
+			if err := sshClient.UploadDirectory(stream, localBuildPath, remoteBuildPath); err != nil {
+				return fmt.Errorf("failed to upload build context for %s: %w", name, err)
+			}
+		}
+	}
+
+	// 4. EC2에서 빌드 실행
+	stream.Info("Building images on EC2...")
+	buildCmd := fmt.Sprintf("cd %s && docker-compose -f .arfni/compose/docker-compose.yml build", workdir)
+	if err := sshClient.RunCommand(stream, buildCmd); err != nil {
+		return fmt.Errorf("failed to build on EC2: %w", err)
+	}
+
+	stream.Success("Images built successfully on EC2")
+	return nil
+}
+
 // deployContainers는 docker-compose up -d를 실행합니다
 func (r *Runner) deployContainers(stream *events.Stream) error {
+	targetType := r.getTargetType()
+
+	// EC2인 경우 원격 배포
+	if targetType == "ec2.ssh" {
+		return r.deployContainersEC2(stream)
+	}
+
+	// 로컬 배포
+	return r.deployContainersLocal(stream)
+}
+
+// deployContainersLocal은 로컬에서 docker-compose up -d를 실행합니다
+func (r *Runner) deployContainersLocal(stream *events.Stream) error {
 	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
 	composeFile := filepath.Join(composeDir, "docker-compose.yml")
 
@@ -292,8 +394,43 @@ func (r *Runner) deployContainers(stream *events.Stream) error {
 	return nil
 }
 
+// deployContainersEC2는 EC2에서 docker-compose up -d를 실행합니다
+func (r *Runner) deployContainersEC2(stream *events.Stream) error {
+	target, err := r.getTarget()
+	if err != nil {
+		return err
+	}
+
+	sshClient := NewSSHClient(target, r.projectDir)
+	workdir := sshClient.GetWorkdir()
+
+	stream.Info("Deploying containers on EC2...")
+
+	// docker-compose up -d 실행
+	deployCmd := fmt.Sprintf("cd %s && docker-compose -f .arfni/compose/docker-compose.yml up -d", workdir)
+	if err := sshClient.RunCommand(stream, deployCmd); err != nil {
+		return fmt.Errorf("failed to deploy on EC2: %w", err)
+	}
+
+	stream.Success("Containers deployed successfully on EC2")
+	return nil
+}
+
 // healthChecks는 컨테이너 상태를 확인합니다
 func (r *Runner) healthChecks(stream *events.Stream) error {
+	targetType := r.getTargetType()
+
+	// EC2인 경우 원격 헬스체크
+	if targetType == "ec2.ssh" {
+		return r.healthChecksEC2(stream)
+	}
+
+	// 로컬 헬스체크
+	return r.healthChecksLocal(stream)
+}
+
+// healthChecksLocal은 로컬 컨테이너 상태를 확인합니다
+func (r *Runner) healthChecksLocal(stream *events.Stream) error {
 	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
 	composeFile := filepath.Join(composeDir, "docker-compose.yml")
 
@@ -327,6 +464,46 @@ func (r *Runner) healthChecks(stream *events.Stream) error {
 	}
 
 	stream.Info(fmt.Sprintf("Found %d running container(s)", len(output)/13)) // Docker ID is 12 chars + newline
+
+	return nil
+}
+
+// healthChecksEC2는 EC2의 컨테이너 상태를 확인합니다
+func (r *Runner) healthChecksEC2(stream *events.Stream) error {
+	target, err := r.getTarget()
+	if err != nil {
+		return err
+	}
+
+	sshClient := NewSSHClient(target, r.projectDir)
+	workdir := sshClient.GetWorkdir()
+
+	// Wait a bit for containers to start
+	time.Sleep(2 * time.Second)
+
+	stream.Info("Checking container status on EC2...")
+
+	// docker-compose ps 실행
+	psCmd := fmt.Sprintf("cd %s && docker-compose -f .arfni/compose/docker-compose.yml ps", workdir)
+	output, err := sshClient.RunCommandWithOutput(stream, psCmd)
+	if err != nil {
+		return fmt.Errorf("failed to check container status: %w", err)
+	}
+
+	stream.Info(output)
+
+	// 컨테이너 ID 확인
+	psqCmd := fmt.Sprintf("cd %s && docker-compose -f .arfni/compose/docker-compose.yml ps -q", workdir)
+	output, err = sshClient.RunCommandWithOutput(stream, psqCmd)
+	if err != nil {
+		return fmt.Errorf("failed to get container IDs: %w", err)
+	}
+
+	if len(output) == 0 {
+		return fmt.Errorf("no containers are running on EC2")
+	}
+
+	stream.Success(fmt.Sprintf("Found running containers on EC2"))
 
 	return nil
 }
