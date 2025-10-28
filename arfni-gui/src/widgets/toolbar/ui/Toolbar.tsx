@@ -8,7 +8,8 @@ import {
   StopCircle,
   CheckCircle,
   PlusCircle,
-  Loader2
+  Loader2,
+  ArrowLeft
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
@@ -215,6 +216,14 @@ export function Toolbar() {
   return (
     <div className="h-12 bg-gray-800 text-white flex items-center justify-between px-4 border-b border-gray-600">
       <div className="flex items-center space-x-4">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-1 hover:bg-gray-700 rounded transition-colors"
+          title="뒤로가기"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+
         <h1 className="text-lg font-semibold">
           ARFNI Canvas
           {currentProject && (

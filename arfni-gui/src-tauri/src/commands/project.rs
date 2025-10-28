@@ -12,6 +12,9 @@ pub struct Project {
     pub updated_at: String,
     pub stack_yaml_path: Option<String>,
     pub description: Option<String>,
+    pub ssh_host: Option<String>,
+    pub ssh_user: Option<String>,
+    pub ssh_pem_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,6 +52,9 @@ pub fn create_project(
     name: String,
     path: String,
     description: Option<String>,
+    ssh_host: Option<String>,
+    ssh_user: Option<String>,
+    ssh_pem_path: Option<String>,
 ) -> Result<Project, String> {
     let project_path = Path::new(&path).join(&name);
     let arfni_path = project_path.join(".arfni");
@@ -78,6 +84,9 @@ pub fn create_project(
         updated_at: chrono::Utc::now().to_rfc3339(),
         stack_yaml_path: Some(project_path.join("stack.yaml").to_string_lossy().to_string()),
         description,
+        ssh_host,
+        ssh_user,
+        ssh_pem_path,
     };
 
     // 프로젝트 메타데이터 저장
@@ -261,6 +270,68 @@ pub fn add_to_recent_projects(app: AppHandle, project: Project) -> Result<(), St
 
     fs::write(recent_projects_file, json)
         .map_err(|e| format!("최근 프로젝트 목록 저장 실패: {}", e))?;
+
+    Ok(())
+}
+
+/// 최근 프로젝트 목록에서 제거
+#[tauri::command]
+pub fn remove_from_recent_projects(app: AppHandle, project_path: String) -> Result<(), String> {
+    use tauri::Manager;
+
+    let app_data_dir = app.path()
+        .app_data_dir()
+        .map_err(|e| format!("앱 데이터 디렉토리를 찾을 수 없습니다: {}", e))?;
+
+    let recent_projects_file = app_data_dir.join("recent-projects.json");
+
+    if !recent_projects_file.exists() {
+        return Ok(()); // 파일이 없으면 그냥 성공
+    }
+
+    // 기존 최근 프로젝트 목록 읽기
+    let json = fs::read_to_string(&recent_projects_file)
+        .map_err(|e| format!("최근 프로젝트 목록 읽기 실패: {}", e))?;
+
+    let mut recent_projects: Vec<Project> = serde_json::from_str(&json).unwrap_or_default();
+
+    // 해당 경로의 프로젝트 제거
+    recent_projects.retain(|p| p.path != project_path);
+
+    // 저장
+    let json = serde_json::to_string_pretty(&recent_projects)
+        .map_err(|e| format!("최근 프로젝트 목록 직렬화 실패: {}", e))?;
+
+    fs::write(recent_projects_file, json)
+        .map_err(|e| format!("최근 프로젝트 목록 저장 실패: {}", e))?;
+
+    Ok(())
+}
+
+/// 프로젝트 완전 삭제 (파일 시스템에서 삭제 + 최근 목록에서 제거)
+#[tauri::command]
+pub fn delete_project(app: AppHandle, project_path: String) -> Result<(), String> {
+    use tauri::Manager;
+
+    let project_path_buf = PathBuf::from(&project_path);
+
+    // 프로젝트 경로 존재 확인
+    if !project_path_buf.exists() {
+        return Err("프로젝트 경로가 존재하지 않습니다".to_string());
+    }
+
+    // .arfni 디렉토리가 있는지 확인 (ARFNI 프로젝트인지 검증)
+    let arfni_path = project_path_buf.join(".arfni");
+    if !arfni_path.exists() {
+        return Err("유효한 ARFNI 프로젝트가 아닙니다".to_string());
+    }
+
+    // 프로젝트 폴더 전체 삭제
+    fs::remove_dir_all(&project_path_buf)
+        .map_err(|e| format!("프로젝트 삭제 실패: {}", e))?;
+
+    // 최근 프로젝트 목록에서도 제거
+    remove_from_recent_projects(app, project_path)?;
 
     Ok(())
 }
