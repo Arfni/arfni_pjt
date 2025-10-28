@@ -10,6 +10,9 @@ export interface Project {
   updated_at: string;
   stack_yaml_path?: string;
   description?: string;
+  ssh_host?: string;
+  ssh_user?: string;
+  ssh_pem_path?: string;
 }
 
 export interface StackYamlData {
@@ -58,8 +61,22 @@ export interface FileChangePayload {
 // ============= 프로젝트 명령어 =============
 export const projectCommands = {
   // 프로젝트 생성
-  createProject: async (name: string, path: string, description?: string): Promise<Project> => {
-    return await invoke('create_project', { name, path, description });
+  createProject: async (
+    name: string,
+    path: string,
+    description?: string,
+    sshHost?: string,
+    sshUser?: string,
+    sshPemPath?: string
+  ): Promise<Project> => {
+    return await invoke('create_project', {
+      name,
+      path,
+      description,
+      sshHost,
+      sshUser,
+      sshPemPath
+    });
   },
 
   // 프로젝트 열기
@@ -98,6 +115,16 @@ export const projectCommands = {
   // 최근 프로젝트에 추가
   addToRecentProjects: async (project: Project): Promise<void> => {
     return await invoke('add_to_recent_projects', { project });
+  },
+
+  // 최근 프로젝트 목록에서 제거
+  removeFromRecentProjects: async (projectPath: string): Promise<void> => {
+    return await invoke('remove_from_recent_projects', { projectPath });
+  },
+
+  // 프로젝트 완전 삭제 (파일 시스템에서 삭제)
+  deleteProject: async (projectPath: string): Promise<void> => {
+    return await invoke('delete_project', { projectPath });
   },
 };
 

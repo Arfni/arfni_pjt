@@ -1,11 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { CanvasEditor } from '@widgets/canvas-editor';
 import { LogViewer } from '@widgets/log-viewer';
 import { Toolbar } from '@widgets/toolbar';
 import { NodePalette } from '@widgets/node-palette';
 import { YamlEditor } from '@widgets/yaml-editor';
 import { PropertyPanel } from '@widgets/property-panel';
+import { useAppDispatch, useAppSelector } from '@app/hooks';
+import { openProject, selectCurrentProject, selectProjectLoading } from '@features/project';
+import { Project } from '@shared/api/tauri/commands';
 
 export function CanvasPage() {
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
@@ -13,6 +17,34 @@ export function CanvasPage() {
   const [yamlHeight, setYamlHeight] = useState(256); // 초기 높이 256px (h-64)
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+  const dispatch = useAppDispatch();
+  const currentProject = useAppSelector(selectCurrentProject);
+  const isLoading = useAppSelector(selectProjectLoading);
+
+  // ProjectsPage에서 전달받은 프로젝트 정보
+  const passedProject = location.state?.project as Project | undefined;
+
+  useEffect(() => {
+    // 전달받은 프로젝트가 있고, 현재 프로젝트와 다른 경우 로드
+    if (passedProject && passedProject.path !== currentProject?.path) {
+      console.log('프로젝트 로드:', passedProject.name, passedProject.path);
+      dispatch(openProject(passedProject.path));
+    }
+  }, [passedProject, currentProject, dispatch]);
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p className="text-gray-600">프로젝트를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
