@@ -138,10 +138,14 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
     try {
       console.log('프로젝트 생성 중...');
 
-      // 1. 프로젝트 생성
+      // 1. 프로젝트 생성 (SSH 정보 포함)
       const newProject = await projectCommands.createProject(
         projectName,
-        workingDirectory
+        workingDirectory,
+        undefined, // description
+        ec2Address || undefined,
+        ec2Username || undefined,
+        pemFilePath || undefined
       );
 
       console.log('프로젝트 생성 완료:', newProject);

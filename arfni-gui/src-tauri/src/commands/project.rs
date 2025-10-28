@@ -12,6 +12,9 @@ pub struct Project {
     pub updated_at: String,
     pub stack_yaml_path: Option<String>,
     pub description: Option<String>,
+    pub ssh_host: Option<String>,
+    pub ssh_user: Option<String>,
+    pub ssh_pem_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,6 +52,9 @@ pub fn create_project(
     name: String,
     path: String,
     description: Option<String>,
+    ssh_host: Option<String>,
+    ssh_user: Option<String>,
+    ssh_pem_path: Option<String>,
 ) -> Result<Project, String> {
     let project_path = Path::new(&path).join(&name);
     let arfni_path = project_path.join(".arfni");
@@ -78,6 +84,9 @@ pub fn create_project(
         updated_at: chrono::Utc::now().to_rfc3339(),
         stack_yaml_path: Some(project_path.join("stack.yaml").to_string_lossy().to_string()),
         description,
+        ssh_host,
+        ssh_user,
+        ssh_pem_path,
     };
 
     // 프로젝트 메타데이터 저장
