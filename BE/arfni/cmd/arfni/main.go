@@ -68,10 +68,46 @@ func runDeploy(stackFile, projectDir string) {
 
 	// Output results
 	composeDir := filepath.Join(projectDir, ".arfni", "compose")
-	outputs := map[string]string{
-		"status":      "success",
-		"services":    fmt.Sprintf("%d", len(stackData.Services)),
-		"compose_dir": composeDir,
+
+	// 엔드포인트 수집 - stack.yaml의 포트 정보 사용
+	endpoints := []map[string]string{}
+	for serviceName, service := range stackData.Services {
+		// 서비스의 첫 번째 포트를 사용
+		port := 8080 // 기본값
+		if len(service.Spec.Ports) > 0 {
+			// "8080:8080" 형식에서 앞의 포트(호스트 포트) 추출
+			portStr := service.Spec.Ports[0]
+			if colonIdx := 0; colonIdx < len(portStr) {
+				// : 앞의 포트 번호 파싱
+				var hostPort string
+				for i, c := range portStr {
+					if c == ':' {
+						hostPort = portStr[:i]
+						break
+					}
+				}
+				if hostPort != "" {
+					fmt.Sscanf(hostPort, "%d", &port)
+				} else {
+					// : 없으면 전체가 포트 번호
+					fmt.Sscanf(portStr, "%d", &port)
+				}
+			}
+		}
+
+		endpoints = append(endpoints, map[string]string{
+			"name": serviceName,
+			"url":  fmt.Sprintf("http://localhost:%d", port),
+			"type": "service",
+		})
+	}
+
+	outputs := map[string]interface{}{
+		"status":          "success",
+		"service_count":   len(stackData.Services),
+		"container_count": len(stackData.Services), // 임시로 서비스 개수와 동일
+		"compose_dir":     composeDir,
+		"endpoints":       endpoints,
 	}
 
 	outputJSON, _ := json.Marshal(outputs)

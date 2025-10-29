@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
-use std::process::{Command, Stdio};
+use std::process::{Command, Stdio, Child};
 use std::io::{BufRead, BufReader};
 use tauri::{AppHandle, Manager, Emitter};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use once_cell::sync::Lazy;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DeploymentLog {
@@ -23,6 +24,7 @@ pub struct DeploymentStatus {
 
 // 배포 프로세스 관리를 위한 전역 상태
 static DEPLOYMENT_RUNNING: AtomicBool = AtomicBool::new(false);
+static DEPLOYMENT_PROCESS: Lazy<Arc<Mutex<Option<u32>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
 
 /// stack.yaml 검증
 #[tauri::command]
@@ -112,6 +114,13 @@ pub async fn deploy_stack(
 
         match cmd {
             Ok(mut child) => {
+                // 프로세스 ID 저장
+                let pid = child.id();
+                if let Ok(mut process_guard) = DEPLOYMENT_PROCESS.lock() {
+                    *process_guard = Some(pid);
+                }
+                println!("배포 프로세스 시작 - PID: {}", pid);
+
                 // stdout과 stderr를 동시에 읽기 위해 스레드 사용
                 let stdout = child.stdout.take();
                 let stderr = child.stderr.take();
@@ -119,11 +128,26 @@ pub async fn deploy_stack(
                 let app_clone_stderr = app_clone.clone();
 
                 // stdout 읽기 스레드
+                let app_for_outputs = app_clone_stdout.clone();
                 let stdout_handle = stdout.map(|stdout| {
                     std::thread::spawn(move || {
                         let reader = BufReader::new(stdout);
+                        let mut outputs_data: Option<serde_json::Value> = None;
+
                         for line in reader.lines() {
                             if let Ok(line) = line {
+                                // __OUTPUTS__ 파싱
+                                if line.contains("__OUTPUTS__") {
+                                    if let Some(json_start) = line.find("__OUTPUTS__") {
+                                        let json_str = &line[json_start + 11..]; // "__OUTPUTS__" 길이는 11
+                                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
+                                            outputs_data = Some(parsed);
+                                            println!("Parsed deployment outputs: {:?}", outputs_data);
+                                        }
+                                    }
+                                    continue; // __OUTPUTS__ 라인은 로그에 표시하지 않음
+                                }
+
                                 // NDJSON 파싱 시도
                                 if let Ok(log_entry) = parse_ndjson_log(&line) {
                                     app_clone_stdout.emit("deployment-log", log_entry).unwrap_or(());
@@ -138,6 +162,9 @@ pub async fn deploy_stack(
                                 }
                             }
                         }
+
+                        // stdout 읽기 완료 후 outputs 반환
+                        outputs_data
                     })
                 });
 
@@ -159,10 +186,13 @@ pub async fn deploy_stack(
                     })
                 });
 
-                // 스레드 종료 대기
-                if let Some(handle) = stdout_handle {
-                    let _ = handle.join();
-                }
+                // 스레드 종료 대기 및 outputs 수집
+                let outputs_result = if let Some(handle) = stdout_handle {
+                    handle.join().ok().flatten()
+                } else {
+                    None
+                };
+
                 if let Some(handle) = stderr_handle {
                     let _ = handle.join();
                 }
@@ -170,11 +200,30 @@ pub async fn deploy_stack(
                 // 프로세스 종료 대기
                 match child.wait() {
                     Ok(status) => {
+                        // 프로세스 ID 제거
+                        if let Ok(mut process_guard) = DEPLOYMENT_PROCESS.lock() {
+                            *process_guard = None;
+                        }
+
                         if status.success() {
+                            // outputs를 DeploymentStatus에 포함
+                            let final_outputs = if let Some(value) = outputs_result {
+                                if let Some(obj) = value.as_object() {
+                                    println!("✅ Sending outputs to frontend: {:?}", obj);
+                                    Some(obj.clone().into_iter().collect())
+                                } else {
+                                    println!("⚠️ Outputs is not an object: {:?}", value);
+                                    None
+                                }
+                            } else {
+                                println!("⚠️ No outputs received from Go backend");
+                                None
+                            };
+
                             app_clone.emit("deployment-completed", DeploymentStatus {
                                 status: "success".to_string(),
                                 message: Some("배포가 성공적으로 완료되었습니다".to_string()),
-                                outputs: None, // TODO: outputs 파싱
+                                outputs: final_outputs,
                             }).unwrap_or(());
                         } else {
                             app_clone.emit("deployment-failed", DeploymentStatus {
@@ -185,6 +234,11 @@ pub async fn deploy_stack(
                         }
                     }
                     Err(e) => {
+                        // 프로세스 ID 제거
+                        if let Ok(mut process_guard) = DEPLOYMENT_PROCESS.lock() {
+                            *process_guard = None;
+                        }
+
                         app_clone.emit("deployment-failed", DeploymentStatus {
                             status: "failed".to_string(),
                             message: Some(format!("배포 프로세스 오류: {}", e)),
@@ -216,7 +270,72 @@ pub async fn deploy_stack(
 /// 배포 중단
 #[tauri::command]
 pub fn stop_deployment() -> Result<(), String> {
-    // TODO: 실제 프로세스 종료 구현
+    // 프로세스 ID 가져오기
+    let pid_option = {
+        let process_guard = DEPLOYMENT_PROCESS.lock()
+            .map_err(|e| format!("프로세스 잠금 오류: {}", e))?;
+        *process_guard
+    };
+
+    if let Some(pid) = pid_option {
+        println!("배포 프로세스 중지 중 - PID: {}", pid);
+
+        // 플랫폼별 프로세스 종료
+        #[cfg(target_os = "windows")]
+        {
+            // Windows: taskkill 사용
+            let output = Command::new("taskkill")
+                .args(&["/PID", &pid.to_string(), "/F", "/T"])
+                .output();
+
+            match output {
+                Ok(result) => {
+                    if result.status.success() {
+                        println!("프로세스 종료 성공 (PID: {})", pid);
+                    } else {
+                        let error_msg = String::from_utf8_lossy(&result.stderr);
+                        eprintln!("프로세스 종료 실패: {}", error_msg);
+                        return Err(format!("프로세스 종료 실패: {}", error_msg));
+                    }
+                }
+                Err(e) => {
+                    eprintln!("taskkill 실행 오류: {}", e);
+                    return Err(format!("taskkill 실행 오류: {}", e));
+                }
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            // Unix/Linux/Mac: kill 사용
+            let output = Command::new("kill")
+                .args(&["-TERM", &pid.to_string()])
+                .output();
+
+            match output {
+                Ok(result) => {
+                    if !result.status.success() {
+                        // SIGTERM이 실패하면 SIGKILL 시도
+                        let _ = Command::new("kill")
+                            .args(&["-KILL", &pid.to_string()])
+                            .output();
+                    }
+                }
+                Err(e) => {
+                    eprintln!("kill 실행 오류: {}", e);
+                    return Err(format!("kill 실행 오류: {}", e));
+                }
+            }
+        }
+
+        // PID 제거
+        if let Ok(mut process_guard) = DEPLOYMENT_PROCESS.lock() {
+            *process_guard = None;
+        }
+    } else {
+        println!("중지할 배포 프로세스가 없습니다");
+    }
+
     DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
     Ok(())
 }
@@ -232,17 +351,23 @@ pub fn reset_deployment_state() -> Result<bool, String> {
 /// Docker 설치 확인
 #[tauri::command]
 pub fn check_docker() -> Result<bool, String> {
+    println!("🐳 Checking Docker installation...");
     match Command::new("docker").arg("--version").output() {
         Ok(output) => {
             if output.status.success() {
                 let version = String::from_utf8_lossy(&output.stdout);
-                println!("Docker version: {}", version);
+                println!("✅ Docker version: {}", version);
                 Ok(true)
             } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                println!("❌ Docker command failed: {}", stderr);
                 Ok(false)
             }
         }
-        Err(_) => Ok(false),
+        Err(e) => {
+            println!("❌ Docker command error: {}", e);
+            Ok(false)
+        }
     }
 }
 
@@ -279,10 +404,12 @@ pub fn check_docker_running() -> Result<bool, String> {
 
 // 헬퍼 함수들
 
-/// Go 바이너리 경로 찾기
+/// Go 바이너리 경로 찾기 (배포 리소스/개발 경로 모두 지원)
 fn find_go_binary(app: &AppHandle) -> Result<String, String> {
     use std::env;
     use tauri::Manager;
+    use tauri::path::BaseDirectory;
+    use std::path::PathBuf;
 
     // OS별 실행 파일 확장자
     let extension = if cfg!(windows) { ".exe" } else { "" };
@@ -297,19 +424,32 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
         }
     }
 
-    // 2. 프로덕션 모드: Tauri sidecar (번들에 포함된 바이너리)
-    // externalBin으로 패키징되면 자동으로 여기서 찾아짐
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        // Windows: resources/arfni-go.exe
-        // Linux/Mac: resources/arfni-go
-        let sidecar_path = resource_dir.join(&binary_name);
-        if sidecar_path.exists() {
-            println!("✅ Found Go binary as sidecar: {:?}", sidecar_path);
-            return Ok(sidecar_path.to_string_lossy().to_string());
+    // 2. Resource 경로들 시도 (배포 환경)
+    let resource_patterns = vec![
+        binary_name.clone(),  // Resource/arfni-go.exe
+        format!("_up_/_up_/BE/arfni/bin/{}", binary_name),  // Resource/_up_/_up_/BE/arfni/bin/arfni-go.exe
+        format!("BE/arfni/bin/{}", binary_name),  // Resource/BE/arfni/bin/arfni-go.exe
+    ];
+
+    for pattern in resource_patterns {
+        if let Ok(path) = app.path().resolve(&pattern, BaseDirectory::Resource) {
+            if path.exists() {
+                println!("✅ Found Go binary in resources: {:?}", path);
+                return Ok(path.to_string_lossy().to_string());
+            }
         }
     }
 
-    // 3. 프로젝트 루트 찾기 (개발 모드)
+    // 3. 개발 경로들 시도 (CARGO_MANIFEST_DIR 기준)
+    let mut dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")); // src-tauri
+    dev_path.push("../../BE/arfni/bin");
+    dev_path.push(&binary_name);
+    if dev_path.exists() {
+        println!("✅ Found Go binary (dev): {:?}", dev_path);
+        return Ok(dev_path.to_string_lossy().to_string());
+    }
+
+    // 4. 프로젝트 루트 찾기 (개발 모드 보조)
     if let Ok(current_dir) = env::current_dir() {
         if let Some(project_root) = find_project_root(&current_dir) {
             let root_based_path = project_root.join("BE").join("arfni").join("bin").join(&binary_name);
@@ -320,21 +460,7 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
         }
     }
 
-    // 4. 상대 경로로 시도 (개발 모드)
-    let relative_go_path = Path::new("../../BE/arfni/bin").join(&binary_name);
-    if relative_go_path.exists() {
-        println!("✅ Found Go binary at: {:?}", relative_go_path);
-        return Ok(relative_go_path.to_string_lossy().to_string());
-    }
-
-    // 5. 또 다른 상대 경로 시도
-    let dev_go_path = Path::new("../BE/arfni/bin").join(&binary_name);
-    if dev_go_path.exists() {
-        println!("✅ Found Go binary at: {:?}", dev_go_path);
-        return Ok(dev_go_path.to_string_lossy().to_string());
-    }
-
-    Err(format!("Go 바이너리를 찾을 수 없습니다: {}. 다음을 확인하세요:\n  1. ARFNI_GO_BINARY_PATH 환경변수 설정\n  2. BE/arfni/bin/{} 경로에 바이너리 존재 여부\n  3. Go 바이너리 빌드 완료 여부\n  4. 프로덕션 빌드인 경우 externalBin 설정 확인",
+    Err(format!("Go 바이너리를 찾을 수 없습니다: {}. 다음을 확인하세요:\n  1. ARFNI_GO_BINARY_PATH 환경변수 설정\n  2. BE/arfni/bin/{} 경로에 바이너리 존재 여부\n  3. Go 바이너리 빌드 완료 여부\n  4. 프로덕션 빌드인 경우 resources 설정 확인",
         binary_name, binary_name))
 }
 

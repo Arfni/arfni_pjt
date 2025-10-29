@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -27,7 +27,9 @@ import {
   selectNode,
   selectTemplate,
   deleteNode,
+  deleteEdge,
 } from '@features/canvas';
+import { selectCurrentProject } from '@features/project';
 
 import { ServiceNode } from '@entities/service/ui/ServiceNode';
 import { TargetNode } from '@entities/target/ui/TargetNode';
@@ -52,9 +54,11 @@ function CanvasEditorInner() {
   const edges = useAppSelector(selectEdges);
   const selectedTemplate = useAppSelector(selectSelectedTemplate);
   const selectedNodeId = useAppSelector(selectSelectedNodeId);
+  const currentProject = useAppSelector(selectCurrentProject);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useReactFlow();
   const { project } = reactFlowInstance;
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   // Auto-save: Canvas 변경 후 2초 뒤 자동 저장
   const { isSaving, lastSaved } = useAutoSave(2000);
@@ -86,14 +90,20 @@ function CanvasEditorInner() {
     }
   }, []);
 
-  // ESC 키로 템플릿 선택 취소, Del 키로 노드 삭제
+  // ESC 키로 템플릿 선택 취소, Del 키로 노드/엣지 삭제
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         dispatch(selectTemplate(null));
         dispatch(selectNode(null));
-      } else if (e.key === 'Delete' && selectedNodeId) {
-        dispatch(deleteNode(selectedNodeId));
+        setSelectedEdgeId(null);
+      } else if (e.key === 'Delete') {
+        if (selectedNodeId) {
+          dispatch(deleteNode(selectedNodeId));
+        } else if (selectedEdgeId) {
+          dispatch(deleteEdge(selectedEdgeId));
+          setSelectedEdgeId(null);
+        }
       }
     };
 
@@ -101,7 +111,7 @@ function CanvasEditorInner() {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [dispatch, selectedNodeId]);
+  }, [dispatch, selectedNodeId, selectedEdgeId]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     dispatch(handleNodesChange(changes));
@@ -115,25 +125,40 @@ function CanvasEditorInner() {
     dispatch(addEdgeAction(params));
   }, [dispatch]);
 
-  // 캔버스 클릭 시 노드 추가
-  const onPaneClick = useCallback(
-    (event: React.MouseEvent) => {
-      if (!selectedTemplate) return;
+  // 드래그 오버 처리
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
 
-      // ReactFlow 좌표계로 변환
+  // 드롭 처리
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const data = event.dataTransfer.getData('application/reactflow');
+      if (!data) return;
+
+      const { type: nodeType, category } = JSON.parse(data);
+
+      if (!reactFlowWrapper.current) return;
+
+      const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
       const position = project({
-        x: event.clientX - (reactFlowWrapper.current?.getBoundingClientRect().left || 0),
-        y: event.clientY - (reactFlowWrapper.current?.getBoundingClientRect().top || 0),
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
       });
 
-      const { type: nodeType, category } = selectedTemplate;
+      // 현재 프로젝트의 environment에 따라 target 결정
+      const defaultTarget = currentProject?.environment === 'ec2' ? 'ec2' : 'local';
+
       let newNode;
 
       if (category === 'service') {
         // 서비스 노드
         const serviceData: any = {
           name: nodeType.toUpperCase(),
-          serviceType: nodeType  // serviceType 추가
+          serviceType: nodeType
         };
 
         switch (nodeType) {
@@ -141,9 +166,21 @@ function CanvasEditorInner() {
             serviceData.build = './apps/react';
             serviceData.ports = ['3000:80'];
             break;
+          case 'nextjs':
+            serviceData.build = './apps/nextjs';
+            serviceData.ports = ['3000:3000'];
+            break;
           case 'spring':
             serviceData.build = './apps/spring';
             serviceData.ports = ['8080:8080'];
+            break;
+          case 'nodejs':
+            serviceData.build = './apps/nodejs';
+            serviceData.ports = ['3000:3000'];
+            break;
+          case 'python':
+            serviceData.build = './apps/python';
+            serviceData.ports = ['8000:8000'];
             break;
           case 'fastapi':
             serviceData.build = './apps/fastapi';
@@ -154,7 +191,7 @@ function CanvasEditorInner() {
             serviceData.ports = ['80:80'];
         }
 
-        newNode = createServiceNode(serviceData, position);
+        newNode = createServiceNode(serviceData, position, defaultTarget);
       } else if (category === 'database') {
         // 데이터베이스 노드
         const dbData: any = {
@@ -181,7 +218,7 @@ function CanvasEditorInner() {
             break;
         }
 
-        newNode = createDatabaseNode(dbData, position);
+        newNode = createDatabaseNode(dbData, position, defaultTarget);
       } else if (category === 'target') {
         // 타겟 노드
         const targetData: any = {
@@ -195,49 +232,140 @@ function CanvasEditorInner() {
       }
 
       dispatch(addNode(newNode as any));
-      // 노드 추가 후 템플릿 선택 유지 (연속 추가 가능)
     },
-    [dispatch, project, reactFlowWrapper, selectedTemplate]
+    [dispatch, project, currentProject]
   );
+
+  // 캔버스 클릭 시 선택 해제만 처리
+  const onPaneClick = useCallback(() => {
+    // 빈 캔버스 클릭 시 노드/엣지 선택 해제
+    dispatch(selectNode(null));
+    setSelectedEdgeId(null);
+  }, [dispatch]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: any) => {
     dispatch(selectNode(node.id));
+    setSelectedEdgeId(null);
   }, [dispatch]);
 
+  const onEdgeClick = useCallback((event: React.MouseEvent, edge: any) => {
+    event.stopPropagation();
+    setSelectedEdgeId(edge.id);
+    dispatch(selectNode(null));
+  }, [dispatch]);
+
+  const handleDeleteEdge = useCallback((e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    if (selectedEdgeId) {
+      dispatch(deleteEdge(selectedEdgeId));
+      setSelectedEdgeId(null);
+    }
+  }, [dispatch, selectedEdgeId]);
+
+  // 선택된 엣지의 중간점 계산
+  const getEdgeCenterPosition = useCallback(() => {
+    if (!selectedEdgeId || !reactFlowWrapper.current) return null;
+
+    const selectedEdge = edges.find(e => e.id === selectedEdgeId);
+    if (!selectedEdge) return null;
+
+    const sourceNode = nodes.find(n => n.id === selectedEdge.source);
+    const targetNode = nodes.find(n => n.id === selectedEdge.target);
+
+    if (!sourceNode || !targetNode) return null;
+
+    // 노드 중심점 계산
+    const sourceX = sourceNode.position.x + (sourceNode.width || 140) / 2;
+    const sourceY = sourceNode.position.y + (sourceNode.height || 80) / 2;
+    const targetX = targetNode.position.x + (targetNode.width || 140) / 2;
+    const targetY = targetNode.position.y + (targetNode.height || 80) / 2;
+
+    // 중간점 계산
+    const centerX = (sourceX + targetX) / 2;
+    const centerY = (sourceY + targetY) / 2;
+
+    return { x: centerX, y: centerY };
+  }, [selectedEdgeId, edges, nodes]);
+
   return (
-    <div ref={reactFlowWrapper} className="h-full w-full">
+    <div
+      ref={reactFlowWrapper}
+      className="h-full w-full bg-gray-50"
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+    >
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={edges.map(edge => ({
+          ...edge,
+          style: {
+            strokeWidth: edge.id === selectedEdgeId ? 3 : 2,
+            stroke: edge.id === selectedEdgeId ? '#ef4444' : '#94a3b8',
+          },
+        }))}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         fitView
         deleteKeyCode={null}
-        style={{ cursor: selectedTemplate ? 'crosshair' : 'default' }}
+        defaultEdgeOptions={{
+          type: 'smoothstep',
+          style: { strokeWidth: 2, stroke: '#94a3b8' },
+        }}
       >
-        <Controls />
-        <MiniMap />
-        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+        <Controls className="!bg-white !border !border-gray-200 !shadow-md" />
+        <MiniMap
+          className="!bg-white !border !border-gray-200 !shadow-md"
+          nodeColor={(node) => {
+            if (node.type === 'database') return '#3b82f6';
+            if (node.type === 'service') return '#06b6d4';
+            return '#6b7280';
+          }}
+        />
+        <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#d1d5db" />
       </ReactFlow>
-      {selectedTemplate && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-10">
-          {selectedTemplate.type.toUpperCase()} 노드를 추가할 위치를 클릭하세요 (ESC로 취소)
-        </div>
-      )}
+
+      {/* 선 위에 삭제 버튼 표시 */}
+      {selectedEdgeId && (() => {
+        const position = getEdgeCenterPosition();
+        if (!position) return null;
+
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${position.x}px`,
+              top: `${position.y}px`,
+              transform: 'translate(-50%, -50%)',
+              zIndex: 1000,
+              pointerEvents: 'auto',
+            }}
+          >
+            <button
+              onClick={handleDeleteEdge}
+              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded shadow-lg text-xs font-medium transition-colors"
+            >
+              삭제
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Auto-save 인디케이터 */}
       {isSaving && (
-        <div className="absolute top-4 right-4 bg-yellow-500 text-white px-3 py-1.5 rounded-lg shadow-lg z-10 flex items-center gap-2">
-          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        <div className="absolute top-4 right-4 bg-white border border-yellow-300 text-yellow-700 px-3 py-1.5 rounded-lg shadow-md z-10 flex items-center gap-2 text-sm">
+          <div className="w-3 h-3 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
           저장 중...
         </div>
       )}
       {!isSaving && lastSaved && (
-        <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1.5 rounded-lg shadow-lg z-10 text-sm">
+        <div className="absolute top-4 right-4 bg-white border border-green-300 text-green-700 px-3 py-1.5 rounded-lg shadow-md z-10 text-sm">
           ✓ 저장됨 {lastSaved.toLocaleTimeString()}
         </div>
       )}

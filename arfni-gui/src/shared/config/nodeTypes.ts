@@ -11,6 +11,7 @@ export interface ServiceNodeData {
   ports?: string[];
   env?: Record<string, string>;
   dependsOn?: string[];
+  serviceType?: 'react' | 'nextjs' | 'spring' | 'nodejs' | 'python' | 'fastapi' | 'custom';
 }
 
 export interface TargetNodeData {
@@ -30,6 +31,7 @@ export interface DatabaseNodeData {
   version?: string;
   ports?: string[];
   volumes?: Array<{ host: string; mount: string }>;
+  target?: string;
 }
 
 // 노드 타입 정의
@@ -57,7 +59,7 @@ export type CustomEdge =
   | Edge<DependencyEdgeData>;
 
 // 노드 생성 헬퍼
-export const createServiceNode = (data: Partial<ServiceNodeData>, position: { x: number; y: number }): CustomNode => ({
+export const createServiceNode = (data: Partial<ServiceNodeData>, position: { x: number; y: number }, defaultTarget?: string): CustomNode => ({
   id: data.id || `service-${Date.now()}`,
   type: 'service',
   position,
@@ -65,7 +67,7 @@ export const createServiceNode = (data: Partial<ServiceNodeData>, position: { x:
     id: data.id || `service-${Date.now()}`,
     name: data.name || 'New Service',
     kind: data.kind || 'docker.container',
-    target: data.target || 'local',
+    target: data.target || defaultTarget || 'local',
     ...data,
   } as ServiceNodeData,
 });
@@ -82,14 +84,15 @@ export const createTargetNode = (data: Partial<TargetNodeData>, position: { x: n
   } as TargetNodeData,
 });
 
-export const createDatabaseNode = (data: Partial<DatabaseNodeData>, position: { x: number; y: number }): CustomNode => ({
+export const createDatabaseNode = (data: Partial<DatabaseNodeData>, position: { x: number; y: number }, defaultTarget?: string): CustomNode => ({
   id: data.id || `database-${Date.now()}`,
   type: 'database',
   position,
   data: {
+    ...data,
     id: data.id || `database-${Date.now()}`,
     name: data.name || 'New Database',
     type: data.type || 'postgres',
-    ...data,
+    target: data.target || defaultTarget || 'local',
   } as DatabaseNodeData,
 });

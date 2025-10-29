@@ -17,6 +17,7 @@ type Target struct {
 	User    string `yaml:"user,omitempty"`    // SSH 사용자
 	SSHKey  string `yaml:"sshKey,omitempty"`  // SSH 키 경로
 	Workdir string `yaml:"workdir,omitempty"` // 작업 디렉토리
+	Mode    string `yaml:"mode,omitempty"`    // all-in-one, hybrid 등
 }
 
 // Service는 배포할 개별 서비스를 정의합니다

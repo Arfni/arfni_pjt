@@ -1,0 +1,68 @@
+apiVersion: v0.1
+name: ec2-spring-fastapi-mysql-redis
+targets:
+  ec2:
+    type: ec2.ssh
+    host: ec2-3-39-237-124.ap-northeast-2.compute.amazonaws.com
+    user: ec2-user
+    sshKey: C:\Users\SSAFY\Downloads\Arfni_test\my-app\env\ec2\mytest.pem
+    workdir: /home/ec2-user/arfni-deploy
+    mode: all-in-one
+secrets: [ MYSQL_ROOT_PASS, MYSQL_APP_PASS ]
+services:
+  mysql:
+    kind: docker.container
+    target: ec2
+    spec:
+      image: mysql:8.0
+      env:
+        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASS}
+        MYSQL_DATABASE: app
+        MYSQL_USER: app
+        MYSQL_PASSWORD: ${MYSQL_APP_PASS}
+      ports: ["3307:3306"]
+      volumes:
+        - { host: ./data/mysql, mount: /var/lib/mysql }
+      health:
+        tcp: { port: 3306 }
+  redis:
+    kind: docker.container
+    target: ec2
+    spec:
+      image: redis:7
+      command: ["redis-server","--appendonly","yes"]
+      ports: ["6379:6379"]
+      volumes:
+        - { host: ./data/redis, mount: /data }
+      health:
+        tcp: { port: 6379 }
+  spring:
+    kind: docker.container
+    target: ec2
+    spec:
+      build: ./apps/spring
+      env:
+        SPRING_PROFILES_ACTIVE: prod
+        SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/app?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=UTC
+        SPRING_DATASOURCE_USERNAME: app
+        SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASS}
+        REDIS_HOST: redis
+      dependsOn: [ mysql, redis ]
+      ports: ["8080:8080"]
+      health:
+        httpGet: { path: /actuator/health, port: 8080 }
+  fastapi:
+    kind: docker.container
+    target: ec2
+    spec:
+      build: ./apps/fastapi
+      env:
+        DATABASE_URL: mysql://app:${MYSQL_APP_PASS}@mysql:3306/app
+        REDIS_URL: redis://redis:6379/0
+      dependsOn: [ mysql, redis ]
+      ports: ["8000:8000"]
+      health:
+        httpGet: { path: /health, port: 8000 }
+outputs:
+  spring_url:  http://${ref:spring.publicHost}:8080/
+  fastapi_url: http://${ref:fastapi.publicHost}:8000/

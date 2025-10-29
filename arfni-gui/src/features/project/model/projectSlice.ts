@@ -2,10 +2,11 @@ import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import {
   projectCommands,
   fileWatcherCommands,
+  ec2ServerCommands,
   Project,
   StackYamlData
 } from '@shared/api/tauri/commands';
-import { loadCanvasState, clearCanvas } from '@features/canvas/model/canvasSlice';
+import { loadCanvasState, clearCanvas, addNode } from '@features/canvas/model/canvasSlice';
 
 export interface ProjectState {
   currentProject: Project | null;
@@ -32,11 +33,13 @@ export const createProject = createAsyncThunk(
     const project = await projectCommands.createProject(
       params.name,
       params.path,
+      'local', // 기본값: local 환경
+      undefined, // ec2_server_id
       params.description
     );
 
     // 최근 프로젝트에 추가
-    await projectCommands.addToRecentProjects(project);
+    await projectCommands.addToRecentProjects(project.id);
 
     // 파일 감시 시작
     await fileWatcherCommands.watchStackYaml(project.path);
@@ -51,25 +54,24 @@ export const openProject = createAsyncThunk(
     // 1. 먼저 캔버스 초기화 (이전 프로젝트 상태 제거)
     dispatch(clearCanvas());
 
-    const project = await projectCommands.openProject(path);
+    const project = await projectCommands.openProjectByPath(path);
 
-    // 2. Canvas 상태 복원
+    // 2. Canvas 상태 복원 (빈 캔버스라도 항상 로드해서 상태 초기화)
     const canvasState = await projectCommands.loadCanvasState(path);
-    if (canvasState.nodes.length > 0 || canvasState.edges.length > 0) {
-      // Canvas store에 상태 로드
-      const nodes = canvasState.nodes.map(n => ({
-        ...n,
-        type: n.node_type as 'service' | 'target' | 'database',
-      }));
 
-      dispatch(loadCanvasState({
-        nodes: nodes as any,
-        edges: canvasState.edges,
-      }));
-    }
+    // Canvas store에 상태 로드
+    const nodes = canvasState.nodes.map(n => ({
+      ...n,
+      type: n.node_type as 'service' | 'target' | 'database',
+    }));
+
+    dispatch(loadCanvasState({
+      nodes: nodes.length > 0 ? (nodes as any) : [],
+      edges: canvasState.edges || [],
+    }));
 
     // 3. 최근 프로젝트에 추가
-    await projectCommands.addToRecentProjects(project);
+    await projectCommands.addToRecentProjects(project.id);
 
     // 4. 파일 감시 시작
     await fileWatcherCommands.watchStackYaml(project.path);
