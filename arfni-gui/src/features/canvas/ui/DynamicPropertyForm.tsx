@@ -11,6 +11,7 @@ import {
 } from "../../../shared/ui/form";
 import { TargetPropertyForm } from "./TargetPropertyForm";
 import { useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 
 interface DynamicPropertyFormProps {
   node: CustomNode;
@@ -108,6 +109,24 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
     alert("Changes applied successfully!");
   };
 
+  const handleBrowseDirectory = async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Select Volume Directory",
+      });
+
+      if (selected) {
+        const currentMount =
+          data.volumes?.[0]?.mount || config.defaultVolumes?.[0]?.mount || "";
+        updateField("volumes", [{ host: selected, mount: currentMount }]);
+      }
+    } catch (error) {
+      console.error("Failed to open directory dialog:", error);
+    }
+  };
+
   // Collapsible Section Component
   const CollapsibleSection = ({
     title,
@@ -163,12 +182,11 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
       className="dynamic-property-form"
       style={{
         padding: "1rem",
-        height: "100%",
         display: "flex",
         flexDirection: "column",
       }}
     >
-      <div style={{ flex: 1, overflowY: "auto", paddingRight: "0.5rem" }}>
+      <div style={{ paddingRight: "0.5rem" }}>
         {/* Basic Information */}
         <CollapsibleSection
           title="Basic Information"
@@ -365,6 +383,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                   />
                   <button
                     type="button"
+                    onClick={handleBrowseDirectory}
                     style={{
                       padding: "0.5rem",
                       backgroundColor: "#4F46E5",
