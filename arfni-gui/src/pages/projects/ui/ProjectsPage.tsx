@@ -7,6 +7,7 @@ import { ServerSelectionModal } from './ServerSelectionModal';
 import { AddServerModal } from './AddServerModal';
 import { useAppDispatch } from '@app/hooks';
 import { addNode } from '@features/canvas/model/canvasSlice';
+import arfniLogo from '../../../assets/arfni_logo.png';
 
 // Canvas 미리보기 컴포넌트
 function CanvasPreview({ nodes, edges }: { nodes: CanvasNode[], edges: CanvasEdge[] }) {
@@ -321,8 +322,8 @@ export default function ProjectsPage() {
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <FolderOpen className="w-6 h-6 text-gray-600" />
-            <h1 className="text-xl font-semibold">ARFNI Projects</h1>
+            <img src={arfniLogo} alt="ARFNI Logo" className="w-6 h-6" />
+            <h1 className="text-xl font-semibold">ARFNI</h1>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -347,71 +348,70 @@ export default function ProjectsPage() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
-          <div className="p-4 flex-1 flex flex-col">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Environment</h2>
-            <nav className="space-y-1 mb-4">
-              <button
-                onClick={() => setSelectedTab('local')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  selectedTab === 'local'
-                    ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Laptop className="w-5 h-5" />
-                <span>Local</span>
-              </button>
-              <button
-                onClick={() => setSelectedTab('ec2')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  selectedTab === 'ec2'
-                    ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Server className="w-5 h-5" />
-                <span>EC2</span>
-              </button>
-            </nav>
-
-            {/* EC2 Server Selection */}
-            {selectedTab === 'ec2' && (
-              <div className="mb-4">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  EC2 Server
-                </label>
-                <button
-                  onClick={() => setShowServerModal(true)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center justify-between"
-                >
-                  <span className="flex items-center gap-2">
-                    <Server className="w-4 h-4" />
-                    {selectedEC2ServerId && ec2Servers.find(s => s.id === selectedEC2ServerId)
-                      ? ec2Servers.find(s => s.id === selectedEC2ServerId)!.name
-                      : 'Select Server'}
-                  </span>
-                  <span className="text-gray-400">▼</span>
-                </button>
-              </div>
-            )}
-
-            {/* Create Project Button */}
+        <aside className="w-24 bg-white border-r border-gray-200 flex flex-col">
+          <div className="p-3 flex-1 flex flex-col items-center gap-3">
+            {/* Local Button */}
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+              onClick={() => setSelectedTab('local')}
+              className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+                selectedTab === 'local'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
             >
-              Create New Project
+              <Laptop className="w-6 h-6" />
+              <span className="text-xs font-medium">Local</span>
             </button>
+
+            {/* EC2 Button */}
+            <button
+              onClick={() => setSelectedTab('ec2')}
+              className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+                selectedTab === 'ec2'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <Server className="w-6 h-6" />
+              <span className="text-xs font-medium">EC2</span>
+            </button>
+
+            {/* EC2 Server Selection - moved to main content area */}
           </div>
         </aside>
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col px-6 py-3 overflow-hidden min-h-0">
         <div className="mb-3 flex items-center justify-between flex-shrink-0">
-          <p className="text-sm text-gray-600">
-            {selectedTab === 'local' ? 'Local' : 'EC2'} Projects ({projects.length})
-          </p>
+          <h2 className="text-2xl font-semibold text-gray-900">
+            {selectedTab === 'local' ? 'Local' : 'EC2'} Projects
+          </h2>
+
+          <div className="flex items-center gap-3">
+            {/* EC2 Server Selection */}
+            {selectedTab === 'ec2' && (
+              <button
+                onClick={() => setShowServerModal(true)}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+              >
+                <Server className="w-4 h-4" />
+                <span>
+                  {selectedEC2ServerId && ec2Servers.find(s => s.id === selectedEC2ServerId)
+                    ? ec2Servers.find(s => s.id === selectedEC2ServerId)!.name
+                    : 'Select Server'}
+                </span>
+                <span className="text-gray-400">▼</span>
+              </button>
+            )}
+
+            {/* Create Project Button */}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+            >
+              Create New Project
+            </button>
+          </div>
         </div>
 
         {/* 로딩 상태 */}
