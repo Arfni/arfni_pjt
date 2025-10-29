@@ -3,7 +3,7 @@ import { updateNode } from '../model/canvasSlice';
 import { CustomNode, TargetNodeData } from '../model/types';
 import { FormField, Input, Select } from '../../../shared/ui/form';
 import { selectCurrentProject } from '@features/project';
-import { ec2ServerCommands } from '@shared/api/tauri/commands';
+import { ec2ServerCommands, projectCommands } from '@shared/api/tauri/commands';
 
 interface TargetPropertyFormProps {
   node: CustomNode;
@@ -25,15 +25,16 @@ export function TargetPropertyForm({ node }: TargetPropertyFormProps) {
       }
     }));
 
-    // EC2 프로젝트이고 mode 필드 변경 시 DB에도 업데이트
-    if (field === 'mode' && currentProject?.ec2_server_id) {
+    // EC2 프로젝트이고 mode 필드 변경 시 프로젝트 DB에도 업데이트
+    if (field === 'mode' && currentProject?.id) {
       try {
-        await ec2ServerCommands.updateServer({
-          id: currentProject.ec2_server_id,
-          mode: value as 'all-in-one' | 'hybrid' | 'no-monitoring'
-        });
+        await projectCommands.updateProject(
+          currentProject.id,
+          value as string,
+          undefined // workdir는 변경하지 않음
+        );
       } catch (error) {
-        console.error('❌ EC2 서버 모니터링 모드 업데이트 실패:', error);
+        console.error('❌ 프로젝트 모니터링 모드 업데이트 실패:', error);
       }
     }
   };

@@ -70,6 +70,7 @@ fn main() {
       commands::project::get_recent_projects,
       commands::project::add_to_recent_projects,
       commands::project::remove_from_recent_projects,
+      commands::project::update_project,
       commands::project::delete_project,
 
       // 배포 명령어

@@ -13,6 +13,8 @@ pub struct Project {
     pub path: String,
     pub environment: String, // "local" | "ec2"
     pub ec2_server_id: Option<String>,
+    pub mode: Option<String>, // "all-in-one" | "hybrid" | "no-monitoring"
+    pub workdir: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub stack_yaml_path: Option<String>,
@@ -98,6 +100,8 @@ pub fn create_project(
         path: project_path.to_string_lossy().to_string(),
         environment: environment.clone(),
         ec2_server_id: ec2_server_id.clone(),
+        mode: if environment == "ec2" { Some("all-in-one".to_string()) } else { None },
+        workdir: if environment == "ec2" { Some("arfni-deploy".to_string()) } else { None },
         created_at: created_at.clone(),
         updated_at: created_at.clone(),
         stack_yaml_path: Some(stack_yaml_path),
@@ -109,14 +113,16 @@ pub fn create_project(
     let conn = conn.lock().unwrap();
 
     conn.execute(
-        "INSERT INTO projects (id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO projects (id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             &project.id,
             &project.name,
             &project.path,
             &project.environment,
             &project.ec2_server_id,
+            &project.mode,
+            &project.workdir,
             &project.created_at,
             &project.updated_at,
             &project.description,
@@ -164,7 +170,7 @@ pub fn open_project(db: State<Database>, project_id: String) -> Result<Project, 
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
          FROM projects WHERE id = ?1"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -175,10 +181,12 @@ pub fn open_project(db: State<Database>, project_id: String) -> Result<Project, 
             path: row.get(2)?,
             environment: row.get(3)?,
             ec2_server_id: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
-            description: row.get(7)?,
-            stack_yaml_path: row.get(8)?,
+            mode: row.get(5)?,
+            workdir: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
+            description: row.get(9)?,
+            stack_yaml_path: row.get(10)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
@@ -199,7 +207,7 @@ pub fn open_project_by_path(db: State<Database>, path: String) -> Result<Project
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
          FROM projects WHERE path = ?1"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -210,10 +218,12 @@ pub fn open_project_by_path(db: State<Database>, path: String) -> Result<Project
             path: row.get(2)?,
             environment: row.get(3)?,
             ec2_server_id: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
-            description: row.get(7)?,
-            stack_yaml_path: row.get(8)?,
+            mode: row.get(5)?,
+            workdir: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
+            description: row.get(9)?,
+            stack_yaml_path: row.get(10)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
@@ -298,7 +308,7 @@ pub fn get_all_projects(db: State<Database>) -> Result<Vec<Project>, String> {
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
          FROM projects ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -309,10 +319,12 @@ pub fn get_all_projects(db: State<Database>) -> Result<Vec<Project>, String> {
             path: row.get(2)?,
             environment: row.get(3)?,
             ec2_server_id: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
-            description: row.get(7)?,
-            stack_yaml_path: row.get(8)?,
+            mode: row.get(5)?,
+            workdir: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
+            description: row.get(9)?,
+            stack_yaml_path: row.get(10)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -328,7 +340,7 @@ pub fn get_projects_by_environment(db: State<Database>, environment: String) -> 
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
          FROM projects WHERE environment = ?1 ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -339,10 +351,12 @@ pub fn get_projects_by_environment(db: State<Database>, environment: String) -> 
             path: row.get(2)?,
             environment: row.get(3)?,
             ec2_server_id: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
-            description: row.get(7)?,
-            stack_yaml_path: row.get(8)?,
+            mode: row.get(5)?,
+            workdir: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
+            description: row.get(9)?,
+            stack_yaml_path: row.get(10)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -358,7 +372,7 @@ pub fn get_projects_by_server(db: State<Database>, server_id: String) -> Result<
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
          FROM projects WHERE ec2_server_id = ?1 ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -369,10 +383,12 @@ pub fn get_projects_by_server(db: State<Database>, server_id: String) -> Result<
             path: row.get(2)?,
             environment: row.get(3)?,
             ec2_server_id: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
-            description: row.get(7)?,
-            stack_yaml_path: row.get(8)?,
+            mode: row.get(5)?,
+            workdir: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
+            description: row.get(9)?,
+            stack_yaml_path: row.get(10)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -388,7 +404,7 @@ pub fn get_recent_projects(db: State<Database>) -> Result<Vec<Project>, String> 
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT p.id, p.name, p.path, p.environment, p.ec2_server_id, p.created_at, p.updated_at, p.description, p.stack_yaml_path
+        "SELECT p.id, p.name, p.path, p.environment, p.ec2_server_id, p.mode, p.workdir, p.created_at, p.updated_at, p.description, p.stack_yaml_path
          FROM projects p
          INNER JOIN recent_projects r ON p.id = r.project_id
          ORDER BY r.opened_at DESC
@@ -402,10 +418,12 @@ pub fn get_recent_projects(db: State<Database>) -> Result<Vec<Project>, String> 
             path: row.get(2)?,
             environment: row.get(3)?,
             ec2_server_id: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
-            description: row.get(7)?,
-            stack_yaml_path: row.get(8)?,
+            mode: row.get(5)?,
+            workdir: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
+            description: row.get(9)?,
+            stack_yaml_path: row.get(10)?,
         })
     }).map_err(|e| format!("최근 프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -443,6 +461,41 @@ pub fn remove_from_recent_projects(db: State<Database>, project_id: String) -> R
     ).map_err(|e| format!("최근 프로젝트 제거 실패: {}", e))?;
 
     Ok(())
+}
+
+/// 프로젝트 업데이트 (mode, workdir 등)
+#[tauri::command]
+pub fn update_project(
+    db: State<Database>,
+    project_id: String,
+    mode: Option<String>,
+    workdir: Option<String>,
+) -> Result<Project, String> {
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    let updated_at = chrono::Utc::now().to_rfc3339();
+
+    // 필드별로 업데이트
+    if let Some(m) = &mode {
+        conn.execute(
+            "UPDATE projects SET mode = ?1, updated_at = ?2 WHERE id = ?3",
+            params![m, &updated_at, &project_id],
+        )
+        .map_err(|e| format!("프로젝트 mode 업데이트 실패: {}", e))?;
+    }
+
+    if let Some(w) = &workdir {
+        conn.execute(
+            "UPDATE projects SET workdir = ?1, updated_at = ?2 WHERE id = ?3",
+            params![w, &updated_at, &project_id],
+        )
+        .map_err(|e| format!("프로젝트 workdir 업데이트 실패: {}", e))?;
+    }
+
+    // 업데이트된 프로젝트 반환
+    drop(conn);
+    open_project(db, project_id)
 }
 
 /// 프로젝트 완전 삭제 (파일 시스템에서 삭제 + DB에서 제거)

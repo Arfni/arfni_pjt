@@ -6,8 +6,10 @@ export interface Project {
   id: string;
   name: string;
   path: string;
-  environment: 'local' | 'ec2'; // 새로 추가
-  ec2_server_id?: string; // 새로 추가
+  environment: 'local' | 'ec2';
+  ec2_server_id?: string;
+  mode?: 'all-in-one' | 'hybrid' | 'no-monitoring'; // 프로젝트별 모니터링 모드
+  workdir?: string; // 프로젝트별 작업 디렉토리
   created_at: string;
   updated_at: string;
   stack_yaml_path?: string;
@@ -21,8 +23,6 @@ export interface EC2Server {
   host: string;
   user: string;
   pem_path: string;
-  workdir?: string;
-  mode?: 'all-in-one' | 'hybrid' | 'no-monitoring';
   created_at: string;
   updated_at: string;
   last_connected_at?: string;
@@ -153,6 +153,19 @@ export const projectCommands = {
     return await invoke('remove_from_recent_projects', { projectId });
   },
 
+  // 프로젝트 업데이트 (mode, workdir 등)
+  updateProject: async (
+    projectId: string,
+    mode?: string,
+    workdir?: string
+  ): Promise<Project> => {
+    return await invoke('update_project', {
+      projectId,
+      mode: mode || null,
+      workdir: workdir || null,
+    });
+  },
+
   // 프로젝트 완전 삭제 (ID로)
   deleteProject: async (projectId: string): Promise<void> => {
     return await invoke('delete_project', { projectId });
@@ -167,8 +180,6 @@ export const ec2ServerCommands = {
     host: string;
     user: string;
     pemPath: string;
-    workdir?: string;
-    mode?: 'all-in-one' | 'hybrid' | 'no-monitoring';
   }): Promise<EC2Server> => {
     return await invoke('create_ec2_server', {
       params: {
@@ -176,8 +187,6 @@ export const ec2ServerCommands = {
         host: params.host,
         user: params.user,
         pem_path: params.pemPath,  // snake_case로 변경
-        workdir: params.workdir,
-        mode: params.mode,
       }
     });
   },
@@ -199,10 +208,16 @@ export const ec2ServerCommands = {
     host?: string;
     user?: string;
     pemPath?: string;
-    workdir?: string;
-    mode?: 'all-in-one' | 'hybrid' | 'no-monitoring';
   }): Promise<EC2Server> => {
-    return await invoke('update_ec2_server', params);
+    // Rust의 UpdateEC2ServerParams 구조체에 맞게 변환
+    const rustParams = {
+      id: params.id,
+      name: params.name,
+      host: params.host,
+      user: params.user,
+      pem_path: params.pemPath, // camelCase -> snake_case
+    };
+    return await invoke('update_ec2_server', { params: rustParams });
   },
 
   // EC2 서버 삭제

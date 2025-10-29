@@ -89,8 +89,6 @@ export function AddServerModal({ isOpen, onClose, onServerAdded }: AddServerModa
         host: host.trim(),
         user: user.trim(),
         pemPath: pemPath.trim(),
-        workdir: workdir.trim() || '/home/ubuntu',
-        mode,
       });
 
       // 성공 후 초기화

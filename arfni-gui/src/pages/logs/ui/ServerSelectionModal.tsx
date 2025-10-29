@@ -115,11 +115,6 @@ export function ServerSelectionModal({
                           <h3 className="font-semibold text-gray-800">{server.name}</h3>
                         </div>
                         <p className="text-sm text-gray-500 mt-1">{server.user}@{server.host}</p>
-                        {server.mode && (
-                          <p className="text-xs text-gray-400 mt-1">
-                            Mode: {server.mode}
-                          </p>
-                        )}
                         {server.last_connected_at && (
                           <p className="text-xs text-gray-400 mt-1">
                             Last connected: {new Date(server.last_connected_at).toLocaleString()}

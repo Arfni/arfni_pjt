@@ -91,11 +91,13 @@ export function useAutoSave(debounceMs: number = 2000) {
           }
         }
 
-        // 2. YAML 생성
+        // 2. YAML 생성 (mode/workdir는 currentProject에서)
         const stackYaml = stackYamlGenerator(nodes, edges, {
           projectName: currentProject.name,
           environment: currentProject.environment,
           ec2Server: ec2Server || undefined,
+          mode: currentProject.mode,
+          workdir: currentProject.workdir,
           secrets: [],
           outputs: {},
         });
