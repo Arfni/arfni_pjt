@@ -26,3 +26,8 @@
 - stack.yaml파일 생성, 캔버스 상태 저장, 배포 시 go 실행하여 dockerfile, docker-compose.yaml 생성 구현
 - 개발 환경에서 테스트하여 정상작동 하였지만 prod환경에서 문제가 있어 아직 테스트 중에 있음
 - 경로관련 문제 해결해야 함
+
+# 2025.10.27
+- YAML Generator: EC2 workdir 절대/상대 경로 자동 변환 + monitoring.mode 추가
+- Go 바이너리 탐색: 4단계 fallback 경로 (환경변수 → Resource → 개발 → 프로젝트 루트)
+- 실행: arfni-go.exe run -f stack.yaml -project-dir ./로 subprocess 실행
