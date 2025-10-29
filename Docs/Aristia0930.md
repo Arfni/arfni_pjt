@@ -105,3 +105,62 @@ close_session: 세션 종료 및 정리
 AppHandle.emit()을 활용해 stdout/stderr를 프런트로 이벤트 스트리밍
 
 전역 세션 관리용 OnceCell<Mutex<HashMap<Uuid, SshHandle>>> 구조 설계
+
+🧾 개발일지 — 2025.10.29
+
+🛠️ 주요 개발 내용
+
+HTTP 기반 헬스체크 기능 구현 (Rust + React + Spring)
+
+Rust (Tauri Backend)
+
+reqwest 크레이트를 활용한 HTTP Health Check 모듈 신규 작성
+
+HealthResponse 구조체 정의 (status, service 필드)
+
+check_http_health_internal() 함수에서
+
+지정된 URL로 GET 요청
+
+JSON 응답({"status": "UP"}) 또는 HTTP 상태 코드 기반 성공 판정
+
+React에서 호출 가능한 Tauri 커맨드로 #[tauri::command] pub async fn check_http_health() 등록
+
+비정상 응답 시 에러 로그 출력 및 false 반환 로직 추가
+
+React (프론트엔드)
+
+HealthWatcher.tsx 컴포넌트 신규 작성
+
+invoke("check_http_health", { url }) 로 Rust 커맨드 호출
+
+5초 간격으로 /health 엔드포인트를 폴링하여 상태 표시
+
+상태에 따라 🟢 UP / 🔴 DOWN / ⚠️ Error 아이콘 표시
+
+Start / Stop 버튼을 통한 헬스체크 주기적 감시 제어 기능 추가
+
+UI는 Tailwind 기반으로 제작
+
+Spring (서버)
+
+테스트용 TestController 작성 (GET / → "테스트")
+
+헬스체크용 /health 엔드포인트 추가 ({"status": "UP"} 반환)
+
+Actuator 설정(application.properties) 추가:
+
+management.endpoints.web.exposure.include=health
+management.endpoint.health.show-details=always
+management.endpoint.health.probes.enabled=true
+
+
+/actuator/health, /actuator/health/liveness 등 프로브 활성화 확인 완료
+
+결과
+
+EC2 및 로컬 Spring 서버 상태를 Rust 기반으로 주기적 감시 가능
+
+GUI 상에서 서버 상태를 실시간으로 시각화
+
+추후 Docker 컨테이너 헬스체크 및 자동 재시작 로직으로 확장 예정
