@@ -3,7 +3,7 @@ use tauri::AppHandle;
 use serde::{Serialize, Deserialize};
 use anyhow::Result;
 
-const TARGET_SUFFIX: &str = "-x86_64-pc-windows-msvc.exe";
+const TARGET_SUFFIX: &str = ".exe";
 const DATA_DIR_NAME: &str = "data";
 const DATA_FILE: &str = "plugins.json";
 
@@ -35,6 +35,7 @@ pub struct TargetEntry {
 }
 
 #[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
 struct SavedTargets {
     generated_at_ms: u128,     // 저장 시각 (epoch ms)
     items: Vec<TargetEntry>,   // 실제 목록

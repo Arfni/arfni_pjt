@@ -31,6 +31,7 @@ pub async fn ssh_close(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 /// ✅ Tauri v2에서 동작하는 정식 버전
+#[allow(dead_code)]
 pub fn register() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
   tauri::generate_handler![ssh_start, ssh_send, ssh_close]
 }

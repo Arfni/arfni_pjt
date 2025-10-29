@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, State};
-use rusqlite::{params, Connection};
+use tauri::State;
+use rusqlite::params;
 use crate::db::Database;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -1,7 +1,7 @@
-use notify::{Watcher, RecursiveMode, Event, Config};
+use notify::{Watcher, RecursiveMode, Event};
 use std::path::Path;
 use std::sync::mpsc::channel;
-use tauri::{Manager, AppHandle, Emitter};
+use tauri::{AppHandle, Emitter};
 use std::time::Duration;
 
 #[derive(Clone, serde::Serialize)]

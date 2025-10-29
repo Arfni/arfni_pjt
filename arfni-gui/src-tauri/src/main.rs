@@ -84,6 +84,9 @@ fn main() {
       // 파일 감시 명령어
       commands::file_watcher::watch_stack_yaml,
       commands::file_watcher::stop_watching,
+
+      //헬스체크 명령어
+      commands::health::check_health,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

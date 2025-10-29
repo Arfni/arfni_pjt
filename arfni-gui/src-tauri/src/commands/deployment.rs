@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::process::{Command, Stdio, Child};
+use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
-use tauri::{AppHandle, Manager, Emitter};
+use tauri::{AppHandle, Emitter};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -101,7 +101,7 @@ pub async fn deploy_stack(
         }).unwrap_or(());
 
         // 배포 명령 실행 - Go 바이너리 직접 실행
-        let mut cmd = Command::new(&go_binary_path)
+        let cmd = Command::new(&go_binary_path)
             .arg("run")
             .arg("-f")
             .arg(&stack_yaml_path)
@@ -128,7 +128,7 @@ pub async fn deploy_stack(
                 let app_clone_stderr = app_clone.clone();
 
                 // stdout 읽기 스레드
-                let app_for_outputs = app_clone_stdout.clone();
+                // outputs will be captured via marker lines in stdout
                 let stdout_handle = stdout.map(|stdout| {
                     std::thread::spawn(move || {
                         let reader = BufReader::new(stdout);

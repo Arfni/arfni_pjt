@@ -1,9 +1,9 @@
 use tauri::{AppHandle, path::BaseDirectory};
 use tauri::Manager;
-use serde_json::Value;
 use std::{
+  fs,
   io::Write,
-  path::PathBuf,
+  path::{Path, PathBuf},
   process::{Command as StdCommand, Stdio},
 };
 
@@ -25,60 +25,138 @@ pub enum PluginRunArgs {
   Stdin { json: serde_json::Value },
 }
 
-// 환경 변수로 주입된 타깃 트리플이 있으면 쓰고, 없으면 기본값 반환
-fn target_triple() -> &'static str {
-  option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or("x86_64-pc-windows-msvc")
+/// 폴더에서 .exe 후보들을 수집(Windows 전용).
+/// - 단일 exe만 있으면 그걸 Some로 반환
+/// - 여러 개면 plugin.exe가 있으면 그걸 Some로 반환
+/// - 그 외엔 None (호출측에서 에러 메시지 구성)
+#[cfg(target_os = "windows")]
+fn pick_exe_in_dir(dir: &Path, plugin: &str) -> Option<PathBuf> {
+  if !dir.exists() || !dir.is_dir() {
+    return None;
+  }
+  let Ok(entries) = fs::read_dir(dir) else { return None; };
+
+  let mut exes: Vec<PathBuf> = entries
+    .filter_map(|e| e.ok())
+    .map(|e| e.path())
+    .filter(|p| p.is_file() && p.extension().map(|ext| ext.eq_ignore_ascii_case("exe")).unwrap_or(false))
+    .collect();
+
+  if exes.is_empty() {
+    return None;
+  }
+  if exes.len() == 1 {
+    return exes.pop();
+  }
+
+  // 여러 개면 plugin.exe 우선
+  let want = dir.join(format!("{plugin}.exe"));
+  if want.exists() {
+    return Some(want);
+  }
+
+  None
 }
 
-fn plugin_filename(plugin: &str) -> String {
-  // 예: test-dummy-x86_64-pc-windows-msvc.exe (Windows 가정)
-  if cfg!(target_os = "windows") {
-    format!("{plugin}-{}.exe", target_triple())
+/// Windows가 아닌 경우(맥/리눅스)는 굳이 지원할 필요 없다고 했지만,
+/// 편의를 위해 `plugin` 이름과 동일한 실행 파일(확장자 없음)을 찾는 최소 동작만 둠.
+#[cfg(not(target_os = "windows"))]
+fn pick_exe_in_dir(dir: &Path, plugin: &str) -> Option<PathBuf> {
+  if !dir.exists() || !dir.is_dir() {
+    return None;
+  }
+  let candidate = dir.join(plugin);
+  if candidate.exists() && candidate.is_file() {
+    Some(candidate)
   } else {
-    format!("{plugin}-{}", target_triple())
+    None
   }
 }
 
-// 실행 파일 경로 탐색(배포 리소스/개발 경로/보조 경로 모두 지원)
+/// 실행 파일 경로 탐색(배포 리소스/개발 경로 모두 지원)
+/// - “그냥 exe면 실행” 원칙에 맞춰 간단화
 fn resolve_plugin_exe(app: &AppHandle, plugin: &str) -> Result<PathBuf, String> {
-  let exe_name = plugin_filename(plugin);
-
-  // Resource/plugins/<plugin>/<exe> 와 Resource/plugins/<exe> 둘 다 시도
-  let res_under_plugin = app
+  // 1) 리소스 기준 우선 후보들
+  let res_plugin_dir = app
     .path()
-    .resolve(&format!("plugins/{plugin}/{exe_name}"), BaseDirectory::Resource)
-    .ok();
-  let res_flat = app
-    .path()
-    .resolve(&format!("plugins/{exe_name}"), BaseDirectory::Resource)
+    .resolve(&format!("plugins/{plugin}"), BaseDirectory::Resource)
     .ok();
 
-  // 개발 경로들 (src-tauri 기준)
+  let res_flat_plugin_exe = app
+    .path()
+    .resolve(&format!("plugins/{plugin}.exe"), BaseDirectory::Resource)
+    .ok();
+
+  let res_plugin_exe_in_dir = res_plugin_dir
+    .as_ref()
+    .map(|d| d.join(format!("{plugin}.exe")));
+
+  // 2) 개발 경로(src-tauri/plugins)
   let mut dev_plugins = PathBuf::from(env!("CARGO_MANIFEST_DIR")); // = src-tauri
   dev_plugins.push("plugins");
-  let dev_under_plugin = dev_plugins.join(plugin).join(&exe_name);
-  let dev_flat = dev_plugins.join(&exe_name);
-  let dev_plain = dev_plugins.join(plugin).join(format!("{plugin}.exe")); // 보조
 
-  let candidates = [
-    res_under_plugin,
-    res_flat,
-    Some(dev_under_plugin),
-    Some(dev_flat),
-    Some(dev_plain),
-  ];
+  let dev_plugin_dir = dev_plugins.join(plugin);
+  let dev_flat_plugin_exe = dev_plugins.join(format!("{plugin}.exe"));
+  let dev_plugin_exe_in_dir = dev_plugin_dir.join(format!("{plugin}.exe"));
 
-  candidates
-    .into_iter()
-    .flatten()
-    .find(|p| p.exists())
-    .ok_or_else(|| format!("plugin exe not found: plugins/{plugin}/{exe_name}"))
+  // ==== 탐색 순서 ====
+
+  // A. 리소스: plugins/<plugin>/plugin.exe
+  if let Some(p) = res_plugin_exe_in_dir.as_ref().filter(|p| p.exists()) {
+    return Ok(p.clone());
+  }
+
+  // B. 리소스: plugins/<plugin>/ 에서 단일 .exe 자동 선택 (또는 다수일 때 plugin.exe 우선)
+  if let Some(dir) = res_plugin_dir.as_ref() {
+    if let Some(picked) = pick_exe_in_dir(dir, plugin) {
+      return Ok(picked);
+    }
+  }
+
+  // C. 리소스: plugins/plugin.exe
+  if let Some(p) = res_flat_plugin_exe.as_ref().filter(|p| p.exists()) {
+    return Ok(p.clone());
+  }
+
+  // D. 개발: src-tauri/plugins/<plugin>/plugin.exe
+  if dev_plugin_exe_in_dir.exists() {
+    return Ok(dev_plugin_exe_in_dir);
+  }
+
+  // E. 개발: src-tauri/plugins/<plugin>/ 단일 exe 자동 선택 (또는 다수일 때 plugin.exe 우선)
+  if let Some(picked) = pick_exe_in_dir(&dev_plugin_dir, plugin) {
+    return Ok(picked);
+  }
+
+  // F. 개발: src-tauri/plugins/plugin.exe
+  if dev_flat_plugin_exe.exists() {
+    return Ok(dev_flat_plugin_exe);
+  }
+
+  // ---- 실패시 후보/스캔 경로 안내 ----
+  let mut tried: Vec<String> = vec![];
+  if let Some(p) = res_plugin_exe_in_dir {
+    tried.push(format!("Resource: {}", p.display()));
+  }
+  if let Some(d) = res_plugin_dir {
+    tried.push(format!("Resource dir scan: {}", d.display()));
+  }
+  if let Some(p) = res_flat_plugin_exe {
+    tried.push(format!("Resource: {}", p.display()));
+  }
+  tried.push(format!("Dev: {}", dev_plugin_exe_in_dir.display()));
+  tried.push(format!("Dev dir scan: {}", dev_plugin_dir.display()));
+  tried.push(format!("Dev: {}", dev_flat_plugin_exe.display()));
+
+  Err(format!(
+    "Plugin executable not found for '{plugin}'. Tried:\n  - {}",
+    tried.join("\n  - ")
+  ))
 }
 
 /// 커맨드 실행 → stdout/stderr/exit code 수집
 /// 실패 시 stderr가 비어 있으면 stdout을 대신 붙여서 반환
 fn spawn_and_collect(mut cmd: StdCommand, what: &str) -> Result<String, String> {
-  // 디버깅용: 실행 경로 & 명령 줄 일부 로깅(콘솔)
   // println!("[spawn] {what}: {:?}", cmd);
 
   let out = cmd.output().map_err(|e| format!("spawn failed ({what}): {e}"))?;
@@ -91,7 +169,6 @@ fn spawn_and_collect(mut cmd: StdCommand, what: &str) -> Result<String, String> 
   }
 
   let code = status.code().unwrap_or(-1);
-  // stderr 우선, 없으면 stdout, 둘 다 없으면 안내 문구
   let detail = if !stderr.is_empty() {
     stderr
   } else if !stdout.is_empty() {
@@ -134,8 +211,6 @@ pub async fn run_plugin_with_mode(
         if !args.is_empty() {
           cmd.args(&args);
         }
-        // 디버깅 도움: 어떤 인자로 실행했는지 프린트
-        // println!("[cli] {label} args={:?}", args);
         spawn_and_collect(cmd, &label)
       }
       PluginRunArgs::Config { config_path, output } => {
@@ -144,7 +219,6 @@ pub async fn run_plugin_with_mode(
         if let Some(out_file) = output.as_ref() {
           cmd.arg("--output").arg(out_file);
         }
-        // println!("[config] {label} --config {:?} --output {:?}", config_path, output);
         spawn_and_collect(cmd, &label)
       }
       PluginRunArgs::Stdin { json } => {
@@ -156,15 +230,14 @@ pub async fn run_plugin_with_mode(
           cmd.arg("--output").arg(out);
         }
 
-        // println!("[stdin] {label} json keys={:?}", json.as_object().map(|o| o.keys().collect::<Vec<_>>()));
         let mut child = cmd.spawn().map_err(|e| format!("spawn failed ({label}): {e}"))?;
 
         // STDIN에 JSON 쓰고, 반드시 flush + drop 해서 EOF 전달
         if let Some(mut stdin) = child.stdin.take() {
           let buf = serde_json::to_vec(&json).map_err(|e| e.to_string())?;
           stdin.write_all(&buf).map_err(|e| e.to_string())?;
-          stdin.flush().ok();
-          drop(stdin); // ← EOF 보내기 중요
+          let _ = stdin.flush();
+          drop(stdin); // EOF 중요
         }
 
         let out = child.wait_with_output().map_err(|e| e.to_string())?;
