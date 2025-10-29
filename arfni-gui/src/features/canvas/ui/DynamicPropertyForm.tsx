@@ -1,9 +1,16 @@
-import { useAppDispatch } from '@app/hooks';
-import { updateNode } from '../model/canvasSlice';
-import { CustomNode, ServiceNodeData, DatabaseNodeData } from '../model/types';
-import { getServiceConfig } from '../config/serviceConfigs';
-import { FormField, Input, Select, Checkbox, KeyValueEditor } from '../../../shared/ui/form';
-import { TargetPropertyForm } from './TargetPropertyForm';
+import { useAppDispatch } from "@app/hooks";
+import { updateNode } from "../model/canvasSlice";
+import { CustomNode, ServiceNodeData, DatabaseNodeData } from "../model/types";
+import { getServiceConfig } from "../config/serviceConfigs";
+import {
+  FormField,
+  Input,
+  Select,
+  Checkbox,
+  KeyValueEditor,
+} from "../../../shared/ui/form";
+import { TargetPropertyForm } from "./TargetPropertyForm";
+import { useState } from "react";
 
 interface DynamicPropertyFormProps {
   node: CustomNode;
@@ -11,28 +18,36 @@ interface DynamicPropertyFormProps {
 
 export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
   const dispatch = useAppDispatch();
+  const [openSections, setOpenSections] = useState({
+    basic: true,
+    auth: true,
+    storage: true,
+    resources: true,
+    env: false,
+  });
 
   // Target 노드인 경우 TargetPropertyForm 사용
-  if (node.type === 'target') {
+  if (node.type === "target") {
     return <TargetPropertyForm node={node} />;
   }
 
   const data = node.data as ServiceNodeData | DatabaseNodeData;
 
   // 서비스 타입 결정
-  const serviceType = node.type === 'database'
-    ? (data as DatabaseNodeData).type
-    : (data as ServiceNodeData).serviceType || 'custom';
+  const serviceType =
+    node.type === "database"
+      ? (data as DatabaseNodeData).type
+      : (data as ServiceNodeData).serviceType || "custom";
 
-  console.log('DynamicPropertyForm - node:', node);
-  console.log('DynamicPropertyForm - serviceType:', serviceType);
-  console.log('DynamicPropertyForm - data:', data);
+  console.log("DynamicPropertyForm - node:", node);
+  console.log("DynamicPropertyForm - serviceType:", serviceType);
+  console.log("DynamicPropertyForm - data:", data);
 
   const config = getServiceConfig(serviceType);
 
   if (!config) {
     return (
-      <div style={{ padding: '1rem' }}>
+      <div style={{ padding: "1rem" }}>
         <p>Unknown service type: {serviceType}</p>
         <p>Please select a valid service type.</p>
       </div>
@@ -41,316 +56,428 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
 
   // 노드 데이터 업데이트 헬퍼
   const updateField = (field: string, value: any) => {
-    dispatch(updateNode({
-      id: node.id,
-      data: {
-        ...data,
-        [field]: value
-      }
-    }));
+    dispatch(
+      updateNode({
+        id: node.id,
+        data: {
+          ...data,
+          [field]: value,
+        },
+      })
+    );
   };
 
   const updateEnv = (envKey: string, envValue: string) => {
     const currentEnv = data.env || {};
-    dispatch(updateNode({
-      id: node.id,
-      data: {
-        ...data,
-        env: {
-          ...currentEnv,
-          [envKey]: envValue
-        }
-      }
-    }));
+    dispatch(
+      updateNode({
+        id: node.id,
+        data: {
+          ...data,
+          env: {
+            ...currentEnv,
+            [envKey]: envValue,
+          },
+        },
+      })
+    );
   };
 
   const updateAllEnv = (newEnv: Record<string, string>) => {
-    dispatch(updateNode({
-      id: node.id,
-      data: {
-        ...data,
-        env: newEnv
-      }
+    dispatch(
+      updateNode({
+        id: node.id,
+        data: {
+          ...data,
+          env: newEnv,
+        },
+      })
+    );
+  };
+
+  const toggleSection = (section: keyof typeof openSections) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
     }));
   };
 
-  return (
-    <div className="dynamic-property-form p-4 space-y-4">
-      <div className="pb-3 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-700">Basic Information</h3>
-      </div>
+  const handleApplyChanges = () => {
+    // Apply changes logic here
+    console.log("Applying changes:", data);
+    alert("Changes applied successfully!");
+  };
 
-      {/* Service Name */}
-      <FormField label="Service Name" required>
-        <Input
-          value={data.name}
-          onChange={(e) => updateField('name', e.target.value)}
-          placeholder="my-service"
-        />
-      </FormField>
-
-      {/* Version (if supported) */}
-      {config.supportsVersion && (
-        <FormField label="Version">
-          {config.versionOptions ? (
-            <Select
-              value={(data as DatabaseNodeData).version || config.defaultVersion || ''}
-              onChange={(e) => updateField('version', e.target.value)}
-              options={config.versionOptions.map(v => ({ label: v, value: v }))}
-            />
-          ) : (
-            <Input
-              value={(data as DatabaseNodeData).version || config.defaultVersion || ''}
-              onChange={(e) => updateField('version', e.target.value)}
-              placeholder={config.defaultVersion}
-            />
-          )}
-        </FormField>
-      )}
-
-      {/* Build Path (if build required) */}
-      {config.buildRequired && (
-        <FormField
-          label="Build Path"
-          description="Relative path to application source code"
-        >
-          <Input
-            value={(data as ServiceNodeData).build || config.defaultBuildPath || ''}
-            onChange={(e) => updateField('build', e.target.value)}
-            placeholder={config.defaultBuildPath}
-          />
-        </FormField>
-      )}
-
-      {/* Image (if not build required) */}
-      {!config.buildRequired && config.defaultImage && (
-        <FormField label="Image">
-          <Input
-            value={(data as ServiceNodeData).image || config.defaultImage}
-            onChange={(e) => updateField('image', e.target.value)}
-            placeholder={config.defaultImage}
-          />
-        </FormField>
-      )}
-
-      {/* Ports */}
-      <FormField
-        label="Ports"
-        description="Format: host:container (e.g., 8080:8080)"
+  // Collapsible Section Component
+  const CollapsibleSection = ({
+    title,
+    isOpen,
+    onToggle,
+    children,
+    icon,
+  }: {
+    title: string;
+    isOpen: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+    icon?: React.ReactNode;
+  }) => (
+    <div style={{ marginBottom: "0.75rem" }}>
+      <div
+        onClick={onToggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.625rem 0",
+          cursor: "pointer",
+          fontSize: "0.9375rem",
+          fontWeight: 600,
+          color: "#374151",
+          userSelect: "none",
+        }}
       >
-        <Input
-          value={data.ports?.[0] || config.defaultPortMapping || ''}
-          onChange={(e) => {
-            const value = e.target.value;
-            updateField('ports', value ? [value] : []);
+        <span
+          style={{
+            transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform 0.2s",
           }}
-          placeholder={config.defaultPortMapping || '8080:8080'}
-        />
-      </FormField>
-
-      {/* Required Environment Variables */}
-      {config.requiredEnvVars && config.requiredEnvVars.length > 0 && (
-        <>
-          <div className="pt-4 pb-2 border-t border-gray-200">
-            <h4 className="text-sm font-semibold text-gray-700">Environment Variables</h4>
-          </div>
-          {config.requiredEnvVars.map((envVar) => {
-            const currentValue = data.env?.[envVar.key] || envVar.defaultValue || '';
-
-            return (
-              <FormField
-                key={envVar.key}
-                label={envVar.label || envVar.key}
-                required={envVar.required}
-                description={envVar.description}
-              >
-                {envVar.type === 'boolean' ? (
-                  <Checkbox
-                    checked={currentValue === 'true' || currentValue === true}
-                    onChange={(e) => updateEnv(envVar.key, e.target.checked ? 'true' : 'false')}
-                  />
-                ) : (
-                  <Input
-                    type={envVar.type}
-                    value={String(currentValue)}
-                    onChange={(e) => updateEnv(envVar.key, e.target.value)}
-                    placeholder={envVar.placeholder || String(envVar.defaultValue || '')}
-                  />
-                )}
-              </FormField>
-            );
-          })}
-        </>
-      )}
-
-      {/* Optional Environment Variables (Collapsible) */}
-      {config.optionalEnvVars && config.optionalEnvVars.length > 0 && (
-        <details style={{ marginTop: '1rem' }}>
-          <summary style={{ cursor: 'pointer', fontWeight: 500, marginBottom: '0.5rem' }}>
-            Optional Environment Variables
-          </summary>
-          <div style={{ paddingLeft: '1rem' }}>
-            {config.optionalEnvVars.map((envVar) => {
-              const currentValue = data.env?.[envVar.key] || envVar.defaultValue || '';
-
-              return (
-                <FormField
-                  key={envVar.key}
-                  label={envVar.label || envVar.key}
-                  description={envVar.description}
-                >
-                  {envVar.type === 'boolean' ? (
-                    <Checkbox
-                      checked={currentValue === 'true' || currentValue === true}
-                      onChange={(e) => updateEnv(envVar.key, e.target.checked ? 'true' : 'false')}
-                    />
-                  ) : (
-                    <Input
-                      type={envVar.type}
-                      value={String(currentValue)}
-                      onChange={(e) => updateEnv(envVar.key, e.target.value)}
-                      placeholder={envVar.placeholder || String(envVar.defaultValue || '')}
-                    />
-                  )}
-                </FormField>
-              );
-            })}
-          </div>
-        </details>
-      )}
-
-      {/* Custom Environment Variables */}
-      <details style={{ marginTop: '1rem' }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 500, marginBottom: '0.5rem' }}>
-          Custom Environment Variables
-        </summary>
-        <div style={{ paddingLeft: '1rem' }}>
-          <KeyValueEditor
-            entries={data.env || {}}
-            onChange={updateAllEnv}
-            keyPlaceholder="VARIABLE_NAME"
-            valuePlaceholder="value"
-          />
+        >
+          ▶
+        </span>
+        {icon}
+        {title}
+      </div>
+      {isOpen && (
+        <div style={{ paddingLeft: "1.5rem", paddingTop: "0.5rem" }}>
+          {children}
         </div>
-      </details>
+      )}
+    </div>
+  );
 
-      {/* Additional Fields (service-specific) */}
-      {config.additionalFields && config.additionalFields.length > 0 && (
-        <>
-          <div className="pt-4 pb-2 border-t border-gray-200">
-            <h4 className="text-sm font-semibold text-gray-700">Additional Settings</h4>
-          </div>
-          {config.additionalFields.map((field) => {
-            const currentValue = (data as any)[field.key] || field.defaultValue || '';
+  const isDatabase = node.type === "database";
 
-            return (
-              <FormField
-                key={field.key}
-                label={field.label}
-                description={field.description}
-              >
-                {field.type === 'select' && field.options ? (
+  return (
+    <div
+      className="dynamic-property-form"
+      style={{
+        padding: "1rem",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div style={{ flex: 1, overflowY: "auto", paddingRight: "0.5rem" }}>
+        {/* Basic Information */}
+        <CollapsibleSection
+          title="Basic Information"
+          isOpen={openSections.basic}
+          onToggle={() => toggleSection("basic")}
+        >
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+          >
+            <FormField label="Service Name">
+              <Input
+                value={data.name}
+                onChange={(e) => updateField("name", e.target.value)}
+                placeholder="my-service"
+              />
+            </FormField>
+
+            {config.supportsVersion && (
+              <FormField label="Version">
+                {config.versionOptions ? (
                   <Select
-                    value={String(currentValue)}
-                    onChange={(e) => updateField(field.key, e.target.value)}
-                    options={field.options}
-                  />
-                ) : field.type === 'boolean' ? (
-                  <Checkbox
-                    checked={currentValue === true || currentValue === 'true'}
-                    onChange={(e) => updateField(field.key, e.target.checked)}
+                    value={
+                      (data as DatabaseNodeData).version ||
+                      config.defaultVersion ||
+                      ""
+                    }
+                    onChange={(e) => updateField("version", e.target.value)}
+                    options={config.versionOptions.map((v) => ({
+                      label: v,
+                      value: v,
+                    }))}
                   />
                 ) : (
                   <Input
-                    type={field.type}
-                    value={String(currentValue)}
-                    onChange={(e) => {
-                      const value = field.type === 'number'
-                        ? Number(e.target.value)
-                        : e.target.value;
-                      updateField(field.key, value);
-                    }}
+                    value={
+                      (data as DatabaseNodeData).version ||
+                      config.defaultVersion ||
+                      ""
+                    }
+                    onChange={(e) => updateField("version", e.target.value)}
+                    placeholder={config.defaultVersion}
                   />
                 )}
               </FormField>
-            );
-          })}
-        </>
-      )}
+            )}
 
-      {/* Volumes (if supported) */}
-      {config.supportsVolumes && (
-        <details style={{ marginTop: '1rem' }}>
-          <summary style={{ cursor: 'pointer', fontWeight: 500, marginBottom: '0.5rem' }}>
-            Volumes
-          </summary>
-          <div style={{ paddingLeft: '1rem' }}>
-            <FormField label="Host Path">
+            <FormField label="Port">
               <Input
-                value={data.volumes?.[0]?.host || config.defaultVolumes?.[0]?.host || ''}
+                value={
+                  data.ports?.[0]?.split(":")[0] ||
+                  config.defaultPort?.toString() ||
+                  ""
+                }
                 onChange={(e) => {
-                  const currentMount = data.volumes?.[0]?.mount || config.defaultVolumes?.[0]?.mount || '';
-                  updateField('volumes', [{ host: e.target.value, mount: currentMount }]);
+                  const hostPort = e.target.value;
+                  const containerPort = config.defaultPort || 8080;
+                  updateField(
+                    "ports",
+                    hostPort ? [`${hostPort}:${containerPort}`] : []
+                  );
                 }}
-                placeholder="./.arfni/data"
-              />
-            </FormField>
-            <FormField label="Mount Path">
-              <Input
-                value={data.volumes?.[0]?.mount || config.defaultVolumes?.[0]?.mount || ''}
-                onChange={(e) => {
-                  const currentHost = data.volumes?.[0]?.host || config.defaultVolumes?.[0]?.host || '';
-                  updateField('volumes', [{ host: currentHost, mount: e.target.value }]);
-                }}
-                placeholder="/var/lib/data"
+                placeholder={config.defaultPort?.toString() || "8080"}
               />
             </FormField>
           </div>
-        </details>
-      )}
+        </CollapsibleSection>
 
-      {/* Health Check */}
-      {config.defaultHealthCheck && (
-        <details style={{ marginTop: '1rem' }}>
-          <summary style={{ cursor: 'pointer', fontWeight: 500, marginBottom: '0.5rem' }}>
-            Health Check
-          </summary>
-          <div style={{ paddingLeft: '1rem' }}>
-            {config.defaultHealthCheck.tcp && (
-              <FormField label="TCP Port">
+        {/* Authentication Section (for databases) */}
+        {isDatabase && (
+          <CollapsibleSection
+            title="Authentication"
+            isOpen={openSections.auth}
+            onToggle={() => toggleSection("auth")}
+          >
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+            >
+              {/* Database Name */}
+              {config.requiredEnvVars?.find(
+                (v) => v.key.includes("DATABASE") || v.key.includes("DB")
+              ) && (
+                <FormField label="Database Name">
+                  <Input
+                    value={
+                      data.env?.["POSTGRES_DB"] ||
+                      data.env?.["MYSQL_DATABASE"] ||
+                      data.env?.["MONGO_INITDB_DATABASE"] ||
+                      ""
+                    }
+                    onChange={(e) => {
+                      const key =
+                        serviceType === "postgres"
+                          ? "POSTGRES_DB"
+                          : serviceType === "mysql"
+                          ? "MYSQL_DATABASE"
+                          : "MONGO_INITDB_DATABASE";
+                      updateEnv(key, e.target.value);
+                    }}
+                    placeholder="database"
+                  />
+                </FormField>
+              )}
+
+              {/* Username */}
+              {(config.requiredEnvVars?.find((v) => v.key.includes("USER")) ||
+                config.optionalEnvVars?.find((v) =>
+                  v.key.includes("USER")
+                )) && (
+                <FormField label="Username">
+                  <Input
+                    value={
+                      data.env?.["POSTGRES_USER"] ||
+                      data.env?.["MYSQL_USER"] ||
+                      data.env?.["MONGO_INITDB_ROOT_USERNAME"] ||
+                      ""
+                    }
+                    onChange={(e) => {
+                      const key =
+                        serviceType === "postgres"
+                          ? "POSTGRES_USER"
+                          : serviceType === "mysql"
+                          ? "MYSQL_USER"
+                          : "MONGO_INITDB_ROOT_USERNAME";
+                      updateEnv(key, e.target.value);
+                    }}
+                    placeholder="user"
+                  />
+                </FormField>
+              )}
+
+              {/* Password */}
+              {config.requiredEnvVars?.find((v) =>
+                v.key.includes("PASSWORD")
+              ) && (
+                <FormField label="Password">
+                  <Input
+                    type="password"
+                    value={
+                      data.env?.["POSTGRES_PASSWORD"] ||
+                      data.env?.["MYSQL_ROOT_PASSWORD"] ||
+                      data.env?.["MYSQL_PASSWORD"] ||
+                      data.env?.["MONGO_INITDB_ROOT_PASSWORD"] ||
+                      data.env?.["REDIS_PASSWORD"] ||
+                      ""
+                    }
+                    onChange={(e) => {
+                      const key =
+                        serviceType === "postgres"
+                          ? "POSTGRES_PASSWORD"
+                          : serviceType === "mysql"
+                          ? "MYSQL_ROOT_PASSWORD"
+                          : serviceType === "redis"
+                          ? "REDIS_PASSWORD"
+                          : "MONGO_INITDB_ROOT_PASSWORD";
+                      updateEnv(key, e.target.value);
+                    }}
+                    placeholder="password"
+                  />
+                </FormField>
+              )}
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {/* Storage Section (for databases) */}
+        {isDatabase && config.supportsVolumes && (
+          <CollapsibleSection
+            title="Storage"
+            isOpen={openSections.storage}
+            onToggle={() => toggleSection("storage")}
+          >
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+            >
+              <FormField label="Volume Path">
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <Input
+                    value={
+                      data.volumes?.[0]?.host ||
+                      config.defaultVolumes?.[0]?.host ||
+                      ""
+                    }
+                    onChange={(e) => {
+                      const currentMount =
+                        data.volumes?.[0]?.mount ||
+                        config.defaultVolumes?.[0]?.mount ||
+                        "";
+                      updateField("volumes", [
+                        { host: e.target.value, mount: currentMount },
+                      ]);
+                    }}
+                    placeholder="./.arfni/data"
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    style={{
+                      padding: "0.5rem",
+                      backgroundColor: "#4F46E5",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      cursor: "pointer",
+                      fontSize: "1rem",
+                    }}
+                  >
+                    📁
+                  </button>
+                </div>
+              </FormField>
+
+              <FormField label="Size (GB)">
                 <Input
                   type="number"
-                  value={data.health?.tcp?.port || config.defaultHealthCheck.tcp.port}
-                  onChange={(e) => updateField('health', { tcp: { port: Number(e.target.value) } })}
+                  value={(data as any).storageSize || 10}
+                  onChange={(e) =>
+                    updateField("storageSize", Number(e.target.value))
+                  }
+                  placeholder="10"
                 />
               </FormField>
-            )}
-            {config.defaultHealthCheck?.httpGet && (
-              <>
-                <FormField label="HTTP Path">
-                  <Input
-                    value={(data.health && 'httpGet' in data.health) ? data.health.httpGet?.path || config.defaultHealthCheck?.httpGet?.path || '/health' : config.defaultHealthCheck?.httpGet?.path || '/health'}
-                    onChange={(e) => {
-                      const currentPort = (data.health && 'httpGet' in data.health) ? data.health.httpGet?.port || config.defaultHealthCheck?.httpGet?.port || 8080 : 8080;
-                      updateField('health', { httpGet: { path: e.target.value, port: currentPort } });
-                    }}
-                  />
-                </FormField>
-                <FormField label="HTTP Port">
-                  <Input
-                    type="number"
-                    value={(data.health && 'httpGet' in data.health) ? data.health.httpGet?.port || config.defaultHealthCheck?.httpGet?.port || 8080 : config.defaultHealthCheck?.httpGet?.port || 8080}
-                    onChange={(e) => {
-                      const currentPath = (data.health && 'httpGet' in data.health) ? data.health.httpGet?.path || config.defaultHealthCheck?.httpGet?.path || '/health' : '/health';
-                      updateField('health', { httpGet: { path: currentPath, port: Number(e.target.value) } });
-                    }}
-                  />
-                </FormField>
-              </>
-            )}
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {/* Resource Limits Section */}
+        {isDatabase && (
+          <CollapsibleSection
+            title="Resource Limits"
+            isOpen={openSections.resources}
+            onToggle={() => toggleSection("resources")}
+          >
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+            >
+              <FormField label="Memory Limit (MB)">
+                <Input
+                  type="number"
+                  value={(data as any).memoryLimit || 512}
+                  onChange={(e) =>
+                    updateField("memoryLimit", Number(e.target.value))
+                  }
+                  placeholder="512"
+                />
+              </FormField>
+
+              <FormField label="CPU Limit">
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={(data as any).cpuLimit || 0.5}
+                  onChange={(e) =>
+                    updateField("cpuLimit", Number(e.target.value))
+                  }
+                  placeholder="0.5"
+                />
+              </FormField>
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {/* Environment Variables Section */}
+        <CollapsibleSection
+          title="Environment Variables"
+          isOpen={openSections.env}
+          onToggle={() => toggleSection("env")}
+        >
+          <div
+            style={{
+              paddingTop: "0.5rem",
+            }}
+            className="env-editor"
+          >
+            <KeyValueEditor
+              entries={data.env || {}}
+              onChange={updateAllEnv}
+              keyPlaceholder="KEY"
+              valuePlaceholder="Value"
+            />
           </div>
-        </details>
-      )}
+        </CollapsibleSection>
+      </div>
+
+      {/* Apply Changes Button */}
+      <div style={{ paddingTop: "1rem", borderTop: "1px solid #E5E7EB" }}>
+        <button
+          onClick={handleApplyChanges}
+          style={{
+            width: "100%",
+            padding: "0.75rem",
+            backgroundColor: "#4F46E5",
+            color: "white",
+            border: "none",
+            borderRadius: "0.5rem",
+            fontSize: "1rem",
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "background-color 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#4338CA";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#4F46E5";
+          }}
+        >
+          Apply Changes
+        </button>
+      </div>
     </div>
   );
 }
