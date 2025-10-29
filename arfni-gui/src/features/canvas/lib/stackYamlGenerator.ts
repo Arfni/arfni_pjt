@@ -9,6 +9,16 @@ import {
 
 export interface StackGeneratorOptions {
   projectName: string;
+  environment?: 'local' | 'ec2';
+  ec2Server?: {
+    id: string;
+    name: string;
+    host: string;
+    user: string;
+    pem_path: string;
+    workdir?: string;
+    mode?: 'all-in-one' | 'hybrid' | 'no-monitoring';
+  };
   secrets?: string[];
   outputs?: Record<string, string>;
 }
@@ -21,17 +31,43 @@ export function stackYamlGenerator(
   edges: Edge[],
   options: StackGeneratorOptions
 ): StackYaml {
-  const { projectName, secrets = [], outputs = {} } = options;
+  const { projectName, environment = 'local', ec2Server, secrets = [], outputs = {} } = options;
 
   // Target 노드 추출
   const targetNodes = nodes.filter(n => n.type === 'target');
   const targets: Record<string, Omit<TargetNodeData, 'name'>> = {};
 
+  // Target 노드가 있으면 사용
   targetNodes.forEach(node => {
     const data = node.data as TargetNodeData;
     const { name, ...targetConfig } = data;
     targets[name.toLowerCase().replace(/\s+/g, '-')] = targetConfig;
   });
+
+  // Target 노드가 없으면 environment에 따라 기본 target 생성
+  if (Object.keys(targets).length === 0) {
+    if (environment === 'ec2' && ec2Server) {
+      // EC2 서버 정보로 target 생성
+      targets['ec2'] = {
+        type: 'ec2.ssh',
+        host: ec2Server.host,
+        user: ec2Server.user,
+        sshKey: ec2Server.pem_path,
+        workdir: ec2Server.workdir || '/home/ubuntu',
+        mode: ec2Server.mode || 'all-in-one'
+      };
+    } else if (environment === 'ec2') {
+      // EC2 서버 정보 없으면 기본값
+      targets['ec2'] = {
+        type: 'ec2.ssh'
+      };
+    } else {
+      // Local 프로젝트
+      targets['local'] = {
+        type: 'docker-desktop'
+      };
+    }
+  }
 
   // Service와 Database 노드 추출
   const serviceNodes = nodes.filter(n => n.type === 'service' || n.type === 'database');
@@ -229,18 +265,27 @@ export function stackToYamlString(stack: StackYaml): string {
   let yaml = `apiVersion: ${stack.apiVersion}\n`;
   yaml += `name: ${stack.name}\n\n`;
 
-  // targets
-  yaml += 'targets:\n';
-  Object.entries(stack.targets).forEach(([name, config]) => {
-    yaml += `  ${name}:\n`;
-    yaml += `    type: ${config.type}\n`;
-    if (config.host) yaml += `    host: ${config.host}\n`;
-    if (config.user) yaml += `    user: ${config.user}\n`;
-    if (config.sshKey) yaml += `    sshKey: ${config.sshKey}\n`;
-    if (config.port) yaml += `    port: ${config.port}\n`;
-    if (config.workdir) yaml += `    workdir: ${config.workdir}\n`;
-  });
-  yaml += '\n';
+  // targets - 비어있지 않을 때만 출력
+  const targetEntries = Object.entries(stack.targets);
+  if (targetEntries.length > 0) {
+    yaml += 'targets:\n';
+    targetEntries.forEach(([name, config]) => {
+      yaml += `  ${name}:\n`;
+      yaml += `    type: ${config.type}\n`;
+      if (config.host) yaml += `    host: ${config.host}\n`;
+      if (config.user) yaml += `    user: ${config.user}\n`;
+      if (config.sshKey) yaml += `    sshKey: ${config.sshKey}\n`;
+      if (config.port) yaml += `    port: ${config.port}\n`;
+      if (config.workdir) yaml += `    workdir: ${config.workdir}\n`;
+      if ((config as any).mode) yaml += `    mode: ${(config as any).mode}\n`;
+    });
+    yaml += '\n';
+  } else {
+    // targets가 없으면 기본 local target 추가
+    yaml += 'targets:\n';
+    yaml += '  local:\n';
+    yaml += '    type: docker-desktop\n\n';
+  }
 
   // secrets
   if (stack.secrets && stack.secrets.length > 0) {

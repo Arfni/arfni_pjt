@@ -29,6 +29,7 @@ import {
   deleteNode,
   deleteEdge,
 } from '@features/canvas';
+import { selectCurrentProject } from '@features/project';
 
 import { ServiceNode } from '@entities/service/ui/ServiceNode';
 import { TargetNode } from '@entities/target/ui/TargetNode';
@@ -53,6 +54,7 @@ function CanvasEditorInner() {
   const edges = useAppSelector(selectEdges);
   const selectedTemplate = useAppSelector(selectSelectedTemplate);
   const selectedNodeId = useAppSelector(selectSelectedNodeId);
+  const currentProject = useAppSelector(selectCurrentProject);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useReactFlow();
   const { project } = reactFlowInstance;
@@ -147,6 +149,9 @@ function CanvasEditorInner() {
         y: event.clientY - reactFlowBounds.top,
       });
 
+      // 현재 프로젝트의 environment에 따라 target 결정
+      const defaultTarget = currentProject?.environment === 'ec2' ? 'ec2' : 'local';
+
       let newNode;
 
       if (category === 'service') {
@@ -186,7 +191,7 @@ function CanvasEditorInner() {
             serviceData.ports = ['80:80'];
         }
 
-        newNode = createServiceNode(serviceData, position);
+        newNode = createServiceNode(serviceData, position, defaultTarget);
       } else if (category === 'database') {
         // 데이터베이스 노드
         const dbData: any = {
@@ -213,7 +218,7 @@ function CanvasEditorInner() {
             break;
         }
 
-        newNode = createDatabaseNode(dbData, position);
+        newNode = createDatabaseNode(dbData, position, defaultTarget);
       } else if (category === 'target') {
         // 타겟 노드
         const targetData: any = {
@@ -228,7 +233,7 @@ function CanvasEditorInner() {
 
       dispatch(addNode(newNode as any));
     },
-    [dispatch, project]
+    [dispatch, project, currentProject]
   );
 
   // 캔버스 클릭 시 선택 해제만 처리

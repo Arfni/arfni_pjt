@@ -3,6 +3,7 @@ import { updateNode } from '../model/canvasSlice';
 import { CustomNode, ServiceNodeData, DatabaseNodeData } from '../model/types';
 import { getServiceConfig } from '../config/serviceConfigs';
 import { FormField, Input, Select, Checkbox, KeyValueEditor } from '../../../shared/ui/form';
+import { TargetPropertyForm } from './TargetPropertyForm';
 
 interface DynamicPropertyFormProps {
   node: CustomNode;
@@ -10,6 +11,12 @@ interface DynamicPropertyFormProps {
 
 export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
   const dispatch = useAppDispatch();
+
+  // Target 노드인 경우 TargetPropertyForm 사용
+  if (node.type === 'target') {
+    return <TargetPropertyForm node={node} />;
+  }
+
   const data = node.data as ServiceNodeData | DatabaseNodeData;
 
   // 서비스 타입 결정

@@ -17,6 +17,8 @@ import {
   selectEdges,
   selectIsDirty,
   setDirty,
+  updateNode,
+  selectTargetNodes,
 } from '@features/canvas';
 import {
   selectCurrentProject,
@@ -25,11 +27,15 @@ import {
   openProject,
   saveStackYaml,
 } from '@features/project';
+import {
+  startDeployment,
+} from '@features/deployment/model/deploymentSlice';
 import { stackYamlGenerator, stackToYamlString } from '@features/canvas/lib/stackYamlGenerator';
 import {
   deploymentCommands,
   CanvasNode,
   CanvasEdge,
+  ec2ServerCommands,
 } from '@shared/api/tauri/commands';
 
 export function Toolbar() {
@@ -41,9 +47,28 @@ export function Toolbar() {
   const isDirty = useAppSelector(selectIsDirty);
   const currentProject = useAppSelector(selectCurrentProject);
   const isSaving = useAppSelector(selectIsSaving);
+  const targetNodes = useAppSelector(selectTargetNodes);
 
   const [isDeploying, setIsDeploying] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
+
+  // EC2 프로젝트인지 확인 및 현재 모니터링 모드 가져오기
+  const isEC2Project = currentProject?.environment === 'ec2';
+  const ec2TargetNode = isEC2Project && targetNodes.length > 0 ? targetNodes[0] : null;
+  const currentMonitoringMode = (ec2TargetNode?.data as any)?.mode || 'all-in-one';
+
+  // 모니터링 모드 변경 핸들러
+  const handleMonitoringModeChange = useCallback((newMode: string) => {
+    if (ec2TargetNode) {
+      dispatch(updateNode({
+        id: ec2TargetNode.id,
+        data: {
+          ...(ec2TargetNode.data as any),
+          mode: newMode,
+        }
+      }));
+    }
+  }, [ec2TargetNode, dispatch]);
 
   // 새 프로젝트 생성
   const handleNewProject = useCallback(async () => {
@@ -86,9 +111,21 @@ export function Toolbar() {
     }
 
     try {
+      // EC2 서버 정보 로드
+      let ec2Server = null;
+      if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
+        try {
+          ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
+        } catch (err) {
+          console.error('EC2 서버 정보 로드 실패:', err);
+        }
+      }
+
       // Canvas 노드를 stack.yaml로 변환
       const stackYaml = stackYamlGenerator(nodes, edges, {
         projectName: currentProject.name,
+        environment: currentProject.environment,
+        ec2Server: ec2Server || undefined,
         secrets: [],
         outputs: {},
       });
@@ -137,9 +174,21 @@ export function Toolbar() {
 
     setIsValidating(true);
     try {
+      // EC2 서버 정보 로드
+      let ec2Server = null;
+      if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
+        try {
+          ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
+        } catch (err) {
+          console.error('EC2 서버 정보 로드 실패:', err);
+        }
+      }
+
       // stack.yaml 생성
       const stackYaml = stackYamlGenerator(nodes, edges, {
         projectName: currentProject.name,
+        environment: currentProject.environment,
+        ec2Server: ec2Server || undefined,
         secrets: [],
         outputs: {},
       });
@@ -176,15 +225,31 @@ export function Toolbar() {
       }
     }
 
-    setIsDeploying(true);
-    try {
-      // Docker 체크
-      const hasDocker = await deploymentCommands.checkDocker();
-      if (!hasDocker) {
-        alert('Docker가 설치되어 있지 않습니다. Docker를 먼저 설치해주세요.');
+    // Local 프로젝트만 Docker 검증
+    if (currentProject.environment === 'local') {
+      try {
+        const hasDocker = await deploymentCommands.checkDocker();
+        if (!hasDocker) {
+          alert('Docker가 설치되어 있지 않습니다. Docker를 먼저 설치해주세요.');
+          return;
+        }
+
+        const isDockerRunning = await deploymentCommands.checkDockerRunning();
+        if (!isDockerRunning) {
+          alert('Docker가 실행되고 있지 않습니다. Docker를 먼저 실행해주세요.');
+          return;
+        }
+      } catch (error) {
+        alert(`Docker 검증 실패: ${error}`);
         return;
       }
+    }
 
+    // Redux에 배포 시작 상태 저장
+    dispatch(startDeployment());
+
+    setIsDeploying(true);
+    try {
       // 배포 실행
       const stackYamlPath = `${currentProject.path}/stack.yaml`;
       const result = await deploymentCommands.deployStack(
@@ -193,14 +258,14 @@ export function Toolbar() {
       );
 
       if (result.status === 'deploying') {
-        alert('배포가 시작되었습니다. 로그를 확인하세요.');
+        // 배포 페이지로 이동
+        navigate('/deployment');
       }
     } catch (error) {
       alert(`배포 실패: ${error}`);
-    } finally {
       setIsDeploying(false);
     }
-  }, [currentProject, isDirty, handleSave]);
+  }, [currentProject, isDirty, handleSave, dispatch, navigate]);
 
   // 배포 중단
   const handleStopDeployment = useCallback(async () => {
@@ -276,6 +341,23 @@ export function Toolbar() {
             )}
             Validate
           </button>
+
+          {/* EC2 모니터링 모드 선택 (EC2 프로젝트만) */}
+          {isEC2Project && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-gray-700 rounded">
+              <span className="text-xs text-gray-300">Monitoring:</span>
+              <select
+                value={currentMonitoringMode}
+                onChange={(e) => handleMonitoringModeChange(e.target.value)}
+                disabled={!currentProject}
+                className="px-2 py-0.5 text-xs bg-gray-600 text-white rounded border border-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                <option value="all-in-one">All-in-One</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="no-monitoring">No Monitoring</option>
+              </select>
+            </div>
+          )}
 
           {!isDeploying ? (
             <button
