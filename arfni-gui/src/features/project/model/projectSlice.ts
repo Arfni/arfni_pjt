@@ -56,68 +56,19 @@ export const openProject = createAsyncThunk(
 
     const project = await projectCommands.openProjectByPath(path);
 
-    // 2. Canvas 상태 복원
+    // 2. Canvas 상태 복원 (빈 캔버스라도 항상 로드해서 상태 초기화)
     const canvasState = await projectCommands.loadCanvasState(path);
-    if (canvasState.nodes.length > 0 || canvasState.edges.length > 0) {
-      // Canvas store에 상태 로드
-      const nodes = canvasState.nodes.map(n => ({
-        ...n,
-        type: n.node_type as 'service' | 'target' | 'database',
-      }));
 
-      dispatch(loadCanvasState({
-        nodes: nodes as any,
-        edges: canvasState.edges,
-      }));
-    }
+    // Canvas store에 상태 로드
+    const nodes = canvasState.nodes.map(n => ({
+      ...n,
+      type: n.node_type as 'service' | 'target' | 'database',
+    }));
 
-    // 2.5. EC2 프로젝트인 경우 서버 정보 로드하여 Target 노드 업데이트
-    if (project.environment === 'ec2' && project.ec2_server_id) {
-      try {
-        const ec2Server = await ec2ServerCommands.getServerById(project.ec2_server_id);
-
-        // Canvas에서 EC2 Target 노드 찾기
-        const targetNode = canvasState.nodes.find(n => n.node_type === 'target');
-
-        if (targetNode) {
-          // 기존 Target 노드가 있으면 EC2 서버 정보로 업데이트
-          const updatedNode = {
-            ...targetNode,
-            data: {
-              ...targetNode.data,
-              host: ec2Server.host,
-              user: ec2Server.user,
-              sshKey: ec2Server.pem_path,
-              workdir: ec2Server.workdir || '/home/ubuntu',
-              mode: ec2Server.mode || 'all-in-one',
-            }
-          };
-
-          // 업데이트된 노드로 재로드 (이미 loadCanvasState가 호출되었으므로 개별 업데이트는 필요 없음)
-          console.log('EC2 Target 노드 정보 업데이트:', updatedNode);
-        } else {
-          // Target 노드가 없으면 자동 생성
-          const newTargetNode = {
-            id: 'ec2-target-1',
-            type: 'target' as const,
-            position: { x: 400, y: 200 },
-            data: {
-              name: ec2Server.name,
-              host: ec2Server.host,
-              user: ec2Server.user,
-              sshKey: ec2Server.pem_path,
-              workdir: ec2Server.workdir || '/home/ubuntu',
-              mode: ec2Server.mode || 'all-in-one',
-            }
-          };
-
-          dispatch(addNode(newTargetNode));
-          console.log('EC2 Target 노드 자동 생성:', newTargetNode);
-        }
-      } catch (error) {
-        console.error('EC2 서버 정보 로드 실패:', error);
-      }
-    }
+    dispatch(loadCanvasState({
+      nodes: nodes.length > 0 ? (nodes as any) : [],
+      edges: canvasState.edges || [],
+    }));
 
     // 3. 최근 프로젝트에 추가
     await projectCommands.addToRecentProjects(project.id);

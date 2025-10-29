@@ -453,20 +453,22 @@ pub fn delete_project(db: State<Database>, project_id: String) -> Result<(), Str
 
     let project_path_buf = PathBuf::from(&project.path);
 
-    // 프로젝트 경로 존재 확인
-    if !project_path_buf.exists() {
-        return Err("프로젝트 경로가 존재하지 않습니다".to_string());
-    }
+    // 프로젝트 경로가 존재하면 파일 시스템에서 삭제
+    if project_path_buf.exists() {
+        // .arfni 디렉토리가 있는지 확인 (ARFNI 프로젝트인지 검증)
+        let arfni_path = project_path_buf.join(".arfni");
+        if !arfni_path.exists() {
+            println!("⚠️ Warning: .arfni 디렉토리가 없습니다. 그래도 삭제를 진행합니다.");
+        }
 
-    // .arfni 디렉토리가 있는지 확인 (ARFNI 프로젝트인지 검증)
-    let arfni_path = project_path_buf.join(".arfni");
-    if !arfni_path.exists() {
-        return Err("유효한 ARFNI 프로젝트가 아닙니다".to_string());
-    }
+        // 프로젝트 폴더 전체 삭제
+        fs::remove_dir_all(&project_path_buf)
+            .map_err(|e| format!("프로젝트 삭제 실패: {}", e))?;
 
-    // 프로젝트 폴더 전체 삭제
-    fs::remove_dir_all(&project_path_buf)
-        .map_err(|e| format!("프로젝트 삭제 실패: {}", e))?;
+        println!("✅ 프로젝트 파일 삭제 완료: {}", project.path);
+    } else {
+        println!("⚠️ 프로젝트 경로가 존재하지 않습니다. DB에서만 제거합니다: {}", project.path);
+    }
 
     // DB에서 삭제 (CASCADE로 recent_projects도 자동 삭제됨)
     let conn = db.get_conn();

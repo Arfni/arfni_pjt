@@ -6,11 +6,11 @@ interface SelectOption {
 }
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  options: SelectOption[];
+  options?: SelectOption[];
   fullWidth?: boolean;
 }
 
-export function Select({ options, fullWidth = true, ...props }: SelectProps) {
+export function Select({ options, fullWidth = true, children, ...props }: SelectProps) {
   return (
     <select
       {...props}
@@ -24,11 +24,15 @@ export function Select({ options, fullWidth = true, ...props }: SelectProps) {
         ...props.style
       }}
     >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
+      {options ? (
+        options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))
+      ) : (
+        children
+      )}
     </select>
   );
 }

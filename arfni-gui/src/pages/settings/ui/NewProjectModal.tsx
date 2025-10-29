@@ -153,7 +153,6 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
 
         const server = await ec2ServerCommands.createServer(serverParams);
         ec2ServerId = server.id;
-        console.log('EC2 서버 등록 완료:', server);
       }
 
       // 2. 프로젝트 생성
@@ -165,12 +164,8 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
         undefined // description
       );
 
-      console.log('프로젝트 생성 완료:', newProject);
-
       // 3. 최근 프로젝트 목록에 추가
       await projectCommands.addToRecentProjects(newProject.id);
-
-      console.log('프로젝트가 최근 목록에 추가되었습니다');
 
       // 4. 모달 닫고 프로젝트 목록으로 이동
       handleClose();

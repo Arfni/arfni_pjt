@@ -1,8 +1,12 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
-import { ArrowLeft, FolderOpen, Calendar, Server, Loader2, AlertCircle, RefreshCw, Trash2, X, Monitor, Laptop } from 'lucide-react';
+import { ArrowLeft, FolderOpen, Calendar, Server, Loader2, AlertCircle, RefreshCw, Trash2, X, Monitor, Laptop, FlaskConical } from 'lucide-react';
 import { projectCommands, Project, ec2ServerCommands, EC2Server, CanvasNode, CanvasEdge } from '@shared/api/tauri/commands';
 import { confirm, open } from '@tauri-apps/plugin-dialog';
+import { ServerSelectionModal } from './ServerSelectionModal';
+import { AddServerModal } from './AddServerModal';
+import { useAppDispatch } from '@app/hooks';
+import { addNode } from '@features/canvas/model/canvasSlice';
 
 // Canvas 미리보기 컴포넌트
 function CanvasPreview({ nodes, edges }: { nodes: CanvasNode[], edges: CanvasEdge[] }) {
@@ -106,6 +110,7 @@ function CanvasPreview({ nodes, edges }: { nodes: CanvasNode[], edges: CanvasEdg
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useAppDispatch();
   const [selectedTab, setSelectedTab] = useState<'local' | 'ec2'>('local');
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +126,8 @@ export default function ProjectsPage() {
   // EC2 서버 관련
   const [ec2Servers, setEc2Servers] = useState<EC2Server[]>([]);
   const [selectedEC2ServerId, setSelectedEC2ServerId] = useState<string>('');
+  const [showServerModal, setShowServerModal] = useState(false);
+  const [showAddServerModal, setShowAddServerModal] = useState(false);
 
   // Canvas 미리보기 데이터
   const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
@@ -192,9 +199,9 @@ export default function ProjectsPage() {
       // 완전 삭제 실행
       setDeletingProjectPath(project.path);
       try {
-        await projectCommands.deleteProject(project.path);
-        console.log('프로젝트 완전 삭제 완료:', project.path);
-        setProjects((prev) => prev.filter((p) => p.path !== project.path));
+        await projectCommands.deleteProject(project.id);
+        console.log('프로젝트 완전 삭제 완료:', project.id);
+        setProjects((prev) => prev.filter((p) => p.id !== project.id));
       } catch (err) {
         console.error('프로젝트 삭제 실패:', err);
         alert(`프로젝트 삭제에 실패했습니다: ${err}`);
@@ -220,9 +227,9 @@ export default function ProjectsPage() {
       // 목록에서만 제거 실행
       setDeletingProjectPath(project.path);
       try {
-        await projectCommands.removeFromRecentProjects(project.path);
-        console.log('프로젝트 목록에서 제거 완료:', project.path);
-        setProjects((prev) => prev.filter((p) => p.path !== project.path));
+        await projectCommands.removeFromRecentProjects(project.id);
+        console.log('프로젝트 목록에서 제거 완료:', project.id);
+        setProjects((prev) => prev.filter((p) => p.id !== project.id));
       } catch (err) {
         console.error('프로젝트 제거 실패:', err);
         alert(`프로젝트 제거에 실패했습니다: ${err}`);
@@ -302,7 +309,7 @@ export default function ProjectsPage() {
     } finally {
       setCreating(false);
     }
-  }, [newProjectName, newProjectPath, selectedTab, selectedEC2ServerId, navigate, loadProjects]);
+  }, [newProjectName, newProjectPath, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch]);
 
   // 탭 변경 시 프로젝트 목록 로드
   useEffect(() => {
@@ -317,14 +324,24 @@ export default function ProjectsPage() {
             <FolderOpen className="w-6 h-6 text-gray-600" />
             <h1 className="text-xl font-semibold">ARFNI Projects</h1>
           </div>
-          <button
-            onClick={() => loadProjects(selectedTab)}
-            disabled={loading}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-            title="새로고침"
-          >
-            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/test')}
+              className="px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+              title="테스트 페이지"
+            >
+              <FlaskConical className="w-5 h-5" />
+              <span className="text-sm font-medium">테스트</span>
+            </button>
+            <button
+              onClick={() => loadProjects(selectedTab)}
+              disabled={loading}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+              title="새로고침"
+            >
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -362,23 +379,20 @@ export default function ProjectsPage() {
             {selectedTab === 'ec2' && (
               <div className="mb-4">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Select Server
+                  EC2 Server
                 </label>
-                {ec2Servers.length === 0 ? (
-                  <p className="text-xs text-gray-500 px-3 py-2">No servers available</p>
-                ) : (
-                  <select
-                    value={selectedEC2ServerId}
-                    onChange={(e) => setSelectedEC2ServerId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {ec2Servers.map((server) => (
-                      <option key={server.id} value={server.id}>
-                        {server.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <button
+                  onClick={() => setShowServerModal(true)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <Server className="w-4 h-4" />
+                    {selectedEC2ServerId && ec2Servers.find(s => s.id === selectedEC2ServerId)
+                      ? ec2Servers.find(s => s.id === selectedEC2ServerId)!.name
+                      : 'Select Server'}
+                  </span>
+                  <span className="text-gray-400">▼</span>
+                </button>
               </div>
             )}
 
@@ -446,6 +460,16 @@ export default function ProjectsPage() {
         {/* 프로젝트 목록 */}
         {!loading && !error && projects.length > 0 && (
           <div className="flex-1 overflow-y-auto min-h-0">
+            {/* EC2 서버 이름 표시 */}
+            {selectedTab === 'ec2' && selectedEC2ServerId && (
+              <div className="mb-4 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+                <Server className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">
+                  {ec2Servers.find(s => s.id === selectedEC2ServerId)?.name || 'Unknown Server'}
+                </span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
               {projects.map((project) => {
                 const isDeleting = deletingProjectPath === project.path;
@@ -626,6 +650,33 @@ export default function ProjectsPage() {
           </div>
         </div>
       )}
+
+      {/* Server Selection Modal */}
+      <ServerSelectionModal
+        isOpen={showServerModal}
+        onClose={() => setShowServerModal(false)}
+        servers={ec2Servers}
+        selectedServerId={selectedEC2ServerId}
+        onSelectServer={(serverId) => {
+          setSelectedEC2ServerId(serverId);
+          loadProjects('ec2'); // 서버 변경 시 해당 서버의 프로젝트 목록 새로고침
+        }}
+        onAddNewServer={() => {
+          setShowServerModal(false);
+          setShowAddServerModal(true);
+        }}
+      />
+
+      {/* Add Server Modal */}
+      <AddServerModal
+        isOpen={showAddServerModal}
+        onClose={() => setShowAddServerModal(false)}
+        onServerAdded={async () => {
+          // 서버 목록 새로고침
+          const servers = await ec2ServerCommands.getAllServers();
+          setEc2Servers(servers);
+        }}
+      />
     </div>
   );
 }

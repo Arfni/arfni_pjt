@@ -171,12 +171,14 @@ export const ec2ServerCommands = {
     mode?: 'all-in-one' | 'hybrid' | 'no-monitoring';
   }): Promise<EC2Server> => {
     return await invoke('create_ec2_server', {
-      name: params.name,
-      host: params.host,
-      user: params.user,
-      pemPath: params.pemPath,
-      workdir: params.workdir,
-      mode: params.mode,
+      params: {
+        name: params.name,
+        host: params.host,
+        user: params.user,
+        pem_path: params.pemPath,  // snake_case로 변경
+        workdir: params.workdir,
+        mode: params.mode,
+      }
     });
   },
 
@@ -308,8 +310,15 @@ export interface SshParams {
 }
 
 export const sshCommands = {
-  execSystem: async (params: SshParams): Promise<string> => {
-    return await invoke('ssh_exec_system', params);
+  execSystem: async (host: string, user: string, pemPath: string, cmd: string): Promise<string> => {
+    return await invoke('ssh_exec_system', {
+      params: {
+        host,
+        user,
+        pem_path: pemPath,
+        cmd,
+      }
+    });
   },
 
   // 레거시 (호환성 유지)

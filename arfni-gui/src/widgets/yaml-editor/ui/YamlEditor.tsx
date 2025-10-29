@@ -4,6 +4,7 @@ import { selectNodes, selectEdges } from '@features/canvas';
 import { selectCurrentProject } from '@features/project';
 import { stackYamlGenerator, stackToYamlString } from '@features/canvas/lib/stackYamlGenerator';
 import { Copy, Download } from 'lucide-react';
+import { ec2ServerCommands } from '@shared/api/tauri/commands';
 
 export function YamlEditor() {
   const nodes = useAppSelector(selectNodes);
@@ -19,18 +20,34 @@ export function YamlEditor() {
       return;
     }
 
-    try {
-      const stackYaml = stackYamlGenerator(nodes, edges, {
-        projectName: currentProject.name,
-        secrets: [],
-        outputs: {},
-      });
+    const generateYaml = async () => {
+      try {
+        // EC2 서버 정보 로드
+        let ec2Server = null;
+        if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
+          try {
+            ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
+          } catch (err) {
+            console.error('EC2 서버 정보 로드 실패:', err);
+          }
+        }
 
-      const yamlString = stackToYamlString(stackYaml);
-      setYamlContent(yamlString);
-    } catch (error) {
-      setYamlContent(`# 오류: ${error}\n# Canvas가 비어있거나 유효하지 않습니다`);
-    }
+        const stackYaml = stackYamlGenerator(nodes, edges, {
+          projectName: currentProject.name,
+          environment: currentProject.environment,
+          ec2Server: ec2Server || undefined,
+          secrets: [],
+          outputs: {},
+        });
+
+        const yamlString = stackToYamlString(stackYaml);
+        setYamlContent(yamlString);
+      } catch (error) {
+        setYamlContent(`# 오류: ${error}\n# Canvas가 비어있거나 유효하지 않습니다`);
+      }
+    };
+
+    generateYaml();
   }, [nodes, edges, currentProject]);
 
   const handleCopy = () => {
