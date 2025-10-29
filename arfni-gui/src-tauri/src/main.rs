@@ -46,6 +46,9 @@ fn main() {
       commands::ssh::ec2_add_entry,
       commands::ssh::ec2_read_entry,
       commands::ssh::ec2_delete_entry,
+      commands::ssh_it::ssh_start,
+      commands::ssh_it::ssh_send,
+      commands::ssh_it::ssh_close,
 
       // 플러그인 명령어
       commands::plugin::run_plugin,
