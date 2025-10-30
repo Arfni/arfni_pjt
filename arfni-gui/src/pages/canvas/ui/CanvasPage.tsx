@@ -49,9 +49,9 @@ export function CanvasPage() {
       // 새로운 YAML 높이 계산 (컨테이너 하단에서부터의 높이)
       const newHeight = containerHeight - mouseY;
 
-      // 최소 높이 150px, 최대 높이 컨테이너의 70%
-      const minHeight = 150;
-      const maxHeight = containerHeight * 0.7;
+      // 최소 높이 0px (완전히 접기), 최대 높이 컨테이너의 100% (완전히 펼치기)
+      const minHeight = 0;
+      const maxHeight = containerHeight;
 
       if (newHeight >= minHeight && newHeight <= maxHeight) {
         setYamlHeight(newHeight);
