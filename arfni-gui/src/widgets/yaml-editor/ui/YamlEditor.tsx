@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppSelector } from '@app/hooks';
-import { selectNodes, selectEdges } from '@features/canvas';
+import { selectNodes, selectEdges, selectIsDirty } from '@features/canvas';
 import { selectCurrentProject } from '@features/project';
 import { stackYamlGenerator, stackToYamlString } from '@features/canvas/lib/stackYamlGenerator';
 import { Copy, Download } from 'lucide-react';
@@ -10,8 +10,10 @@ export function YamlEditor() {
   const nodes = useAppSelector(selectNodes);
   const edges = useAppSelector(selectEdges);
   const currentProject = useAppSelector(selectCurrentProject);
+  const isDirty = useAppSelector(selectIsDirty);
   const [yamlContent, setYamlContent] = useState('');
   const [copied, setCopied] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Canvas 변경 시 YAML 자동 생성
   useEffect(() => {
@@ -36,6 +38,8 @@ export function YamlEditor() {
           projectName: currentProject.name,
           environment: currentProject.environment,
           ec2Server: ec2Server || undefined,
+          mode: currentProject.mode,
+          workdir: currentProject.workdir,
           secrets: [],
           outputs: {},
         });
@@ -48,7 +52,14 @@ export function YamlEditor() {
     };
 
     generateYaml();
-  }, [nodes, edges, currentProject]);
+  }, [nodes, edges, currentProject, refreshKey]);
+
+  // isDirty가 false로 바뀌면 (저장 완료 시) YAML 새로고침
+  useEffect(() => {
+    if (!isDirty) {
+      setRefreshKey(prev => prev + 1);
+    }
+  }, [isDirty]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(yamlContent);

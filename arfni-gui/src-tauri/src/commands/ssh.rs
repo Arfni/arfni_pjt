@@ -11,8 +11,6 @@ pub struct EC2Server {
     pub host: String,
     pub user: String,
     pub pem_path: String,
-    pub workdir: Option<String>,
-    pub mode: Option<String>, // "all-in-one" | "hybrid" | "no-monitoring"
     pub created_at: String,
     pub updated_at: String,
     pub last_connected_at: Option<String>,
@@ -32,8 +30,6 @@ pub struct CreateEC2ServerParams {
     pub host: String,
     pub user: String,
     pub pem_path: String,
-    pub workdir: Option<String>,
-    pub mode: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -43,8 +39,6 @@ pub struct UpdateEC2ServerParams {
     pub host: Option<String>,
     pub user: Option<String>,
     pub pem_path: Option<String>,
-    pub workdir: Option<String>,
-    pub mode: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -83,8 +77,6 @@ pub fn create_ec2_server(db: State<Database>, params: CreateEC2ServerParams) -> 
         host: params.host.clone(),
         user: params.user.clone(),
         pem_path: params.pem_path.clone(),
-        workdir: params.workdir.clone(),
-        mode: params.mode.clone(),
         created_at: created_at.clone(),
         updated_at: created_at.clone(),
         last_connected_at: None,
@@ -94,16 +86,14 @@ pub fn create_ec2_server(db: State<Database>, params: CreateEC2ServerParams) -> 
     let conn = conn.lock().unwrap();
 
     conn.execute(
-        "INSERT INTO ec2_servers (id, name, host, user, pem_path, workdir, mode, created_at, updated_at, last_connected_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO ec2_servers (id, name, host, user, pem_path, created_at, updated_at, last_connected_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             &server.id,
             &server.name,
             &server.host,
             &server.user,
             &server.pem_path,
-            &server.workdir,
-            &server.mode,
             &server.created_at,
             &server.updated_at,
             &server.last_connected_at,
@@ -128,7 +118,7 @@ pub fn get_all_ec2_servers(db: State<Database>) -> Result<Vec<EC2Server>, String
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, host, user, pem_path, workdir, mode, created_at, updated_at, last_connected_at
+            "SELECT id, name, host, user, pem_path, created_at, updated_at, last_connected_at
              FROM ec2_servers ORDER BY updated_at DESC",
         )
         .map_err(|e| format!("쿼리 준비 실패: {}", e))?;
@@ -141,11 +131,9 @@ pub fn get_all_ec2_servers(db: State<Database>) -> Result<Vec<EC2Server>, String
                 host: row.get(2)?,
                 user: row.get(3)?,
                 pem_path: row.get(4)?,
-                workdir: row.get(5)?,
-                mode: row.get(6)?,
-                created_at: row.get(7)?,
-                updated_at: row.get(8)?,
-                last_connected_at: row.get(9)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+                last_connected_at: row.get(7)?,
             })
         })
         .map_err(|e| format!("EC2 서버 조회 실패: {}", e))?
@@ -163,7 +151,7 @@ pub fn get_ec2_server_by_id(db: State<Database>, server_id: String) -> Result<EC
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, host, user, pem_path, workdir, mode, created_at, updated_at, last_connected_at
+            "SELECT id, name, host, user, pem_path, created_at, updated_at, last_connected_at
              FROM ec2_servers WHERE id = ?1",
         )
         .map_err(|e| format!("쿼리 준비 실패: {}", e))?;
@@ -176,11 +164,9 @@ pub fn get_ec2_server_by_id(db: State<Database>, server_id: String) -> Result<EC
                 host: row.get(2)?,
                 user: row.get(3)?,
                 pem_path: row.get(4)?,
-                workdir: row.get(5)?,
-                mode: row.get(6)?,
-                created_at: row.get(7)?,
-                updated_at: row.get(8)?,
-                last_connected_at: row.get(9)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+                last_connected_at: row.get(7)?,
             })
         })
         .map_err(|e| format!("EC2 서버 조회 실패: {}", e))?;
@@ -215,16 +201,6 @@ pub fn update_ec2_server(db: State<Database>, params: UpdateEC2ServerParams) -> 
     if let Some(pem_path) = &params.pem_path {
         conn.execute("UPDATE ec2_servers SET pem_path = ?1, updated_at = ?2 WHERE id = ?3",
             params![pem_path, &updated_at, &params.id])
-            .map_err(|e| format!("서버 업데이트 실패: {}", e))?;
-    }
-    if let Some(workdir) = &params.workdir {
-        conn.execute("UPDATE ec2_servers SET workdir = ?1, updated_at = ?2 WHERE id = ?3",
-            params![workdir, &updated_at, &params.id])
-            .map_err(|e| format!("서버 업데이트 실패: {}", e))?;
-    }
-    if let Some(mode) = &params.mode {
-        conn.execute("UPDATE ec2_servers SET mode = ?1, updated_at = ?2 WHERE id = ?3",
-            params![mode, &updated_at, &params.id])
             .map_err(|e| format!("서버 업데이트 실패: {}", e))?;
     }
 

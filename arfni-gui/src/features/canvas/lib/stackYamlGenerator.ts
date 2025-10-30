@@ -16,9 +16,9 @@ export interface StackGeneratorOptions {
     host: string;
     user: string;
     pem_path: string;
-    workdir?: string;
-    mode?: 'all-in-one' | 'hybrid' | 'no-monitoring';
   };
+  mode?: string; // 프로젝트별 모니터링 모드 (ec2Server가 아닌 프로젝트에서)
+  workdir?: string; // 프로젝트별 작업 디렉토리
   secrets?: string[];
   outputs?: Record<string, string>;
 }
@@ -31,7 +31,7 @@ export function stackYamlGenerator(
   edges: Edge[],
   options: StackGeneratorOptions
 ): StackYaml {
-  const { projectName, environment = 'local', ec2Server, secrets = [], outputs = {} } = options;
+  const { projectName, environment = 'local', ec2Server, mode, workdir, secrets = [], outputs = {} } = options;
 
   // Target 노드 추출
   const targetNodes = nodes.filter(n => n.type === 'target');
@@ -48,13 +48,20 @@ export function stackYamlGenerator(
   if (Object.keys(targets).length === 0) {
     if (environment === 'ec2' && ec2Server) {
       // EC2 서버 정보로 target 생성
+      // workdir: options에서 받아서 사용 (프로젝트별 설정)
+      let formattedWorkdir = workdir || 'arfni-deploy';
+
+      // 절대 경로가 아니면 /home/{user}/ 붙이기
+      if (!formattedWorkdir.startsWith('/')) {
+        formattedWorkdir = `/home/${ec2Server.user}/${formattedWorkdir}`;
+      }
+
       targets['ec2'] = {
         type: 'ec2.ssh',
         host: ec2Server.host,
         user: ec2Server.user,
         sshKey: ec2Server.pem_path,
-        workdir: ec2Server.workdir || '/home/ubuntu',
-        mode: ec2Server.mode || 'all-in-one'
+        workdir: formattedWorkdir,
       };
     } else if (environment === 'ec2') {
       // EC2 서버 정보 없으면 기본값
@@ -196,6 +203,16 @@ export function stackYamlGenerator(
     services,
   };
 
+  // EC2 프로젝트일 때 metadata.monitoring.mode 추가 (options에서 받은 mode 사용)
+  if (environment === 'ec2') {
+    const monitoringMode = mode || 'all-in-one';
+    stackYaml.metadata = {
+      monitoring: {
+        mode: monitoringMode
+      }
+    };
+  }
+
   // secrets가 있는 경우에만 추가
   if (allSecrets.length > 0) {
     stackYaml.secrets = allSecrets;
@@ -264,6 +281,18 @@ export function stackToYamlString(stack: StackYaml): string {
   // 간단한 YAML 직렬화 (실제로는 yaml 라이브러리 사용 권장)
   let yaml = `apiVersion: ${stack.apiVersion}\n`;
   yaml += `name: ${stack.name}\n\n`;
+
+  // metadata - targets보다 먼저 출력
+  if (stack.metadata) {
+    yaml += 'metadata:\n';
+    if (stack.metadata.monitoring) {
+      yaml += '  monitoring:\n';
+      if (stack.metadata.monitoring.mode) {
+        yaml += `    mode: ${stack.metadata.monitoring.mode}\n`;
+      }
+    }
+    yaml += '\n';
+  }
 
   // targets - 비어있지 않을 때만 출력
   const targetEntries = Object.entries(stack.targets);
