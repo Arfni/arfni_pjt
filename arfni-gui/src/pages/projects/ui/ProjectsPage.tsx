@@ -17,9 +17,9 @@ export default function ProjectsPage() {
   const location = useLocation();
   const dispatch = useAppDispatch();
 
-  // localStorage에서 저장된 탭 상태 복원
+  // sessionStorage에서 현재 세션의 선택 상태 복원 (앱 재시작 시 초기화됨)
   const [selectedTab, setSelectedTab] = useState<'local' | 'ec2'>(() => {
-    const savedTab = localStorage.getItem('projectsSelectedTab');
+    const savedTab = sessionStorage.getItem('projectsSelectedTab');
     return (savedTab === 'local' || savedTab === 'ec2') ? savedTab : 'local';
   });
 
@@ -36,7 +36,10 @@ export default function ProjectsPage() {
 
   // EC2 서버 관련
   const [ec2Servers, setEc2Servers] = useState<EC2Server[]>([]);
-  const [selectedEC2ServerId, setSelectedEC2ServerId] = useState<string>('');
+  const [selectedEC2ServerId, setSelectedEC2ServerId] = useState<string>(() => {
+    // sessionStorage에서 복원 (앱 재시작 시 빈 상태로 시작)
+    return sessionStorage.getItem('projectsSelectedEC2ServerId') || '';
+  });
   const [showServerModal, setShowServerModal] = useState(false);
   const [showAddServerModal, setShowAddServerModal] = useState(false);
 
@@ -44,13 +47,22 @@ export default function ProjectsPage() {
   const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
 
   // 환경별 프로젝트 목록 로드 함수
-  const loadProjects = useCallback(async (environment: 'local' | 'ec2') => {
+  const loadProjects = useCallback(async (environment: 'local' | 'ec2', serverId?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const projectList = await projectCommands.getProjectsByEnvironment(environment);
+      let projectList: Project[];
+
+      // EC2 환경이고 서버 ID가 있으면 해당 서버의 프로젝트만 로드
+      if (environment === 'ec2' && serverId) {
+        projectList = await projectCommands.getProjectsByServer(serverId);
+        console.log(`EC2 서버 (${serverId}) 프로젝트 목록 로드 완료:`, projectList);
+      } else {
+        projectList = await projectCommands.getProjectsByEnvironment(environment);
+        console.log(`${environment} 프로젝트 목록 로드 완료:`, projectList);
+      }
+
       setProjects(projectList);
-      console.log(`${environment} 프로젝트 목록 로드 완료:`, projectList);
 
       // 각 프로젝트의 canvas 데이터 로드
       const previews: Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }> = {};
@@ -169,9 +181,15 @@ export default function ProjectsPage() {
       try {
         const servers = await ec2ServerCommands.getAllServers();
         setEc2Servers(servers);
-        if (servers.length > 0) {
-          setSelectedEC2ServerId(servers[0].id);
+
+        // sessionStorage에서 복원한 서버 ID가 유효한지 확인
+        const savedServerId = sessionStorage.getItem('projectsSelectedEC2ServerId');
+        if (savedServerId && servers.some(s => s.id === savedServerId)) {
+          // 저장된 서버 ID가 유효하면 그대로 사용 (이미 state에 설정되어 있음)
+          console.log('현재 세션의 선택 서버 복원:', savedServerId);
         }
+        // 주의: 서버가 선택되지 않은 상태로 시작 (자동 선택 제거)
+        // 사용자가 명시적으로 서버를 선택해야 프로젝트 목록이 로드됨
       } catch (err) {
         console.error('EC2 서버 목록 로드 실패:', err);
       }
@@ -210,7 +228,11 @@ export default function ProjectsPage() {
       setNewProjectPath('');
 
       // 프로젝트 목록 새로고침
-      loadProjects(selectedTab);
+      if (selectedTab === 'ec2') {
+        loadProjects(selectedTab, selectedEC2ServerId);
+      } else {
+        loadProjects(selectedTab);
+      }
 
       // 빈 캔버스로 이동 (프로젝트 정보 전달)
       navigate('/canvas', { state: { project } });
@@ -222,21 +244,39 @@ export default function ProjectsPage() {
     }
   }, [newProjectName, newProjectPath, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch]);
 
-  // 탭 상태를 localStorage에 저장
+  // 탭 상태를 sessionStorage에 저장
   useEffect(() => {
-    localStorage.setItem('projectsSelectedTab', selectedTab);
+    sessionStorage.setItem('projectsSelectedTab', selectedTab);
   }, [selectedTab]);
 
-  // 탭 변경 시 프로젝트 목록 로드
+  // 탭 변경 또는 서버 선택 변경 시 프로젝트 목록 로드
   useEffect(() => {
-    loadProjects(selectedTab);
-  }, [selectedTab, loadProjects, location.key]);
+    if (selectedTab === 'ec2') {
+      // EC2 탭일 때는 서버가 선택된 경우에만 프로젝트 로드
+      if (selectedEC2ServerId) {
+        loadProjects('ec2', selectedEC2ServerId);
+      } else {
+        // 서버가 선택되지 않았으면 로딩 상태 해제하고 빈 목록 표시
+        setLoading(false);
+        setProjects([]);
+      }
+    } else {
+      // Local 탭은 항상 프로젝트 로드
+      loadProjects('local');
+    }
+  }, [selectedTab, selectedEC2ServerId, loadProjects, location.key]);
 
   return (
     <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
       <ProjectsHeader
         loading={loading}
-        onRefresh={() => loadProjects(selectedTab)}
+        onRefresh={() => {
+          if (selectedTab === 'ec2') {
+            loadProjects(selectedTab, selectedEC2ServerId);
+          } else {
+            loadProjects(selectedTab);
+          }
+        }}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -308,8 +348,26 @@ export default function ProjectsPage() {
           </div>
         )}
 
+        {/* EC2 탭 - 서버 미선택 상태 */}
+        {!loading && !error && selectedTab === 'ec2' && !selectedEC2ServerId && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <Server className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">Select an EC2 Server</h3>
+              <p className="text-gray-500 mb-6">You need to select an EC2 server to view projects</p>
+              <button
+                onClick={() => setShowServerModal(true)}
+                className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-colors"
+                style={{ backgroundColor: '#4C65E2' }}
+              >
+                Select Server
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 빈 목록 상태 */}
-        {!loading && !error && projects.length === 0 && (
+        {!loading && !error && projects.length === 0 && !(selectedTab === 'ec2' && !selectedEC2ServerId) && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -364,7 +422,8 @@ export default function ProjectsPage() {
         selectedServerId={selectedEC2ServerId}
         onSelectServer={(serverId) => {
           setSelectedEC2ServerId(serverId);
-          loadProjects('ec2'); // 서버 변경 시 해당 서버의 프로젝트 목록 새로고침
+          sessionStorage.setItem('projectsSelectedEC2ServerId', serverId);
+          loadProjects('ec2', serverId); // 서버 변경 시 해당 서버의 프로젝트 목록 새로고침
         }}
         onAddNewServer={() => {
           setShowServerModal(false);
