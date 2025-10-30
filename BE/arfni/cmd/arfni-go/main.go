@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 
 	"gopkg.in/yaml.v3"
 )
@@ -130,6 +132,14 @@ func runDeploy(args []string) {
 	deployCmd.Stderr = os.Stderr
 	deployCmd.Stdin = os.Stdin
 
+	// Windows에서 콘솔 창 숨김
+	if runtime.GOOS == "windows" {
+		deployCmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+		}
+	}
+
 	if err := deployCmd.Run(); err != nil {
 		fmt.Println()
 		fmt.Println("================================================")
@@ -234,6 +244,14 @@ func runMonitoring(args []string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+
+	// Windows에서 콘솔 창 숨김
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		}
+	}
 
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("[ERROR] Monitoring failed: %v\n", err)

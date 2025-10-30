@@ -7,6 +7,9 @@ use std::{
   process::{Command as StdCommand, Stdio},
 };
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 #[derive(serde::Deserialize)]
 #[serde(tag = "mode")] // mode 필드에 따라 자동 분기
 pub enum PluginRunArgs {
@@ -186,7 +189,14 @@ pub async fn run_plugin(app: AppHandle, plugin: String) -> Result<String, String
   let label = format!("run_plugin: {}", exe_path.display());
 
   tauri::async_runtime::spawn_blocking(move || {
-    let cmd = StdCommand::new(exe_path);
+    let mut cmd = StdCommand::new(exe_path);
+
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
     spawn_and_collect(cmd, &label)
   })
   .await
@@ -211,6 +221,13 @@ pub async fn run_plugin_with_mode(
         if !args.is_empty() {
           cmd.args(&args);
         }
+
+        #[cfg(target_os = "windows")]
+        {
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
         spawn_and_collect(cmd, &label)
       }
       PluginRunArgs::Config { config_path, output } => {
@@ -219,6 +236,13 @@ pub async fn run_plugin_with_mode(
         if let Some(out_file) = output.as_ref() {
           cmd.arg("--output").arg(out_file);
         }
+
+        #[cfg(target_os = "windows")]
+        {
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
         spawn_and_collect(cmd, &label)
       }
       PluginRunArgs::Stdin { json } => {
@@ -228,6 +252,12 @@ pub async fn run_plugin_with_mode(
         // 옵션: json에 output이 있으면 플래그로도 전달
         if let Some(out) = json.get("output").and_then(|v| v.as_str()) {
           cmd.arg("--output").arg(out);
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
         let mut child = cmd.spawn().map_err(|e| format!("spawn failed ({label}): {e}"))?;

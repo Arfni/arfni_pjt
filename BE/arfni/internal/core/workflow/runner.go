@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"syscall"
 	"time"
 
 	"github.com/arfni/arfni/internal/core/stack"
@@ -228,12 +230,20 @@ func (r *Runner) buildImagesLocal(stream *events.Stream) error {
 		return fmt.Errorf("docker-compose.yml not found: %s", composeFile)
 	}
 
-	stream.Info("Running docker-compose build...")
+	stream.Info("Running docker compose build...")
 
-	// Run docker-compose build with --project-directory
+	// Run docker compose build with --project-directory
 	// This ensures build contexts are relative to project directory, not compose file location
-	cmd := exec.Command("docker-compose", "--project-directory", r.projectDir, "-f", composeFile, "build")
+	cmd := exec.Command("docker", "compose", "--project-directory", r.projectDir, "-f", composeFile, "build")
 	cmd.Dir = r.projectDir
+
+	// Hide console window on Windows
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+		}
+	}
 
 	// Capture output
 	stdout, err := cmd.StdoutPipe()
@@ -321,7 +331,7 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 
 	// 4. EC2에서 빌드 실행
 	stream.Info("Building images on EC2...")
-	buildCmd := fmt.Sprintf("cd %s && docker-compose -f .arfni/compose/docker-compose.yml build", workdir)
+	buildCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml build", workdir)
 	if err := sshClient.RunCommand(stream, buildCmd); err != nil {
 		return fmt.Errorf("failed to build on EC2: %w", err)
 	}
@@ -348,11 +358,19 @@ func (r *Runner) deployContainersLocal(stream *events.Stream) error {
 	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
 	composeFile := filepath.Join(composeDir, "docker-compose.yml")
 
-	stream.Info("Running docker-compose up -d...")
+	stream.Info("Running docker compose up -d...")
 
-	// Run docker-compose up -d with --project-directory
-	cmd := exec.Command("docker-compose", "--project-directory", r.projectDir, "-f", composeFile, "up", "-d")
+	// Run docker compose up -d with --project-directory
+	cmd := exec.Command("docker", "compose", "--project-directory", r.projectDir, "-f", composeFile, "up", "-d")
 	cmd.Dir = r.projectDir
+
+	// Hide console window on Windows
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+		}
+	}
 
 	// Capture output
 	stdout, err := cmd.StdoutPipe()
@@ -406,8 +424,8 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 
 	stream.Info("Deploying containers on EC2...")
 
-	// docker-compose up -d 실행
-	deployCmd := fmt.Sprintf("cd %s && docker-compose -f .arfni/compose/docker-compose.yml up -d", workdir)
+	// docker compose up -d 실행
+	deployCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml up -d", workdir)
 	if err := sshClient.RunCommand(stream, deployCmd); err != nil {
 		return fmt.Errorf("failed to deploy on EC2: %w", err)
 	}
@@ -439,9 +457,17 @@ func (r *Runner) healthChecksLocal(stream *events.Stream) error {
 
 	stream.Info("Checking container status...")
 
-	// Run docker-compose ps with --project-directory
-	cmd := exec.Command("docker-compose", "--project-directory", r.projectDir, "-f", composeFile, "ps")
+	// Run docker compose ps with --project-directory
+	cmd := exec.Command("docker", "compose", "--project-directory", r.projectDir, "-f", composeFile, "ps")
 	cmd.Dir = r.projectDir
+
+	// Hide console window on Windows
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+		}
+	}
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -451,8 +477,16 @@ func (r *Runner) healthChecksLocal(stream *events.Stream) error {
 	stream.Info(string(output))
 
 	// Check if containers are running
-	cmd = exec.Command("docker-compose", "--project-directory", r.projectDir, "-f", composeFile, "ps", "-q")
+	cmd = exec.Command("docker", "compose", "--project-directory", r.projectDir, "-f", composeFile, "ps", "-q")
 	cmd.Dir = r.projectDir
+
+	// Hide console window on Windows
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+		}
+	}
 
 	output, err = cmd.Output()
 	if err != nil {
@@ -483,8 +517,8 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 
 	stream.Info("Checking container status on EC2...")
 
-	// docker-compose ps 실행
-	psCmd := fmt.Sprintf("cd %s && docker-compose -f .arfni/compose/docker-compose.yml ps", workdir)
+	// docker compose ps 실행
+	psCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml ps", workdir)
 	output, err := sshClient.RunCommandWithOutput(stream, psCmd)
 	if err != nil {
 		return fmt.Errorf("failed to check container status: %w", err)
@@ -493,7 +527,7 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 	stream.Info(output)
 
 	// 컨테이너 ID 확인
-	psqCmd := fmt.Sprintf("cd %s && docker-compose -f .arfni/compose/docker-compose.yml ps -q", workdir)
+	psqCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml ps -q", workdir)
 	output, err = sshClient.RunCommandWithOutput(stream, psqCmd)
 	if err != nil {
 		return fmt.Errorf("failed to get container IDs: %w", err)

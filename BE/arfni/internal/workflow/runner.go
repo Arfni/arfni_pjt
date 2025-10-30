@@ -8,8 +8,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/arfni/arfni/internal/events"
@@ -500,6 +502,14 @@ func (r *Runner) scpDir(ctx context.Context, localDir string, ec2 *stack.Target,
 		fmt.Sprintf("%s@%s:%s", ec2.User, ec2.Host, ec2.Workdir),
 	)
 
+	// Windows에서 콘솔 창 숨김
+	if runtime.GOOS == "windows" {
+		scpCmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		}
+	}
+
 	out, err := scpCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("scp failed: %w\n%s", err, out)
@@ -515,6 +525,14 @@ func (r *Runner) scpFile(ctx context.Context, localFile string, ec2 *stack.Targe
 		localFile,
 		fmt.Sprintf("%s@%s:%s", ec2.User, ec2.Host, remotePath),
 	)
+
+	// Windows에서 콘솔 창 숨김
+	if runtime.GOOS == "windows" {
+		scpCmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		}
+	}
 
 	out, err := scpCmd.CombinedOutput()
 	if err != nil {
@@ -547,12 +565,20 @@ func (r *Runner) sshRun(ctx context.Context, ec2 *stack.Target, cmd string) (str
 		cmd,
 	)
 
+	// Windows에서 콘솔 창 숨김
+	if runtime.GOOS == "windows" {
+		sshCmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		}
+	}
+
 	out, err := sshCmd.CombinedOutput()
 	return string(out), err
 }
 
 func (r *Runner) ec2EnsureDocker(ctx context.Context, ec2 *stack.Target) error {
-	checkCmd := "command -v docker && command -v docker-compose"
+	checkCmd := "command -v docker && docker compose version"
 	if out, err := r.sshRun(ctx, ec2, checkCmd); err == nil && strings.Contains(out, "docker") {
 		fmt.Println("[INFO] Docker is already installed on EC2")
 		return nil

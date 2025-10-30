@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Folder, Loader2 } from 'lucide-react';
 import { ec2ServerCommands, sshCommands } from '@shared/api/tauri/commands';
+import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 
 interface AddServerModalProps {
@@ -50,12 +51,12 @@ export function AddServerModal({ isOpen, onClose, onServerAdded }: AddServerModa
     setTesting(true);
     try {
       console.log('Testing SSH connection...');
-      const result = await sshCommands.execSystem(
-        host.trim(),
-        user.trim(),
-        pemPath.trim(),
-        'echo "connection_test"'
-      );
+      // 새로운 test_ssh_connection command 사용 (CMD 창 안 뜸)
+      const result = await invoke<string>('test_ssh_connection', {
+        host: host.trim(),
+        user: user.trim(),
+        keyPath: pemPath.trim()
+      });
       console.log('Connection test result:', result);
       setTestSuccess(true);
     } catch (err) {

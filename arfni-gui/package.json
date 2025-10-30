@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:go": "cd ../BE/arfni && go build -o ./bin/arfni-go.exe ./cmd/arfni",
+    "build:go": "cd ../BE/arfni && go build -o ./bin/ic.exe ./cmd/ic && go build -o ./bin/arfni-go.exe ./cmd/arfni-go",
     "build:all": "npm run build:go && npm run build",
     "preview": "vite preview",
     "tauri": "tauri"

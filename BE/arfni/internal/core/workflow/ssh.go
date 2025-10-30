@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/arfni/arfni/internal/core/stack"
 	"github.com/arfni/arfni/internal/events"
@@ -32,12 +34,22 @@ func (c *SSHClient) UploadFile(stream *events.Stream, localPath, remotePath stri
 	args := []string{
 		"-i", c.target.SSHKey,
 		"-o", "StrictHostKeyChecking=no",
+		"-o", "LogLevel=ERROR", // 불필요한 출력 숨김
 		"-r", // 디렉토리도 전송 가능
 		localPath,
 		fmt.Sprintf("%s@%s:%s", c.target.User, c.target.Host, remotePath),
 	}
 
 	cmd := exec.Command("scp", args...)
+
+	// Windows에서 콘솔 창 숨김 (더 강력한 설정)
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+		}
+	}
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("scp failed: %w\nOutput: %s", err, string(output))
@@ -51,13 +63,17 @@ func (c *SSHClient) UploadFile(stream *events.Stream, localPath, remotePath stri
 func (c *SSHClient) UploadDirectory(stream *events.Stream, localDir, remoteDir string) error {
 	stream.Info(fmt.Sprintf("Uploading directory %s to %s:%s", localDir, c.target.Host, remoteDir))
 
-	// 먼저 원격에 디렉토리 생성
-	if err := c.RunCommand(stream, fmt.Sprintf("mkdir -p %s", remoteDir)); err != nil {
+	// scp -r source target을 하면 target/source가 되므로
+	// 상위 디렉토리를 만들고 상위 디렉토리로 전송
+	parentDir := filepath.Dir(remoteDir)
+
+	// 상위 디렉토리 생성
+	if err := c.RunCommand(stream, fmt.Sprintf("mkdir -p %s", parentDir)); err != nil {
 		return fmt.Errorf("failed to create remote directory: %w", err)
 	}
 
-	// SCP로 디렉토리 전송
-	return c.UploadFile(stream, localDir, remoteDir)
+	// SCP로 디렉토리 전송 (상위 디렉토리로)
+	return c.UploadFile(stream, localDir, parentDir)
 }
 
 // RunCommand는 EC2에서 SSH 명령을 실행합니다
@@ -68,11 +84,22 @@ func (c *SSHClient) RunCommand(stream *events.Stream, command string) error {
 	args := []string{
 		"-i", c.target.SSHKey,
 		"-o", "StrictHostKeyChecking=no",
+		"-o", "BatchMode=yes", // 인터랙티브 프롬프트 비활성화
+		"-o", "LogLevel=ERROR", // 불필요한 출력 숨김
 		fmt.Sprintf("%s@%s", c.target.User, c.target.Host),
 		command,
 	}
 
 	cmd := exec.Command("ssh", args...)
+
+	// Windows에서 콘솔 창 숨김 (더 강력한 설정)
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+		}
+	}
+
 	output, err := cmd.CombinedOutput()
 
 	// 출력이 있으면 표시
@@ -99,11 +126,22 @@ func (c *SSHClient) RunCommandWithOutput(stream *events.Stream, command string) 
 	args := []string{
 		"-i", c.target.SSHKey,
 		"-o", "StrictHostKeyChecking=no",
+		"-o", "BatchMode=yes", // 인터랙티브 프롬프트 비활성화
+		"-o", "LogLevel=ERROR", // 불필요한 출력 숨김
 		fmt.Sprintf("%s@%s", c.target.User, c.target.Host),
 		command,
 	}
 
 	cmd := exec.Command("ssh", args...)
+
+	// Windows에서 콘솔 창 숨김 (더 강력한 설정)
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+		}
+	}
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("ssh command failed: %w\nOutput: %s", err, string(output))
@@ -112,16 +150,53 @@ func (c *SSHClient) RunCommandWithOutput(stream *events.Stream, command string) 
 	return string(output), nil
 }
 
-// CheckDockerInstalled는 EC2에 Docker가 설치되어 있는지 확인합니다
+// CheckDockerInstalled는 EC2에 Docker가 설치되어 있는지 확인하고, 없으면 자동으로 설치합니다
 func (c *SSHClient) CheckDockerInstalled(stream *events.Stream) error {
 	stream.Info("Checking Docker installation on EC2...")
 
-	output, err := c.RunCommandWithOutput(stream, "docker --version && docker-compose --version")
-	if err != nil {
-		return fmt.Errorf("Docker or docker-compose not found on EC2: %w", err)
+	// Docker 확인 (docker compose v2 플러그인 확인)
+	checkCmd := "command -v docker && docker compose version"
+	output, err := c.RunCommandWithOutput(stream, checkCmd)
+
+	if err == nil && strings.Contains(output, "docker") {
+		stream.Success("Docker is already installed on EC2")
+		return nil
 	}
 
-	stream.Success(fmt.Sprintf("Docker found: %s", strings.TrimSpace(output)))
+	// Docker가 없으면 자동 설치
+	stream.Info("Docker not found. Installing Docker...")
+
+	installScript := `
+	if command -v yum &> /dev/null; then
+		echo "Detected Amazon Linux/CentOS"
+		sudo yum update -y
+		sudo yum install -y docker
+		sudo systemctl start docker
+		sudo systemctl enable docker
+		sudo usermod -aG docker $USER
+
+		# Install Docker Compose plugin
+		sudo mkdir -p /usr/local/lib/docker/cli-plugins
+		sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+		sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+	elif command -v apt-get &> /dev/null; then
+		echo "Detected Ubuntu/Debian"
+		sudo apt-get update
+		sudo apt-get install -y docker.io docker-compose-v2
+		sudo systemctl start docker
+		sudo systemctl enable docker
+		sudo usermod -aG docker $USER
+	else
+		echo "Unsupported OS"
+		exit 1
+	fi
+	`
+
+	if err := c.RunCommand(stream, installScript); err != nil {
+		return fmt.Errorf("failed to install Docker: %w", err)
+	}
+
+	stream.Success("Docker installed successfully")
 	return nil
 }
 

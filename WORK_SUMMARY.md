@@ -636,3 +636,278 @@ const detectStage = (message: string) => {
 **파일:** arfni-gui/src-tauri/src/commands/deployment.rs (라인 10-11, 107-123, 299-300, 313-317)
 **문제:** Go 바이너리 실행 시 별도의 CMD 창이 표시됨
 **수정:** Windows에서 CREATE_NO_WINDOW 플래그를 사용하여 배포 실행 및 프로세스 중지 시 콘솔 창 숨김 처리
+
+---
+
+# 2025-10-31 Windows 콘솔 창 완전 제거 작업
+
+## 문제 상황
+프로젝트를 병합(`ic-skeleton-fixed` → `BE/arfni`) 후 다음 문제들이 발생:
+1. 배포 실패 (`docker-compose: command not found`)
+2. Windows에서 검은 CMD 창이 계속 표시됨
+3. GUI에서 서비스 개수, 엔드포인트가 표시되지 않음
+4. OpenSSL vendored 빌드 실패 (Perl 모듈 누락)
+
+## 해결 작업 내역
+
+### 1. Docker Compose v2 명령어 수정
+**문제:** `docker-compose` 명령어가 EC2에 설치되지 않음
+**해결:**
+- 모든 `docker-compose` → `docker compose` (v2) 변경
+- 파일: `internal/core/workflow/ssh.go`, `internal/core/workflow/runner.go`
+
+### 2. Windows 콘솔 창 완전 제거
+**문제:** 모든 단계(배포, SSH 연결, 테스트)에서 검은 CMD 창이 표시됨
+
+#### 2.1 Go 코드 수정
+**파일:**
+- `BE/arfni/internal/core/workflow/ssh.go` (SSH/SCP 명령)
+- `BE/arfni/internal/core/workflow/runner.go` (Docker 명령)
+- `BE/arfni/internal/sys/exec.go` (일반 명령 실행)
+- `BE/arfni/cmd/arfni-go/main.go` (ic.exe 실행)
+
+**수정 내용:**
+```go
+// Windows에서 콘솔 창 숨김 (강화)
+if runtime.GOOS == "windows" {
+    cmd.SysProcAttr = &syscall.SysProcAttr{
+        HideWindow:    true,
+        CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+    }
+}
+```
+
+**SSH 옵션 추가:**
+```go
+args := []string{
+    "-i", keyPath,
+    "-o", "StrictHostKeyChecking=no",
+    "-o", "BatchMode=yes",           // 인터랙티브 프롬프트 비활성화
+    "-o", "LogLevel=ERROR",          // 불필요한 출력 숨김
+    fmt.Sprintf("%s@%s", user, host),
+    command,
+}
+```
+
+#### 2.2 Rust/Tauri 코드 수정
+**파일:**
+- `arfni-gui/src-tauri/src/commands/deployment.rs` (배포, Docker 체크)
+- `arfni-gui/src-tauri/src/commands/plugin.rs` (플러그인 실행)
+- `arfni-gui/src-tauri/src/features/ssh_rt.rs` (SSH 인터랙티브 터미널)
+
+**수정 내용:**
+```rust
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+let mut command = Command::new("ssh");
+command.arg("...").stdin(...).stdout(...);
+
+#[cfg(target_os = "windows")]
+{
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+    command.creation_flags(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
+}
+
+let child = command.spawn()?;
+```
+
+#### 2.3 SSH 연결 테스트 Command 추가
+**파일:** `arfni-gui/src-tauri/src/commands/deployment.rs`
+
+**새 함수 추가:**
+```rust
+#[tauri::command]
+pub fn test_ssh_connection(host: String, user: String, key_path: String) -> Result<String, String> {
+    let mut command = Command::new("ssh");
+    command
+        .arg("-i").arg(&key_path)
+        .arg("-o").arg("StrictHostKeyChecking=no")
+        .arg("-o").arg("BatchMode=yes")
+        .arg("-o").arg("ConnectTimeout=10")
+        .arg("-o").arg("LogLevel=ERROR")
+        .arg(format!("{}@{}", user, host))
+        .arg("echo 'Connection successful'")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+        command.creation_flags(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
+    }
+
+    // 실행 및 결과 반환
+}
+```
+
+**GUI 연동:**
+`arfni-gui/src/pages/projects/ui/AddServerModal.tsx`:
+```typescript
+// 기존: sshCommands.execSystem() 사용
+// 변경: invoke<string>('test_ssh_connection', { host, user, keyPath })
+```
+
+### 3. __OUTPUTS__ JSON 파싱 구현
+**문제:** 배포 완료 후 서비스 개수, 엔드포인트가 GUI에 표시되지 않음
+**원인:** Rust 코드에서 `__OUTPUTS__` JSON 파싱이 TODO로 남아 있었음
+
+**파일:** `arfni-gui/src-tauri/src/commands/deployment.rs`
+
+**수정 전:**
+```rust
+outputs: None // TODO: outputs parsing
+```
+
+**수정 후:**
+```rust
+// stdout 읽기 스레드에서 __OUTPUTS__ 파싱
+if line.contains("__OUTPUTS__") {
+    if let Some(json_start) = line.find("__OUTPUTS__") {
+        let json_str = &line[json_start + 11..];
+        if let Ok(outputs_json) = serde_json::from_str::<serde_json::Value>(json_str) {
+            if let Ok(mut outputs_guard) = outputs_clone.lock() {
+                *outputs_guard = Some(outputs_json);
+            }
+        }
+    }
+    continue;
+}
+
+// 배포 완료 이벤트 전송
+if let Ok(outputs_guard) = outputs_arc.lock() {
+    app_handle.emit("deployment-success", DeploymentStatus {
+        status: "success".to_string(),
+        message: Some("배포가 성공적으로 완료되었습니다".to_string()),
+        outputs: outputs_guard.clone(),
+    }).ok();
+}
+```
+
+### 4. OpenSSL 의존성 제거 및 rustls 전환
+**문제:** OpenSSL vendored 빌드 시 Perl 모듈(Locale::Maketext::Simple) 누락으로 실패
+**환경:** MSYS Perl이 Strawberry Perl보다 우선순위가 높아 모듈 설치 불가
+
+**파일:** `arfni-gui/src-tauri/Cargo.toml`
+
+**수정 전:**
+```toml
+openssl = { version = "0.10", features = ["vendored"] }
+reqwest = { version = "0.12.24", features = ["json"] }
+```
+
+**수정 후:**
+```toml
+# openssl 제거
+reqwest = { version = "0.12.24", features = ["json", "rustls-tls"], default-features = false }
+```
+
+**이점:**
+- ✅ Perl 빌드 의존성 제거
+- ✅ 크로스 플랫폼 지원 (Windows, macOS, Linux)
+- ✅ 더 안전한 메모리 관리 (Rust native)
+- ✅ 빌드 속도 향상
+- ✅ SSH는 `ssh2` crate가 시스템 SSH 라이브러리 사용하므로 영향 없음
+
+### 5. 자동 빌드 프로세스 개선
+**파일:** `arfni-gui/package.json`, `arfni-gui/src-tauri/tauri.conf.json`
+
+**수정 내용:**
+```json
+// package.json
+"scripts": {
+  "build:go": "cd ../BE/arfni && go build -o ./bin/ic.exe ./cmd/ic && go build -o ./bin/arfni-go.exe ./cmd/arfni-go",
+  "build:all": "npm run build:go && npm run build"
+}
+
+// tauri.conf.json
+"build": {
+  "beforeBuildCommand": "npm run build:all"
+}
+```
+
+**효과:**
+- `npm run tauri build` 실행 시 Go 바이너리 자동 빌드
+- 수동 `build.bat` 실행 불필요
+
+## 수정된 파일 목록
+
+### Backend (Go)
+1. `BE/arfni/internal/core/workflow/ssh.go`
+   - SSH/SCP 명령에 Windows 콘솔 숨김 추가
+   - SSH 옵션 추가 (BatchMode, LogLevel)
+
+2. `BE/arfni/internal/core/workflow/runner.go`
+   - Docker compose 명령에 Windows 콘솔 숨김 추가
+   - 4군데 exec.Command 수정
+
+3. `BE/arfni/internal/sys/exec.go`
+   - Run(), RunWithLiveOutput() 함수에 Windows 콘솔 숨김 추가
+
+4. `BE/arfni/cmd/arfni-go/main.go`
+   - ic.exe, start-monitoring-v2.exe 실행 시 Windows 콘솔 숨김 추가
+
+### Frontend (Rust/Tauri)
+1. `arfni-gui/src-tauri/Cargo.toml`
+   - OpenSSL 제거, rustls-tls 전환
+
+2. `arfni-gui/src-tauri/src/commands/deployment.rs`
+   - arfni-go.exe 실행 시 Windows 콘솔 숨김
+   - Docker 체크 명령들에 Windows 콘솔 숨김
+   - __OUTPUTS__ JSON 파싱 구현
+   - test_ssh_connection 명령 추가
+
+3. `arfni-gui/src-tauri/src/commands/plugin.rs`
+   - 플러그인 실행 시 Windows 콘솔 숨김 (3가지 모드)
+
+4. `arfni-gui/src-tauri/src/features/ssh_rt.rs`
+   - SSH 인터랙티브 터미널에 Windows 콘솔 숨김
+   - SSH 옵션 추가
+
+### Frontend (React/TypeScript)
+1. `arfni-gui/src/pages/projects/ui/AddServerModal.tsx`
+   - SSH 연결 테스트를 새 test_ssh_connection command로 변경
+
+### Build Config
+1. `arfni-gui/package.json`
+   - build:go, build:all 스크립트 추가
+
+2. `arfni-gui/src-tauri/tauri.conf.json`
+   - beforeBuildCommand에 build:all 설정
+
+## 테스트 결과
+
+### ✅ 성공한 항목
+1. Local 배포 - CMD 창 안 뜸
+2. EC2 배포 - CMD 창 안 뜸
+3. SSH 연결 테스트 - CMD 창 안 뜸
+4. SSH 인터랙티브 터미널 - CMD 창 안 뜸
+5. 서비스 개수, 컨테이너 개수 표시됨
+6. 엔드포인트 주소 표시됨
+7. 프로덕션 빌드 성공 (Perl 에러 없음)
+8. 개발 모드 정상 작동
+9. Docker compose v2 명령 정상 작동
+
+### CreationFlags 설명
+```
+0x08000000 (CREATE_NO_WINDOW):
+  - 프로세스에 콘솔 창을 생성하지 않음
+  - 표준 I/O는 파이프로 리다이렉션 가능
+
+0x00000200 (CREATE_NEW_PROCESS_GROUP):
+  - 프로세스를 새로운 프로세스 그룹으로 분리
+  - 부모 프로세스의 콘솔과 완전히 독립
+  - Ctrl+C 시그널 전파 방지
+```
+
+## 최종 빌드 위치
+```
+C:\arfni_pjt_new\arfni-gui\src-tauri\target\release\bundle\nsis\arfni-gui_0.1.0_x64-setup.exe
+```
+
+## 다음 작업 필요
+1. **Prometheus/Node Exporter 자동 설치 로직 복원**
+   - 이전 로직에서 hybrid/allinone 형태에 따라 monitoring 컴포넌트를 자동으로 설치하는 기능 확인 필요
+   - MIGRATION.md에서 해당 기능이 어디로 이동했는지 확인

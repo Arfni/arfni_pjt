@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
+	"syscall"
 )
 
 func Run(ctx context.Context, name string, args ...string) (string, error) {
@@ -14,6 +16,15 @@ func Run(ctx context.Context, name string, args ...string) (string, error) {
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
+
+	// Windows에서 콘솔 창 숨김 처리
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+		}
+	}
+
 	err := cmd.Run()
 	if err != nil {
 		return out.String(), fmt.Errorf("%w\n%s", err, out.String())
@@ -34,6 +45,14 @@ func RunWithLiveOutput(ctx context.Context, name string, args ...string) (string
 
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
+
+	// Windows에서 콘솔 창 숨김 처리
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200, // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+		}
+	}
 
 	err := cmd.Run()
 	if err != nil {

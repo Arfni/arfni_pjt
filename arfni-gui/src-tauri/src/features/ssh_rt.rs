@@ -12,6 +12,9 @@ use std::{
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 // ============ Public Types ============
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -51,17 +54,28 @@ fn connect_interactive(params: &SshParams) -> Result<(Child, ChildStdin)> {
   let target = format!("{}@{}", params.user, params.host);
   println!("[DEBUG] Launching system SSH to {target}");
 
-  let mut child = Command::new("ssh")
-    .args([
+  let mut cmd = Command::new("ssh");
+  cmd.args([
       "-i", &params.pem_path,
       "-tt", // force pseudo-terminal for interactive commands
       "-o", "StrictHostKeyChecking=accept-new",
+      "-o", "BatchMode=yes",
+      "-o", "LogLevel=ERROR",
       &target,
     ])
     .stdin(Stdio::piped())
     .stdout(Stdio::piped())
-    .stderr(Stdio::piped())
-    .spawn()
+    .stderr(Stdio::piped());
+
+  // Windows에서 콘솔 창 숨김
+  #[cfg(target_os = "windows")]
+  {
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+    cmd.creation_flags(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
+  }
+
+  let mut child = cmd.spawn()
     .context("failed to spawn ssh")?;
 
   let stdin = child.stdin.take().context("failed to open stdin")?;
