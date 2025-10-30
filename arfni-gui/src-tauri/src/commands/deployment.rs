@@ -557,3 +557,56 @@ pub fn test_ssh_connection(host: String, user: String, key_path: String) -> Resu
         Err(e) => Err(format!("SSH 실행 실패: {}", e)),
     }
 }
+
+/// 모니터링 시작
+#[tauri::command]
+pub async fn start_monitoring(
+    app: AppHandle,
+    stack_path: String,
+) -> Result<String, String> {
+    println!("🎯 Starting monitoring for: {}", stack_path);
+
+    // Go 바이너리 찾기
+    let go_binary = find_go_binary(&app)?;
+    println!("✅ Found arfni-go at: {}", go_binary);
+
+    // 절대 경로로 변환
+    let stack_path_abs = if Path::new(&stack_path).is_absolute() {
+        stack_path.clone()
+    } else {
+        std::env::current_dir()
+            .map_err(|e| format!("현재 디렉토리 확인 실패: {}", e))?
+            .join(&stack_path)
+            .to_string_lossy()
+            .to_string()
+    };
+
+    if !Path::new(&stack_path_abs).exists() {
+        return Err(format!("stack.yaml 파일을 찾을 수 없습니다: {}", stack_path_abs));
+    }
+
+    println!("📄 Stack file: {}", stack_path_abs);
+
+    // arfni-go.exe monitor -f stack.yaml 명령어 실행
+    let mut command = Command::new(&go_binary);
+    command
+        .arg("monitor")
+        .arg("-f")
+        .arg(&stack_path_abs)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // Windows에서 콘솔 창 숨기지 않음 (모니터링은 별도 창에서 실행)
+    // 사용자가 Ctrl+C로 종료할 수 있도록 함
+
+    println!("🚀 Executing: {} monitor -f {}", go_binary, stack_path_abs);
+
+    // 백그라운드에서 실행
+    let child = command.spawn()
+        .map_err(|e| format!("모니터링 프로세스 시작 실패: {}", e))?;
+
+    let pid = child.id();
+    println!("✅ Monitoring process started with PID: {}", pid);
+
+    Ok(format!("모니터링이 시작되었습니다 (PID: {})", pid))
+}

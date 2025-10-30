@@ -82,6 +82,7 @@ fn main() {
       commands::deployment::check_docker_compose,
       commands::deployment::check_docker_running,
       commands::deployment::test_ssh_connection,
+      commands::deployment::start_monitoring,
 
       // 파일 감시 명령어
       commands::file_watcher::watch_stack_yaml,

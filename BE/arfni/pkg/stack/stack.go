@@ -10,10 +10,19 @@ import (
 type Stack struct {
 	APIVersion string             `yaml:"apiVersion"`
 	Name       string             `yaml:"name"`
+	Metadata   *Metadata          `yaml:"metadata,omitempty"`
 	Targets    map[string]Target  `yaml:"targets"`
 	Secrets    []string           `yaml:"secrets"`
 	Services   map[string]Service `yaml:"services"`
 	Outputs    map[string]string  `yaml:"outputs"`
+}
+
+type Metadata struct {
+	Monitoring *MonitoringConfig `yaml:"monitoring,omitempty"`
+}
+
+type MonitoringConfig struct {
+	Mode string `yaml:"mode,omitempty"` // "local", "hybrid", "all-in-one"
 }
 
 type Target struct {

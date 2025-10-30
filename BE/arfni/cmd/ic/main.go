@@ -42,6 +42,13 @@ func main() {
 		stackDir = filepath.Dir(absPath)
 	}
 
+	// 배포 전 모니터링 서비스 자동 추가 (metadata.monitoring.mode 기반)
+	if sub == "run" {
+		if err := stack.EnsureMonitoringServices(absPath); err != nil {
+			fmt.Fprintf(os.Stderr, "[warning] monitoring setup: %v\n", err)
+		}
+	}
+
 	st, err := stack.Load(absPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[error] load stack: %v\n", err)
