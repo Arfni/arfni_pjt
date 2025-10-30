@@ -44,13 +44,22 @@ export default function ProjectsPage() {
   const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
 
   // 환경별 프로젝트 목록 로드 함수
-  const loadProjects = useCallback(async (environment: 'local' | 'ec2') => {
+  const loadProjects = useCallback(async (environment: 'local' | 'ec2', serverId?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const projectList = await projectCommands.getProjectsByEnvironment(environment);
+      let projectList: Project[];
+
+      // EC2 환경이고 서버 ID가 있으면 해당 서버의 프로젝트만 로드
+      if (environment === 'ec2' && serverId) {
+        projectList = await projectCommands.getProjectsByServer(serverId);
+        console.log(`EC2 서버 (${serverId}) 프로젝트 목록 로드 완료:`, projectList);
+      } else {
+        projectList = await projectCommands.getProjectsByEnvironment(environment);
+        console.log(`${environment} 프로젝트 목록 로드 완료:`, projectList);
+      }
+
       setProjects(projectList);
-      console.log(`${environment} 프로젝트 목록 로드 완료:`, projectList);
 
       // 각 프로젝트의 canvas 데이터 로드
       const previews: Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }> = {};
@@ -210,7 +219,11 @@ export default function ProjectsPage() {
       setNewProjectPath('');
 
       // 프로젝트 목록 새로고침
-      loadProjects(selectedTab);
+      if (selectedTab === 'ec2') {
+        loadProjects(selectedTab, selectedEC2ServerId);
+      } else {
+        loadProjects(selectedTab);
+      }
 
       // 빈 캔버스로 이동 (프로젝트 정보 전달)
       navigate('/canvas', { state: { project } });
@@ -227,16 +240,26 @@ export default function ProjectsPage() {
     localStorage.setItem('projectsSelectedTab', selectedTab);
   }, [selectedTab]);
 
-  // 탭 변경 시 프로젝트 목록 로드
+  // 탭 변경 또는 서버 선택 변경 시 프로젝트 목록 로드
   useEffect(() => {
-    loadProjects(selectedTab);
-  }, [selectedTab, loadProjects, location.key]);
+    if (selectedTab === 'ec2') {
+      loadProjects(selectedTab, selectedEC2ServerId);
+    } else {
+      loadProjects(selectedTab);
+    }
+  }, [selectedTab, selectedEC2ServerId, loadProjects, location.key]);
 
   return (
     <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
       <ProjectsHeader
         loading={loading}
-        onRefresh={() => loadProjects(selectedTab)}
+        onRefresh={() => {
+          if (selectedTab === 'ec2') {
+            loadProjects(selectedTab, selectedEC2ServerId);
+          } else {
+            loadProjects(selectedTab);
+          }
+        }}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -364,7 +387,7 @@ export default function ProjectsPage() {
         selectedServerId={selectedEC2ServerId}
         onSelectServer={(serverId) => {
           setSelectedEC2ServerId(serverId);
-          loadProjects('ec2'); // 서버 변경 시 해당 서버의 프로젝트 목록 새로고침
+          loadProjects('ec2', serverId); // 서버 변경 시 해당 서버의 프로젝트 목록 새로고침
         }}
         onAddNewServer={() => {
           setShowServerModal(false);
