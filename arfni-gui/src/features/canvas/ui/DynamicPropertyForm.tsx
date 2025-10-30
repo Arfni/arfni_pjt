@@ -22,6 +22,8 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
   const [openSections, setOpenSections] = useState({
     basic: true,
     auth: true,
+    build: true,
+    health: true,
     storage: true,
     resources: true,
     env: false,
@@ -204,6 +206,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
               />
             </FormField>
 
+            {/* Database version */}
             {config.supportsVersion && (
               <FormField label="Version">
                 {config.versionOptions ? (
@@ -232,6 +235,41 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 )}
               </FormField>
             )}
+
+            {/* Runtime service version from additionalFields */}
+            {!isDatabase && config.additionalFields && (() => {
+              const versionField = config.additionalFields.find(
+                (field) => field.key === "pythonVersion" || field.key === "javaVersion" || field.key === "nodeVersion"
+              );
+
+              if (!versionField || !versionField.options) return null;
+
+              const versionLabel =
+                versionField.key === "javaVersion" ? "Java Version" :
+                versionField.key === "pythonVersion" ? "Python Version" :
+                "Node Version";
+
+              return (
+                <FormField label={versionLabel}>
+                  <Select
+                    value={
+                      (data as ServiceNodeData).additionalConfig?.[versionField.key] ||
+                      versionField.defaultValue ||
+                      versionField.options[0]?.value ||
+                      ""
+                    }
+                    onChange={(e) => {
+                      const currentConfig = (data as ServiceNodeData).additionalConfig || {};
+                      updateField("additionalConfig", {
+                        ...currentConfig,
+                        [versionField.key]: e.target.value,
+                      });
+                    }}
+                    options={versionField.options}
+                  />
+                </FormField>
+              );
+            })()}
 
             <FormField label="Port">
               <Input
@@ -264,88 +302,212 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
             <div
               style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
             >
-              {/* Database Name */}
-              {config.requiredEnvVars?.find(
-                (v) => v.key.includes("DATABASE") || v.key.includes("DB")
-              ) && (
-                <FormField label="Database Name">
-                  <Input
-                    value={
-                      data.env?.["POSTGRES_DB"] ||
-                      data.env?.["MYSQL_DATABASE"] ||
-                      data.env?.["MONGO_INITDB_DATABASE"] ||
-                      ""
-                    }
-                    onChange={(e) => {
-                      const key =
-                        serviceType === "postgres"
-                          ? "POSTGRES_DB"
-                          : serviceType === "mysql"
-                          ? "MYSQL_DATABASE"
-                          : "MONGO_INITDB_DATABASE";
-                      updateEnv(key, e.target.value);
-                    }}
-                    placeholder="database"
-                  />
-                </FormField>
+              {/* PostgreSQL Authentication */}
+              {serviceType === "postgres" && (
+                <>
+                  <FormField label="Database Name">
+                    <Input
+                      value={data.env?.["POSTGRES_DB"] || ""}
+                      onChange={(e) => updateEnv("POSTGRES_DB", e.target.value)}
+                      placeholder="database"
+                    />
+                  </FormField>
+
+                  <FormField label="Username">
+                    <Input
+                      value={data.env?.["POSTGRES_USER"] || ""}
+                      onChange={(e) =>
+                        updateEnv("POSTGRES_USER", e.target.value)
+                      }
+                      placeholder="user"
+                    />
+                  </FormField>
+
+                  <FormField label="Password">
+                    <Input
+                      type="password"
+                      value={data.env?.["POSTGRES_PASSWORD"] || ""}
+                      onChange={(e) =>
+                        updateEnv("POSTGRES_PASSWORD", e.target.value)
+                      }
+                      placeholder="password"
+                    />
+                  </FormField>
+                </>
               )}
 
-              {/* Username */}
-              {(config.requiredEnvVars?.find((v) => v.key.includes("USER")) ||
-                config.optionalEnvVars?.find((v) =>
-                  v.key.includes("USER")
-                )) && (
-                <FormField label="Username">
-                  <Input
-                    value={
-                      data.env?.["POSTGRES_USER"] ||
-                      data.env?.["MYSQL_USER"] ||
-                      data.env?.["MONGO_INITDB_ROOT_USERNAME"] ||
-                      ""
-                    }
-                    onChange={(e) => {
-                      const key =
-                        serviceType === "postgres"
-                          ? "POSTGRES_USER"
-                          : serviceType === "mysql"
-                          ? "MYSQL_USER"
-                          : "MONGO_INITDB_ROOT_USERNAME";
-                      updateEnv(key, e.target.value);
-                    }}
-                    placeholder="user"
-                  />
-                </FormField>
+              {/* MySQL Authentication */}
+              {serviceType === "mysql" && (
+                <>
+                  <FormField label="Database Name">
+                    <Input
+                      value={data.env?.["MYSQL_DATABASE"] || ""}
+                      onChange={(e) =>
+                        updateEnv("MYSQL_DATABASE", e.target.value)
+                      }
+                      placeholder="database"
+                    />
+                  </FormField>
+
+                  <FormField label="Root Password">
+                    <Input
+                      type="password"
+                      value={data.env?.["MYSQL_ROOT_PASSWORD"] || ""}
+                      onChange={(e) =>
+                        updateEnv("MYSQL_ROOT_PASSWORD", e.target.value)
+                      }
+                      placeholder="root password"
+                    />
+                  </FormField>
+
+                  <FormField label="Username">
+                    <Input
+                      value={data.env?.["MYSQL_USER"] || ""}
+                      onChange={(e) => updateEnv("MYSQL_USER", e.target.value)}
+                      placeholder="user"
+                    />
+                  </FormField>
+
+                  <FormField label="Password">
+                    <Input
+                      type="password"
+                      value={data.env?.["MYSQL_PASSWORD"] || ""}
+                      onChange={(e) =>
+                        updateEnv("MYSQL_PASSWORD", e.target.value)
+                      }
+                      placeholder="password"
+                    />
+                  </FormField>
+                </>
               )}
 
-              {/* Password */}
-              {config.requiredEnvVars?.find((v) =>
-                v.key.includes("PASSWORD")
-              ) && (
+              {/* MongoDB Authentication */}
+              {serviceType === "mongodb" && (
+                <>
+                  <FormField label="Database Name">
+                    <Input
+                      value={data.env?.["MONGO_INITDB_DATABASE"] || ""}
+                      onChange={(e) =>
+                        updateEnv("MONGO_INITDB_DATABASE", e.target.value)
+                      }
+                      placeholder="database"
+                    />
+                  </FormField>
+
+                  <FormField label="Root Username">
+                    <Input
+                      value={data.env?.["MONGO_INITDB_ROOT_USERNAME"] || ""}
+                      onChange={(e) =>
+                        updateEnv("MONGO_INITDB_ROOT_USERNAME", e.target.value)
+                      }
+                      placeholder="root username"
+                    />
+                  </FormField>
+
+                  <FormField label="Root Password">
+                    <Input
+                      type="password"
+                      value={data.env?.["MONGO_INITDB_ROOT_PASSWORD"] || ""}
+                      onChange={(e) =>
+                        updateEnv("MONGO_INITDB_ROOT_PASSWORD", e.target.value)
+                      }
+                      placeholder="root password"
+                    />
+                  </FormField>
+                </>
+              )}
+
+              {/* Redis Authentication */}
+              {serviceType === "redis" && (
                 <FormField label="Password">
                   <Input
                     type="password"
-                    value={
-                      data.env?.["POSTGRES_PASSWORD"] ||
-                      data.env?.["MYSQL_ROOT_PASSWORD"] ||
-                      data.env?.["MYSQL_PASSWORD"] ||
-                      data.env?.["MONGO_INITDB_ROOT_PASSWORD"] ||
-                      data.env?.["REDIS_PASSWORD"] ||
-                      ""
+                    value={data.env?.["REDIS_PASSWORD"] || ""}
+                    onChange={(e) =>
+                      updateEnv("REDIS_PASSWORD", e.target.value)
                     }
-                    onChange={(e) => {
-                      const key =
-                        serviceType === "postgres"
-                          ? "POSTGRES_PASSWORD"
-                          : serviceType === "mysql"
-                          ? "MYSQL_ROOT_PASSWORD"
-                          : serviceType === "redis"
-                          ? "REDIS_PASSWORD"
-                          : "MONGO_INITDB_ROOT_PASSWORD";
-                      updateEnv(key, e.target.value);
-                    }}
-                    placeholder="password"
+                    placeholder="password (optional)"
                   />
                 </FormField>
+              )}
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {/* Build Setting Section (for runtime services) */}
+        {!isDatabase && config.buildRequired && (
+          <CollapsibleSection
+            title="Build Setting"
+            isOpen={openSections.build}
+            onToggle={() => toggleSection("build")}
+          >
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+            >
+              <FormField label="Build Path">
+                <Input
+                  value={(data as ServiceNodeData).build || config.defaultBuildPath || ""}
+                  onChange={(e) => updateField("build", e.target.value)}
+                  placeholder={config.defaultBuildPath || "./"}
+                />
+              </FormField>
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {/* Health Check Section (for runtime services) */}
+        {!isDatabase && config.defaultHealthCheck && (
+          <CollapsibleSection
+            title="Health Check"
+            isOpen={openSections.health}
+            onToggle={() => toggleSection("health")}
+          >
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+            >
+              {config.defaultHealthCheck.httpGet && (
+                <>
+                  <FormField label="HTTP Path">
+                    <Input
+                      value={
+                        (data as ServiceNodeData).health?.httpGet?.path ||
+                        config.defaultHealthCheck?.httpGet?.path ||
+                        "/health"
+                      }
+                      onChange={(e) => {
+                        const currentPort =
+                          (data as ServiceNodeData).health?.httpGet?.port ||
+                          config.defaultHealthCheck?.httpGet?.port ||
+                          8080;
+                        updateField("health", {
+                          httpGet: { path: e.target.value, port: currentPort },
+                        });
+                      }}
+                      placeholder="/health"
+                    />
+                  </FormField>
+
+                  <FormField label="Port">
+                    <Input
+                      type="number"
+                      value={
+                        (data as ServiceNodeData).health?.httpGet?.port ||
+                        config.defaultHealthCheck?.httpGet?.port ||
+                        8080
+                      }
+                      onChange={(e) => {
+                        const currentPath =
+                          (data as ServiceNodeData).health?.httpGet?.path ||
+                          config.defaultHealthCheck?.httpGet?.path ||
+                          "/health";
+                        updateField("health", {
+                          httpGet: { path: currentPath, port: Number(e.target.value) },
+                        });
+                      }}
+                      placeholder="8080"
+                    />
+                  </FormField>
+                </>
               )}
             </div>
           </CollapsibleSection>

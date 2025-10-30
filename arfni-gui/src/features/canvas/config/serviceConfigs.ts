@@ -417,6 +417,50 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     }
   },
 
+  python: {
+    name: 'Python',
+    category: 'backend',
+    buildRequired: true,
+    defaultBuildPath: './apps/python',
+    defaultPort: 8000,
+    defaultPortMapping: '8000:8000',
+    requiredEnvVars: [],
+    optionalEnvVars: [
+      {
+        key: 'PYTHONUNBUFFERED',
+        label: 'Unbuffered Output',
+        type: 'boolean',
+        defaultValue: true,
+        description: 'Force stdout and stderr to be unbuffered'
+      },
+      {
+        key: 'PYTHONPATH',
+        label: 'Python Path',
+        type: 'text',
+        placeholder: '/app'
+      }
+    ],
+    additionalFields: [
+      {
+        key: 'pythonVersion',
+        label: 'Python Version',
+        type: 'select',
+        defaultValue: '3.11',
+        options: [
+          { label: 'Python 3.12', value: '3.12' },
+          { label: 'Python 3.11', value: '3.11' },
+          { label: 'Python 3.10', value: '3.10' },
+          { label: 'Python 3.9', value: '3.9' }
+        ]
+      }
+    ],
+    supportsVolumes: false,
+    defaultHealthCheck: {
+      httpGet: { path: '/health', port: 8000 }
+    },
+    defaultCommand: ['python', 'main.py']
+  },
+
   nodejs: {
     name: 'Node.js',
     category: 'backend',
@@ -424,6 +468,12 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     defaultBuildPath: './apps/nodejs',
     defaultPort: 3000,
     defaultPortMapping: '3000:3000',
+    defaultHealthCheck: {
+      httpGet: {
+        path: '/health',
+        port: 3000
+      }
+    },
     requiredEnvVars: [],
     optionalEnvVars: [
       {
@@ -465,6 +515,12 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     defaultBuildPath: './apps/react',
     defaultPort: 80,
     defaultPortMapping: '3000:80',
+    defaultHealthCheck: {
+      httpGet: {
+        path: '/health',
+        port: 80
+      }
+    },
     requiredEnvVars: [],
     optionalEnvVars: [
       {
@@ -497,6 +553,12 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     defaultBuildPath: './apps/nextjs',
     defaultPort: 3000,
     defaultPortMapping: '3000:3000',
+    defaultHealthCheck: {
+      httpGet: {
+        path: '/health',
+        port: 3000
+      }
+    },
     requiredEnvVars: [],
     optionalEnvVars: [
       {
@@ -529,6 +591,12 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     defaultBuildPath: './apps/vue',
     defaultPort: 80,
     defaultPortMapping: '8080:80',
+    defaultHealthCheck: {
+      httpGet: {
+        path: '/health',
+        port: 80
+      }
+    },
     requiredEnvVars: [],
     optionalEnvVars: [
       {
@@ -536,6 +604,19 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
         label: 'API URL',
         type: 'text',
         placeholder: 'http://localhost:8080'
+      }
+    ],
+    additionalFields: [
+      {
+        key: 'nodeVersion',
+        label: 'Node Version',
+        type: 'select',
+        defaultValue: '18',
+        options: [
+          { label: 'Node 20', value: '20' },
+          { label: 'Node 18', value: '18' },
+          { label: 'Node 16', value: '16' }
+        ]
       }
     ],
     supportsVolumes: false
