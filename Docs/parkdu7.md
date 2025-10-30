@@ -31,3 +31,7 @@
 - YAML Generator: EC2 workdir 절대/상대 경로 자동 변환 + monitoring.mode 추가
 - Go 바이너리 탐색: 4단계 fallback 경로 (환경변수 → Resource → 개발 → 프로젝트 루트)
 - 실행: arfni-go.exe run -f stack.yaml -project-dir ./로 subprocess 실행
+
+# 2025.10.30
+- 프로젝트 필터링 버그 수정 - EC2 서버 선택시 프로젝트 목록이 제대로 필터링되도록 수정 및 리팩토링된 ProjectsPage에 적용
+- DB 설계 수정 : mode, workdir 컬럼 projects 테이블로 이전

@@ -164,3 +164,41 @@ EC2 및 로컬 Spring 서버 상태를 Rust 기반으로 주기적 감시 가능
 GUI 상에서 서버 상태를 실시간으로 시각화
 
 추후 Docker 컨테이너 헬스체크 및 자동 재시작 로직으로 확장 예정
+🧾 개발일지 — 2025.10.30
+
+🛠️ 주요 개발 내용
+
+🔹 CI/CD 파이프라인 설계 및 GitHub Actions 연동 (Spring Boot + Docker + EC2)
+1. GitHub Actions 기반 CI/CD 구축
+
+Java CI with Gradle 기본 워크플로우 분석 및 적용
+
+on.push / on.pull_request 이벤트를 활용해 main 브랜치에 코드가 올라갈 때 자동 빌드 수행
+
+./gradlew build 명령을 통해 Spring Boot JAR 자동 생성
+
+actions/upload-artifact 액션을 추가하여 빌드된 JAR 파일을 GitHub Artifacts로 업로드하도록 설정
+→ Actions 탭에서 직접 다운로드 가능하도록 구성
+
+2. PEM 키 기반 원격 배포 자동화
+
+appleboy/scp-action과 appleboy/ssh-action을 이용해 EC2 서버로 배포 자동화 구성
+
+로컬 PEM 키 파일 대신, GitHub Secrets에 PEM 파일 내용을 문자열로 저장하여 보안 유지
+
+SSH 접속 후 다음 스크립트를 실행하도록 설정:
+
+기존 프로세스 종료 → 새 JAR 업로드 → nohup java -jar 로 자동 재실행
+
+Actions 실행 시 빌드–전송–실행까지 완전 자동화
+
+3. Docker + GHCR 기반 배포 구조 설계
+
+GitHub Actions에서 docker/build-push-action을 이용해 Docker 이미지 빌드 및 GHCR(GitHub Container Registry) 푸시 구성 초안 작성
+
+EC2 서버에서는 docker compose pull && up -d 로 자동 업데이트 가능하도록 설계
+
+서비스별 이미지 태그를 latest + ${{ github.sha }} 로 관리하여 버전 롤백 용이성 확보
+
+PEM 기반 SSH 자동 로그인 및 Health Check 후 자동 재시작 로직 구상
+
