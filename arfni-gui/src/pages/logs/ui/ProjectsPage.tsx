@@ -111,7 +111,13 @@ export default function ProjectsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
-  const [selectedTab, setSelectedTab] = useState<'local' | 'ec2'>('local');
+
+  // sessionStorage에서 현재 세션의 선택 상태 복원 (앱 재시작 시 초기화됨)
+  const [selectedTab, setSelectedTab] = useState<'local' | 'ec2'>(() => {
+    const saved = sessionStorage.getItem('arfni_selected_tab');
+    return (saved === 'ec2' || saved === 'local') ? saved : 'local';
+  });
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +131,10 @@ export default function ProjectsPage() {
 
   // EC2 서버 관련
   const [ec2Servers, setEc2Servers] = useState<EC2Server[]>([]);
-  const [selectedEC2ServerId, setSelectedEC2ServerId] = useState<string>('');
+  const [selectedEC2ServerId, setSelectedEC2ServerId] = useState<string>(() => {
+    // sessionStorage에서 복원 (앱 재시작 시 빈 상태로 시작)
+    return sessionStorage.getItem('arfni_selected_ec2_server_id') || '';
+  });
   const [showServerModal, setShowServerModal] = useState(false);
   const [showAddServerModal, setShowAddServerModal] = useState(false);
 
@@ -133,13 +142,23 @@ export default function ProjectsPage() {
   const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
 
   // 환경별 프로젝트 목록 로드 함수
-  const loadProjects = useCallback(async (environment: 'local' | 'ec2') => {
+  const loadProjects = useCallback(async (environment: 'local' | 'ec2', serverId?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const projectList = await projectCommands.getProjectsByEnvironment(environment);
+      let projectList: Project[];
+
+      // EC2 환경이고 서버 ID가 있으면 해당 서버의 프로젝트만 가져옴
+      if (environment === 'ec2' && serverId) {
+        projectList = await projectCommands.getProjectsByServer(serverId);
+        console.log(`EC2 서버 (${serverId}) 프로젝트 목록 로드 완료:`, projectList);
+      } else {
+        // Local 환경이거나 서버 ID가 없으면 환경별로 가져옴
+        projectList = await projectCommands.getProjectsByEnvironment(environment);
+        console.log(`${environment} 프로젝트 목록 로드 완료:`, projectList);
+      }
+
       setProjects(projectList);
-      console.log(`${environment} 프로젝트 목록 로드 완료:`, projectList);
 
       // 각 프로젝트의 canvas 데이터 로드
       const previews: Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }> = {};
@@ -258,9 +277,15 @@ export default function ProjectsPage() {
       try {
         const servers = await ec2ServerCommands.getAllServers();
         setEc2Servers(servers);
-        if (servers.length > 0) {
-          setSelectedEC2ServerId(servers[0].id);
+
+        // sessionStorage에서 복원한 서버 ID가 유효한지 확인
+        const savedServerId = sessionStorage.getItem('arfni_selected_ec2_server_id');
+        if (savedServerId && servers.some(s => s.id === savedServerId)) {
+          // 저장된 서버 ID가 유효하면 그대로 사용 (이미 state에 설정되어 있음)
+          console.log('현재 세션의 선택 서버 복원:', savedServerId);
         }
+        // 주의: 서버가 선택되지 않은 상태로 시작 (자동 선택 제거)
+        // 사용자가 명시적으로 서버를 선택해야 프로젝트 목록이 로드됨
       } catch (err) {
         console.error('EC2 서버 목록 로드 실패:', err);
       }
@@ -299,7 +324,11 @@ export default function ProjectsPage() {
       setNewProjectPath('');
 
       // 프로젝트 목록 새로고침
-      loadProjects(selectedTab);
+      if (selectedTab === 'ec2') {
+        loadProjects('ec2', selectedEC2ServerId);
+      } else {
+        loadProjects('local');
+      }
 
       // 빈 캔버스로 이동 (프로젝트 정보 전달)
       navigate('/canvas', { state: { project } });
@@ -313,8 +342,20 @@ export default function ProjectsPage() {
 
   // 탭 변경 시 프로젝트 목록 로드
   useEffect(() => {
-    loadProjects(selectedTab);
-  }, [selectedTab, loadProjects, location.key]);
+    if (selectedTab === 'ec2') {
+      // EC2 탭일 때는 서버가 선택된 경우에만 프로젝트 로드
+      if (selectedEC2ServerId) {
+        loadProjects('ec2', selectedEC2ServerId);
+      } else {
+        // 서버가 선택되지 않았으면 로딩 상태 해제하고 빈 목록 표시
+        setLoading(false);
+        setProjects([]);
+      }
+    } else {
+      // Local 탭은 항상 프로젝트 로드
+      loadProjects('local');
+    }
+  }, [selectedTab, selectedEC2ServerId, loadProjects, location.key]);
 
   return (
     <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
@@ -334,7 +375,13 @@ export default function ProjectsPage() {
               <span className="text-sm font-medium">테스트</span>
             </button>
             <button
-              onClick={() => loadProjects(selectedTab)}
+              onClick={() => {
+                if (selectedTab === 'ec2') {
+                  loadProjects('ec2', selectedEC2ServerId);
+                } else {
+                  loadProjects('local');
+                }
+              }}
               disabled={loading}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
               title="새로고침"
@@ -352,7 +399,10 @@ export default function ProjectsPage() {
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Environment</h2>
             <nav className="space-y-1 mb-4">
               <button
-                onClick={() => setSelectedTab('local')}
+                onClick={() => {
+                  setSelectedTab('local');
+                  sessionStorage.setItem('arfni_selected_tab', 'local');
+                }}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                   selectedTab === 'local'
                     ? 'bg-blue-50 text-blue-700 font-medium'
@@ -363,7 +413,10 @@ export default function ProjectsPage() {
                 <span>Local</span>
               </button>
               <button
-                onClick={() => setSelectedTab('ec2')}
+                onClick={() => {
+                  setSelectedTab('ec2');
+                  sessionStorage.setItem('arfni_selected_tab', 'ec2');
+                }}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                   selectedTab === 'ec2'
                     ? 'bg-blue-50 text-blue-700 font-medium'
@@ -440,16 +493,33 @@ export default function ProjectsPage() {
           </div>
         )}
 
+        {/* EC2 탭 - 서버 미선택 상태 */}
+        {!loading && !error && selectedTab === 'ec2' && !selectedEC2ServerId && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <Server className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">EC2 서버를 선택하세요</h3>
+              <p className="text-gray-500 mb-6">프로젝트를 보려면 먼저 EC2 서버를 선택해야 합니다</p>
+              <button
+                onClick={() => setShowServerModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                서버 선택
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 빈 목록 상태 */}
-        {!loading && !error && projects.length === 0 && (
+        {!loading && !error && projects.length === 0 && !(selectedTab === 'ec2' && !selectedEC2ServerId) && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-700 mb-2">프로젝트가 없습니다</h3>
               <p className="text-gray-500 mb-6">새 프로젝트를 생성하여 시작하세요</p>
               <button
-                onClick={() => navigate('/')}
-                className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+                onClick={() => setShowCreateModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 새 프로젝트 만들기
               </button>
@@ -659,7 +729,8 @@ export default function ProjectsPage() {
         selectedServerId={selectedEC2ServerId}
         onSelectServer={(serverId) => {
           setSelectedEC2ServerId(serverId);
-          loadProjects('ec2'); // 서버 변경 시 해당 서버의 프로젝트 목록 새로고침
+          sessionStorage.setItem('arfni_selected_ec2_server_id', serverId);
+          loadProjects('ec2', serverId); // 서버 변경 시 해당 서버의 프로젝트 목록 새로고침
         }}
         onAddNewServer={() => {
           setShowServerModal(false);
