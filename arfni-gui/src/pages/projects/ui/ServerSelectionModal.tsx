@@ -194,7 +194,10 @@ export function ServerSelectionModal({
               onClose();
               onAddNewServer();
             }}
-            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+            className="w-full px-4 py-2 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+            style={{ backgroundColor: '#4C65E2' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#3B52C9'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4C65E2'}
           >
             <Plus className="w-4 h-4" />
             Add New Server

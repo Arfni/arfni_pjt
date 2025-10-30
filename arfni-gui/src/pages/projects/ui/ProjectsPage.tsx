@@ -343,7 +343,7 @@ export default function ProjectsPage() {
             {selectedTab === 'ec2' && (
               <button
                 onClick={() => setShowServerModal(true)}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 font-medium"
               >
                 <Server className="w-4 h-4" />
                 <span>
@@ -358,7 +358,7 @@ export default function ProjectsPage() {
             {/* Create Project Button */}
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-4 py-1.5 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-5 py-2 text-white rounded-lg text-sm font-medium transition-colors"
               style={{ backgroundColor: '#4C65E2' }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#3B52C9'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4C65E2'}
@@ -479,7 +479,8 @@ export default function ProjectsPage() {
                               navigate('/logs', { state: { project } });
                             }}
                             disabled={isDeleting}
-                            className="flex-1 px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
+                            className="flex-1 px-4 py-2.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 font-medium transition-colors"
+                            style={{ borderRadius: '10px' }}
                           >
                             View Log
                           </button>
@@ -490,8 +491,8 @@ export default function ProjectsPage() {
                             navigate('/canvas', { state: { project } });
                           }}
                           disabled={isDeleting}
-                          className={`${project.environment === 'local' ? 'w-full' : 'flex-1'} px-3 py-1.5 text-xs text-white rounded disabled:opacity-50 transition-colors`}
-                          style={{ backgroundColor: '#4C65E2' }}
+                          className={`${project.environment === 'local' ? 'w-full' : 'flex-1'} px-4 py-2.5 text-sm text-white disabled:opacity-50 transition-colors font-medium`}
+                          style={{ backgroundColor: '#4C65E2', borderRadius: '10px' }}
                           onMouseEnter={(e) => !isDeleting && (e.currentTarget.style.backgroundColor = '#3B52C9')}
                           onMouseLeave={(e) => !isDeleting && (e.currentTarget.style.backgroundColor = '#4C65E2')}
                         >
@@ -566,14 +567,6 @@ export default function ProjectsPage() {
                   </button>
                 </div>
               </div>
-
-              {selectedTab === 'ec2' && selectedEC2ServerId && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-900">
-                    <span className="font-medium">Server:</span> {ec2Servers.find(s => s.id === selectedEC2ServerId)?.name}
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* Footer Buttons */}
