@@ -9,6 +9,8 @@ import ProjectsPage from "./pages/projects/ui/ProjectsPage";
 import TestPage2 from "./pages/test/ui/TestPage2";
 import { DeploymentPage } from "./pages/deployment/ui/DeploymentPage";
 import SshTerminal from "./pages/test/ui/SshTerminal";
+import HealthWatcher from "@pages/test/ui/HealthWatcher";
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +36,7 @@ function App() {
             <Route path="/deployment" element={<DeploymentPage />} />
             <Route path="/test2" element={<TestPage2 />} />
             <Route path="/test3" element={<SshTerminal />} />
+            <Route path="/health" element={<HealthWatcher />} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>

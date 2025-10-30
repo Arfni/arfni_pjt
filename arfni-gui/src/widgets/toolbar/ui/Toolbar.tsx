@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Home,
@@ -26,6 +26,7 @@ import {
   createProject,
   openProject,
   saveStackYaml,
+  setCurrentProject,
 } from '@features/project';
 import {
   startDeployment,
@@ -33,6 +34,7 @@ import {
 import { stackYamlGenerator, stackToYamlString } from '@features/canvas/lib/stackYamlGenerator';
 import {
   deploymentCommands,
+  projectCommands,
   CanvasNode,
   CanvasEdge,
   ec2ServerCommands,
@@ -55,20 +57,75 @@ export function Toolbar() {
   // EC2 프로젝트인지 확인 및 현재 모니터링 모드 가져오기
   const isEC2Project = currentProject?.environment === 'ec2';
   const ec2TargetNode = isEC2Project && targetNodes.length > 0 ? targetNodes[0] : null;
-  const currentMonitoringMode = (ec2TargetNode?.data as any)?.mode || 'all-in-one';
 
-  // 모니터링 모드 변경 핸들러
-  const handleMonitoringModeChange = useCallback((newMode: string) => {
-    if (ec2TargetNode) {
-      dispatch(updateNode({
-        id: ec2TargetNode.id,
-        data: {
-          ...(ec2TargetNode.data as any),
-          mode: newMode,
-        }
-      }));
+  // 모니터링 모드: Redux (currentProject)에서 직접 읽기
+  // currentProject.mode는 stack.yaml에서 파싱된 값
+  const currentMonitoringMode = currentProject?.mode || 'all-in-one';
+
+  // 모니터링 모드 변경 핸들러 - projects 테이블에 저장하고 stack.yaml 업데이트
+  const handleMonitoringModeChange = useCallback(async (newMode: string) => {
+    if (!currentProject?.id) return;
+
+    try {
+      // 1. 프로젝트 mode 업데이트 (projects 테이블 + stack.yaml 캐시)
+      const updatedProject = await projectCommands.updateProject(
+        currentProject.id,
+        newMode,
+        undefined // workdir는 변경하지 않음
+      );
+
+      // 2. Redux 프로젝트 상태 업데이트 - 이제 YamlEditor가 자동으로 감지함!
+      dispatch(setCurrentProject(updatedProject));
+
+      // 3. EC2 서버 정보 가져오기 (연결 정보만)
+      let ec2Server = null;
+      if (updatedProject.ec2_server_id) {
+        ec2Server = await ec2ServerCommands.getServerById(updatedProject.ec2_server_id);
+      }
+
+      // 4. stack.yaml 생성 - updatedProject 사용
+      const stackYaml = stackYamlGenerator(nodes, edges, {
+        projectName: updatedProject.name,
+        environment: updatedProject.environment,
+        ec2Server: ec2Server || undefined,
+        mode: updatedProject.mode, // 업데이트된 mode 사용
+        workdir: updatedProject.workdir, // 업데이트된 workdir
+        secrets: [],
+        outputs: {},
+      });
+
+      const yamlContent = stackToYamlString(stackYaml);
+
+      const canvasData = {
+        nodes: nodes.map(node => ({
+          id: node.id,
+          node_type: node.type,
+          data: node.data,
+          position: node.position,
+        })),
+        edges: edges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+        })),
+        project_name: updatedProject.name,
+        secrets: [],
+      };
+
+      // 5. stack.yaml 파일 저장
+      await projectCommands.saveStackYaml(
+        updatedProject.path,
+        yamlContent,
+        canvasData
+      );
+
+      // 6. dirty 상태 해제
+      dispatch(setDirty(false));
+    } catch (error) {
+      console.error('모니터링 모드 업데이트 실패:', error);
+      alert(`모니터링 모드 변경 실패: ${error}`);
     }
-  }, [ec2TargetNode, dispatch]);
+  }, [currentProject, dispatch, nodes, edges]);
 
   // 새 프로젝트 생성
   const handleNewProject = useCallback(async () => {

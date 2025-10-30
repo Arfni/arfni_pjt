@@ -87,6 +87,11 @@ export interface CanvasState {
 export interface StackYaml {
   apiVersion: string;
   name: string;
+  metadata?: {
+    monitoring?: {
+      mode?: string;
+    };
+  };
   targets: Record<string, Omit<TargetNodeData, 'name'>>;
   secrets?: string[];
   services: Record<string, {

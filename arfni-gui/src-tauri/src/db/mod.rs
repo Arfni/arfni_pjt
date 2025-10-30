@@ -106,6 +106,16 @@ impl Database {
             println!("✅ Migration 002 completed");
         }
 
+        // Migration 003: mode와 workdir를 projects 테이블로 이동
+        if current_version < 3 {
+            println!("⬆️ Running migration 003...");
+            let migration_sql = include_str!("../../migrations/003_move_mode_workdir_to_projects.sql");
+            conn.execute_batch(migration_sql)
+                .context("Failed to run migration 003")?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (3)", [])?;
+            println!("✅ Migration 003 completed");
+        }
+
         println!("✅ All database migrations completed successfully");
         Ok(())
     }
@@ -133,16 +143,14 @@ pub fn add_dummy_server_if_empty(db: &Database) -> Result<()> {
         let id = uuid::Uuid::new_v4().to_string();
 
         conn.execute(
-            "INSERT INTO ec2_servers (id, name, host, user, pem_path, workdir, mode, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO ec2_servers (id, name, host, user, pem_path, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 id,
                 "Test Server (Dummy)",
                 "43.200.123.45",
                 "ubuntu",
                 "C:\\Users\\SSAFY\\.ssh\\test-key.pem",
-                "/home/ubuntu/projects",
-                "",
                 &now,
                 &now,
             ],

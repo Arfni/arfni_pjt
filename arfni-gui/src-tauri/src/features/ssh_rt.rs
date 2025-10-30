@@ -8,7 +8,6 @@ use std::{
   process::{Child, ChildStdin, Command, Stdio},
   sync::mpsc::{self, Sender},
   thread,
-  time::Duration,
 };
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
@@ -31,6 +30,7 @@ pub struct SshDataEvent {
 // ============ Session Handle ============
 
 struct SshHandle {
+  #[allow(dead_code)]
   id: Uuid,
   child: Child,
   tx_cmd: Sender<String>,
@@ -168,6 +168,7 @@ pub fn close_session(app: &AppHandle, id: Uuid) -> Result<()> {
 }
 
 /// 앱 종료 시, 살아있는 세션들 정리
+#[allow(dead_code)]
 pub fn close_all_sessions(app: &AppHandle) {
   let ids: Vec<Uuid> = sessions().lock().keys().cloned().collect();
   for id in ids {
