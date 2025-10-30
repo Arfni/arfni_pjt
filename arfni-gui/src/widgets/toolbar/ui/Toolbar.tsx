@@ -338,7 +338,7 @@ export function Toolbar() {
 
   // 캔버스 스크린샷 다운로드
   const handleDownloadScreenshot = useCallback(() => {
-    // ReactFlow 캔버스 요소 찾기
+    // ReactFlow 요소 찾기
     const reactFlowElement = document.querySelector('.react-flow') as HTMLElement;
     if (!reactFlowElement) {
       alert('캔버스를 찾을 수 없습니다.');
@@ -358,57 +358,49 @@ export function Toolbar() {
       el.style.display = 'none';
     });
 
-    // html2canvas를 사용하여 스크린샷 생성
-    import('html2canvas').then(({ default: html2canvas }) => {
-      html2canvas(reactFlowElement, {
-        backgroundColor: '#ffffff',
-        scale: 2, // 고해상도
-        logging: false,
-        useCORS: true,
-      }).then((canvas: HTMLCanvasElement) => {
-        // UI 요소들 다시 보이기
-        elementsToHide.forEach((el, index) => {
-          el.style.display = originalDisplays[index];
-        });
+    // 약간의 딜레이 후 스크린샷 생성 (DOM 업데이트 대기)
+    setTimeout(() => {
+      // html-to-image를 사용하여 스크린샷 생성 (SVG 지원)
+      import('html-to-image').then(({ toPng }) => {
+        toPng(reactFlowElement, {
+          backgroundColor: '#ffffff',
+          pixelRatio: 2, // 고해상도
+          cacheBust: true,
+        }).then((dataUrl: string) => {
+          // UI 요소들 다시 보이기
+          elementsToHide.forEach((el, index) => {
+            el.style.display = originalDisplays[index];
+          });
 
-        // Canvas를 Blob으로 변환
-        canvas.toBlob((blob: Blob | null) => {
-          if (!blob) {
-            alert('이미지 생성에 실패했습니다.');
-            return;
-          }
-
-          // Blob을 다운로드 가능한 URL로 변환
-          const url = URL.createObjectURL(blob);
+          // 다운로드
           const link = document.createElement('a');
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
           const fileName = currentProject
             ? `${currentProject.name}_canvas_${timestamp}.png`
             : `canvas_${timestamp}.png`;
 
-          link.href = url;
+          link.href = dataUrl;
           link.download = fileName;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          URL.revokeObjectURL(url);
+        }).catch((error: Error) => {
+          // 에러 발생 시에도 UI 요소들 복원
+          elementsToHide.forEach((el, index) => {
+            el.style.display = originalDisplays[index];
+          });
+          console.error('스크린샷 생성 실패:', error);
+          alert('스크린샷 생성에 실패했습니다.');
         });
       }).catch((error: Error) => {
         // 에러 발생 시에도 UI 요소들 복원
         elementsToHide.forEach((el, index) => {
           el.style.display = originalDisplays[index];
         });
-        console.error('스크린샷 생성 실패:', error);
-        alert('스크린샷 생성에 실패했습니다.');
+        console.error('라이브러리 로드 실패:', error);
+        alert('스크린샷 라이브러리 로드에 실패했습니다.');
       });
-    }).catch((error: Error) => {
-      // 에러 발생 시에도 UI 요소들 복원
-      elementsToHide.forEach((el, index) => {
-        el.style.display = originalDisplays[index];
-      });
-      console.error('html2canvas 로드 실패:', error);
-      alert('스크린샷 라이브러리 로드에 실패했습니다.');
-    });
+    }, 100);
   }, [currentProject]);
 
   return (
