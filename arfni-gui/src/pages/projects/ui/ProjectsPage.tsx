@@ -1,13 +1,14 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
-import { ArrowLeft, FolderOpen, Calendar, Server, Loader2, AlertCircle, RefreshCw, Trash2, X, Monitor, Laptop, FlaskConical } from 'lucide-react';
+import { Calendar, Server, Loader2, AlertCircle, Trash2, X, Laptop, FolderOpen } from 'lucide-react';
 import { projectCommands, Project, ec2ServerCommands, EC2Server, CanvasNode, CanvasEdge } from '@shared/api/tauri/commands';
 import { confirm, open } from '@tauri-apps/plugin-dialog';
 import { ServerSelectionModal } from './ServerSelectionModal';
 import { AddServerModal } from './AddServerModal';
+import { ProjectsHeader } from './ProjectsHeader';
+import { ProjectsSidebar } from './ProjectsSidebar';
 import { useAppDispatch } from '@app/hooks';
 import { addNode } from '@features/canvas/model/canvasSlice';
-import arfniLogo from '../../../assets/arfni_logo.png';
 
 // Canvas 미리보기 컴포넌트
 function CanvasPreview({ nodes, edges }: { nodes: CanvasNode[], edges: CanvasEdge[] }) {
@@ -319,66 +320,16 @@ export default function ProjectsPage() {
 
   return (
     <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={arfniLogo} alt="ARFNI Logo" className="w-6 h-6" />
-            <h1 className="text-xl font-semibold">ARFNI</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate('/test')}
-              className="px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
-              title="테스트 페이지"
-            >
-              <FlaskConical className="w-5 h-5" />
-              <span className="text-sm font-medium">테스트</span>
-            </button>
-            <button
-              onClick={() => loadProjects(selectedTab)}
-              disabled={loading}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-              title="새로고침"
-            >
-              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-      </header>
+      <ProjectsHeader
+        loading={loading}
+        onRefresh={() => loadProjects(selectedTab)}
+      />
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-24 bg-white border-r border-gray-200 flex flex-col">
-          <div className="p-3 flex-1 flex flex-col items-center gap-3">
-            {/* Local Button */}
-            <button
-              onClick={() => setSelectedTab('local')}
-              className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
-                selectedTab === 'local'
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <Laptop className="w-6 h-6" />
-              <span className="text-xs font-medium">Local</span>
-            </button>
-
-            {/* EC2 Button */}
-            <button
-              onClick={() => setSelectedTab('ec2')}
-              className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
-                selectedTab === 'ec2'
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <Server className="w-6 h-6" />
-              <span className="text-xs font-medium">EC2</span>
-            </button>
-
-            {/* EC2 Server Selection - moved to main content area */}
-          </div>
-        </aside>
+        <ProjectsSidebar
+          selectedTab={selectedTab}
+          onTabChange={setSelectedTab}
+        />
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col px-6 py-3 overflow-hidden min-h-0">
@@ -407,7 +358,10 @@ export default function ProjectsPage() {
             {/* Create Project Button */}
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+              className="px-4 py-1.5 text-white rounded-lg text-sm font-medium transition-colors"
+              style={{ backgroundColor: '#4C65E2' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#3B52C9'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4C65E2'}
             >
               Create New Project
             </button>
@@ -460,16 +414,6 @@ export default function ProjectsPage() {
         {/* 프로젝트 목록 */}
         {!loading && !error && projects.length > 0 && (
           <div className="flex-1 overflow-y-auto min-h-0">
-            {/* EC2 서버 이름 표시 */}
-            {selectedTab === 'ec2' && selectedEC2ServerId && (
-              <div className="mb-4 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
-                <Server className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-900">
-                  {ec2Servers.find(s => s.id === selectedEC2ServerId)?.name || 'Unknown Server'}
-                </span>
-              </div>
-            )}
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
               {projects.map((project) => {
                 const isDeleting = deletingProjectPath === project.path;
@@ -528,25 +472,30 @@ export default function ProjectsPage() {
                       </div>
 
                       <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate('/logs', { state: { project } });
-                          }}
-                          disabled={isDeleting}
-                          className="flex-1 px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
-                        >
-                          View Log
-                        </button>
+                        {project.environment === 'ec2' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate('/logs', { state: { project } });
+                            }}
+                            disabled={isDeleting}
+                            className="flex-1 px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
+                          >
+                            View Log
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             navigate('/canvas', { state: { project } });
                           }}
                           disabled={isDeleting}
-                          className="flex-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                          className={`${project.environment === 'local' ? 'w-full' : 'flex-1'} px-3 py-1.5 text-xs text-white rounded disabled:opacity-50 transition-colors`}
+                          style={{ backgroundColor: '#4C65E2' }}
+                          onMouseEnter={(e) => !isDeleting && (e.currentTarget.style.backgroundColor = '#3B52C9')}
+                          onMouseLeave={(e) => !isDeleting && (e.currentTarget.style.backgroundColor = '#4C65E2')}
                         >
-                          Edit
+                          Edit In Canvas
                         </button>
                       </div>
                     </div>
@@ -582,13 +531,13 @@ export default function ProjectsPage() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  프로젝트 이름
+                  Project Name
                 </label>
                 <input
                   type="text"
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="프로젝트 이름을 입력하세요"
+                  placeholder="Enter project name"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={creating}
                   autoFocus
@@ -597,22 +546,23 @@ export default function ProjectsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  프로젝트 경로
+                  Project Path
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={newProjectPath}
                     readOnly
-                    placeholder="폴더를 선택하세요"
+                    placeholder="Select folder"
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none"
                   />
                   <button
                     onClick={handleSelectFolder}
                     disabled={creating}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                    className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                    title="Browse folder"
                   >
-                    찾아보기
+                    <FolderOpen className="w-5 h-5" />
                   </button>
                 </div>
               </div>
@@ -637,14 +587,17 @@ export default function ProjectsPage() {
                 disabled={creating}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
-                취소
+                Cancel
               </button>
               <button
                 onClick={handleCreateProject}
                 disabled={creating || !newProjectName.trim() || !newProjectPath.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                style={{ backgroundColor: '#4C65E2' }}
+                onMouseEnter={(e) => !(creating || !newProjectName.trim() || !newProjectPath.trim()) && (e.currentTarget.style.backgroundColor = '#3B52C9')}
+                onMouseLeave={(e) => !(creating || !newProjectName.trim() || !newProjectPath.trim()) && (e.currentTarget.style.backgroundColor = '#4C65E2')}
               >
-                {creating ? '생성 중...' : '생성'}
+                {creating ? 'Creating...' : 'Create'}
               </button>
             </div>
           </div>
@@ -664,6 +617,15 @@ export default function ProjectsPage() {
         onAddNewServer={() => {
           setShowServerModal(false);
           setShowAddServerModal(true);
+        }}
+        onServerDeleted={async () => {
+          // 서버 목록 새로고침
+          const servers = await ec2ServerCommands.getAllServers();
+          setEc2Servers(servers);
+          // 선택된 서버가 삭제되었으면 첫 번째 서버로 변경
+          if (servers.length > 0 && !servers.find(s => s.id === selectedEC2ServerId)) {
+            setSelectedEC2ServerId(servers[0].id);
+          }
         }}
       />
 
