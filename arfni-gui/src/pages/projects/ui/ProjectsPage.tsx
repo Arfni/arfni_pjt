@@ -1,119 +1,28 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
-import { Calendar, Server, Loader2, AlertCircle, Trash2, X, Laptop, FolderOpen } from 'lucide-react';
+import { Server, Loader2, AlertCircle, FolderOpen } from 'lucide-react';
 import { projectCommands, Project, ec2ServerCommands, EC2Server, CanvasNode, CanvasEdge } from '@shared/api/tauri/commands';
 import { confirm, open } from '@tauri-apps/plugin-dialog';
 import { ServerSelectionModal } from './ServerSelectionModal';
 import { AddServerModal } from './AddServerModal';
 import { ProjectsHeader } from './ProjectsHeader';
 import { ProjectsSidebar } from './ProjectsSidebar';
+import { ProjectCard } from './ProjectCard';
+import { CreateProjectModal } from './CreateProjectModal';
 import { useAppDispatch } from '@app/hooks';
 import { addNode } from '@features/canvas/model/canvasSlice';
-
-// Canvas 미리보기 컴포넌트
-function CanvasPreview({ nodes, edges }: { nodes: CanvasNode[], edges: CanvasEdge[] }) {
-  if (!nodes || nodes.length === 0) {
-    return null;
-  }
-
-  // 노드 위치의 바운딩 박스 계산
-  const positions = nodes.map(n => n.position);
-  const minX = Math.min(...positions.map(p => p.x));
-  const maxX = Math.max(...positions.map(p => p.x)) + 200; // 노드 너비 고려
-  const minY = Math.min(...positions.map(p => p.y));
-  const maxY = Math.max(...positions.map(p => p.y)) + 100; // 노드 높이 고려
-
-  const width = maxX - minX;
-  const height = maxY - minY;
-  const viewBox = `${minX - 20} ${minY - 20} ${width + 40} ${height + 40}`;
-
-  // 노드 타입별 색상
-  const getNodeColor = (nodeType: string) => {
-    switch (nodeType) {
-      case 'service': return '#60A5FA'; // blue
-      case 'database': return '#34D399'; // green
-      case 'target': return '#F59E0B'; // orange
-      default: return '#9CA3AF'; // gray
-    }
-  };
-
-  return (
-    <svg className="w-full h-full" viewBox={viewBox} preserveAspectRatio="xMidYMid meet">
-      {/* 엣지 렌더링 */}
-      {edges.map((edge) => {
-        const sourceNode = nodes.find(n => n.id === edge.source);
-        const targetNode = nodes.find(n => n.id === edge.target);
-        if (!sourceNode || !targetNode) return null;
-
-        const x1 = sourceNode.position.x + 100; // 노드 중심
-        const y1 = sourceNode.position.y + 40;
-        const x2 = targetNode.position.x;
-        const y2 = targetNode.position.y + 40;
-
-        return (
-          <line
-            key={edge.id}
-            x1={x1}
-            y1={y1}
-            x2={x2}
-            y2={y2}
-            stroke="#9CA3AF"
-            strokeWidth="2"
-            markerEnd="url(#arrowhead)"
-          />
-        );
-      })}
-
-      {/* 화살표 마커 정의 */}
-      <defs>
-        <marker
-          id="arrowhead"
-          markerWidth="10"
-          markerHeight="10"
-          refX="9"
-          refY="3"
-          orient="auto"
-        >
-          <polygon points="0 0, 10 3, 0 6" fill="#9CA3AF" />
-        </marker>
-      </defs>
-
-      {/* 노드 렌더링 */}
-      {nodes.map((node) => {
-        const color = getNodeColor(node.node_type);
-        return (
-          <g key={node.id}>
-            <rect
-              x={node.position.x}
-              y={node.position.y}
-              width="200"
-              height="80"
-              fill={color}
-              rx="6"
-              opacity="0.9"
-            />
-            <text
-              x={node.position.x + 100}
-              y={node.position.y + 45}
-              textAnchor="middle"
-              fill="white"
-              fontSize="14"
-              fontWeight="600"
-            >
-              {node.data?.name || 'Node'}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
-  const [selectedTab, setSelectedTab] = useState<'local' | 'ec2'>('local');
+
+  // localStorage에서 저장된 탭 상태 복원
+  const [selectedTab, setSelectedTab] = useState<'local' | 'ec2'>(() => {
+    const savedTab = localStorage.getItem('projectsSelectedTab');
+    return (savedTab === 'local' || savedTab === 'ec2') ? savedTab : 'local';
+  });
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -313,6 +222,11 @@ export default function ProjectsPage() {
     }
   }, [newProjectName, newProjectPath, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch]);
 
+  // 탭 상태를 localStorage에 저장
+  useEffect(() => {
+    localStorage.setItem('projectsSelectedTab', selectedTab);
+  }, [selectedTab]);
+
   // 탭 변경 시 프로젝트 목록 로드
   useEffect(() => {
     loadProjects(selectedTab);
@@ -399,14 +313,8 @@ export default function ProjectsPage() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">프로젝트가 없습니다</h3>
-              <p className="text-gray-500 mb-6">새 프로젝트를 생성하여 시작하세요</p>
-              <button
-                onClick={() => navigate('/')}
-                className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
-              >
-                새 프로젝트 만들기
-              </button>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">No Projects Existing</h3>
+              <p className="text-gray-500 mb-6">Create a new project to get started</p>
             </div>
           </div>
         )}
@@ -415,187 +323,38 @@ export default function ProjectsPage() {
         {!loading && !error && projects.length > 0 && (
           <div className="flex-1 overflow-y-auto min-h-0">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
-              {projects.map((project) => {
-                const isDeleting = deletingProjectPath === project.path;
-                return (
-                  <div
-                    key={project.id}
-                    className="bg-white rounded-lg border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
-                    onClick={() => !isDeleting && navigate('/canvas', { state: { project } })}
-                  >
-                    {/* Canvas Thumbnail Preview */}
-                    <div className="h-32 bg-gray-100 relative overflow-hidden">
-                      {canvasPreviews[project.id] && canvasPreviews[project.id].nodes.length > 0 ? (
-                        <CanvasPreview nodes={canvasPreviews[project.id].nodes} edges={canvasPreviews[project.id].edges} />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <p className="text-gray-400 text-sm">빈 캔버스</p>
-                        </div>
-                      )}
-                      <div className="absolute top-2 right-2">
-                        <button
-                          onClick={(e) => handleDeleteProject(project, e)}
-                          disabled={isDeleting}
-                          className="p-1.5 bg-white/90 backdrop-blur-sm text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 shadow-sm"
-                          title="프로젝트 삭제"
-                        >
-                          {isDeleting ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Project Info */}
-                    <div className="p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          {project.environment === 'ec2' ? (
-                            <Server className="w-5 h-5 text-blue-600" />
-                          ) : (
-                            <Laptop className="w-5 h-5 text-blue-600" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold text-gray-900 text-sm">{project.name}</h3>
-                          <p className="text-xs text-gray-500">{project.environment === 'ec2' ? 'EC2' : 'Local Docker'}</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1 text-xs text-gray-600 mt-2">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-3 h-3" />
-                          <span>Created: {new Date(project.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
-                        {project.environment === 'ec2' && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate('/logs', { state: { project } });
-                            }}
-                            disabled={isDeleting}
-                            className="flex-1 px-4 py-2.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 font-medium transition-colors"
-                            style={{ borderRadius: '10px' }}
-                          >
-                            View Log
-                          </button>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate('/canvas', { state: { project } });
-                          }}
-                          disabled={isDeleting}
-                          className={`${project.environment === 'local' ? 'w-full' : 'flex-1'} px-4 py-2.5 text-sm text-white disabled:opacity-50 transition-colors font-medium`}
-                          style={{ backgroundColor: '#4C65E2', borderRadius: '10px' }}
-                          onMouseEnter={(e) => !isDeleting && (e.currentTarget.style.backgroundColor = '#3B52C9')}
-                          onMouseLeave={(e) => !isDeleting && (e.currentTarget.style.backgroundColor = '#4C65E2')}
-                        >
-                          Edit In Canvas
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {projects.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  canvasPreview={canvasPreviews[project.id]}
+                  isDeleting={deletingProjectPath === project.path}
+                  onDelete={handleDeleteProject}
+                />
+              ))}
             </div>
           </div>
         )}
         </main>
       </div>
 
-      {/* 프로젝트 생성 모달 - 간단한 버전 */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold">
-                Create {selectedTab === 'local' ? 'Local' : 'EC2'} Project
-              </h2>
-              <button
-                onClick={() => {
-                  setShowCreateModal(false);
-                  setNewProjectName('');
-                  setNewProjectPath('');
-                }}
-                className="p-1 hover:bg-gray-100 rounded transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Project Name
-                </label>
-                <input
-                  type="text"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="Enter project name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={creating}
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Project Path
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newProjectPath}
-                    readOnly
-                    placeholder="Select folder"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none"
-                  />
-                  <button
-                    onClick={handleSelectFolder}
-                    disabled={creating}
-                    className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
-                    title="Browse folder"
-                  >
-                    <FolderOpen className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer Buttons */}
-            <div className="flex gap-3 p-6 border-t border-gray-200">
-              <button
-                onClick={() => {
-                  setShowCreateModal(false);
-                  setNewProjectName('');
-                  setNewProjectPath('');
-                }}
-                disabled={creating}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateProject}
-                disabled={creating || !newProjectName.trim() || !newProjectPath.trim()}
-                className="flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                style={{ backgroundColor: '#4C65E2' }}
-                onMouseEnter={(e) => !(creating || !newProjectName.trim() || !newProjectPath.trim()) && (e.currentTarget.style.backgroundColor = '#3B52C9')}
-                onMouseLeave={(e) => !(creating || !newProjectName.trim() || !newProjectPath.trim()) && (e.currentTarget.style.backgroundColor = '#4C65E2')}
-              >
-                {creating ? 'Creating...' : 'Create'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CreateProjectModal
+        isOpen={showCreateModal}
+        selectedTab={selectedTab}
+        newProjectName={newProjectName}
+        newProjectPath={newProjectPath}
+        creating={creating}
+        selectedEC2ServerId={selectedEC2ServerId}
+        ec2Servers={ec2Servers}
+        onClose={() => {
+          setShowCreateModal(false);
+          setNewProjectName('');
+          setNewProjectPath('');
+        }}
+        onNameChange={setNewProjectName}
+        onSelectFolder={handleSelectFolder}
+        onCreate={handleCreateProject}
+      />
 
       {/* Server Selection Modal */}
       <ServerSelectionModal
