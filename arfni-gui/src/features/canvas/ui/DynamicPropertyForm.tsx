@@ -2,7 +2,7 @@ import { useAppDispatch } from '@app/hooks';
 import { updateNode } from '../model/canvasSlice';
 import { CustomNode, ServiceNodeData, DatabaseNodeData } from '../model/types';
 import { getServiceConfig } from '../config/serviceConfigs';
-import { FormField, Input, Select, Checkbox, KeyValueEditor } from '../../../shared/ui/form';
+import { FormField, Input, Select, KeyValueEditor } from '../../../shared/ui/form';
 import { TargetPropertyForm } from './TargetPropertyForm';
 
 interface DynamicPropertyFormProps {
@@ -74,257 +74,258 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
     }));
   };
 
-  return (
-    <div className="dynamic-property-form p-4 space-y-4">
-      <div className="pb-3 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-700">Basic Information</h3>
-      </div>
+  // Database 노드인 경우
+  if (node.type === 'database') {
+    return (
+      <div className="dynamic-property-form p-4 space-y-4">
+        {/* Basic Information */}
+        <details open>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
+            Basic Information
+          </summary>
+          <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <FormField label="Service Name" required>
+              <Input
+                value={data.name}
+                onChange={(e) => updateField('name', e.target.value)}
+                placeholder="my-service"
+              />
+            </FormField>
 
-      {/* Service Name */}
-      <FormField label="Service Name" required>
-        <Input
-          value={data.name}
-          onChange={(e) => updateField('name', e.target.value)}
-          placeholder="my-service"
-        />
-      </FormField>
-
-      {/* Version (if supported) */}
-      {config.supportsVersion && (
-        <FormField label="Version">
-          {config.versionOptions ? (
-            <Select
-              value={(data as DatabaseNodeData).version || config.defaultVersion || ''}
-              onChange={(e) => updateField('version', e.target.value)}
-              options={config.versionOptions.map(v => ({ label: v, value: v }))}
-            />
-          ) : (
-            <Input
-              value={(data as DatabaseNodeData).version || config.defaultVersion || ''}
-              onChange={(e) => updateField('version', e.target.value)}
-              placeholder={config.defaultVersion}
-            />
-          )}
-        </FormField>
-      )}
-
-      {/* Build Path (if build required) */}
-      {config.buildRequired && (
-        <FormField
-          label="Build Path"
-          description="Relative path to application source code"
-        >
-          <Input
-            value={(data as ServiceNodeData).build || config.defaultBuildPath || ''}
-            onChange={(e) => updateField('build', e.target.value)}
-            placeholder={config.defaultBuildPath}
-          />
-        </FormField>
-      )}
-
-      {/* Image (if not build required) */}
-      {!config.buildRequired && config.defaultImage && (
-        <FormField label="Image">
-          <Input
-            value={(data as ServiceNodeData).image || config.defaultImage}
-            onChange={(e) => updateField('image', e.target.value)}
-            placeholder={config.defaultImage}
-          />
-        </FormField>
-      )}
-
-      {/* Ports */}
-      <FormField
-        label="Ports"
-        description="Format: host:container (e.g., 8080:8080)"
-      >
-        <Input
-          value={data.ports?.[0] || config.defaultPortMapping || ''}
-          onChange={(e) => {
-            const value = e.target.value;
-            updateField('ports', value ? [value] : []);
-          }}
-          placeholder={config.defaultPortMapping || '8080:8080'}
-        />
-      </FormField>
-
-      {/* Required Environment Variables */}
-      {config.requiredEnvVars && config.requiredEnvVars.length > 0 && (
-        <>
-          <div className="pt-4 pb-2 border-t border-gray-200">
-            <h4 className="text-sm font-semibold text-gray-700">Environment Variables</h4>
-          </div>
-          {config.requiredEnvVars.map((envVar) => {
-            const currentValue = data.env?.[envVar.key] || envVar.defaultValue || '';
-
-            return (
-              <FormField
-                key={envVar.key}
-                label={envVar.label || envVar.key}
-                required={envVar.required}
-                description={envVar.description}
-              >
-                {envVar.type === 'boolean' ? (
-                  <Checkbox
-                    checked={currentValue === 'true' || currentValue === true}
-                    onChange={(e) => updateEnv(envVar.key, e.target.checked ? 'true' : 'false')}
+            {config.supportsVersion && (
+              <FormField label="Version">
+                {config.versionOptions ? (
+                  <Select
+                    value={(data as DatabaseNodeData).version || config.defaultVersion || ''}
+                    onChange={(e) => updateField('version', e.target.value)}
+                    options={config.versionOptions.map(v => ({ label: v, value: v }))}
                   />
                 ) : (
+                  <Input
+                    value={(data as DatabaseNodeData).version || config.defaultVersion || ''}
+                    onChange={(e) => updateField('version', e.target.value)}
+                    placeholder={config.defaultVersion}
+                  />
+                )}
+              </FormField>
+            )}
+
+            <FormField label="Port">
+              <Input
+                value={data.ports?.[0] || config.defaultPortMapping || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  updateField('ports', value ? [value] : []);
+                }}
+                placeholder={config.defaultPortMapping || '5432'}
+              />
+            </FormField>
+          </div>
+        </details>
+
+        {/* Authentication */}
+        <details open>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
+            Authentication
+          </summary>
+          <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {config.requiredEnvVars && config.requiredEnvVars.map((envVar) => {
+              const currentValue = data.env?.[envVar.key] || envVar.defaultValue || '';
+              return (
+                <FormField
+                  key={envVar.key}
+                  label={envVar.label || envVar.key}
+                  required={envVar.required}
+                >
                   <Input
                     type={envVar.type}
                     value={String(currentValue)}
                     onChange={(e) => updateEnv(envVar.key, e.target.value)}
                     placeholder={envVar.placeholder || String(envVar.defaultValue || '')}
                   />
-                )}
-              </FormField>
-            );
-          })}
-        </>
-      )}
-
-      {/* Optional Environment Variables (Collapsible) */}
-      {config.optionalEnvVars && config.optionalEnvVars.length > 0 && (
-        <details style={{ marginTop: '1rem' }}>
-          <summary style={{ cursor: 'pointer', fontWeight: 500, marginBottom: '0.5rem' }}>
-            Optional Environment Variables
-          </summary>
-          <div style={{ paddingLeft: '1rem' }}>
-            {config.optionalEnvVars.map((envVar) => {
+                </FormField>
+              );
+            })}
+            {config.optionalEnvVars && config.optionalEnvVars.map((envVar) => {
               const currentValue = data.env?.[envVar.key] || envVar.defaultValue || '';
-
               return (
                 <FormField
                   key={envVar.key}
                   label={envVar.label || envVar.key}
-                  description={envVar.description}
                 >
-                  {envVar.type === 'boolean' ? (
-                    <Checkbox
-                      checked={currentValue === 'true' || currentValue === true}
-                      onChange={(e) => updateEnv(envVar.key, e.target.checked ? 'true' : 'false')}
-                    />
-                  ) : (
-                    <Input
-                      type={envVar.type}
-                      value={String(currentValue)}
-                      onChange={(e) => updateEnv(envVar.key, e.target.value)}
-                      placeholder={envVar.placeholder || String(envVar.defaultValue || '')}
-                    />
-                  )}
+                  <Input
+                    type={envVar.type}
+                    value={String(currentValue)}
+                    onChange={(e) => updateEnv(envVar.key, e.target.value)}
+                    placeholder={envVar.placeholder || String(envVar.defaultValue || '')}
+                  />
                 </FormField>
               );
             })}
           </div>
         </details>
-      )}
 
-      {/* Custom Environment Variables */}
-      <details style={{ marginTop: '1rem' }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 500, marginBottom: '0.5rem' }}>
-          Custom Environment Variables
+        {/* Storage */}
+        {config.supportsVolumes && (
+          <details open>
+            <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
+              Storage
+            </summary>
+            <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <FormField label="Volume Path">
+                <Input
+                  value={data.volumes?.[0]?.host || config.defaultVolumes?.[0]?.host || ''}
+                  onChange={(e) => {
+                    const currentMount = data.volumes?.[0]?.mount || config.defaultVolumes?.[0]?.mount || '';
+                    updateField('volumes', [{ host: e.target.value, mount: currentMount }]);
+                  }}
+                  placeholder="./.arfni/data"
+                />
+              </FormField>
+              <FormField label="Size (GB)">
+                <Input
+                  type="number"
+                  value={(data as any).storageSize || 10}
+                  onChange={(e) => updateField('storageSize', Number(e.target.value))}
+                  placeholder="10"
+                />
+              </FormField>
+            </div>
+          </details>
+        )}
+
+        {/* Resource Limits */}
+        <details open>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
+            Resource Limits
+          </summary>
+          <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <FormField label="Memory Limit (MB)">
+              <Input
+                type="number"
+                value={(data as any).memoryLimit || 512}
+                onChange={(e) => updateField('memoryLimit', Number(e.target.value))}
+                placeholder="512"
+              />
+            </FormField>
+            <FormField label="CPU Limit">
+              <Input
+                type="number"
+                step="0.1"
+                value={(data as any).cpuLimit || 0.5}
+                onChange={(e) => updateField('cpuLimit', Number(e.target.value))}
+                placeholder="0.5"
+              />
+            </FormField>
+          </div>
+        </details>
+
+        {/* Environment Variables */}
+        <details open>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
+            Environment Variables
+          </summary>
+          <div style={{ paddingLeft: '0.5rem' }}>
+            <KeyValueEditor
+              entries={data.env || {}}
+              onChange={updateAllEnv}
+              keyPlaceholder="KEY"
+              valuePlaceholder="Value"
+            />
+          </div>
+        </details>
+      </div>
+    );
+  }
+
+  // Service 노드인 경우 (Runtime)
+  return (
+    <div className="dynamic-property-form p-4 space-y-4">
+      {/* Basic Information */}
+      <details open>
+        <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
+          Basic Information
         </summary>
-        <div style={{ paddingLeft: '1rem' }}>
-          <KeyValueEditor
-            entries={data.env || {}}
-            onChange={updateAllEnv}
-            keyPlaceholder="VARIABLE_NAME"
-            valuePlaceholder="value"
-          />
+        <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <FormField label="Service Name" required>
+            <Input
+              value={data.name}
+              onChange={(e) => updateField('name', e.target.value)}
+              placeholder="my-service"
+            />
+          </FormField>
+
+          {config.supportsVersion && (
+            <FormField label="Version">
+              {config.versionOptions ? (
+                <Select
+                  value={(data as DatabaseNodeData).version || config.defaultVersion || ''}
+                  onChange={(e) => updateField('version', e.target.value)}
+                  options={config.versionOptions.map(v => ({ label: v, value: v }))}
+                />
+              ) : (
+                <Input
+                  value={(data as DatabaseNodeData).version || config.defaultVersion || ''}
+                  onChange={(e) => updateField('version', e.target.value)}
+                  placeholder={config.defaultVersion}
+                />
+              )}
+            </FormField>
+          )}
+
+          <FormField label="Port">
+            <Input
+              value={data.ports?.[0] || config.defaultPortMapping || ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                updateField('ports', value ? [value] : []);
+              }}
+              placeholder={config.defaultPortMapping || '8080:8080'}
+            />
+          </FormField>
         </div>
       </details>
 
-      {/* Additional Fields (service-specific) */}
-      {config.additionalFields && config.additionalFields.length > 0 && (
-        <>
-          <div className="pt-4 pb-2 border-t border-gray-200">
-            <h4 className="text-sm font-semibold text-gray-700">Additional Settings</h4>
-          </div>
-          {config.additionalFields.map((field) => {
-            const currentValue = (data as any)[field.key] || field.defaultValue || '';
-
-            return (
-              <FormField
-                key={field.key}
-                label={field.label}
-                description={field.description}
-              >
-                {field.type === 'select' && field.options ? (
-                  <Select
-                    value={String(currentValue)}
-                    onChange={(e) => updateField(field.key, e.target.value)}
-                    options={field.options}
-                  />
-                ) : field.type === 'boolean' ? (
-                  <Checkbox
-                    checked={currentValue === true || currentValue === 'true'}
-                    onChange={(e) => updateField(field.key, e.target.checked)}
-                  />
-                ) : (
-                  <Input
-                    type={field.type}
-                    value={String(currentValue)}
-                    onChange={(e) => {
-                      const value = field.type === 'number'
-                        ? Number(e.target.value)
-                        : e.target.value;
-                      updateField(field.key, value);
-                    }}
-                  />
-                )}
-              </FormField>
-            );
-          })}
-        </>
-      )}
-
-      {/* Volumes (if supported) */}
-      {config.supportsVolumes && (
-        <details style={{ marginTop: '1rem' }}>
-          <summary style={{ cursor: 'pointer', fontWeight: 500, marginBottom: '0.5rem' }}>
-            Volumes
+      {/* Build Setting */}
+      {config.buildRequired && (
+        <details open>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
+            Build Setting
           </summary>
-          <div style={{ paddingLeft: '1rem' }}>
-            <FormField label="Host Path">
+          <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <FormField label="Build Path">
               <Input
-                value={data.volumes?.[0]?.host || config.defaultVolumes?.[0]?.host || ''}
-                onChange={(e) => {
-                  const currentMount = data.volumes?.[0]?.mount || config.defaultVolumes?.[0]?.mount || '';
-                  updateField('volumes', [{ host: e.target.value, mount: currentMount }]);
-                }}
-                placeholder="./.arfni/data"
-              />
-            </FormField>
-            <FormField label="Mount Path">
-              <Input
-                value={data.volumes?.[0]?.mount || config.defaultVolumes?.[0]?.mount || ''}
-                onChange={(e) => {
-                  const currentHost = data.volumes?.[0]?.host || config.defaultVolumes?.[0]?.host || '';
-                  updateField('volumes', [{ host: currentHost, mount: e.target.value }]);
-                }}
-                placeholder="/var/lib/data"
+                value={(data as ServiceNodeData).build || config.defaultBuildPath || ''}
+                onChange={(e) => updateField('build', e.target.value)}
+                placeholder={config.defaultBuildPath}
               />
             </FormField>
           </div>
         </details>
       )}
 
+      {/* Environment Variables */}
+      <details open>
+        <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
+          Environment Variables
+        </summary>
+        <div style={{ paddingLeft: '0.5rem' }}>
+          <KeyValueEditor
+            entries={data.env || {}}
+            onChange={updateAllEnv}
+            keyPlaceholder="KEY"
+            valuePlaceholder="VALUE"
+          />
+        </div>
+      </details>
+
       {/* Health Check */}
       {config.defaultHealthCheck && (
-        <details style={{ marginTop: '1rem' }}>
-          <summary style={{ cursor: 'pointer', fontWeight: 500, marginBottom: '0.5rem' }}>
+        <details open>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
             Health Check
           </summary>
-          <div style={{ paddingLeft: '1rem' }}>
-            {config.defaultHealthCheck.tcp && (
-              <FormField label="TCP Port">
-                <Input
-                  type="number"
-                  value={data.health?.tcp?.port || config.defaultHealthCheck.tcp.port}
-                  onChange={(e) => updateField('health', { tcp: { port: Number(e.target.value) } })}
-                />
-              </FormField>
-            )}
+          <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {config.defaultHealthCheck?.httpGet && (
               <>
                 <FormField label="HTTP Path">
@@ -336,7 +337,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                     }}
                   />
                 </FormField>
-                <FormField label="HTTP Port">
+                <FormField label="Port">
                   <Input
                     type="number"
                     value={(data.health && 'httpGet' in data.health) ? data.health.httpGet?.port || config.defaultHealthCheck?.httpGet?.port || 8080 : config.defaultHealthCheck?.httpGet?.port || 8080}
@@ -347,6 +348,15 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                   />
                 </FormField>
               </>
+            )}
+            {config.defaultHealthCheck.tcp && !config.defaultHealthCheck?.httpGet && (
+              <FormField label="TCP Port">
+                <Input
+                  type="number"
+                  value={data.health?.tcp?.port || config.defaultHealthCheck.tcp.port}
+                  onChange={(e) => updateField('health', { tcp: { port: Number(e.target.value) } })}
+                />
+              </FormField>
             )}
           </div>
         </details>
