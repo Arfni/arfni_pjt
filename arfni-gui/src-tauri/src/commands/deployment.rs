@@ -7,6 +7,9 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use once_cell::sync::Lazy;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct DeploymentLog {
     pub timestamp: String,
@@ -101,7 +104,11 @@ pub async fn deploy_stack(
         }).unwrap_or(());
 
         // 배포 명령 실행 - Go 바이너리 직접 실행
-        let mut cmd = Command::new(&go_binary_path)
+        #[cfg(windows)]
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let mut command = Command::new(&go_binary_path);
+        command
             .arg("run")
             .arg("-f")
             .arg(&stack_yaml_path)
@@ -109,8 +116,13 @@ pub async fn deploy_stack(
             .arg(&project_path)
             .current_dir(&project_path)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn();
+            .stderr(Stdio::piped());
+
+        // Windows에서 콘솔 창 숨기기
+        #[cfg(windows)]
+        command.creation_flags(CREATE_NO_WINDOW);
+
+        let mut cmd = command.spawn();
 
         match cmd {
             Ok(mut child) => {
@@ -174,10 +186,24 @@ pub async fn deploy_stack(
                         let reader = BufReader::new(stderr);
                         for line in reader.lines() {
                             if let Ok(line) = line {
-                                // stderr는 에러 레벨로 처리
+                                // stderr 메시지 내용 분석하여 레벨 결정
+                                let line_lower = line.to_lowercase();
+                                let level = if line_lower.contains("error:")
+                                           || line_lower.contains("failed")
+                                           || line_lower.contains("fatal")
+                                           || line_lower.contains("panic") {
+                                    "error".to_string()
+                                } else if line_lower.contains("warning")
+                                       || line_lower.contains("warn") {
+                                    "warning".to_string()
+                                } else {
+                                    // Docker buildx 정상 메시지는 info로
+                                    "info".to_string()
+                                };
+
                                 app_clone_stderr.emit("deployment-log", DeploymentLog {
                                     timestamp: chrono::Utc::now().to_rfc3339(),
-                                    level: "error".to_string(),
+                                    level,
                                     message: line,
                                     data: None,
                                 }).unwrap_or(());
@@ -270,6 +296,9 @@ pub async fn deploy_stack(
 /// 배포 중단
 #[tauri::command]
 pub fn stop_deployment() -> Result<(), String> {
+    #[cfg(windows)]
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
     // 프로세스 ID 가져오기
     let pid_option = {
         let process_guard = DEPLOYMENT_PROCESS.lock()
@@ -284,9 +313,13 @@ pub fn stop_deployment() -> Result<(), String> {
         #[cfg(target_os = "windows")]
         {
             // Windows: taskkill 사용
-            let output = Command::new("taskkill")
-                .args(&["/PID", &pid.to_string(), "/F", "/T"])
-                .output();
+            let mut kill_cmd = Command::new("taskkill");
+            kill_cmd.args(&["/PID", &pid.to_string(), "/F", "/T"]);
+
+            #[cfg(windows)]
+            kill_cmd.creation_flags(CREATE_NO_WINDOW);
+
+            let output = kill_cmd.output();
 
             match output {
                 Ok(result) => {
