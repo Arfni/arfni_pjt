@@ -1,14 +1,10 @@
 use serde::{Deserialize, Serialize};
-use std::process::{Command, Stdio, Child};
+use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
 use tauri::{AppHandle, Manager, Emitter};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use once_cell::sync::Lazy;
-
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DeploymentLog {
@@ -27,7 +23,6 @@ pub struct DeploymentStatus {
 
 // 배포 프로세스 관리를 위한 전역 상태
 static DEPLOYMENT_RUNNING: AtomicBool = AtomicBool::new(false);
-static DEPLOYMENT_PROCESS: Lazy<Arc<Mutex<Option<u32>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
 
 /// stack.yaml 검증
 #[tauri::command]
@@ -104,11 +99,7 @@ pub async fn deploy_stack(
         }).unwrap_or(());
 
         // 배포 명령 실행 - Go 바이너리 직접 실행
-        #[cfg(windows)]
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        let mut command = Command::new(&go_binary_path);
-        command
+        let mut cmd = Command::new(&go_binary_path)
             .arg("run")
             .arg("-f")
             .arg(&stack_yaml_path)
@@ -116,23 +107,11 @@ pub async fn deploy_stack(
             .arg(&project_path)
             .current_dir(&project_path)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        // Windows에서 콘솔 창 숨기기
-        #[cfg(windows)]
-        command.creation_flags(CREATE_NO_WINDOW);
-
-        let mut cmd = command.spawn();
+            .stderr(Stdio::piped())
+            .spawn();
 
         match cmd {
             Ok(mut child) => {
-                // 프로세스 ID 저장
-                let pid = child.id();
-                if let Ok(mut process_guard) = DEPLOYMENT_PROCESS.lock() {
-                    *process_guard = Some(pid);
-                }
-                println!("배포 프로세스 시작 - PID: {}", pid);
-
                 // stdout과 stderr를 동시에 읽기 위해 스레드 사용
                 let stdout = child.stdout.take();
                 let stderr = child.stderr.take();
@@ -140,26 +119,11 @@ pub async fn deploy_stack(
                 let app_clone_stderr = app_clone.clone();
 
                 // stdout 읽기 스레드
-                let app_for_outputs = app_clone_stdout.clone();
                 let stdout_handle = stdout.map(|stdout| {
                     std::thread::spawn(move || {
                         let reader = BufReader::new(stdout);
-                        let mut outputs_data: Option<serde_json::Value> = None;
-
                         for line in reader.lines() {
                             if let Ok(line) = line {
-                                // __OUTPUTS__ 파싱
-                                if line.contains("__OUTPUTS__") {
-                                    if let Some(json_start) = line.find("__OUTPUTS__") {
-                                        let json_str = &line[json_start + 11..]; // "__OUTPUTS__" 길이는 11
-                                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
-                                            outputs_data = Some(parsed);
-                                            println!("Parsed deployment outputs: {:?}", outputs_data);
-                                        }
-                                    }
-                                    continue; // __OUTPUTS__ 라인은 로그에 표시하지 않음
-                                }
-
                                 // NDJSON 파싱 시도
                                 if let Ok(log_entry) = parse_ndjson_log(&line) {
                                     app_clone_stdout.emit("deployment-log", log_entry).unwrap_or(());
@@ -174,9 +138,6 @@ pub async fn deploy_stack(
                                 }
                             }
                         }
-
-                        // stdout 읽기 완료 후 outputs 반환
-                        outputs_data
                     })
                 });
 
@@ -186,24 +147,10 @@ pub async fn deploy_stack(
                         let reader = BufReader::new(stderr);
                         for line in reader.lines() {
                             if let Ok(line) = line {
-                                // stderr 메시지 내용 분석하여 레벨 결정
-                                let line_lower = line.to_lowercase();
-                                let level = if line_lower.contains("error:")
-                                           || line_lower.contains("failed")
-                                           || line_lower.contains("fatal")
-                                           || line_lower.contains("panic") {
-                                    "error".to_string()
-                                } else if line_lower.contains("warning")
-                                       || line_lower.contains("warn") {
-                                    "warning".to_string()
-                                } else {
-                                    // Docker buildx 정상 메시지는 info로
-                                    "info".to_string()
-                                };
-
+                                // stderr는 에러 레벨로 처리
                                 app_clone_stderr.emit("deployment-log", DeploymentLog {
                                     timestamp: chrono::Utc::now().to_rfc3339(),
-                                    level,
+                                    level: "error".to_string(),
                                     message: line,
                                     data: None,
                                 }).unwrap_or(());
@@ -212,13 +159,10 @@ pub async fn deploy_stack(
                     })
                 });
 
-                // 스레드 종료 대기 및 outputs 수집
-                let outputs_result = if let Some(handle) = stdout_handle {
-                    handle.join().ok().flatten()
-                } else {
-                    None
-                };
-
+                // 스레드 종료 대기
+                if let Some(handle) = stdout_handle {
+                    let _ = handle.join();
+                }
                 if let Some(handle) = stderr_handle {
                     let _ = handle.join();
                 }
@@ -226,30 +170,11 @@ pub async fn deploy_stack(
                 // 프로세스 종료 대기
                 match child.wait() {
                     Ok(status) => {
-                        // 프로세스 ID 제거
-                        if let Ok(mut process_guard) = DEPLOYMENT_PROCESS.lock() {
-                            *process_guard = None;
-                        }
-
                         if status.success() {
-                            // outputs를 DeploymentStatus에 포함
-                            let final_outputs = if let Some(value) = outputs_result {
-                                if let Some(obj) = value.as_object() {
-                                    println!("✅ Sending outputs to frontend: {:?}", obj);
-                                    Some(obj.clone().into_iter().collect())
-                                } else {
-                                    println!("⚠️ Outputs is not an object: {:?}", value);
-                                    None
-                                }
-                            } else {
-                                println!("⚠️ No outputs received from Go backend");
-                                None
-                            };
-
                             app_clone.emit("deployment-completed", DeploymentStatus {
                                 status: "success".to_string(),
                                 message: Some("배포가 성공적으로 완료되었습니다".to_string()),
-                                outputs: final_outputs,
+                                outputs: None, // TODO: outputs 파싱
                             }).unwrap_or(());
                         } else {
                             app_clone.emit("deployment-failed", DeploymentStatus {
@@ -260,11 +185,6 @@ pub async fn deploy_stack(
                         }
                     }
                     Err(e) => {
-                        // 프로세스 ID 제거
-                        if let Ok(mut process_guard) = DEPLOYMENT_PROCESS.lock() {
-                            *process_guard = None;
-                        }
-
                         app_clone.emit("deployment-failed", DeploymentStatus {
                             status: "failed".to_string(),
                             message: Some(format!("배포 프로세스 오류: {}", e)),
@@ -296,79 +216,7 @@ pub async fn deploy_stack(
 /// 배포 중단
 #[tauri::command]
 pub fn stop_deployment() -> Result<(), String> {
-    #[cfg(windows)]
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-    // 프로세스 ID 가져오기
-    let pid_option = {
-        let process_guard = DEPLOYMENT_PROCESS.lock()
-            .map_err(|e| format!("프로세스 잠금 오류: {}", e))?;
-        *process_guard
-    };
-
-    if let Some(pid) = pid_option {
-        println!("배포 프로세스 중지 중 - PID: {}", pid);
-
-        // 플랫폼별 프로세스 종료
-        #[cfg(target_os = "windows")]
-        {
-            // Windows: taskkill 사용
-            let mut kill_cmd = Command::new("taskkill");
-            kill_cmd.args(&["/PID", &pid.to_string(), "/F", "/T"]);
-
-            #[cfg(windows)]
-            kill_cmd.creation_flags(CREATE_NO_WINDOW);
-
-            let output = kill_cmd.output();
-
-            match output {
-                Ok(result) => {
-                    if result.status.success() {
-                        println!("프로세스 종료 성공 (PID: {})", pid);
-                    } else {
-                        let error_msg = String::from_utf8_lossy(&result.stderr);
-                        eprintln!("프로세스 종료 실패: {}", error_msg);
-                        return Err(format!("프로세스 종료 실패: {}", error_msg));
-                    }
-                }
-                Err(e) => {
-                    eprintln!("taskkill 실행 오류: {}", e);
-                    return Err(format!("taskkill 실행 오류: {}", e));
-                }
-            }
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            // Unix/Linux/Mac: kill 사용
-            let output = Command::new("kill")
-                .args(&["-TERM", &pid.to_string()])
-                .output();
-
-            match output {
-                Ok(result) => {
-                    if !result.status.success() {
-                        // SIGTERM이 실패하면 SIGKILL 시도
-                        let _ = Command::new("kill")
-                            .args(&["-KILL", &pid.to_string()])
-                            .output();
-                    }
-                }
-                Err(e) => {
-                    eprintln!("kill 실행 오류: {}", e);
-                    return Err(format!("kill 실행 오류: {}", e));
-                }
-            }
-        }
-
-        // PID 제거
-        if let Ok(mut process_guard) = DEPLOYMENT_PROCESS.lock() {
-            *process_guard = None;
-        }
-    } else {
-        println!("중지할 배포 프로세스가 없습니다");
-    }
-
+    // TODO: 실제 프로세스 종료 구현
     DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
     Ok(())
 }
@@ -384,23 +232,17 @@ pub fn reset_deployment_state() -> Result<bool, String> {
 /// Docker 설치 확인
 #[tauri::command]
 pub fn check_docker() -> Result<bool, String> {
-    println!("🐳 Checking Docker installation...");
     match Command::new("docker").arg("--version").output() {
         Ok(output) => {
             if output.status.success() {
                 let version = String::from_utf8_lossy(&output.stdout);
-                println!("✅ Docker version: {}", version);
+                println!("Docker version: {}", version);
                 Ok(true)
             } else {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                println!("❌ Docker command failed: {}", stderr);
                 Ok(false)
             }
         }
-        Err(e) => {
-            println!("❌ Docker command error: {}", e);
-            Ok(false)
-        }
+        Err(_) => Ok(false),
     }
 }
 
@@ -605,3 +447,4 @@ fn parse_ndjson_log(line: &str) -> Result<DeploymentLog, serde_json::Error> {
         message: entry.message,
         data: entry.data,
     })
+}
