@@ -1,6 +1,8 @@
 import { Handle, Position, NodeProps } from 'reactflow';
 import { X } from 'lucide-react';
 import { ServiceNodeData } from '@shared/config/nodeTypes';
+import { useAppDispatch } from '@app/hooks';
+import { deleteNode } from '@features/canvas';
 
 import reactImg from '../../../assets/react.png';
 import springbootImg from '../../../assets/springboot.png';
@@ -8,7 +10,13 @@ import nodejsImg from '../../../assets/nodejs.png';
 import nextjsImg from '../../../assets/nextjs.png';
 import pythonImg from '../../../assets/python.png';
 
-export function ServiceNode({ data, selected }: NodeProps<ServiceNodeData>) {
+export function ServiceNode({ data, selected, id }: NodeProps<ServiceNodeData>) {
+  const dispatch = useAppDispatch();
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    dispatch(deleteNode(id));
+  };
   const getIcon = () => {
     const serviceType = data.serviceType || 'custom';
     switch (serviceType) {
@@ -42,11 +50,13 @@ export function ServiceNode({ data, selected }: NodeProps<ServiceNodeData>) {
 
       {/* 닫기 버튼 */}
       <button
-        className={`absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center transition-all
+        onClick={handleDelete}
+        className={`absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center transition-all hover:bg-red-500/20
         ${selected ? 'bg-transparent' : 'bg-transparent'}
       `}
+        title="Delete node"
       >
-        <X className={`w-3 h-3 ${selected ? 'text-white/80' : 'text-[#1E3A8A]'}`} />
+        <X className={`w-3 h-3 ${selected ? 'text-white/80 hover:text-red-300' : 'text-[#1E3A8A] hover:text-red-600'}`} />
       </button>
 
       <div

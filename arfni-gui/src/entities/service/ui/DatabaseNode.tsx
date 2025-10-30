@@ -1,13 +1,21 @@
 import { Handle, Position, NodeProps } from 'reactflow';
 import { X } from 'lucide-react';
 import { DatabaseNodeData } from '@shared/config/nodeTypes';
+import { useAppDispatch } from '@app/hooks';
+import { deleteNode } from '@features/canvas';
 
 import postgresqlImg from '../../../assets/postgresql.png';
 import mysqlImg from '../../../assets/mysql.png';
 import redisImg from '../../../assets/redis.png';
 import mongodbImg from '../../../assets/mongodb.png';
 
-export function DatabaseNode({ data, selected }: NodeProps<DatabaseNodeData>) {
+export function DatabaseNode({ data, selected, id }: NodeProps<DatabaseNodeData>) {
+  const dispatch = useAppDispatch();
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    dispatch(deleteNode(id));
+  };
   const getIcon = () => {
     switch (data.type) {
       case 'postgres':
@@ -37,11 +45,13 @@ export function DatabaseNode({ data, selected }: NodeProps<DatabaseNodeData>) {
 
       {/* 닫기 버튼 */}
       <button
-        className={`absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center transition-all
+        onClick={handleDelete}
+        className={`absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center transition-all hover:bg-red-500/20
         ${selected ? 'bg-transparent' : 'bg-transparent'}
       `}
+        title="Delete node"
       >
-        <X className={`w-3 h-3 ${selected ? 'text-white/80' : 'text-[#1E3A8A]'}`} />
+        <X className={`w-3 h-3 ${selected ? 'text-white/80 hover:text-red-300' : 'text-[#1E3A8A] hover:text-red-600'}`} />
       </button>
 
       <div

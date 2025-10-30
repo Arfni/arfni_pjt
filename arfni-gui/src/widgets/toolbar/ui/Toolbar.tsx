@@ -9,7 +9,8 @@ import {
   CheckCircle,
   PlusCircle,
   Loader2,
-  ArrowLeft
+  ArrowLeft,
+  Camera
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
@@ -335,6 +336,81 @@ export function Toolbar() {
     }
   }, []);
 
+  // 캔버스 스크린샷 다운로드
+  const handleDownloadScreenshot = useCallback(() => {
+    // ReactFlow 캔버스 요소 찾기
+    const reactFlowElement = document.querySelector('.react-flow') as HTMLElement;
+    if (!reactFlowElement) {
+      alert('캔버스를 찾을 수 없습니다.');
+      return;
+    }
+
+    // 미니맵, 컨트롤 등 UI 요소들 숨기기
+    const minimap = document.querySelector('.react-flow__minimap') as HTMLElement;
+    const controls = document.querySelector('.react-flow__controls') as HTMLElement;
+    const attribution = document.querySelector('.react-flow__attribution') as HTMLElement;
+
+    const elementsToHide = [minimap, controls, attribution].filter(el => el !== null);
+    const originalDisplays = elementsToHide.map(el => el.style.display);
+
+    // UI 요소들 숨기기
+    elementsToHide.forEach(el => {
+      el.style.display = 'none';
+    });
+
+    // html2canvas를 사용하여 스크린샷 생성
+    import('html2canvas').then(({ default: html2canvas }) => {
+      html2canvas(reactFlowElement, {
+        backgroundColor: '#ffffff',
+        scale: 2, // 고해상도
+        logging: false,
+        useCORS: true,
+      }).then((canvas: HTMLCanvasElement) => {
+        // UI 요소들 다시 보이기
+        elementsToHide.forEach((el, index) => {
+          el.style.display = originalDisplays[index];
+        });
+
+        // Canvas를 Blob으로 변환
+        canvas.toBlob((blob: Blob | null) => {
+          if (!blob) {
+            alert('이미지 생성에 실패했습니다.');
+            return;
+          }
+
+          // Blob을 다운로드 가능한 URL로 변환
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+          const fileName = currentProject
+            ? `${currentProject.name}_canvas_${timestamp}.png`
+            : `canvas_${timestamp}.png`;
+
+          link.href = url;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        });
+      }).catch((error: Error) => {
+        // 에러 발생 시에도 UI 요소들 복원
+        elementsToHide.forEach((el, index) => {
+          el.style.display = originalDisplays[index];
+        });
+        console.error('스크린샷 생성 실패:', error);
+        alert('스크린샷 생성에 실패했습니다.');
+      });
+    }).catch((error: Error) => {
+      // 에러 발생 시에도 UI 요소들 복원
+      elementsToHide.forEach((el, index) => {
+        el.style.display = originalDisplays[index];
+      });
+      console.error('html2canvas 로드 실패:', error);
+      alert('스크린샷 라이브러리 로드에 실패했습니다.');
+    });
+  }, [currentProject]);
+
   return (
     <div className="h-12 bg-gray-800 text-white flex items-center justify-between px-4 border-b border-gray-600">
       <div className="flex items-center space-x-4">
@@ -437,13 +513,24 @@ export function Toolbar() {
         </div>
       </div>
 
-      <button
-        onClick={() => navigate('/')}
-        className="flex items-center gap-2 px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
-      >
-        <Home className="w-4 h-4" />
-        Home
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleDownloadScreenshot}
+          className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+          title="캔버스 스크린샷 다운로드"
+        >
+          <Camera className="w-4 h-4" />
+          Screenshot
+        </button>
+
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
+        >
+          <Home className="w-4 h-4" />
+          Home
+        </button>
+      </div>
     </div>
   );
 }

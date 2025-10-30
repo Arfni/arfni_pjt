@@ -19,6 +19,7 @@
     "@tauri-apps/plugin-opener": "^2",
     "@xyflow/react": "^12.8.6",
     "clsx": "^2.1.1",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.546.0",
     "node-ssh": "^13.2.1",
     "react": "^19.1.0",
