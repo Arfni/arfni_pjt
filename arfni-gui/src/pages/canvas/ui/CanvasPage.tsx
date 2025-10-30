@@ -103,7 +103,7 @@ export function CanvasPage() {
       <Toolbar />
       <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
         {/* 왼쪽: Blocks 팔레트 */}
-        <div className={`transition-all duration-300 ease-in-out ${showLeftSidebar ? 'w-52' : 'w-0'} overflow-hidden`}>
+        <div className={`transition-all duration-300 ease-in-out ${showLeftSidebar ? 'w-60' : 'w-0'} overflow-hidden`}>
           <NodePalette />
         </div>
 
@@ -111,7 +111,7 @@ export function CanvasPage() {
         <button
           onClick={() => setShowLeftSidebar(!showLeftSidebar)}
           className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r-lg shadow-md p-1.5 hover:bg-gray-50 transition-colors"
-          style={{ left: showLeftSidebar ? '13rem' : '0' }}
+          style={{ left: showLeftSidebar ? '15rem' : '0' }}
           title={showLeftSidebar ? 'Hide Blocks' : 'Show Blocks'}
         >
           {showLeftSidebar ? (
