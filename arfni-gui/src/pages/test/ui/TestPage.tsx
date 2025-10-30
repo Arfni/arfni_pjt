@@ -259,6 +259,13 @@ export default function TestPage() {
               title="ssh 페이지로 이동">
               ssh test
           </button>
+
+                  <button
+              onClick={() => navigate("/health")}
+              className="ml-auto px-3 py-1 border rounded hover:bg-gray-100 text-sm"
+              title="test 페이지로 이동">
+              test
+          </button>
           <button
             onClick={testDialog}
             className="ml-auto flex items-center gap-1 px-2 py-1 border rounded hover:bg-gray-100 text-sm"

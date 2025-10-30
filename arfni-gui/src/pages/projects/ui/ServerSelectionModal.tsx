@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, Server, Check, Loader2, Plus } from 'lucide-react';
+import { X, Server, Loader2, Plus, Edit2, Trash2 } from 'lucide-react';
 import { EC2Server, sshCommands, ec2ServerCommands } from '@shared/api/tauri/commands';
+import { confirm } from '@tauri-apps/plugin-dialog';
 
 interface ServerSelectionModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface ServerSelectionModalProps {
   selectedServerId: string;
   onSelectServer: (serverId: string) => void;
   onAddNewServer: () => void;
+  onServerDeleted?: () => void;
 }
 
 export function ServerSelectionModal({
@@ -18,6 +20,7 @@ export function ServerSelectionModal({
   selectedServerId,
   onSelectServer,
   onAddNewServer,
+  onServerDeleted,
 }: ServerSelectionModalProps) {
   const [connectingServerId, setConnectingServerId] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -54,6 +57,35 @@ export function ServerSelectionModal({
       setConnectionError(`${server.name} 연결 실패: ${error}`);
     } finally {
       setConnectingServerId(null);
+    }
+  };
+
+  const handleDeleteServer = async (server: EC2Server, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const confirmed = await confirm(
+      `"${server.name}" 서버를 삭제하시겠습니까?\n\nHost: ${server.host}\n\n이 작업은 되돌릴 수 없습니다.`,
+      {
+        title: '서버 삭제',
+        kind: 'warning',
+        okLabel: '삭제',
+        cancelLabel: '취소',
+      }
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await ec2ServerCommands.deleteServer(server.id);
+      console.log('서버 삭제 완료:', server.id);
+
+      // 서버 목록 새로고침
+      if (onServerDeleted) {
+        onServerDeleted();
+      }
+    } catch (error) {
+      console.error('서버 삭제 실패:', error);
+      setConnectionError(`서버 삭제에 실패했습니다: ${error}`);
     }
   };
 
@@ -122,12 +154,30 @@ export function ServerSelectionModal({
                         )}
                       </div>
 
-                      <div className="ml-4">
+                      <div className="ml-4 flex items-center gap-2">
                         {isConnecting ? (
                           <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                        ) : isSelected ? (
-                          <Check className="w-5 h-5 text-blue-600" />
-                        ) : null}
+                        ) : (
+                          <>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // TODO: 편집 기능 구현
+                              }}
+                              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Edit Server"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteServer(server, e)}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Delete Server"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -144,7 +194,10 @@ export function ServerSelectionModal({
               onClose();
               onAddNewServer();
             }}
-            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+            className="w-full px-4 py-2 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+            style={{ backgroundColor: '#4C65E2' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#3B52C9'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4C65E2'}
           >
             <Plus className="w-4 h-4" />
             Add New Server

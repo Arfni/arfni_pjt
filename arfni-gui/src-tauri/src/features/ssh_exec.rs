@@ -1,6 +1,7 @@
+#![allow(dead_code)]
 use anyhow::{Result, Context};
 use serde::{Serialize, Deserialize};
-use std::{fs, path::{Path, PathBuf}, io::Write, process::Command};
+use std::{fs, path::{PathBuf}, io::Write, process::Command};
 
 const DATA_DIR_NAME: &str = "data";
 const FILE_NAME: &str = "ssh_targets.json";

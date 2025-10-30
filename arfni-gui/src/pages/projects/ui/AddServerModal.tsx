@@ -14,8 +14,6 @@ export function AddServerModal({ isOpen, onClose, onServerAdded }: AddServerModa
   const [host, setHost] = useState('');
   const [user, setUser] = useState('ubuntu');
   const [pemPath, setPemPath] = useState('');
-  const [workdir, setWorkdir] = useState('/home/ubuntu');
-  const [mode, setMode] = useState<'all-in-one' | 'hybrid' | 'no-monitoring'>('all-in-one');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,8 +94,6 @@ export function AddServerModal({ isOpen, onClose, onServerAdded }: AddServerModa
       setHost('');
       setUser('ubuntu');
       setPemPath('');
-      setWorkdir('/home/ubuntu');
-      setMode('all-in-one');
       setTestSuccess(false);
 
       onServerAdded();
@@ -189,7 +185,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded }: AddServerModa
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 PEM Key File *
               </label>
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <input
                   type="text"
                   value={pemPath}
@@ -201,21 +197,24 @@ export function AddServerModal({ isOpen, onClose, onServerAdded }: AddServerModa
                 <button
                   type="button"
                   onClick={handlePemFileSelect}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+                  className="w-10 h-10 flex items-center justify-center bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  title="Browse PEM file"
                 >
-                  <Folder className="w-4 h-4" />
-                  Browse
+                  <Folder className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
             {/* Test Connection Button */}
-            <div>
+            <div className="mt-6">
               <button
                 type="button"
                 onClick={handleTestConnection}
                 disabled={testing || !host || !user || !pemPath}
-                className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                className="w-full px-4 py-2 text-white rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                style={{ backgroundColor: '#4C65E2' }}
+                onMouseEnter={(e) => !(testing || !host || !user || !pemPath) && (e.currentTarget.style.backgroundColor = '#3B52C9')}
+                onMouseLeave={(e) => !(testing || !host || !user || !pemPath) && (e.currentTarget.style.backgroundColor = '#4C65E2')}
               >
                 {testing ? (
                   <>
@@ -229,40 +228,13 @@ export function AddServerModal({ isOpen, onClose, onServerAdded }: AddServerModa
                 )}
               </button>
             </div>
-
-            {/* Working Directory */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Working Directory
-              </label>
-              <input
-                type="text"
-                value={workdir}
-                onChange={(e) => setWorkdir(e.target.value)}
-                placeholder="/home/ubuntu"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Monitoring Mode */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Default Monitoring Mode
-              </label>
-              <select
-                value={mode}
-                onChange={(e) => setMode(e.target.value as any)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all-in-one">All-in-One</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="no-monitoring">No Monitoring</option>
-              </select>
-            </div>
           </div>
 
+          {/* Divider */}
+          <div className="border-t border-gray-200 mt-4 -mx-6"></div>
+
           {/* Buttons */}
-          <div className="flex gap-3 mt-6">
+          <div className="flex gap-3 mt-4">
             <button
               type="button"
               onClick={onClose}
@@ -274,7 +246,10 @@ export function AddServerModal({ isOpen, onClose, onServerAdded }: AddServerModa
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 transition-colors"
+              style={{ backgroundColor: '#4C65E2' }}
+              onMouseEnter={(e) => !saving && (e.currentTarget.style.backgroundColor = '#3B52C9')}
+              onMouseLeave={(e) => !saving && (e.currentTarget.style.backgroundColor = '#4C65E2')}
             >
               {saving ? 'Adding...' : 'Add Server'}
             </button>

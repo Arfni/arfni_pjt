@@ -2,14 +2,15 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Provider as ReduxProvider } from 'react-redux';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { store } from './app/store';
-import DashboardPage from "./pages/dashboard/ui/DashboardPage";
 import { CanvasPage } from "./pages/canvas/ui/CanvasPage";
 import TestPage from "./pages/test/ui/TestPage";
 import LogPage from "./pages/logs/ui/LogPage";
-import ProjectsPage from "./pages/logs/ui/ProjectsPage";
+import ProjectsPage from "./pages/projects/ui/ProjectsPage";
 import TestPage2 from "./pages/test/ui/TestPage2";
 import { DeploymentPage } from "./pages/deployment/ui/DeploymentPage";
 import SshTerminal from "./pages/test/ui/SshTerminal";
+import HealthWatcher from "@pages/test/ui/HealthWatcher";
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,7 +28,6 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<ProjectsPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/canvas" element={<CanvasPage />} />
             <Route path="/test" element={<TestPage />} />
             <Route path="/logs" element={<LogPage />} />
@@ -36,6 +36,7 @@ function App() {
             <Route path="/deployment" element={<DeploymentPage />} />
             <Route path="/test2" element={<TestPage2 />} />
             <Route path="/test3" element={<SshTerminal />} />
+            <Route path="/health" element={<HealthWatcher />} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>
