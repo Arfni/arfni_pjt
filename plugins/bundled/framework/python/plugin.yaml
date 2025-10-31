@@ -1,0 +1,80 @@
+apiVersion: v0.1
+name: python
+displayName: Python
+version: 1.0.0
+category: framework
+description: "Python runtime for web applications"
+author: ARFNI Team
+license: MIT
+icon: icon.png
+
+provides:
+  service_kinds:
+    - app.python
+
+inputs:
+  python_version:
+    description: "Python version"
+    type: text
+    required: false
+    default: "3.11-slim"
+
+  port:
+    description: "Application port"
+    type: number
+    required: false
+    env_var: PORT
+    default: 8000
+
+  database_url:
+    description: "Database connection URL"
+    type: text
+    required: false
+    env_var: DATABASE_URL
+    default: ""
+
+  framework:
+    description: "Python web framework (flask, fastapi, django)"
+    type: select
+    required: false
+    default: "fastapi"
+    options:
+      - flask
+      - fastapi
+      - django
+
+contributes:
+  services:
+    python:
+      kind: app.python
+      type: docker.container
+      spec:
+        build:
+          context: "."
+          dockerfile: "Dockerfile"
+        ports:
+          - "{{port}}:{{port}}"
+        environment:
+          PORT: "{{port}}"
+          DATABASE_URL: "{{database_url}}"
+          PYTHONUNBUFFERED: "1"
+
+  canvas:
+    nodeType: python
+    label: Python
+    description: "Python runtime"
+    category: runtime
+    ports:
+      - name: http
+        port: 8000
+        protocol: tcp
+    connections:
+      inputs:
+        - type: database
+          name: database
+          protocol: any
+          env_var: DATABASE_URL
+      outputs:
+        - type: api
+          name: api
+          protocol: http

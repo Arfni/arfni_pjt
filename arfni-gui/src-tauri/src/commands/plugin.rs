@@ -1,5 +1,6 @@
 use tauri::{AppHandle, path::BaseDirectory};
 use tauri::Manager;
+use serde::{Serialize, Deserialize};
 use std::{
   fs,
   io::Write,
@@ -302,4 +303,233 @@ pub async fn run_plugin_with_args(
   args: Vec<String>
 ) -> Result<String, String> {
   run_plugin_with_mode(app, plugin, PluginRunArgs::Cli { args }).await
+}
+
+// Plugin installation/management commands
+
+#[derive(Serialize, Deserialize)]
+pub struct PluginInfo {
+  pub name: String,
+  pub version: String,
+  pub github_url: Option<String>,
+  pub installed_at: String,
+  pub is_bundled: bool,
+}
+
+/// Install a plugin from GitHub
+#[tauri::command]
+pub async fn install_plugin(
+  app: AppHandle,
+  owner: String,
+  repo: String,
+  version: String,
+  manifest_yaml: String,
+) -> Result<String, String> {
+  use std::io::Read;
+
+  // Get user plugins directory
+  let app_data_dir = app.path()
+    .app_data_dir()
+    .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+  let user_plugins_dir = app_data_dir.join("plugins").join("installed");
+  fs::create_dir_all(&user_plugins_dir)
+    .map_err(|e| format!("Failed to create plugins directory: {}", e))?;
+
+  // Extract category from manifest
+  let manifest: serde_yaml::Value = serde_yaml::from_str(&manifest_yaml)
+    .map_err(|e| format!("Failed to parse manifest YAML: {}", e))?;
+
+  let category = manifest.get("category")
+    .and_then(|v| v.as_str())
+    .ok_or_else(|| "Plugin manifest missing 'category' field".to_string())?;
+
+  let plugin_name = manifest.get("name")
+    .and_then(|v| v.as_str())
+    .ok_or_else(|| "Plugin manifest missing 'name' field".to_string())?;
+
+  // Create plugin directory
+  let plugin_dir = user_plugins_dir.join(category).join(plugin_name);
+  fs::create_dir_all(&plugin_dir)
+    .map_err(|e| format!("Failed to create plugin directory: {}", e))?;
+
+  // Save plugin.yaml
+  let manifest_path = plugin_dir.join("plugin.yaml");
+  fs::write(&manifest_path, &manifest_yaml)
+    .map_err(|e| format!("Failed to write plugin.yaml: {}", e))?;
+
+  // Download icon.png from GitHub
+  let icon_url = format!(
+    "https://raw.githubusercontent.com/{}/{}/{}/icon.png",
+    owner, repo, version
+  );
+
+  // Use reqwest to download the icon
+  let client = reqwest::Client::new();
+  let icon_response = client.get(&icon_url)
+    .send()
+    .await
+    .map_err(|e| format!("Failed to download icon: {}", e))?;
+
+  if icon_response.status().is_success() {
+    let icon_bytes = icon_response.bytes()
+      .await
+      .map_err(|e| format!("Failed to read icon bytes: {}", e))?;
+
+    let icon_path = plugin_dir.join("icon.png");
+    fs::write(&icon_path, &icon_bytes)
+      .map_err(|e| format!("Failed to write icon.png: {}", e))?;
+  }
+
+  // Save plugin info to database or JSON file
+  let plugin_info = PluginInfo {
+    name: plugin_name.to_string(),
+    version: version.clone(),
+    github_url: Some(format!("https://github.com/{}/{}", owner, repo)),
+    installed_at: chrono::Local::now().to_rfc3339(),
+    is_bundled: false,
+  };
+
+  // Store in a JSON file for now
+  let plugins_json_path = app_data_dir.join("installed_plugins.json");
+  let mut plugins: Vec<PluginInfo> = if plugins_json_path.exists() {
+    let json_str = fs::read_to_string(&plugins_json_path)
+      .map_err(|e| format!("Failed to read plugins JSON: {}", e))?;
+    serde_json::from_str(&json_str).unwrap_or_default()
+  } else {
+    Vec::new()
+  };
+
+  // Remove old version if exists
+  plugins.retain(|p| p.name != plugin_name);
+  plugins.push(plugin_info);
+
+  let json_str = serde_json::to_string_pretty(&plugins)
+    .map_err(|e| format!("Failed to serialize plugins JSON: {}", e))?;
+  fs::write(&plugins_json_path, json_str)
+    .map_err(|e| format!("Failed to write plugins JSON: {}", e))?;
+
+  Ok(format!("Plugin '{}' installed successfully", plugin_name))
+}
+
+/// Uninstall a plugin
+#[tauri::command]
+pub async fn uninstall_plugin(
+  app: AppHandle,
+  plugin_name: String,
+) -> Result<String, String> {
+  // Get user plugins directory
+  let app_data_dir = app.path()
+    .app_data_dir()
+    .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+  let user_plugins_dir = app_data_dir.join("plugins").join("installed");
+
+  // Find and remove plugin directory
+  if user_plugins_dir.exists() {
+    for category_dir in fs::read_dir(&user_plugins_dir)
+      .map_err(|e| format!("Failed to read plugins directory: {}", e))?
+    {
+      if let Ok(category) = category_dir {
+        let plugin_dir = category.path().join(&plugin_name);
+        if plugin_dir.exists() {
+          fs::remove_dir_all(&plugin_dir)
+            .map_err(|e| format!("Failed to remove plugin directory: {}", e))?;
+        }
+      }
+    }
+  }
+
+  // Update plugins JSON
+  let plugins_json_path = app_data_dir.join("installed_plugins.json");
+  if plugins_json_path.exists() {
+    let json_str = fs::read_to_string(&plugins_json_path)
+      .map_err(|e| format!("Failed to read plugins JSON: {}", e))?;
+
+    let mut plugins: Vec<PluginInfo> = serde_json::from_str(&json_str).unwrap_or_default();
+    plugins.retain(|p| p.name != plugin_name);
+
+    let json_str = serde_json::to_string_pretty(&plugins)
+      .map_err(|e| format!("Failed to serialize plugins JSON: {}", e))?;
+    fs::write(&plugins_json_path, json_str)
+      .map_err(|e| format!("Failed to write plugins JSON: {}", e))?;
+  }
+
+  Ok(format!("Plugin '{}' uninstalled successfully", plugin_name))
+}
+
+/// List installed plugins
+#[tauri::command]
+pub async fn list_installed_plugins(
+  app: AppHandle,
+) -> Result<Vec<PluginInfo>, String> {
+  let app_data_dir = app.path()
+    .app_data_dir()
+    .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+  let plugins_json_path = app_data_dir.join("installed_plugins.json");
+
+  if plugins_json_path.exists() {
+    let json_str = fs::read_to_string(&plugins_json_path)
+      .map_err(|e| format!("Failed to read plugins JSON: {}", e))?;
+
+    let plugins: Vec<PluginInfo> = serde_json::from_str(&json_str)
+      .map_err(|e| format!("Failed to parse plugins JSON: {}", e))?;
+
+    Ok(plugins)
+  } else {
+    Ok(Vec::new())
+  }
+}
+
+/// Load plugin registry from GitHub or local cache
+#[tauri::command]
+pub async fn load_plugin_registry() -> Result<String, String> {
+  // Try to fetch from GitHub
+  let registry_url = "https://raw.githubusercontent.com/Arfni/arfni-plugins/main/registry/index.json";
+
+  let client = reqwest::Client::new();
+  let response = client.get(registry_url)
+    .send()
+    .await
+    .map_err(|e| format!("Failed to fetch plugin registry: {}", e))?;
+
+  if !response.status().is_success() {
+    return Err(format!("Failed to fetch plugin registry: HTTP {}", response.status()));
+  }
+
+  let registry_json = response.text()
+    .await
+    .map_err(|e| format!("Failed to read registry response: {}", e))?;
+
+  Ok(registry_json)
+}
+
+/// Read plugin template file
+#[tauri::command]
+pub async fn read_plugin_template(
+  app: AppHandle,
+  plugin_path: String,
+  template_path: String,
+) -> Result<String, String> {
+  // Get resource directory for bundled plugins
+  let resource_dir = app.path()
+    .resource_dir()
+    .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+
+  // Check if it's a bundled plugin or user-installed
+  let full_path = if plugin_path.starts_with("bundled/") {
+    // Bundled plugin - look in resources/plugins
+    resource_dir.join("plugins").join(&plugin_path[8..]).join(&template_path)
+  } else {
+    // User-installed plugin
+    let app_data_dir = app.path()
+      .app_data_dir()
+      .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    app_data_dir.join("plugins").join("installed").join(&plugin_path).join(&template_path)
+  };
+
+  // Read the template file
+  fs::read_to_string(&full_path)
+    .map_err(|e| format!("Failed to read template file at {:?}: {}", full_path, e))
 }

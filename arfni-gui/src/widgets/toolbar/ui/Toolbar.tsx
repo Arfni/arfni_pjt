@@ -31,7 +31,7 @@ import {
 import {
   startDeployment,
 } from '@features/deployment/model/deploymentSlice';
-import { stackYamlGenerator, stackToYamlString } from '@features/canvas/lib/stackYamlGenerator';
+import { PluginStackGenerator } from '@features/canvas/lib/pluginStackGenerator';
 import {
   deploymentCommands,
   projectCommands,
@@ -84,17 +84,16 @@ export function Toolbar() {
       }
 
       // 4. stack.yaml 생성 - updatedProject 사용
-      const stackYaml = stackYamlGenerator(nodes, edges, {
+      const yamlContent = await PluginStackGenerator.generateStack({
+        nodes,
+        edges,
         projectName: updatedProject.name,
-        environment: updatedProject.environment,
+        environment: updatedProject.environment as 'local' | 'ec2',
         ec2Server: ec2Server || undefined,
-        mode: updatedProject.mode, // 업데이트된 mode 사용
-        workdir: updatedProject.workdir, // 업데이트된 workdir
+        mode: updatedProject.mode,
+        workdir: updatedProject.workdir,
         secrets: [],
-        outputs: {},
       });
-
-      const yamlContent = stackToYamlString(stackYaml);
 
       const canvasData = {
         nodes: nodes.map(node => ({
@@ -179,15 +178,16 @@ export function Toolbar() {
       }
 
       // Canvas 노드를 stack.yaml로 변환
-      const stackYaml = stackYamlGenerator(nodes, edges, {
+      const yamlContent = await PluginStackGenerator.generateStack({
+        nodes,
+        edges,
         projectName: currentProject.name,
-        environment: currentProject.environment,
+        environment: currentProject.environment as 'local' | 'ec2',
         ec2Server: ec2Server || undefined,
+        mode: currentProject.mode,
+        workdir: currentProject.workdir,
         secrets: [],
-        outputs: {},
       });
-
-      const yamlContent = stackToYamlString(stackYaml);
 
       // Canvas 노드를 Tauri 형식으로 변환
       const canvasNodes: CanvasNode[] = nodes.map(node => ({
@@ -242,15 +242,16 @@ export function Toolbar() {
       }
 
       // stack.yaml 생성
-      const stackYaml = stackYamlGenerator(nodes, edges, {
+      const yamlContent = await PluginStackGenerator.generateStack({
+        nodes,
+        edges,
         projectName: currentProject.name,
-        environment: currentProject.environment,
+        environment: currentProject.environment as 'local' | 'ec2',
         ec2Server: ec2Server || undefined,
+        mode: currentProject.mode,
+        workdir: currentProject.workdir,
         secrets: [],
-        outputs: {},
       });
-
-      const yamlContent = stackToYamlString(stackYaml);
 
       // 검증
       const isValid = await deploymentCommands.validateStackYaml(yamlContent);

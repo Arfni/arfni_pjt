@@ -9,6 +9,7 @@ import { ProjectsHeader } from './ProjectsHeader';
 import { ProjectsSidebar } from './ProjectsSidebar';
 import { ProjectCard } from './ProjectCard';
 import { CreateProjectModal } from './CreateProjectModal';
+import { PluginManager } from './PluginManager';
 import { useAppDispatch } from '@app/hooks';
 import { addNode } from '@features/canvas/model/canvasSlice';
 
@@ -18,9 +19,9 @@ export default function ProjectsPage() {
   const dispatch = useAppDispatch();
 
   // sessionStorage에서 현재 세션의 선택 상태 복원 (앱 재시작 시 초기화됨)
-  const [selectedTab, setSelectedTab] = useState<'local' | 'ec2'>(() => {
+  const [selectedTab, setSelectedTab] = useState<'local' | 'ec2' | 'plugins'>(() => {
     const savedTab = sessionStorage.getItem('projectsSelectedTab');
-    return (savedTab === 'local' || savedTab === 'ec2') ? savedTab : 'local';
+    return (savedTab === 'local' || savedTab === 'ec2' || savedTab === 'plugins') ? savedTab : 'local';
   });
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -251,7 +252,11 @@ export default function ProjectsPage() {
 
   // 탭 변경 또는 서버 선택 변경 시 프로젝트 목록 로드
   useEffect(() => {
-    if (selectedTab === 'ec2') {
+    if (selectedTab === 'plugins') {
+      // Plugins 탭에서는 프로젝트를 로드하지 않음
+      setLoading(false);
+      setProjects([]);
+    } else if (selectedTab === 'ec2') {
       // EC2 탭일 때는 서버가 선택된 경우에만 프로젝트 로드
       if (selectedEC2ServerId) {
         loadProjects('ec2', selectedEC2ServerId);
@@ -287,6 +292,10 @@ export default function ProjectsPage() {
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col px-6 py-3 overflow-hidden min-h-0">
+        {selectedTab === 'plugins' ? (
+          <PluginManager className="flex-1" />
+        ) : (
+          <>
         <div className="mb-3 flex items-center justify-between flex-shrink-0">
           <h2 className="text-2xl font-semibold text-gray-900">
             {selectedTab === 'local' ? 'Local' : 'EC2'} Projects
@@ -392,6 +401,8 @@ export default function ProjectsPage() {
               ))}
             </div>
           </div>
+        )}
+          </>
         )}
         </main>
       </div>

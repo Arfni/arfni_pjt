@@ -1,0 +1,72 @@
+apiVersion: v0.1
+name: postgresql
+displayName: PostgreSQL
+version: 1.0.0
+category: database
+description: "Advanced open-source relational database"
+author: ARFNI Team
+license: MIT
+icon: icon.png
+
+provides:
+  service_kinds:
+    - db.postgres
+
+inputs:
+  postgres_password:
+    description: "PostgreSQL root password"
+    type: password
+    required: true
+    env_var: POSTGRES_PASSWORD
+    default: "postgres123"
+
+  postgres_db:
+    description: "Default database name"
+    type: text
+    required: false
+    env_var: POSTGRES_DB
+    default: "myapp"
+
+  postgres_user:
+    description: "Default database user"
+    type: text
+    required: false
+    env_var: POSTGRES_USER
+    default: "postgres"
+
+contributes:
+  services:
+    postgres:
+      kind: db.postgres
+      type: docker.container
+      spec:
+        image: "postgres:15-alpine"
+        ports:
+          - "5432:5432"
+        environment:
+          POSTGRES_PASSWORD: "{{postgres_password}}"
+          POSTGRES_DB: "{{postgres_db}}"
+          POSTGRES_USER: "{{postgres_user}}"
+        volumes:
+          - "postgres_data:/var/lib/postgresql/data"
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U {{postgres_user}}"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+  canvas:
+    nodeType: postgres
+    label: PostgreSQL
+    description: "Leading RDBMS"
+    category: database
+    ports:
+      - name: postgres
+        port: 5432
+        protocol: tcp
+    connections:
+      outputs:
+        - type: database
+          name: postgres
+          protocol: postgresql
+          env_prefix: DATABASE

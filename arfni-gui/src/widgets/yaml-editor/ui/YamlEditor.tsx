@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAppSelector } from '@app/hooks';
 import { selectNodes, selectEdges, selectIsDirty } from '@features/canvas';
 import { selectCurrentProject } from '@features/project';
-import { stackYamlGenerator, stackToYamlString } from '@features/canvas/lib/stackYamlGenerator';
+import { PluginStackGenerator } from '@features/canvas/lib/pluginStackGenerator';
 import { Copy, Download } from 'lucide-react';
 import { ec2ServerCommands } from '@shared/api/tauri/commands';
 
@@ -34,17 +34,17 @@ export function YamlEditor() {
           }
         }
 
-        const stackYaml = stackYamlGenerator(nodes, edges, {
+        const yamlString = await PluginStackGenerator.generateStack({
+          nodes,
+          edges,
           projectName: currentProject.name,
-          environment: currentProject.environment,
+          environment: currentProject.environment as 'local' | 'ec2',
           ec2Server: ec2Server || undefined,
           mode: currentProject.mode,
           workdir: currentProject.workdir,
           secrets: [],
-          outputs: {},
         });
 
-        const yamlString = stackToYamlString(stackYaml);
         setYamlContent(yamlString);
       } catch (error) {
         setYamlContent(`# 오류: ${error}\n# Canvas가 비어있거나 유효하지 않습니다`);

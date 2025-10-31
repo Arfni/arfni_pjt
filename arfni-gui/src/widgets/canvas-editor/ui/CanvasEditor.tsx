@@ -40,6 +40,7 @@ import {
   createDatabaseNode
 } from '@shared/config/nodeTypes';
 import { useAutoSave } from '@features/canvas/hooks/useAutoSave';
+import { pluginService } from '@services/pluginLoader';
 
 // 노드 타입 등록
 const nodeTypes = {
@@ -154,69 +155,67 @@ function CanvasEditorInner() {
 
       let newNode;
 
+      // 플러그인 정보 가져오기
+      const plugin = pluginService.getPluginByNodeType(nodeType);
+      const canvasConfig = plugin?.manifest.contributes?.canvas;
+
       if (category === 'service') {
-        // 서비스 노드
+        // 서비스 노드 - 플러그인 설정 사용
         const serviceData: any = {
-          name: nodeType.toUpperCase(),
+          name: canvasConfig?.label || nodeType.toUpperCase(),
           serviceType: nodeType
         };
 
-        switch (nodeType) {
-          case 'react':
-            serviceData.build = './apps/react';
-            serviceData.ports = ['3000:80'];
-            break;
-          case 'nextjs':
-            serviceData.build = './apps/nextjs';
-            serviceData.ports = ['3000:3000'];
-            break;
-          case 'spring':
-            serviceData.build = './apps/spring';
-            serviceData.ports = ['8080:8080'];
-            break;
-          case 'nodejs':
-            serviceData.build = './apps/nodejs';
-            serviceData.ports = ['3000:3000'];
-            break;
-          case 'python':
-            serviceData.build = './apps/python';
-            serviceData.ports = ['8000:8000'];
-            break;
-          case 'fastapi':
-            serviceData.build = './apps/fastapi';
-            serviceData.ports = ['8000:8000'];
-            break;
-          default:
-            serviceData.image = 'nginx:latest';
-            serviceData.ports = ['80:80'];
+        // 플러그인에서 포트 정보 가져오기
+        if (canvasConfig?.ports && canvasConfig.ports.length > 0) {
+          const defaultPort = canvasConfig.ports[0].port;
+          serviceData.ports = [`${defaultPort}:${defaultPort}`];
+        } else {
+          // 기본값 fallback
+          serviceData.ports = ['3000:3000'];
+        }
+
+        // 플러그인 카테고리에 따라 build 경로 설정
+        if (plugin?.manifest.category === 'framework') {
+          serviceData.build = `./apps/${nodeType}`;
+        } else {
+          serviceData.image = `${nodeType}:latest`;
         }
 
         newNode = createServiceNode(serviceData, position, defaultTarget);
       } else if (category === 'database') {
-        // 데이터베이스 노드
+        // 데이터베이스 노드 - 플러그인 설정 사용
         const dbData: any = {
-          name: nodeType.toUpperCase(),
+          name: canvasConfig?.label || nodeType.toUpperCase(),
           type: nodeType as 'mysql' | 'postgres' | 'redis' | 'mongodb'
         };
 
-        switch (nodeType) {
-          case 'mysql':
-            dbData.version = '8.0';
-            dbData.ports = ['3306:3306'];
-            break;
-          case 'postgres':
-            dbData.version = '15';
-            dbData.ports = ['5432:5432'];
-            break;
-          case 'redis':
-            dbData.version = '7';
-            dbData.ports = ['6379:6379'];
-            break;
-          case 'mongodb':
-            dbData.version = '6';
-            dbData.ports = ['27017:27017'];
-            break;
+        // 플러그인에서 포트 정보 가져오기
+        if (canvasConfig?.ports && canvasConfig.ports.length > 0) {
+          const defaultPort = canvasConfig.ports[0].port;
+          dbData.ports = [`${defaultPort}:${defaultPort}`];
+        } else {
+          // 기본값 fallback
+          switch (nodeType) {
+            case 'mysql':
+              dbData.ports = ['3306:3306'];
+              break;
+            case 'postgres':
+              dbData.ports = ['5432:5432'];
+              break;
+            case 'redis':
+              dbData.ports = ['6379:6379'];
+              break;
+            case 'mongodb':
+              dbData.ports = ['27017:27017'];
+              break;
+            default:
+              dbData.ports = ['3000:3000'];
+          }
         }
+
+        // 버전 정보는 최신 버전으로 설정
+        dbData.version = 'latest';
 
         newNode = createDatabaseNode(dbData, position, defaultTarget);
       } else if (category === 'target') {

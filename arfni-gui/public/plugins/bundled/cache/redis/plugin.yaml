@@ -1,0 +1,64 @@
+apiVersion: v0.1
+name: redis
+displayName: Redis
+version: 1.0.0
+category: cache
+description: "In-memory data structure store"
+author: ARFNI Team
+license: MIT
+icon: icon.png
+
+provides:
+  service_kinds:
+    - cache.redis
+
+inputs:
+  redis_password:
+    description: "Redis password (optional)"
+    type: password
+    required: false
+    env_var: REDIS_PASSWORD
+    default: ""
+
+contributes:
+  services:
+    redis:
+      kind: cache.redis
+      type: docker.container
+      spec:
+        image: "redis:7-alpine"
+        ports:
+          - "6379:6379"
+        environment:
+          REDIS_PASSWORD: "{{redis_password}}"
+        command: >-
+          sh -c '
+          if [ -n "$REDIS_PASSWORD" ]; then
+            redis-server --requirepass "$REDIS_PASSWORD"
+          else
+            redis-server
+          fi
+          '
+        volumes:
+          - "redis_data:/data"
+        healthcheck:
+          test: ["CMD", "redis-cli", "ping"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+  canvas:
+    nodeType: redis
+    label: Redis
+    description: "In-memory cache"
+    category: database  # NodePalette uses 'database' for cache too
+    ports:
+      - name: redis
+        port: 6379
+        protocol: tcp
+    connections:
+      outputs:
+        - type: cache
+          name: redis
+          protocol: redis
+          env_prefix: REDIS

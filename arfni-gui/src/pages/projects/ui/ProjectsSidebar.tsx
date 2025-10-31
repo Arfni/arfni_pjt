@@ -1,8 +1,8 @@
-import { Laptop, Server } from 'lucide-react';
+import { Laptop, Server, Package } from 'lucide-react';
 
 interface ProjectsSidebarProps {
-  selectedTab: 'local' | 'ec2';
-  onTabChange: (tab: 'local' | 'ec2') => void;
+  selectedTab: 'local' | 'ec2' | 'plugins';
+  onTabChange: (tab: 'local' | 'ec2' | 'plugins') => void;
 }
 
 export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarProps) {
@@ -37,6 +37,21 @@ export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarPro
             <Server className="w-5 h-5 text-white" />
           </div>
           <span className={`text-xs font-medium ${selectedTab === 'ec2' ? 'text-blue-700' : 'text-gray-700'}`}>EC2</span>
+        </button>
+
+        {/* Plugins Button */}
+        <button
+          onClick={() => onTabChange('plugins')}
+          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+            selectedTab === 'plugins'
+              ? 'bg-blue-50'
+              : 'hover:bg-gray-100'
+          }`}
+        >
+          <div className="w-8 h-8 flex items-center justify-center rounded" style={{ backgroundColor: '#4C65E2' }}>
+            <Package className="w-5 h-5 text-white" />
+          </div>
+          <span className={`text-xs font-medium ${selectedTab === 'plugins' ? 'text-blue-700' : 'text-gray-700'}`}>Plugins</span>
         </button>
       </div>
     </aside>

@@ -54,6 +54,11 @@ fn main() {
       commands::plugin::run_plugin,
       commands::plugin::run_plugin_with_args,
       commands::plugin::run_plugin_with_mode,
+      commands::plugin::install_plugin,
+      commands::plugin::uninstall_plugin,
+      commands::plugin::list_installed_plugins,
+      commands::plugin::load_plugin_registry,
+      commands::plugin::read_plugin_template,
       commands::plugin_check::list_targets,
       commands::plugin_check::read_plugins,
 

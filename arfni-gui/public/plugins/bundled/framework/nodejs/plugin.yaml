@@ -1,0 +1,70 @@
+apiVersion: v0.1
+name: nodejs
+displayName: Node.js
+version: 1.0.0
+category: framework
+description: "JavaScript runtime built on Chrome's V8 engine"
+author: ARFNI Team
+license: MIT
+icon: icon.png
+
+provides:
+  service_kinds:
+    - app.nodejs
+
+inputs:
+  node_version:
+    description: "Node.js version"
+    type: text
+    required: false
+    default: "18-alpine"
+
+  port:
+    description: "Application port"
+    type: number
+    required: false
+    env_var: PORT
+    default: 3000
+
+  database_url:
+    description: "Database connection URL"
+    type: text
+    required: false
+    env_var: DATABASE_URL
+    default: ""
+
+contributes:
+  services:
+    nodejs:
+      kind: app.nodejs
+      type: docker.container
+      spec:
+        build:
+          context: "."
+          dockerfile: "Dockerfile"
+        ports:
+          - "{{port}}:{{port}}"
+        environment:
+          PORT: "{{port}}"
+          DATABASE_URL: "{{database_url}}"
+          NODE_ENV: "production"
+
+  canvas:
+    nodeType: nodejs
+    label: Node.js
+    description: "JavaScript runtime"
+    category: runtime
+    ports:
+      - name: http
+        port: 3000
+        protocol: tcp
+    connections:
+      inputs:
+        - type: database
+          name: database
+          protocol: any
+          env_var: DATABASE_URL
+      outputs:
+        - type: api
+          name: api
+          protocol: http
