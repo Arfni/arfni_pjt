@@ -139,67 +139,21 @@ export default function LogPage() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-6 py-4 overflow-hidden">
-        <div className="bg-white border border-gray-200 rounded-lg px-5 py-4 mb-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                {project ? project.name : 'No Project Selected'}
-              </h2>
-              <p className="text-sm text-gray-500">
-                {project
-                  ? project.environment === 'ec2'
-                    ? 'EC2 Deployment Project'
-                    : 'Local Docker Project'
-                  : 'Select a project from the Projects page to view logs.'}
-              </p>
-            </div>
-            {project && (
-              <div className="text-sm text-gray-500">
-                <span className="font-medium text-gray-700">Project Path:&nbsp;</span>
-                <span className="font-mono break-all text-gray-600">{project.path}</span>
-              </div>
-            )}
-          </div>
+      <main className="flex-1 flex overflow-hidden">
 
-          {project?.environment === 'ec2' && (
-            <dl className="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-gray-500">EC2 Host</dt>
-                <dd className="text-sm font-mono text-gray-900">
-                  {ec2Server ? ec2Server.host : 'Loading...'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-gray-500">SSH User</dt>
-                <dd className="text-sm font-mono text-gray-900">
-                  {ec2Server ? ec2Server.user : 'Loading...'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-gray-500">PEM Path</dt>
-                <dd className="text-sm font-mono text-gray-900 break-all">
-                  {ec2Server ? ec2Server.pem_path : 'Loading...'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-gray-500">Last Connected</dt>
-                <dd className="text-sm text-gray-900">
-                  {ec2Server?.last_connected_at
-                    ? new Date(ec2Server.last_connected_at).toLocaleString()
-                    : 'N/A'}
-                </dd>
-              </div>
-            </dl>
-          )}
-        </div>
-
-        {/* SSH Terminal Section - 항상 표시 */}
+        {/* Main Content - SSH Terminal */}
         {project?.environment === 'ec2' ? (
-          <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col">
+          <div className="flex-1 bg-white overflow-hidden flex flex-col">
             {/* Terminal Header */}
             <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
-              <span className="font-mono text-sm">SSH Terminal</span>
+              <div className="flex flex-col gap-1">
+                <span className="font-semibold text-sm">{project.name}</span>
+                {ec2Server && (
+                  <span className="font-mono text-xs text-gray-400">
+                    {ec2Server.user}@{ec2Server.host}
+                  </span>
+                )}
+              </div>
               <div className="flex gap-2">
                 {!connected ? (
                   <button
@@ -261,13 +215,69 @@ export default function LogPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center bg-white rounded-lg border border-gray-200">
+          <div className="flex-1 flex items-center justify-center bg-white">
             <div className="text-center text-gray-500">
               <Terminal className="w-12 h-12 mx-auto mb-4 text-gray-400" />
               <p className="text-lg font-semibold mb-2">SSH Terminal</p>
               <p className="text-sm">EC2 프로젝트를 선택하면 SSH 터미널을 사용할 수 있습니다.</p>
             </div>
           </div>
+        )}
+
+        {/* Right Sidebar */}
+        {project && (
+          <aside className="w-80 bg-gray-50 flex-shrink-0 overflow-y-auto flex flex-col">
+            {/* Container Information */}
+            <div className="bg-white p-5 border-b border-gray-200 flex-1">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Container Information</h3>
+              <div className="text-sm text-gray-500">
+                No containers running
+              </div>
+            </div>
+
+            {/* Docker Command */}
+            <div className="bg-white p-5">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Docker Command</h3>
+              <div className="space-y-2">
+                <button
+                  className="w-full px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-left font-medium"
+                >
+                  Check Container Status
+                </button>
+                <button
+                  className="w-full px-3 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-left font-medium"
+                >
+                  Start All Containers
+                </button>
+                <button
+                  className="w-full px-3 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-left font-medium"
+                >
+                  Start Container
+                </button>
+                <button
+                  className="w-full px-3 py-2 text-sm bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors text-left font-medium"
+                >
+                  Stop Container
+                </button>
+                <button
+                  className="w-full px-3 py-2 text-sm bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-left font-medium"
+                >
+                  Remove Container
+                </button>
+              </div>
+            </div>
+
+            {/* Monitoring Button */}
+            <div className="bg-white p-5 border-t border-gray-200">
+              <button
+                disabled
+                className="w-full px-4 py-3 text-white rounded-lg font-medium opacity-50 cursor-not-allowed"
+                style={{ backgroundColor: '#4C65E2' }}
+              >
+                Go to Monitoring
+              </button>
+            </div>
+          </aside>
         )}
       </main>
     </div>
