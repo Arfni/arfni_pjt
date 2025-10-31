@@ -103,8 +103,8 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     ],
     optionalEnvVars: [
       {
-        key: 'MYSQL_USER',
-        label: 'User',
+        key: 'MYSQL_USER_NAME',
+        label: 'User Name',
         type: 'text',
         placeholder: 'appuser'
       },
@@ -153,8 +153,8 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     ],
     optionalEnvVars: [
       {
-        key: 'POSTGRES_USER',
-        label: 'User',
+        key: 'POSTGRES_USER_NAME',
+        label: 'User Name',
         type: 'text',
         defaultValue: 'postgres',
         placeholder: 'postgres'
@@ -228,10 +228,22 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     ],
     optionalEnvVars: [
       {
-        key: 'MONGO_INITDB_DATABASE',
-        label: 'Initial Database',
+        key: 'MONGO_INITDB_DATABASE_NAME',
+        label: 'Database Name',
         type: 'text',
-        placeholder: 'admin'
+        placeholder: ''
+      },
+      {
+        key: 'MONGO_INITDB_USER_NAME',
+        label: 'User Name',
+        type: 'text',
+        placeholder: ''
+      },
+      {
+        key: 'MONGO_INITDB_PASSWORD',
+        label: 'Password',
+        type: 'password',
+        placeholder: ''
       }
     ],
     defaultVolumes: [
@@ -252,6 +264,9 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     category: 'backend',
     buildRequired: true,
     defaultBuildPath: './apps/spring',
+    supportsVersion: true,
+    defaultVersion: '3.2',
+    versionOptions: ['3.3', '3.2', '3.1', '2.7'],
     defaultPort: 8080,
     defaultPortMapping: '8080:8080',
     requiredEnvVars: [],
@@ -422,6 +437,9 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     category: 'backend',
     buildRequired: true,
     defaultBuildPath: './apps/nodejs',
+    supportsVersion: true,
+    defaultVersion: '20',
+    versionOptions: ['22', '20', '18', '16'],
     defaultPort: 3000,
     defaultPortMapping: '3000:3000',
     requiredEnvVars: [],
@@ -454,7 +472,10 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
       }
     ],
     supportsVolumes: false,
-    defaultCommand: ['node', 'index.js']
+    defaultCommand: ['node', 'index.js'],
+    defaultHealthCheck: {
+      httpGet: { path: '/health', port: 3000 }
+    }
   },
 
   // ==================== Frontend Services ====================
@@ -463,6 +484,9 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     category: 'frontend',
     buildRequired: true,
     defaultBuildPath: './apps/react',
+    supportsVersion: true,
+    defaultVersion: '18',
+    versionOptions: ['18', '17', '16'],
     defaultPort: 80,
     defaultPortMapping: '3000:80',
     requiredEnvVars: [],
@@ -487,7 +511,10 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
         ]
       }
     ],
-    supportsVolumes: false
+    supportsVolumes: false,
+    defaultHealthCheck: {
+      httpGet: { path: '/', port: 80 }
+    }
   },
 
   nextjs: {
@@ -495,6 +522,9 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
     category: 'frontend',
     buildRequired: true,
     defaultBuildPath: './apps/nextjs',
+    supportsVersion: true,
+    defaultVersion: '14',
+    versionOptions: ['15', '14', '13', '12'],
     defaultPort: 3000,
     defaultPortMapping: '3000:3000',
     requiredEnvVars: [],
@@ -519,7 +549,10 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
       }
     ],
     supportsVolumes: false,
-    defaultCommand: ['npm', 'start']
+    defaultCommand: ['npm', 'start'],
+    defaultHealthCheck: {
+      httpGet: { path: '/', port: 3000 }
+    }
   },
 
   vue: {
@@ -539,6 +572,53 @@ export const SERVICE_CONFIGS: Record<string, ServiceTypeConfig> = {
       }
     ],
     supportsVolumes: false
+  },
+
+  python: {
+    name: 'Python',
+    category: 'backend',
+    buildRequired: true,
+    defaultBuildPath: './apps/python',
+    supportsVersion: true,
+    defaultVersion: '3.11',
+    versionOptions: ['3.12', '3.11', '3.10', '3.9'],
+    defaultPort: 8000,
+    defaultPortMapping: '8000:8000',
+    requiredEnvVars: [],
+    optionalEnvVars: [
+      {
+        key: 'PYTHONUNBUFFERED',
+        label: 'Unbuffered Output',
+        type: 'boolean',
+        defaultValue: true,
+        description: 'Enable unbuffered Python output'
+      },
+      {
+        key: 'DEBUG',
+        label: 'Debug Mode',
+        type: 'boolean',
+        defaultValue: false
+      }
+    ],
+    additionalFields: [
+      {
+        key: 'pythonVersion',
+        label: 'Python Version',
+        type: 'select',
+        defaultValue: '3.11',
+        options: [
+          { label: 'Python 3.12', value: '3.12' },
+          { label: 'Python 3.11', value: '3.11' },
+          { label: 'Python 3.10', value: '3.10' },
+          { label: 'Python 3.9', value: '3.9' }
+        ]
+      }
+    ],
+    supportsVolumes: false,
+    defaultCommand: ['python', 'main.py'],
+    defaultHealthCheck: {
+      httpGet: { path: '/health', port: 8000 }
+    }
   }
 };
 

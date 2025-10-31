@@ -9,7 +9,8 @@ import {
   CheckCircle,
   PlusCircle,
   Loader2,
-  ArrowLeft
+  ArrowLeft,
+  Camera
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
@@ -336,6 +337,73 @@ export function Toolbar() {
     }
   }, []);
 
+  // 캔버스 스크린샷 다운로드
+  const handleDownloadScreenshot = useCallback(() => {
+    // ReactFlow 요소 찾기
+    const reactFlowElement = document.querySelector('.react-flow') as HTMLElement;
+    if (!reactFlowElement) {
+      alert('캔버스를 찾을 수 없습니다.');
+      return;
+    }
+
+    // 미니맵, 컨트롤 등 UI 요소들 숨기기
+    const minimap = document.querySelector('.react-flow__minimap') as HTMLElement;
+    const controls = document.querySelector('.react-flow__controls') as HTMLElement;
+    const attribution = document.querySelector('.react-flow__attribution') as HTMLElement;
+
+    const elementsToHide = [minimap, controls, attribution].filter(el => el !== null);
+    const originalDisplays = elementsToHide.map(el => el.style.display);
+
+    // UI 요소들 숨기기
+    elementsToHide.forEach(el => {
+      el.style.display = 'none';
+    });
+
+    // 약간의 딜레이 후 스크린샷 생성 (DOM 업데이트 대기)
+    setTimeout(() => {
+      // html-to-image를 사용하여 스크린샷 생성 (SVG 지원)
+      import('html-to-image').then(({ toPng }) => {
+        toPng(reactFlowElement, {
+          backgroundColor: '#ffffff',
+          pixelRatio: 2, // 고해상도
+          cacheBust: true,
+        }).then((dataUrl: string) => {
+          // UI 요소들 다시 보이기
+          elementsToHide.forEach((el, index) => {
+            el.style.display = originalDisplays[index];
+          });
+
+          // 다운로드
+          const link = document.createElement('a');
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+          const fileName = currentProject
+            ? `${currentProject.name}_canvas_${timestamp}.png`
+            : `canvas_${timestamp}.png`;
+
+          link.href = dataUrl;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }).catch((error: Error) => {
+          // 에러 발생 시에도 UI 요소들 복원
+          elementsToHide.forEach((el, index) => {
+            el.style.display = originalDisplays[index];
+          });
+          console.error('스크린샷 생성 실패:', error);
+          alert('스크린샷 생성에 실패했습니다.');
+        });
+      }).catch((error: Error) => {
+        // 에러 발생 시에도 UI 요소들 복원
+        elementsToHide.forEach((el, index) => {
+          el.style.display = originalDisplays[index];
+        });
+        console.error('라이브러리 로드 실패:', error);
+        alert('스크린샷 라이브러리 로드에 실패했습니다.');
+      });
+    }, 100);
+  }, [currentProject]);
+
   return (
     <div className="h-12 bg-gray-800 text-white flex items-center justify-between px-4 border-b border-gray-600">
       <div className="flex items-center space-x-4">
@@ -438,13 +506,24 @@ export function Toolbar() {
         </div>
       </div>
 
-      <button
-        onClick={() => navigate('/')}
-        className="flex items-center gap-2 px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
-      >
-        <Home className="w-4 h-4" />
-        Home
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleDownloadScreenshot}
+          className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+          title="캔버스 스크린샷 다운로드"
+        >
+          <Camera className="w-4 h-4" />
+          Screenshot
+        </button>
+
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
+        >
+          <Home className="w-4 h-4" />
+          Home
+        </button>
+      </div>
     </div>
   );
 }

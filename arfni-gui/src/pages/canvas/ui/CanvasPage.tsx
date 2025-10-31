@@ -49,9 +49,9 @@ export function CanvasPage() {
       // 새로운 YAML 높이 계산 (컨테이너 하단에서부터의 높이)
       const newHeight = containerHeight - mouseY;
 
-      // 최소 높이 150px, 최대 높이 컨테이너의 70%
-      const minHeight = 150;
-      const maxHeight = containerHeight * 0.7;
+      // 최소 높이 0px (완전히 접기), 최대 높이 컨테이너의 100% (완전히 펼치기)
+      const minHeight = 0;
+      const maxHeight = containerHeight;
 
       if (newHeight >= minHeight && newHeight <= maxHeight) {
         setYamlHeight(newHeight);
@@ -103,7 +103,7 @@ export function CanvasPage() {
       <Toolbar />
       <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
         {/* 왼쪽: Blocks 팔레트 */}
-        <div className={`transition-all duration-300 ease-in-out ${showLeftSidebar ? 'w-52' : 'w-0'} overflow-hidden`}>
+        <div className={`transition-all duration-300 ease-in-out ${showLeftSidebar ? 'w-60' : 'w-0'} overflow-hidden`}>
           <NodePalette />
         </div>
 
@@ -111,7 +111,7 @@ export function CanvasPage() {
         <button
           onClick={() => setShowLeftSidebar(!showLeftSidebar)}
           className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r-lg shadow-md p-1.5 hover:bg-gray-50 transition-colors"
-          style={{ left: showLeftSidebar ? '13rem' : '0' }}
+          style={{ left: showLeftSidebar ? '15rem' : '0' }}
           title={showLeftSidebar ? 'Hide Blocks' : 'Show Blocks'}
         >
           {showLeftSidebar ? (
