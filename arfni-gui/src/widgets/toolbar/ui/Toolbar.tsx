@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Home,
   Save,
   FolderOpen,
   PlayCircle,
@@ -10,7 +9,8 @@ import {
   PlusCircle,
   Loader2,
   ArrowLeft,
-  Camera
+  Camera,
+  Network
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
@@ -54,6 +54,7 @@ export function Toolbar() {
 
   const [isDeploying, setIsDeploying] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
+  const [showActivePortDialog, setShowActivePortDialog] = useState(false);
 
   // EC2 프로젝트인지 확인 및 현재 모니터링 모드 가져오기
   const isEC2Project = currentProject?.environment === 'ec2';
@@ -317,7 +318,7 @@ export function Toolbar() {
 
       if (result.status === 'deploying') {
         // 배포 페이지로 이동
-        navigate('/deployment');
+        navigate('/deployment', { replace: true });
       }
     } catch (error) {
       alert(`배포 실패: ${error}`);
@@ -334,6 +335,11 @@ export function Toolbar() {
     } catch (error) {
       alert(`배포 중단 실패: ${error}`);
     }
+  }, []);
+
+  // Show Active Port 다이얼로그 열기
+  const handleShowActivePort = useCallback(() => {
+    setShowActivePortDialog(true);
   }, []);
 
   // 캔버스 스크린샷 다운로드
@@ -404,12 +410,13 @@ export function Toolbar() {
   }, [currentProject]);
 
   return (
-    <div className="h-12 bg-gray-800 text-white flex items-center justify-between px-4 border-b border-gray-600">
-      <div className="flex items-center space-x-4">
+    <>
+      <div className="h-12 bg-gray-800 text-white flex items-center justify-between px-4 border-b border-gray-600">
+        <div className="flex items-center space-x-4">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/')}
           className="p-1 hover:bg-gray-700 rounded transition-colors"
-          title="뒤로가기"
+          title="홈으로"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -424,21 +431,7 @@ export function Toolbar() {
         </h1>
 
         <div className="flex space-x-2">
-          <button
-            onClick={handleNewProject}
-            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
-          >
-            <PlusCircle className="w-4 h-4" />
-            New
-          </button>
-
-          <button
-            onClick={handleOpenProject}
-            className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors flex items-center gap-1"
-          >
-            <FolderOpen className="w-4 h-4" />
-            Open
-          </button>
+   
 
           <button
             onClick={handleSave}
@@ -454,18 +447,6 @@ export function Toolbar() {
             {isDirty && <span className="ml-1 text-yellow-400">*</span>}
           </button>
 
-          <button
-            onClick={handleValidate}
-            disabled={isValidating || !currentProject}
-            className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors flex items-center gap-1 disabled:opacity-50"
-          >
-            {isValidating ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <CheckCircle className="w-4 h-4" />
-            )}
-            Validate
-          </button>
 
           {/* EC2 모니터링 모드 선택 (EC2 프로젝트만) */}
           {isEC2Project && (
@@ -507,6 +488,15 @@ export function Toolbar() {
 
       <div className="flex items-center gap-2">
         <button
+          onClick={handleShowActivePort}
+          className="flex items-center gap-2 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+          title="활성 포트 확인"
+        >
+          <Network className="w-4 h-4" />
+          Show Active Port
+        </button>
+
+        <button
           onClick={handleDownloadScreenshot}
           className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
           title="캔버스 스크린샷 다운로드"
@@ -514,15 +504,30 @@ export function Toolbar() {
           <Camera className="w-4 h-4" />
           Screenshot
         </button>
-
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
-        >
-          <Home className="w-4 h-4" />
-          Home
-        </button>
       </div>
     </div>
+
+    {/* Active Port Dialog */}
+    {showActivePortDialog && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl p-6 w-96">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">Active Ports</h2>
+            <button
+              onClick={() => setShowActivePortDialog(false)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="text-gray-600">
+            <p>포트 정보가 여기에 표시됩니다.</p>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
