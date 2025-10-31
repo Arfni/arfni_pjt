@@ -6,6 +6,9 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct DeploymentLog {
     pub timestamp: String,
@@ -99,7 +102,8 @@ pub async fn deploy_stack(
         }).unwrap_or(());
 
         // 배포 명령 실행 - Go 바이너리 직접 실행
-        let mut cmd = Command::new(&go_binary_path)
+        let mut command = Command::new(&go_binary_path);
+        command
             .arg("run")
             .arg("-f")
             .arg(&stack_yaml_path)
@@ -107,8 +111,16 @@ pub async fn deploy_stack(
             .arg(&project_path)
             .current_dir(&project_path)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn();
+            .stderr(Stdio::piped());
+
+        // Windows에서 콘솔 창 숨김
+        #[cfg(target_os = "windows")]
+        {
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let mut cmd = command.spawn();
 
         match cmd {
             Ok(mut child) => {
@@ -119,11 +131,27 @@ pub async fn deploy_stack(
                 let app_clone_stderr = app_clone.clone();
 
                 // stdout 읽기 스레드
+                let outputs_arc = Arc::new(std::sync::Mutex::new(None));
+                let outputs_clone = outputs_arc.clone();
+
                 let stdout_handle = stdout.map(|stdout| {
                     std::thread::spawn(move || {
                         let reader = BufReader::new(stdout);
                         for line in reader.lines() {
                             if let Ok(line) = line {
+                                // __OUTPUTS__ 파싱
+                                if line.contains("__OUTPUTS__") {
+                                    if let Some(json_start) = line.find("__OUTPUTS__") {
+                                        let json_str = &line[json_start + 11..]; // "__OUTPUTS__" 길이 = 11
+                                        if let Ok(outputs_json) = serde_json::from_str::<serde_json::Value>(json_str) {
+                                            if let Ok(mut outputs_guard) = outputs_clone.lock() {
+                                                *outputs_guard = Some(outputs_json);
+                                            }
+                                        }
+                                    }
+                                    continue;
+                                }
+
                                 // NDJSON 파싱 시도
                                 if let Ok(log_entry) = parse_ndjson_log(&line) {
                                     app_clone_stdout.emit("deployment-log", log_entry).unwrap_or(());
@@ -170,11 +198,18 @@ pub async fn deploy_stack(
                 // 프로세스 종료 대기
                 match child.wait() {
                     Ok(status) => {
+                        // outputs 가져오기
+                        let final_outputs = if let Ok(guard) = outputs_arc.lock() {
+                            guard.clone()
+                        } else {
+                            None
+                        };
+
                         if status.success() {
                             app_clone.emit("deployment-completed", DeploymentStatus {
                                 status: "success".to_string(),
                                 message: Some("배포가 성공적으로 완료되었습니다".to_string()),
-                                outputs: None, // TODO: outputs 파싱
+                                outputs: final_outputs,
                             }).unwrap_or(());
                         } else {
                             app_clone.emit("deployment-failed", DeploymentStatus {
@@ -232,7 +267,16 @@ pub fn reset_deployment_state() -> Result<bool, String> {
 /// Docker 설치 확인
 #[tauri::command]
 pub fn check_docker() -> Result<bool, String> {
-    match Command::new("docker").arg("--version").output() {
+    let mut command = Command::new("docker");
+    command.arg("--version");
+
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    match command.output() {
         Ok(output) => {
             if output.status.success() {
                 let version = String::from_utf8_lossy(&output.stdout);
@@ -249,11 +293,29 @@ pub fn check_docker() -> Result<bool, String> {
 /// Docker Compose 설치 확인
 #[tauri::command]
 pub fn check_docker_compose() -> Result<bool, String> {
-    match Command::new("docker-compose").arg("--version").output() {
+    let mut command = Command::new("docker-compose");
+    command.arg("--version");
+
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    match command.output() {
         Ok(output) => Ok(output.status.success()),
         Err(_) => {
             // docker compose (v2) 시도
-            match Command::new("docker").arg("compose").arg("version").output() {
+            let mut command2 = Command::new("docker");
+            command2.arg("compose").arg("version");
+
+            #[cfg(target_os = "windows")]
+            {
+                const CREATE_NO_WINDOW: u32 = 0x08000000;
+                command2.creation_flags(CREATE_NO_WINDOW);
+            }
+
+            match command2.output() {
                 Ok(output) => Ok(output.status.success()),
                 Err(_) => Ok(false),
             }
@@ -264,7 +326,16 @@ pub fn check_docker_compose() -> Result<bool, String> {
 /// Docker 데몬 실행 상태 확인
 #[tauri::command]
 pub fn check_docker_running() -> Result<bool, String> {
-    match Command::new("docker").arg("ps").output() {
+    let mut command = Command::new("docker");
+    command.arg("ps");
+
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    match command.output() {
         Ok(output) => {
             if output.status.success() {
                 Ok(true)
@@ -447,4 +518,95 @@ fn parse_ndjson_log(line: &str) -> Result<DeploymentLog, serde_json::Error> {
         message: entry.message,
         data: entry.data,
     })
+}
+
+/// SSH 연결 테스트 (CMD 창 안 뜨게)
+#[tauri::command]
+pub fn test_ssh_connection(host: String, user: String, key_path: String) -> Result<String, String> {
+    let mut command = Command::new("ssh");
+    command
+        .arg("-i")
+        .arg(&key_path)
+        .arg("-o").arg("StrictHostKeyChecking=no")
+        .arg("-o").arg("BatchMode=yes")
+        .arg("-o").arg("ConnectTimeout=10")
+        .arg("-o").arg("LogLevel=ERROR")
+        .arg(format!("{}@{}", user, host))
+        .arg("echo 'Connection successful'")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // Windows에서 콘솔 창 숨김
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+        command.creation_flags(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
+    }
+
+    match command.output() {
+        Ok(output) => {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                Ok(format!("✓ SSH 연결 성공\n{}", stdout.trim()))
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                Err(format!("SSH 연결 실패: {}", stderr.trim()))
+            }
+        }
+        Err(e) => Err(format!("SSH 실행 실패: {}", e)),
+    }
+}
+
+/// 모니터링 시작
+#[tauri::command]
+pub async fn start_monitoring(
+    app: AppHandle,
+    stack_path: String,
+) -> Result<String, String> {
+    println!("🎯 Starting monitoring for: {}", stack_path);
+
+    // Go 바이너리 찾기
+    let go_binary = find_go_binary(&app)?;
+    println!("✅ Found arfni-go at: {}", go_binary);
+
+    // 절대 경로로 변환
+    let stack_path_abs = if Path::new(&stack_path).is_absolute() {
+        stack_path.clone()
+    } else {
+        std::env::current_dir()
+            .map_err(|e| format!("현재 디렉토리 확인 실패: {}", e))?
+            .join(&stack_path)
+            .to_string_lossy()
+            .to_string()
+    };
+
+    if !Path::new(&stack_path_abs).exists() {
+        return Err(format!("stack.yaml 파일을 찾을 수 없습니다: {}", stack_path_abs));
+    }
+
+    println!("📄 Stack file: {}", stack_path_abs);
+
+    // arfni-go.exe monitor -f stack.yaml 명령어 실행
+    let mut command = Command::new(&go_binary);
+    command
+        .arg("monitor")
+        .arg("-f")
+        .arg(&stack_path_abs)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // Windows에서 콘솔 창 숨기지 않음 (모니터링은 별도 창에서 실행)
+    // 사용자가 Ctrl+C로 종료할 수 있도록 함
+
+    println!("🚀 Executing: {} monitor -f {}", go_binary, stack_path_abs);
+
+    // 백그라운드에서 실행
+    let child = command.spawn()
+        .map_err(|e| format!("모니터링 프로세스 시작 실패: {}", e))?;
+
+    let pid = child.id();
+    println!("✅ Monitoring process started with PID: {}", pid);
+
+    Ok(format!("모니터링이 시작되었습니다 (PID: {})", pid))
 }

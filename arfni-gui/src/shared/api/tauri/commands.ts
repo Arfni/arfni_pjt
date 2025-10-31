@@ -262,6 +262,11 @@ export const deploymentCommands = {
   checkDockerRunning: async (): Promise<boolean> => {
     return await invoke('check_docker_running');
   },
+
+  // 모니터링 시작
+  startMonitoring: async (stackPath: string): Promise<string> => {
+    return await invoke('start_monitoring', { stackPath });
+  },
 };
 
 // ============= 파일 감시 명령어 =============
