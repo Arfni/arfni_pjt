@@ -13,6 +13,7 @@ import SshTerminal from "./pages/test/ui/SshTerminal";
 import HealthWatcher from "@pages/test/ui/HealthWatcher";
 import YmlHome from "./pages/test/ui/YmlHome";
 import CreateYml from "./pages/test/ui/CreateYml";
+import PortTest from "@pages/test/ui/PortTest";
 
 
 const queryClient = new QueryClient({
@@ -43,6 +44,7 @@ function App() {
             <Route path="/health" element={<HealthWatcher />} />
             <Route path="/yml" element={<YmlHome />} />
             <Route path="/yml/create" element={<CreateYml />} />
+            <Route path="/port" element={<PortTest />} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>

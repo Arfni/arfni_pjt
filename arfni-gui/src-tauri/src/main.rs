@@ -102,6 +102,13 @@ fn main() {
       commands::monitoring::test_prometheus_connection,
       commands::monitoring::start_monitoring_stack,
       commands::monitoring::check_monitoring_running,
+
+      //포트체크 명령어
+      commands::port_check::list_open_ports,
+      commands::port_check::list_listening_ports,
+      commands::port_check::list_ec2_listening_ports,
+      // 시스템 명령어
+      commands::system::open_downloads_folder,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

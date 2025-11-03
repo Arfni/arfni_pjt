@@ -260,6 +260,13 @@ export default function TestPage() {
               ssh test
           </button>
 
+          <button
+              onClick={() => navigate("/port")}
+              className="ml-auto px-3 py-1 border rounded hover:bg-gray-100 text-sm"
+              title="ssh 페이지로 이동">
+              포트 체크
+          </button>
+
                   <button
               onClick={() => navigate("/health")}
               className="ml-auto px-3 py-1 border rounded hover:bg-gray-100 text-sm"
