@@ -50,11 +50,9 @@ export function Toolbar() {
   const targetNodes = useAppSelector(selectTargetNodes);
 
   const [isDeploying, setIsDeploying] = useState(false);
-  const [isValidating, setIsValidating] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<'png' | 'svg' | 'pdf'>('png');
   const [showExportSuccess, setShowExportSuccess] = useState(false);
-  const [exportedFilePath, setExportedFilePath] = useState('');
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'projectPath' | 'activePort'>('projectPath');
   const [portSearchQuery, setPortSearchQuery] = useState('');
@@ -204,12 +202,6 @@ export function Toolbar() {
     }
   }, []);
 
-  // Export 다이얼로그 열기
-  const handleOpenExportDialog = useCallback(() => {
-    setShowExportDialog(true);
-  }, []);
-
-  // Export 실행
   const handleConfirmExport = useCallback(async () => {
     setShowExportDialog(false);
     const reactFlowElement = document.querySelector('.react-flow') as HTMLElement;
@@ -253,7 +245,6 @@ export function Toolbar() {
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          setExportedFilePath(fileName);
           setShowExportSuccess(true);
         } catch (error) {
           elementsToHide.forEach((el, index) => el.style.display = originalDisplays[index]);
@@ -273,31 +264,6 @@ export function Toolbar() {
     }
   }, []);
 
-  // Settings 다이얼로그 열기
-  const handleOpenSettings = useCallback(() => {
-    setShowSettingsDialog(true);
-  }, []);
-
-  // 활성 포트 조회
-  const fetchActivePorts = useCallback(async () => {
-    try {
-      const result = await invoke<number[]>('list_listening_ports');
-      setActivePorts(result);
-    } catch (error) {
-      console.error('포트 조회 실패:', error);
-      setActivePorts([]);
-    }
-  }, []);
-
-  // Settings 탭 변경 시 Active Port면 포트 조회
-  const handleSettingsTabChange = useCallback(async (tab: 'projectPath' | 'activePort') => {
-    setSettingsTab(tab);
-    if (tab === 'activePort') {
-      await fetchActivePorts();
-    }
-  }, [fetchActivePorts]);
-
-  // 프로젝트 폴더 열기
   const handleOpenProjectFolder = useCallback(async () => {
     if (!currentProject?.path) {
       alert('프로젝트 경로가 없습니다.');
@@ -310,6 +276,39 @@ export function Toolbar() {
       alert('폴더를 열 수 없습니다.');
     }
   }, [currentProject]);
+
+  const fetchActivePorts = useCallback(async () => {
+    try {
+      if (currentProject?.environment === 'ec2') {
+        if (!currentProject.ec2_server_id) {
+          console.error('EC2 서버 ID가 없습니다.');
+          setActivePorts([]);
+          return;
+        }
+        const ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
+        const params = {
+          host: ec2Server.host,
+          user: ec2Server.user,
+          pem_path: ec2Server.pem_path,
+        };
+        const result = await invoke<number[]>('list_ec2_listening_ports', { params });
+        setActivePorts(result);
+      } else {
+        const result = await invoke<number[]>('list_listening_ports');
+        setActivePorts(result);
+      }
+    } catch (error) {
+      console.error('포트 조회 실패:', error);
+      setActivePorts([]);
+    }
+  }, [currentProject]);
+
+  const handleSettingsTabChange = useCallback(async (tab: 'projectPath' | 'activePort') => {
+    setSettingsTab(tab);
+    if (tab === 'activePort') {
+      await fetchActivePorts();
+    }
+  }, [fetchActivePorts]);
 
   return (
     <>
@@ -358,7 +357,7 @@ export function Toolbar() {
 
         {/* Right section */}
         <div className="flex items-center space-x-2">
-          <button onClick={handleOpenSettings} className="p-2 hover:bg-gray-700 rounded transition-colors" title="설정">
+          <button onClick={() => setShowSettingsDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="설정">
             <Settings className="w-4 h-4" />
           </button>
 
@@ -386,7 +385,7 @@ export function Toolbar() {
           </button>
 
           <button
-            onClick={handleOpenExportDialog}
+            onClick={() => setShowExportDialog(true)}
             className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
             title="캔버스 내보내기"
           >
@@ -584,51 +583,45 @@ export function Toolbar() {
 
                 {settingsTab === 'activePort' && (
                   <div>
-                    <h3 className="text-xl font-semibold text-gray-800 mb-6">Activate Port</h3>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-6">
+                      Activate Port {currentProject?.environment === 'ec2' ? '(EC2)' : '(Local)'}
+                    </h3>
 
-                    {currentProject?.environment === 'ec2' ? (
-                      <div className="flex items-center justify-center h-64">
-                        <p className="text-gray-500 text-lg">EC2 프로젝트에서는 포트 확인 기능을 사용할 수 없습니다.</p>
+                    {/* Search */}
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={portSearchQuery}
+                          onChange={(e) => setPortSearchQuery(e.target.value)}
+                          placeholder="포트 번호 입력..."
+                          className="w-full px-4 py-3 border rounded-lg pr-10"
+                        />
+                        <svg className="w-5 h-5 absolute right-3 top-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
                       </div>
-                    ) : (
-                      <>
-                        {/* Search */}
-                        <div className="mb-6">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={portSearchQuery}
-                              onChange={(e) => setPortSearchQuery(e.target.value)}
-                              placeholder="포트 번호 입력..."
-                              className="w-full px-4 py-3 border rounded-lg pr-10"
-                            />
-                            <svg className="w-5 h-5 absolute right-3 top-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                          </div>
-                          {portSearchQuery && (
-                            <div className="mt-2">
-                              {activePorts.includes(parseInt(portSearchQuery)) ? (
-                                <p className="text-green-600 font-medium">This port is activate!</p>
-                              ) : (
-                                <p className="text-red-600 font-medium">This port is unactivate!</p>
-                              )}
-                            </div>
+                      {portSearchQuery && (
+                        <div className="mt-2">
+                          {activePorts.includes(parseInt(portSearchQuery)) ? (
+                            <p className="text-green-600 font-medium">This port is activate!</p>
+                          ) : (
+                            <p className="text-red-600 font-medium">This port is unactivate!</p>
                           )}
                         </div>
+                      )}
+                    </div>
 
-                        {/* All Active Ports */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">All Active Port</label>
-                          <div className="border rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
-                            <p className="text-gray-700 text-sm leading-relaxed break-all">
-                              {activePorts.length > 0 ? activePorts.join(', ') : '활성 포트가 없습니다.'}
-                            </p>
-                          </div>
-                        </div>
-                      </>
-                    )}
+                    {/* All Active Ports */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">All Active Port</label>
+                      <div className="border rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
+                        <p className="text-gray-700 text-sm leading-relaxed break-all">
+                          {activePorts.length > 0 ? activePorts.join(', ') : '활성 포트가 없습니다.'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
