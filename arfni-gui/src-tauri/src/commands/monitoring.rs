@@ -3,6 +3,9 @@ use tauri::command;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrometheusMetric {
     pub timestamp: f64,
@@ -231,11 +234,96 @@ pub async fn test_prometheus_connection(
     Ok(response.status().is_success())
 }
 
+/// Docker Desktop 실행 확인 및 자동 시작
+async fn ensure_docker_running() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    // Docker 상태 확인
+    let mut check_cmd = Command::new("docker");
+    check_cmd.arg("info");
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        check_cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let result = check_cmd.output();
+
+    // Docker가 실행 중이면 OK
+    if result.is_ok() && result.unwrap().status.success() {
+        return Ok(());
+    }
+
+    // Docker가 실행 중이 아니면 Docker Desktop 실행
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+
+        // Docker Desktop 경로 찾기
+        let docker_paths = vec![
+            "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
+            "C:\\Program Files (x86)\\Docker\\Docker\\Docker Desktop.exe",
+        ];
+
+        let mut docker_path: Option<String> = None;
+        for path in docker_paths {
+            if PathBuf::from(path).exists() {
+                docker_path = Some(path.to_string());
+                break;
+            }
+        }
+
+        let docker_exe = docker_path.ok_or("Docker Desktop이 설치되어 있지 않습니다. Docker Desktop을 먼저 설치해주세요.")?;
+
+        // Docker Desktop 실행
+        let mut start_cmd = Command::new(&docker_exe);
+        start_cmd.stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+
+        start_cmd.creation_flags(CREATE_NO_WINDOW);
+
+        start_cmd.spawn()
+            .map_err(|e| format!("Docker Desktop 실행 실패: {}", e))?;
+
+        // Docker가 준비될 때까지 대기 (최대 60초)
+        for i in 0..60 {
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+            let mut check_cmd = Command::new("docker");
+            check_cmd.arg("info");
+            check_cmd.creation_flags(CREATE_NO_WINDOW);
+
+            if let Ok(output) = check_cmd.output() {
+                if output.status.success() {
+                    return Ok(());
+                }
+            }
+
+            // 5초마다 로그 출력
+            if i % 5 == 0 && i > 0 {
+                println!("Docker Desktop 시작 대기 중... ({}초)", i);
+            }
+        }
+
+        return Err("Docker Desktop이 시작되지 않았습니다. 수동으로 Docker Desktop을 실행해주세요.".to_string());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Docker가 실행 중이 아닙니다. Docker Desktop을 먼저 실행해주세요.".to_string());
+    }
+}
+
 /// 모니터링 스택 자동 시작
 #[command]
 pub async fn start_monitoring_stack(
     project_path: String,
 ) -> Result<String, String> {
+    // Docker Desktop 확인 및 자동 시작
+    ensure_docker_running().await?;
     // project_path는 디렉토리이므로 stack.yaml 경로를 구성
     let stack_yaml_path = PathBuf::from(&project_path).join("stack.yaml");
 
@@ -262,28 +350,43 @@ pub async fn start_monitoring_stack(
 
     let exe_path = exe_path.ok_or("Monitoring executable not found in BE folder")?;
 
+    #[cfg(target_os = "windows")]
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
     // arfni-monitoring.exe 또는 start-monitoring-v2.exe 사용 시
     if exe_path.contains("arfni-monitoring") || exe_path.contains("start-monitoring-v2") {
         // 백그라운드로 실행 (stack.yaml 경로를 인자로 전달)
-        Command::new(&exe_path)
-            .arg(stack_yaml_path.to_string_lossy().to_string())
+        let mut cmd = Command::new(&exe_path);
+        cmd.arg(stack_yaml_path.to_string_lossy().to_string())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
+            .stderr(Stdio::null());
+
+        #[cfg(target_os = "windows")]
+        {
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        cmd.spawn()
             .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
 
         Ok(format!("Monitoring stack starting with {}", exe_path))
     } else {
         // arfni-go.exe monitor 명령어 사용
-        Command::new(&exe_path)
-            .arg("monitor")
+        let mut cmd = Command::new(&exe_path);
+        cmd.arg("monitor")
             .arg("-f")
             .arg(stack_yaml_path.to_string_lossy().to_string())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
+            .stderr(Stdio::null());
+
+        #[cfg(target_os = "windows")]
+        {
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        cmd.spawn()
             .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
 
         Ok(format!("Monitoring stack starting with {}", exe_path))
@@ -308,4 +411,51 @@ pub async fn check_monitoring_running(
         Ok(resp) => Ok(resp.status().is_success()),
         Err(_) => Ok(false), // 연결 실패는 false 반환 (에러 아님)
     }
+}
+
+/// 모니터링 스택 종료
+#[command]
+pub async fn stop_monitoring_stack() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    // Docker 컨테이너 완전 삭제 (stop + rm을 -f로 한번에)
+    let mut cmd = Command::new("docker");
+    cmd.args(&["rm", "-f", "grafana", "prometheus"]);
+
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    // 실행 (에러 무시 - 컨테이너가 없을 수도 있음)
+    let _ = cmd.output();
+
+    // SSH 터널 프로세스 종료 (Windows)
+    #[cfg(target_os = "windows")]
+    {
+        let mut kill_cmd = Command::new("taskkill");
+        kill_cmd.args(&["/F", "/IM", "ssh.exe"]);
+        kill_cmd.creation_flags(CREATE_NO_WINDOW);
+        let _ = kill_cmd.output();
+    }
+
+    // arfni-monitoring.exe 프로세스 종료 (Windows)
+    #[cfg(target_os = "windows")]
+    {
+        let mut kill_monitoring = Command::new("taskkill");
+        kill_monitoring.args(&["/F", "/IM", "arfni-monitoring.exe"]);
+        kill_monitoring.creation_flags(CREATE_NO_WINDOW);
+        let _ = kill_monitoring.output();
+    }
+
+    // SSH 터널 프로세스 종료 (Unix)
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut kill_cmd = Command::new("pkill");
+        kill_cmd.args(&["-f", "ssh.*9090"]);
+        let _ = kill_cmd.output();
+    }
+
+    Ok("Monitoring stack stopped".to_string())
 }

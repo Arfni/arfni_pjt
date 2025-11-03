@@ -139,18 +139,112 @@ connect-src 'self' http://localhost:* https://localhost:* ws://localhost:* wss:/
 allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox
 ```
 
+## Additional Updates (2025-01-04)
+
+### CMD Window Suppression
+**파일**: 모든 Windows Command 실행에 CREATE_NO_WINDOW 플래그 적용
+
+#### arfni-gui/src-tauri/src/commands/monitoring.rs
+- Line 6-7: CommandExt trait import 추가
+- Line 268-269: start_monitoring_stack 함수에 CREATE_NO_WINDOW 상수 선언
+- Line 280-283, 299-302: arfni-monitoring.exe 및 arfni-go.exe 실행 시 creation_flags 적용
+- Line 237-318: ensure_docker_running 함수 추가 (Docker Desktop 자동 실행)
+- Line 333-376: stop_monitoring_stack 함수 추가
+
+#### arfni-gui/src-tauri/src/features/ssh_exec.rs
+- Line 7-8: CommandExt trait import 추가
+- Line 22-35: SSH 명령 실행 시 CREATE_NO_WINDOW 플래그 적용
+
+#### arfni-gui/src-tauri/src/commands/port_check.rs
+- Line 5-6: CommandExt trait import 추가
+- Line 18-25, 53-60: netstat 명령 실행 시 CREATE_NO_WINDOW 플래그 적용
+
+#### arfni-gui/src-tauri/src/commands/system.rs
+- Line 4-5: CommandExt trait import 추가 (일관성 유지)
+
+### Monitoring Stack Cleanup
+**파일**: GUI 종료 시 모니터링 리소스 자동 정리
+
+#### arfni-gui/src-tauri/src/main.rs
+- Line 4: std::process::Command import 추가
+- Line 31-75: on_window_event 핸들러 추가
+  - CloseRequested 이벤트 처리
+  - docker rm -f로 컨테이너 완전 삭제 (stop 대신 rm 사용)
+  - taskkill로 ssh.exe 프로세스 종료
+  - taskkill로 arfni-monitoring.exe 프로세스 종료
+  - 모든 명령에 CREATE_NO_WINDOW 플래그 적용
+- Line 105: stop_monitoring_stack 명령어 등록
+
+#### arfni-gui/src/pages/monitoring/ui/MonitoringPage.tsx
+- Line 29-44: useEffect cleanup 함수 추가
+  - 컴포넌트 언마운트 시 stop_monitoring_stack 호출
+
+### Docker Desktop Auto-Start
+**파일**: Docker Desktop 미실행 시 자동 실행 기능
+
+#### arfni-gui/src-tauri/src/commands/monitoring.rs
+- Line 237-318: ensure_docker_running 함수 구현
+  - docker info로 실행 상태 확인
+  - 미실행 시 Docker Desktop.exe 자동 실행
+  - 2개 경로 탐색: Program Files, Program Files (x86)
+  - 최대 60초 대기 (1초 간격 polling)
+  - 5초마다 진행 상황 로그 출력
+- Line 325-326: start_monitoring_stack에서 ensure_docker_running 호출
+
+### Browser Auto-Open Disabled
+**파일**: Grafana 브라우저 자동 열기 비활성화
+
+#### BE/arfni/cmd/arfni-monitoring/main.go
+- Line 299: cfg.Options.AutoOpenBrowser = false 설정
+  - GUI iframe으로 표시하므로 별도 브라우저 창 불필요
+
+## Technical Details
+
+### Windows Process Creation Flags
+```rust
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+cmd.creation_flags(CREATE_NO_WINDOW);
+```
+- Windows CreateProcess API의 CREATE_NO_WINDOW 플래그
+- 콘솔 창 생성 억제
+- 모든 subprocess 실행에 적용: docker, ssh, taskkill, netstat
+
+### Docker Container Lifecycle
+**변경 전**: docker stop (컨테이너 정지만)
+**변경 후**: docker rm -f (강제 정지 및 삭제)
+- 디스크 공간 절약
+- 파일 잠금 문제 방지
+- 다음 실행 시 깨끗한 상태 보장
+
+### Resource Cleanup Timing
+1. **페이지 이탈**: React useEffect cleanup 실행
+2. **GUI 종료**: Tauri WindowEvent::CloseRequested 실행
+3. **두 경로 모두 동일 로직**: docker rm -f, taskkill ssh.exe/arfni-monitoring.exe
+
+### Docker Desktop Detection
+1. docker info 실행으로 상태 확인
+2. 실패 시 Docker Desktop.exe 경로 탐색
+3. subprocess로 Docker Desktop 실행
+4. 1초 간격 polling으로 준비 상태 확인
+5. 60초 타임아웃 후 에러 메시지
+
 ## Summary
 
-### Total Changes
-- **Modified files**: 7
+### Total Changes (Updated)
+- **Modified files**: 11
 - **New files**: 2
-- **Lines added**: 561
+- **Lines added**: 750+
 - **Go files modified**: 2
-- **TypeScript/Rust files modified**: 5
+- **TypeScript/Rust files modified**: 9
 
-### Key Features
+### Implemented Features
 - 모니터링 스택 자동 시작
 - Grafana 대시보드 iframe 임베딩
 - stack.yaml 기반 동적 설정
 - 실행 상태 자동 감지 및 대기
-- 에러 처리 및 사용자 안내
+- GUI 종료 시 자동 cleanup
+- Docker 컨테이너 완전 삭제
+- SSH 터널 프로세스 종료
+- Docker Desktop 자동 실행
+- CMD 창 완전 억제
+- 브라우저 자동 열기 비활성화

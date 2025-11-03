@@ -296,7 +296,7 @@ func loadConfig(configFile, host, user, key, stackPath, mode string, args []stri
 	cfg.Monitoring.GrafanaPort = 3000
 	cfg.Monitoring.NodeExporterPort = 9100
 	cfg.Monitoring.Mode = ModeLocal // 기본 모드
-	cfg.Options.AutoOpenBrowser = true
+	cfg.Options.AutoOpenBrowser = false  // GUI에서 iframe으로 보여주므로 브라우저 자동 열기 비활성화
 	cfg.Options.CleanupOnExit = true
 
 	// 1. JSON 파일에서 로드 (있으면)

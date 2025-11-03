@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // ← 파일 맨 첫 줄(중요)
 use tauri_plugin_dialog;
 use tauri::Manager;
+use std::process::Command;
 
 mod test;
 // re-export 해서 현재 모듈로 끌어오면 매크로 가시성 문제를 피하기 좋습니다
@@ -26,6 +27,52 @@ fn main() {
 
             // 앱 상태로 DB 저장 (전역 접근 가능)
             app.manage(db);
+
+            // 윈도우 닫힐 때 모니터링 스택 정리
+            let window = app.get_webview_window("main").unwrap();
+            window.on_window_event(|event| {
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    // 모니터링 스택 종료 (동기 방식)
+                    std::thread::spawn(|| {
+                        use std::process::Command;
+
+                        #[cfg(target_os = "windows")]
+                        use std::os::windows::process::CommandExt;
+
+                        #[cfg(target_os = "windows")]
+                        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+                        // Docker 컨테이너 완전 삭제 (stop + rm)
+                        let mut docker_cmd = Command::new("docker");
+                        docker_cmd.args(&["rm", "-f", "grafana", "prometheus"]);
+
+                        #[cfg(target_os = "windows")]
+                        {
+                            docker_cmd.creation_flags(CREATE_NO_WINDOW);
+                        }
+
+                        let _ = docker_cmd.output();
+
+                        // SSH 프로세스 종료 (Windows)
+                        #[cfg(target_os = "windows")]
+                        {
+                            let mut kill_cmd = Command::new("taskkill");
+                            kill_cmd.args(&["/F", "/IM", "ssh.exe"]);
+                            kill_cmd.creation_flags(CREATE_NO_WINDOW);
+                            let _ = kill_cmd.output();
+                        }
+
+                        // arfni-monitoring.exe 프로세스도 종료
+                        #[cfg(target_os = "windows")]
+                        {
+                            let mut kill_monitoring = Command::new("taskkill");
+                            kill_monitoring.args(&["/F", "/IM", "arfni-monitoring.exe"]);
+                            kill_monitoring.creation_flags(CREATE_NO_WINDOW);
+                            let _ = kill_monitoring.output();
+                        }
+                    });
+                }
+            });
 
             println!("✅ ARFNI GUI initialized successfully");
             Ok(())
@@ -102,6 +149,7 @@ fn main() {
       commands::monitoring::test_prometheus_connection,
       commands::monitoring::start_monitoring_stack,
       commands::monitoring::check_monitoring_running,
+      commands::monitoring::stop_monitoring_stack,
 
       //포트체크 명령어
       commands::port_check::list_open_ports,
