@@ -96,6 +96,7 @@ fn main() {
       commands::port_check::list_listening_ports,
       // 시스템 명령어
       commands::system::open_downloads_folder,
+      commands::system::open_folder_in_explorer,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
