@@ -1,6 +1,9 @@
 use tauri::command;
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 #[command]
 pub async fn open_downloads_folder() -> Result<(), String> {
     let downloads_dir = dirs::download_dir()
