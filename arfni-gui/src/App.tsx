@@ -6,6 +6,7 @@ import { CanvasPage } from "./pages/canvas/ui/CanvasPage";
 import TestPage from "./pages/test/ui/TestPage";
 import LogPage from "./pages/logs/ui/LogPage";
 import ProjectsPage from "./pages/projects/ui/ProjectsPage";
+import SettingsPage from "./pages/settings/ui/SettingsPage";
 import TestPage2 from "./pages/test/ui/TestPage2";
 import { DeploymentPage } from "./pages/deployment/ui/DeploymentPage";
 import SshTerminal from "./pages/test/ui/SshTerminal";
@@ -35,6 +36,7 @@ function App() {
             <Route path="/test" element={<TestPage />} />
             <Route path="/logs" element={<LogPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/test2" element={<TestPage2 />} />
             <Route path="/deployment" element={<DeploymentPage />} />
             <Route path="/test2" element={<TestPage2 />} />
