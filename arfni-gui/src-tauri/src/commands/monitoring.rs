@@ -3,6 +3,9 @@ use tauri::command;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrometheusMetric {
     pub timestamp: f64,
@@ -265,25 +268,39 @@ pub async fn start_monitoring_stack(
     // arfni-monitoring.exe 또는 start-monitoring-v2.exe 사용 시
     if exe_path.contains("arfni-monitoring") || exe_path.contains("start-monitoring-v2") {
         // 백그라운드로 실행 (stack.yaml 경로를 인자로 전달)
-        Command::new(&exe_path)
-            .arg(stack_yaml_path.to_string_lossy().to_string())
+        let mut cmd = Command::new(&exe_path);
+        cmd.arg(stack_yaml_path.to_string_lossy().to_string())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
+            .stderr(Stdio::null());
+
+        #[cfg(target_os = "windows")]
+        {
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        cmd.spawn()
             .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
 
         Ok(format!("Monitoring stack starting with {}", exe_path))
     } else {
         // arfni-go.exe monitor 명령어 사용
-        Command::new(&exe_path)
-            .arg("monitor")
+        let mut cmd = Command::new(&exe_path);
+        cmd.arg("monitor")
             .arg("-f")
             .arg(stack_yaml_path.to_string_lossy().to_string())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
+            .stderr(Stdio::null());
+
+        #[cfg(target_os = "windows")]
+        {
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        cmd.spawn()
             .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
 
         Ok(format!("Monitoring stack starting with {}", exe_path))
