@@ -1,0 +1,35 @@
+name: benchmark-test
+
+targets:
+  local:
+    type: docker-desktop
+
+services:
+  backend:
+    kind: docker.container
+    target: local
+    spec:
+      image: spring-boot-app:latest
+      ports:
+        - "8080:8080"
+      environment:
+        - SPRING_PROFILES_ACTIVE=prod
+
+  database:
+    kind: docker.container
+    target: local
+    spec:
+      image: mysql:8.0
+      ports:
+        - "3306:3306"
+      environment:
+        - MYSQL_ROOT_PASSWORD=secret
+        - MYSQL_DATABASE=appdb
+
+  cache:
+    kind: docker.container
+    target: local
+    spec:
+      image: redis:7-alpine
+      ports:
+        - "6379:6379"
