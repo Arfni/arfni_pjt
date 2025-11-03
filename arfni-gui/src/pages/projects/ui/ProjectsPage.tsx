@@ -33,6 +33,7 @@ export default function ProjectsPage() {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectPath, setNewProjectPath] = useState('');
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // EC2 서버 관련
   const [ec2Servers, setEc2Servers] = useState<EC2Server[]>([]);
@@ -42,6 +43,7 @@ export default function ProjectsPage() {
   });
   const [showServerModal, setShowServerModal] = useState(false);
   const [showAddServerModal, setShowAddServerModal] = useState(false);
+  const [editingServer, setEditingServer] = useState<EC2Server | null>(null);
 
   // Canvas 미리보기 데이터
   const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
@@ -199,16 +201,19 @@ export default function ProjectsPage() {
 
   // 프로젝트 생성 핸들러
   const handleCreateProject = useCallback(async () => {
+    setCreateError(null);
+
+    // 필수 필드 검증
     if (!newProjectName.trim()) {
-      alert('프로젝트 이름을 입력하세요.');
+      setCreateError('Please enter Project Name');
       return;
     }
     if (!newProjectPath.trim()) {
-      alert('프로젝트 경로를 선택하세요.');
+      setCreateError('Please select Project Path');
       return;
     }
     if (selectedTab === 'ec2' && !selectedEC2ServerId) {
-      alert('EC2 서버를 선택하세요.');
+      setCreateError('Please select EC2 Server');
       return;
     }
 
@@ -226,6 +231,7 @@ export default function ProjectsPage() {
       setShowCreateModal(false);
       setNewProjectName('');
       setNewProjectPath('');
+      setCreateError(null);
 
       // 프로젝트 목록 새로고침
       if (selectedTab === 'ec2') {
@@ -238,7 +244,7 @@ export default function ProjectsPage() {
       navigate('/canvas', { state: { project } });
     } catch (err) {
       console.error('프로젝트 생성 실패:', err);
-      alert(`프로젝트 생성에 실패했습니다: ${err}`);
+      setCreateError(`Failed to create project: ${err}`);
     } finally {
       setCreating(false);
     }
@@ -293,21 +299,20 @@ export default function ProjectsPage() {
           </h2>
 
           <div className="flex items-center gap-3">
-            {/* EC2 Server Selection */}
-            {selectedTab === 'ec2' && (
-              <button
-                onClick={() => setShowServerModal(true)}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 font-medium"
-              >
-                <Server className="w-4 h-4" />
-                <span>
-                  {selectedEC2ServerId && ec2Servers.find(s => s.id === selectedEC2ServerId)
-                    ? ec2Servers.find(s => s.id === selectedEC2ServerId)!.name
-                    : 'Select Server'}
-                </span>
-                <span className="text-gray-400">▼</span>
-              </button>
-            )}
+            {/* EC2 Server Selection - Always render to prevent layout shift */}
+            <button
+              onClick={() => setShowServerModal(true)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 font-medium"
+              style={{ visibility: selectedTab === 'ec2' ? 'visible' : 'hidden' }}
+            >
+              <Server className="w-4 h-4" />
+              <span>
+                {selectedEC2ServerId && ec2Servers.find(s => s.id === selectedEC2ServerId)
+                  ? ec2Servers.find(s => s.id === selectedEC2ServerId)!.name
+                  : 'Select Server'}
+              </span>
+              <span className="text-gray-400">▼</span>
+            </button>
 
             {/* Create Project Button */}
             <button
@@ -327,7 +332,7 @@ export default function ProjectsPage() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-500">프로젝트 목록을 불러오는 중...</p>
+              <p className="text-gray-500">Loading Projects...</p>
             </div>
           </div>
         )}
@@ -342,7 +347,7 @@ export default function ProjectsPage() {
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
               >
-                다시 시도
+                Retry
               </button>
             </div>
           </div>
@@ -404,10 +409,12 @@ export default function ProjectsPage() {
         creating={creating}
         selectedEC2ServerId={selectedEC2ServerId}
         ec2Servers={ec2Servers}
+        error={createError}
         onClose={() => {
           setShowCreateModal(false);
           setNewProjectName('');
           setNewProjectPath('');
+          setCreateError(null);
         }}
         onNameChange={setNewProjectName}
         onSelectFolder={handleSelectFolder}
@@ -429,6 +436,11 @@ export default function ProjectsPage() {
           setShowServerModal(false);
           setShowAddServerModal(true);
         }}
+        onEditServer={(server) => {
+          setEditingServer(server);
+          setShowServerModal(false);
+          setShowAddServerModal(true);
+        }}
         onServerDeleted={async () => {
           // 서버 목록 새로고침
           const servers = await ec2ServerCommands.getAllServers();
@@ -443,12 +455,18 @@ export default function ProjectsPage() {
       {/* Add Server Modal */}
       <AddServerModal
         isOpen={showAddServerModal}
-        onClose={() => setShowAddServerModal(false)}
+        onClose={() => {
+          setShowAddServerModal(false);
+          setEditingServer(null); // 수정 모드 초기화
+          setShowServerModal(true); // 서버 선택 모달로 돌아가기
+        }}
         onServerAdded={async () => {
           // 서버 목록 새로고침
           const servers = await ec2ServerCommands.getAllServers();
           setEc2Servers(servers);
+          setEditingServer(null); // 수정 모드 초기화
         }}
+        editServer={editingServer}
       />
     </div>
   );

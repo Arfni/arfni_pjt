@@ -10,7 +10,8 @@ import {
   PlusCircle,
   Loader2,
   ArrowLeft,
-  Camera
+  Camera,
+  FileText
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
@@ -506,6 +507,16 @@ export function Toolbar() {
       </div>
 
       <div className="flex items-center gap-2">
+
+            {/* YML 생성하기 버튼 */}
+          <button
+              onClick={() => navigate('/yml')}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2"
+          >
+              <FileText className="w-4 h-4" />
+              githubyml
+          </button>
+
         <button
           onClick={handleDownloadScreenshot}
           className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
