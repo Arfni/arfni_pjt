@@ -202,3 +202,76 @@ EC2 서버에서는 docker compose pull && up -d 로 자동 업데이트 가능�
 
 PEM 기반 SSH 자동 로그인 및 Health Check 후 자동 재시작 로직 구상
 
+🧾 개발일지 — 2025.11.03
+🛠️ 주요 개발 내용
+포트 검사 기능 (Local + EC2) 구현 — Rust + React + SSH
+🦀 Rust (Tauri Backend)
+1️⃣ 로컬 포트 검사 기능 추가
+
+명령 실행:
+netstat -ano 명령어를 실행하여 현재 열린 포트 목록을 수집.
+
+정규식 파싱:
+regex 크레이트를 이용해 :포트번호 패턴만 추출.
+
+구현 함수:
+
+list_open_ports() → 전체 포트 원문 문자열 반환
+
+list_listening_ports() → LISTENING 상태의 포트만 Vec<u16> 형태로 반환
+
+기타 처리:
+
+중복 포트 제거 및 정렬
+
+Windows 환경에서 CP949 → UTF-8 변환(String::from_utf8_lossy) 적용으로 한글 깨짐 방지
+
+2️⃣ EC2 포트 검사 기능 추가
+
+SSH 명령 실행:
+기존 SSH 유틸 함수 exec_once_via_system_ssh() 재활용
+→ 원격 EC2 서버에서 sudo ss -tuln 명령 실행
+
+포트 필터링:
+LISTEN 상태의 TCP/UDP 포트만 정규식으로 추출하여 Vec<u16> 형태로 반환
+
+Tauri 커맨드 등록:
+
+#[tauri::command]
+pub async fn list_ec2_listening_ports(params: SshSimpleParams)
+
+
+React에서 invoke("list_ec2_listening_ports", { params }) 로 호출 가능
+
+⚛️ React (Frontend)
+1️⃣ PortTest.tsx 신규 작성
+
+로컬 포트 검사 기능
+
+invoke("list_open_ports") → 전체 netstat 결과 출력
+
+invoke("list_listening_ports") → LISTENING 포트만 표시
+
+EC2 포트 검사 기능
+
+입력 필드: host, user, pem_path
+
+invoke("list_ec2_listening_ports", { host, user, pem_path }) 호출로 EC2 LISTENING 포트 조회
+
+UI 구성
+
+LISTENING 포트 → 태그(Chip) 형태로 시각화
+
+전체 포트 결과 → textarea 출력
+
+오류/로딩 상태 표시
+
+TailwindCSS 기반 반응형 레이아웃
+
+✅ 결과
+
+로컬 및 EC2의 LISTENING 포트를 한 화면에서 실시간 확인 가능
+
+SSH 인증키를 활용하여 터미널 없이 GUI에서 원격 포트 스캔 가능
+
+개발 및 운영 환경의 포트 개방 상태 점검 자동화 기반 기능 완성
