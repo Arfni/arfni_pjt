@@ -9,6 +9,7 @@ interface CreateProjectModalProps {
   creating: boolean;
   selectedEC2ServerId: string;
   ec2Servers: EC2Server[];
+  error: string | null;
   onClose: () => void;
   onNameChange: (name: string) => void;
   onSelectFolder: () => void;
@@ -23,6 +24,7 @@ export function CreateProjectModal({
   creating,
   selectedEC2ServerId,
   ec2Servers,
+  error,
   onClose,
   onNameChange,
   onSelectFolder,
@@ -46,6 +48,12 @@ export function CreateProjectModal({
         </div>
 
         <div className="p-6 space-y-4">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Project Name
@@ -65,7 +73,7 @@ export function CreateProjectModal({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Project Path
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <input
                 type="text"
                 value={newProjectPath}
@@ -76,7 +84,7 @@ export function CreateProjectModal({
               <button
                 onClick={onSelectFolder}
                 disabled={creating}
-                className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                className="w-10 h-10 flex items-center justify-center bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
                 title="Browse folder"
               >
                 <FolderOpen className="w-5 h-5" />
@@ -96,11 +104,11 @@ export function CreateProjectModal({
           </button>
           <button
             onClick={onCreate}
-            disabled={creating || !newProjectName.trim() || !newProjectPath.trim()}
-            className="flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={creating}
+            className="flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 transition-colors"
             style={{ backgroundColor: '#4C65E2' }}
-            onMouseEnter={(e) => !(creating || !newProjectName.trim() || !newProjectPath.trim()) && (e.currentTarget.style.backgroundColor = '#3B52C9')}
-            onMouseLeave={(e) => !(creating || !newProjectName.trim() || !newProjectPath.trim()) && (e.currentTarget.style.backgroundColor = '#4C65E2')}
+            onMouseEnter={(e) => !creating && (e.currentTarget.style.backgroundColor = '#3B52C9')}
+            onMouseLeave={(e) => !creating && (e.currentTarget.style.backgroundColor = '#4C65E2')}
           >
             {creating ? 'Creating...' : 'Create'}
           </button>

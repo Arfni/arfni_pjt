@@ -29,7 +29,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: Pr
           <CanvasPreview nodes={canvasPreview.nodes} edges={canvasPreview.edges} />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-gray-400 text-sm">빈 캔버스</p>
+            <p className="text-gray-400 text-sm">Empty Canvas</p>
           </div>
         )}
         <div className="absolute top-2 right-2">
