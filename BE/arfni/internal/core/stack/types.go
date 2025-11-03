@@ -42,7 +42,7 @@ type Service struct {
 // ServiceSpec은 서비스의 상세 스펙입니다
 type ServiceSpec struct {
 	Image       string                 `yaml:"image,omitempty"`
-	Build       string                 `yaml:"build,omitempty"`
+	Build       *BuildSpec             `yaml:"build,omitempty"`
 	BuildConfig map[string]interface{} `yaml:"buildConfig,omitempty"` // Dockerfile template variables
 	Env         map[string]string      `yaml:"env,omitempty"`
 	Ports       []string               `yaml:"ports,omitempty"`
@@ -50,6 +50,52 @@ type ServiceSpec struct {
 	Command     []string               `yaml:"command,omitempty"`
 	Restart     string                 `yaml:"restart,omitempty"`
 	Health      *HealthCheck           `yaml:"health,omitempty"`
+}
+
+// BuildSpec은 빌드 설정을 정의합니다 (문자열 또는 객체)
+type BuildSpec struct {
+	Context    string `yaml:"context,omitempty"`
+	Dockerfile string `yaml:"dockerfile,omitempty"`
+}
+
+// UnmarshalYAML은 build 필드가 문자열 또는 객체일 수 있도록 처리합니다
+func (b *BuildSpec) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// 먼저 문자열로 시도
+	var str string
+	if err := unmarshal(&str); err == nil {
+		b.Context = str
+		return nil
+	}
+
+	// 객체로 시도
+	type buildSpecAlias BuildSpec
+	var obj buildSpecAlias
+	if err := unmarshal(&obj); err != nil {
+		return err
+	}
+	*b = BuildSpec(obj)
+	return nil
+}
+
+// GetContext는 빌드 컨텍스트 경로를 반환합니다
+func (b *BuildSpec) GetContext() string {
+	if b.Context != "" {
+		return b.Context
+	}
+	return "."
+}
+
+// GetDockerfile은 Dockerfile 경로를 반환합니다
+func (b *BuildSpec) GetDockerfile() string {
+	if b.Dockerfile != "" {
+		return b.Dockerfile
+	}
+	return "Dockerfile"
+}
+
+// IsEmpty는 BuildSpec이 비어있는지 확인합니다
+func (b *BuildSpec) IsEmpty() bool {
+	return b == nil || (b.Context == "" && b.Dockerfile == "")
 }
 
 // Volume은 볼륨 마운트를 정의합니다

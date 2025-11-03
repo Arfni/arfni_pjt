@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -65,6 +66,12 @@ func main() {
 		if err := runner.ExecuteWithPlugins(stream, *pluginsDir, *bundledPluginsDir); err != nil {
 			fmt.Fprintf(os.Stderr, "[error] run: %v\n", err)
 			os.Exit(1)
+		}
+
+		// Generate and output deployment results
+		outputs := workflow.GenerateOutputs(st, stackDir)
+		if outputsJSON, err := json.Marshal(outputs); err == nil {
+			fmt.Printf("__OUTPUTS__%s\n", string(outputsJSON))
 		}
 
 		fmt.Println("\n[SUCCESS] Deployment completed successfully!")

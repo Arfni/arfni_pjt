@@ -7,6 +7,15 @@ description: "Lightweight Python web framework"
 author: ARFNI Team
 license: MIT
 
+detection:
+  enabled: true
+  priority: 13
+  required_files:
+    - requirements.txt
+  file_content_patterns:
+    requirements.txt:
+      contains: ["flask", "Flask"]
+
 provides:
   service_kinds:
     - app.flask

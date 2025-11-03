@@ -18,38 +18,20 @@ func NewTemplateRenderer(pluginsDir string) *TemplateRenderer {
 	return &TemplateRenderer{pluginsDir: pluginsDir}
 }
 
-// NewBundledTemplateRenderer creates a new template renderer for bundled plugins
-func NewBundledTemplateRenderer(bundledPluginsDir string) *TemplateRenderer {
-	return &TemplateRenderer{pluginsDir: bundledPluginsDir}
-}
-
-// FindPluginTemplate finds Dockerfile.tmpl for a service type
-// Tries multiple standard paths:
-// 1. {pluginsDir}/installed/framework/{serviceType}/templates/Dockerfile.tmpl (GUI installed)
-// 2. {pluginsDir}/frameworks/{serviceType}/templates/Dockerfile.tmpl (Development)
-func (tr *TemplateRenderer) FindPluginTemplate(serviceType string) (string, error) {
-	// Try GUI installed path first
+// FindTemplate finds Dockerfile.tmpl for a service type
+// Tries multiple standard paths based on plugin directory structure
+func (tr *TemplateRenderer) FindTemplate(serviceType string) (string, error) {
+	// All possible paths to try
 	paths := []string{
+		// Installed plugins (GUI)
 		filepath.Join(tr.pluginsDir, "installed", "framework", serviceType, "templates", "Dockerfile.tmpl"),
+		// Development plugins
 		filepath.Join(tr.pluginsDir, "frameworks", serviceType, "templates", "Dockerfile.tmpl"),
-	}
-
-	for _, templatePath := range paths {
-		if _, err := os.Stat(templatePath); err == nil {
-			return templatePath, nil
-		}
-	}
-
-	return "", fmt.Errorf("template not found for service type: %s (tried: %v)", serviceType, paths)
-}
-
-// FindBundledTemplate finds Dockerfile.tmpl in bundled plugins
-// Tries: {bundledPluginsDir}/framework/{serviceType}/templates/Dockerfile.tmpl
-func (tr *TemplateRenderer) FindBundledTemplate(serviceType string) (string, error) {
-	// Bundled plugins structure: public/plugins/bundled/framework/{serviceType}/templates/Dockerfile.tmpl
-	paths := []string{
+		// Bundled plugins - framework
 		filepath.Join(tr.pluginsDir, "framework", serviceType, "templates", "Dockerfile.tmpl"),
+		// Bundled plugins - database
 		filepath.Join(tr.pluginsDir, "database", serviceType, "templates", "Dockerfile.tmpl"),
+		// Bundled plugins - cache
 		filepath.Join(tr.pluginsDir, "cache", serviceType, "templates", "Dockerfile.tmpl"),
 	}
 
@@ -59,7 +41,7 @@ func (tr *TemplateRenderer) FindBundledTemplate(serviceType string) (string, err
 		}
 	}
 
-	return "", fmt.Errorf("bundled template not found for service type: %s (tried: %v)", serviceType, paths)
+	return "", fmt.Errorf("template not found for service type: %s (tried: %v)", serviceType, paths)
 }
 
 // RenderTemplate renders a Dockerfile template with buildConfig variables

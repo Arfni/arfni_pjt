@@ -16,6 +16,7 @@ export interface PluginManifest {
   provides?: {
     service_kinds?: string[];
   };
+  inputs?: Record<string, any>;  // Plugin inputs for property forms
   contributes?: {
     services?: Record<string, any>;
     canvas?: {
@@ -378,7 +379,24 @@ class PluginService {
     const plugin = this.plugins.get(serviceType);
     if (!plugin) return null;
 
-    // Check if plugin has framework definition with propertyForm
+    // Convert plugin.manifest.inputs to propertyForm format
+    if (plugin.manifest.inputs) {
+      const inputs = plugin.manifest.inputs as Record<string, any>;
+      return Object.entries(inputs).map(([name, config]) => ({
+        name,
+        label: config.description || name,
+        type: config.type || 'text',
+        required: config.required || false,
+        default: config.default,
+        options: config.options,
+        placeholder: config.placeholder,
+        description: config.description,
+        env_var: config.env_var,
+        scope: config.scope,
+      }));
+    }
+
+    // Fallback: Check if plugin has old framework definition with propertyForm
     if (plugin.frameworkDefinition?.propertyForm) {
       return plugin.frameworkDefinition.propertyForm;
     }

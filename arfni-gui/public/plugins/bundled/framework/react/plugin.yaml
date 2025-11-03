@@ -8,6 +8,15 @@ author: ARFNI Team
 license: MIT
 icon: icon.png
 
+detection:
+  enabled: true
+  priority: 10
+  required_files:
+    - package.json
+  file_content_patterns:
+    package.json:
+      contains: ["\"react\""]
+
 provides:
   service_kinds:
     - app.react

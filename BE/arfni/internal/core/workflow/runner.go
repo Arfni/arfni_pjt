@@ -113,6 +113,7 @@ func (r *Runner) healthCheck(ctx context.Context) error {
 }
 
 // Execute는 전체 워크플로우를 실행하며 이벤트를 스트리밍합니다 (기본 호환성 유지)
+// Deprecated: Use ExecuteWithPlugins instead
 func (r *Runner) Execute(stream *events.Stream, pluginsDir string) error {
 	return r.ExecuteWithPlugins(stream, pluginsDir, "")
 }
@@ -157,8 +158,16 @@ func (r *Runner) ExecuteWithPlugins(stream *events.Stream, pluginsDir, bundledPl
 func (r *Runner) generateFiles(stream *events.Stream) error {
 	stream.Info("Generating docker-compose.yml...")
 
-	// Generate docker-compose.yml
-	if err := WriteDockerCompose(r.stack, r.projectDir); err != nil {
+	// For local deployment, include all services (no filtering)
+	// EC2 deployment will be filtered later in buildImagesEC2/deployContainersEC2
+	content, err := GenerateDockerComposeWithTarget(r.stack, r.projectDir, "")
+	if err != nil {
+		return fmt.Errorf("failed to generate docker-compose.yml: %w", err)
+	}
+
+	// Write docker-compose.yml
+	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
+	if err := os.WriteFile(composeFile, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write docker-compose.yml: %w", err)
 	}
 
@@ -168,11 +177,12 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 	stream.Info("Generating Dockerfiles...")
 	dockerfileCount := 0
 	for name, service := range r.stack.Services {
-		if service.Spec.Build != "" {
-			stream.Info(fmt.Sprintf("Detecting build type for service '%s' at path: %s", name, service.Spec.Build))
+		if service.Spec.Build != nil && !service.Spec.Build.IsEmpty() {
+			buildContext := service.Spec.Build.GetContext()
+			stream.Info(fmt.Sprintf("Detecting build type for service '%s' at path: %s", name, buildContext))
 
-			// Detect build type
-			buildType, err := DetectBuildType(r.projectDir, service.Spec.Build)
+			// Detect build type using plugin-based detection
+			buildType, err := DetectBuildType(r.projectDir, buildContext, r.pluginsDir, r.bundledPluginsDir)
 			if err != nil {
 				stream.Info(fmt.Sprintf("Warning: Could not detect build type for '%s': %v", name, err))
 				continue
@@ -181,12 +191,12 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 			stream.Info(fmt.Sprintf("Detected build type: %s", buildType))
 
 			// Generate Dockerfile with buildConfig and pluginsDir
-			if err := WriteDockerfileWithBundled(r.projectDir, service.Spec.Build, buildType,
+			if err := WriteDockerfileWithBundled(r.projectDir, buildContext, buildType,
 			                         service.Spec.BuildConfig, r.pluginsDir, r.bundledPluginsDir); err != nil {
 				return fmt.Errorf("failed to write Dockerfile for '%s': %w", name, err)
 			}
 
-			dockerfilePath := fmt.Sprintf("%s/Dockerfile", service.Spec.Build)
+			dockerfilePath := fmt.Sprintf("%s/%s", buildContext, service.Spec.Build.GetDockerfile())
 			stream.Success(fmt.Sprintf("Generated Dockerfile for '%s' (%s) at %s", name, buildType, dockerfilePath))
 			dockerfileCount++
 		}
@@ -222,15 +232,35 @@ func (r *Runner) getTarget() (stack.Target, error) {
 
 // buildImages는 docker-compose build를 실행합니다
 func (r *Runner) buildImages(stream *events.Stream) error {
-	targetType := r.getTargetType()
+	// Check which targets are used by services
+	hasLocal := false
+	hasEC2 := false
 
-	// EC2인 경우 원격 빌드
-	if targetType == "ec2.ssh" {
-		return r.buildImagesEC2(stream)
+	for _, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "local" {
+				hasLocal = true
+			} else if targetObj.Type == "ec2.ssh" {
+				hasEC2 = true
+			}
+		}
 	}
 
-	// 로컬 빌드
-	return r.buildImagesLocal(stream)
+	// Build for EC2 if any service uses it
+	if hasEC2 {
+		if err := r.buildImagesEC2(stream); err != nil {
+			return err
+		}
+	}
+
+	// Build locally if any service uses local target
+	if hasLocal {
+		if err := r.buildImagesLocal(stream); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // buildImagesLocal은 로컬에서 docker-compose build를 실행합니다
@@ -242,11 +272,28 @@ func (r *Runner) buildImagesLocal(stream *events.Stream) error {
 		return fmt.Errorf("docker-compose.yml not found: %s", composeFile)
 	}
 
-	stream.Info("Running docker compose build...")
+	// Collect service names with local target
+	localServices := []string{}
+	for name, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "local" {
+				localServices = append(localServices, name)
+			}
+		}
+	}
 
-	// Run docker compose build with --project-directory
+	if len(localServices) == 0 {
+		stream.Info("No local services to build")
+		return nil
+	}
+
+	stream.Info(fmt.Sprintf("Running docker compose build for local services: %v", localServices))
+
+	// Run docker compose build with --project-directory and specific service names
 	// This ensures build contexts are relative to project directory, not compose file location
-	cmd := exec.Command("docker", "compose", "--project-directory", r.projectDir, "-f", composeFile, "build")
+	cmdArgs := []string{"compose", "--project-directory", r.projectDir, "-f", composeFile, "build"}
+	cmdArgs = append(cmdArgs, localServices...)
+	cmd := exec.Command("docker", cmdArgs...)
 	cmd.Dir = r.projectDir
 
 	// Hide console window on Windows
@@ -328,11 +375,33 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 		return fmt.Errorf("failed to upload docker-compose.yml: %w", err)
 	}
 
-	// 빌드 컨텍스트 디렉토리들 전송 (apps 디렉토리 등)
+	// Collect EC2 services that need building
+	ec2Services := []string{}
 	for name, service := range r.stack.Services {
-		if service.Spec.Build != "" {
-			localBuildPath := filepath.Join(r.projectDir, service.Spec.Build)
-			remoteBuildPath := workdir + "/" + service.Spec.Build
+		if target, exists := r.stack.Targets[service.Target]; exists {
+			if target.Type == "ec2.ssh" {
+				ec2Services = append(ec2Services, name)
+			}
+		}
+	}
+
+	if len(ec2Services) == 0 {
+		stream.Info("No EC2 services to build")
+		return nil
+	}
+
+	// 빌드 컨텍스트 디렉토리들 전송 (EC2 타겟 서비스만)
+	for name, service := range r.stack.Services {
+		// Only upload for EC2 services
+		targetObj, exists := r.stack.Targets[service.Target]
+		if !exists || targetObj.Type != "ec2.ssh" {
+			continue
+		}
+
+		if service.Spec.Build != nil && !service.Spec.Build.IsEmpty() {
+			buildContext := service.Spec.Build.GetContext()
+			localBuildPath := filepath.Join(r.projectDir, buildContext)
+			remoteBuildPath := workdir + "/" + buildContext
 
 			stream.Info(fmt.Sprintf("Uploading build context for %s...", name))
 			if err := sshClient.UploadDirectory(stream, localBuildPath, remoteBuildPath); err != nil {
@@ -341,9 +410,13 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 		}
 	}
 
-	// 4. EC2에서 빌드 실행
-	stream.Info("Building images on EC2...")
-	buildCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml build", workdir)
+	// 4. EC2에서 빌드 실행 (EC2 서비스만)
+	stream.Info(fmt.Sprintf("Building images on EC2: %v", ec2Services))
+	serviceList := ""
+	for _, svc := range ec2Services {
+		serviceList += " " + svc
+	}
+	buildCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml build%s", workdir, serviceList)
 	if err := sshClient.RunCommand(stream, buildCmd); err != nil {
 		return fmt.Errorf("failed to build on EC2: %w", err)
 	}
@@ -354,25 +427,62 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 
 // deployContainers는 docker-compose up -d를 실행합니다
 func (r *Runner) deployContainers(stream *events.Stream) error {
-	targetType := r.getTargetType()
+	// Check which targets are used by services
+	hasLocal := false
+	hasEC2 := false
 
-	// EC2인 경우 원격 배포
-	if targetType == "ec2.ssh" {
-		return r.deployContainersEC2(stream)
+	for _, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "local" {
+				hasLocal = true
+			} else if targetObj.Type == "ec2.ssh" {
+				hasEC2 = true
+			}
+		}
 	}
 
-	// 로컬 배포
-	return r.deployContainersLocal(stream)
+	// Deploy to EC2 if any service uses it
+	if hasEC2 {
+		if err := r.deployContainersEC2(stream); err != nil {
+			return err
+		}
+	}
+
+	// Deploy locally if any service uses local target
+	if hasLocal {
+		if err := r.deployContainersLocal(stream); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // deployContainersLocal은 로컬에서 docker-compose up -d를 실행합니다
 func (r *Runner) deployContainersLocal(stream *events.Stream) error {
 	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
 
-	stream.Info("Running docker compose up -d...")
+	// Collect service names with local target
+	localServices := []string{}
+	for name, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "local" {
+				localServices = append(localServices, name)
+			}
+		}
+	}
 
-	// Run docker compose up -d with --project-directory
-	cmd := exec.Command("docker", "compose", "--project-directory", r.projectDir, "-f", composeFile, "up", "-d")
+	if len(localServices) == 0 {
+		stream.Info("No local services to deploy")
+		return nil
+	}
+
+	stream.Info(fmt.Sprintf("Running docker compose up -d for local services: %v", localServices))
+
+	// Run docker compose up -d with specific service names
+	cmdArgs := []string{"compose", "--project-directory", r.projectDir, "-f", composeFile, "up", "-d"}
+	cmdArgs = append(cmdArgs, localServices...)
+	cmd := exec.Command("docker", cmdArgs...)
 	cmd.Dir = r.projectDir
 
 	// Hide console window on Windows
@@ -430,13 +540,32 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 		return err
 	}
 
+	// Collect service names with EC2 target
+	ec2Services := []string{}
+	for name, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "ec2.ssh" {
+				ec2Services = append(ec2Services, name)
+			}
+		}
+	}
+
+	if len(ec2Services) == 0 {
+		stream.Info("No EC2 services to deploy")
+		return nil
+	}
+
 	sshClient := NewSSHClient(target, r.projectDir)
 	workdir := sshClient.GetWorkdir()
 
-	stream.Info("Deploying containers on EC2...")
+	stream.Info(fmt.Sprintf("Deploying containers on EC2: %v", ec2Services))
 
-	// docker compose up -d 실행
-	deployCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml up -d", workdir)
+	// docker compose up -d with specific service names
+	serviceList := ""
+	for _, svc := range ec2Services {
+		serviceList += " " + svc
+	}
+	deployCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml up -d%s", workdir, serviceList)
 	if err := sshClient.RunCommand(stream, deployCmd); err != nil {
 		return fmt.Errorf("failed to deploy on EC2: %w", err)
 	}
@@ -447,15 +576,35 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 
 // healthChecks는 컨테이너 상태를 확인합니다
 func (r *Runner) healthChecks(stream *events.Stream) error {
-	targetType := r.getTargetType()
+	// Check which targets are used by services
+	hasLocal := false
+	hasEC2 := false
 
-	// EC2인 경우 원격 헬스체크
-	if targetType == "ec2.ssh" {
-		return r.healthChecksEC2(stream)
+	for _, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "local" {
+				hasLocal = true
+			} else if targetObj.Type == "ec2.ssh" {
+				hasEC2 = true
+			}
+		}
 	}
 
-	// 로컬 헬스체크
-	return r.healthChecksLocal(stream)
+	// Health check for EC2 if any service uses it
+	if hasEC2 {
+		if err := r.healthChecksEC2(stream); err != nil {
+			return err
+		}
+	}
+
+	// Health check locally if any service uses local target
+	if hasLocal {
+		if err := r.healthChecksLocal(stream); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // healthChecksLocal은 로컬 컨테이너 상태를 확인합니다

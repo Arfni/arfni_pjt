@@ -8,6 +8,12 @@ author: ARFNI Team
 license: MIT
 icon: icon.png
 
+detection:
+  enabled: true
+  priority: 5
+  required_files:
+    - package.json
+
 provides:
   service_kinds:
     - app.nodejs

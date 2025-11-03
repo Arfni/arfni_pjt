@@ -1,5 +1,5 @@
 # Build stage
-FROM maven:3.9-openjdk-{{java_version}} AS builder
+FROM maven:3.9-openjdk-{{default "17" .java_version}} AS builder
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ COPY src ./src
 RUN mvn package -DskipTests
 
 # Runtime stage
-FROM openjdk:{{java_version}}-slim
+FROM openjdk:{{default "17" .java_version}}-slim
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ WORKDIR /app
 COPY --from=builder /app/target/*.jar app.jar
 
 # Expose port
-EXPOSE {{port}}
+EXPOSE {{default 8080 .port}}
 
 # Run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -8,6 +8,14 @@ author: ARFNI Team
 license: MIT
 icon: icon.png
 
+detection:
+  enabled: true
+  priority: 10
+  required_files_any_of:
+    - build.gradle
+    - build.gradle.kts
+    - pom.xml
+
 provides:
   service_kinds:
     - app.spring

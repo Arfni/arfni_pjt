@@ -36,6 +36,9 @@ export function ServiceNode({ data, selected, id }: NodeProps<NodeData>) {
   useEffect(() => {
     const loadIcon = async () => {
       try {
+        // Ensure plugins are loaded first
+        await pluginService.loadPlugins();
+
         // Try to get plugin by node type
         const plugin = pluginService.getPluginByNodeType(nodeType);
 

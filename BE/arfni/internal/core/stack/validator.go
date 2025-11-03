@@ -37,7 +37,7 @@ func Validate(stack *Stack) error {
 		}
 
 		// 이미지 또는 빌드 경로 필수
-		if service.Spec.Image == "" && service.Spec.Build == "" {
+		if service.Spec.Image == "" && (service.Spec.Build == nil || service.Spec.Build.IsEmpty()) {
 			return fmt.Errorf("service '%s' must have either 'image' or 'build'", serviceName)
 		}
 	}

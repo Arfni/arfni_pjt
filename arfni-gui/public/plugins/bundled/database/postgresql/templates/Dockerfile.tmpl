@@ -5,13 +5,13 @@ FROM postgres:15-alpine
 # COPY ./init.sql /docker-entrypoint-initdb.d/
 
 # Set environment variables
-ENV POSTGRES_PASSWORD={{postgres_password}}
-ENV POSTGRES_DB={{postgres_db}}
-ENV POSTGRES_USER={{postgres_user}}
+ENV POSTGRES_PASSWORD={{default "postgres" .postgres_password}}
+ENV POSTGRES_DB={{default "postgres" .postgres_db}}
+ENV POSTGRES_USER={{default "postgres" .postgres_user}}
 
 # Expose PostgreSQL port
 EXPOSE 5432
 
 # Health check
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
-  CMD pg_isready -U {{postgres_user}} || exit 1
+  CMD pg_isready -U {{default "postgres" .postgres_user}} || exit 1

@@ -1,4 +1,4 @@
-FROM node:{{node_version}}
+FROM node:{{default "18" .node_version}}
 
 WORKDIR /app
 
@@ -6,13 +6,13 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm install --production
 
 # Copy application code
 COPY . .
 
 # Expose port
-EXPOSE {{port}}
+EXPOSE {{default 3000 .port}}
 
 # Start the application
 CMD ["node", "index.js"]

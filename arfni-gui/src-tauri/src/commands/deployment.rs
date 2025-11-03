@@ -111,24 +111,42 @@ pub async fn deploy_stack(
         };
 
         // Bundled 플러그인 디렉토리 경로 가져오기
-        let bundled_plugin_dir = match app_clone.path().app_data_dir() {
-            Ok(mut path) => {
-                // 개발 모드에서는 public/plugins/bundled 사용
-                if cfg!(debug_assertions) {
-                    // 프로젝트 루트에서 public/plugins/bundled 경로
-                    let mut dev_path = std::env::current_dir().unwrap_or_default();
-                    dev_path.push("public");
-                    dev_path.push("plugins");
-                    dev_path.push("bundled");
-                    dev_path.to_string_lossy().to_string()
+        let bundled_plugin_dir = if cfg!(debug_assertions) {
+            // 개발 모드: Go 바이너리 기준 상대 경로로 public/plugins/bundled 찾기
+            let go_binary_path_obj = std::path::Path::new(&go_binary_path);
+            if let Some(binary_dir) = go_binary_path_obj.parent() {
+                // ic.exe가 arfni-gui/src-tauri/target/debug/../../BE/arfni/bin/에 있으므로
+                // arfni-gui/public/plugins/bundled로 가려면 상위로 올라가야 함
+                let mut bundled_path = binary_dir.to_path_buf();
+                // target/debug/../../BE/arfni/bin -> target/debug
+                bundled_path.push("..");
+                bundled_path.push("..");
+                bundled_path.push("..");
+                bundled_path.push("..");
+                // 이제 arfni-gui
+                bundled_path.push("public");
+                bundled_path.push("plugins");
+                bundled_path.push("bundled");
+
+                // 정규화된 경로
+                if let Ok(canonical) = std::fs::canonicalize(&bundled_path) {
+                    canonical.to_string_lossy().to_string()
                 } else {
-                    // 프로덕션에서는 리소스 디렉토리 사용
+                    bundled_path.to_string_lossy().to_string()
+                }
+            } else {
+                String::new()
+            }
+        } else {
+            // 프로덕션에서는 리소스 디렉토리 사용
+            match app_clone.path().app_data_dir() {
+                Ok(mut path) => {
                     path.push("plugins");
                     path.push("bundled");
                     path.to_string_lossy().to_string()
                 }
+                Err(_) => String::new()
             }
-            Err(_) => String::new()
         };
 
         // 배포 명령 실행 - Go 바이너리 직접 실행
@@ -174,7 +192,7 @@ pub async fn deploy_stack(
             command.creation_flags(CREATE_NO_WINDOW);
         }
 
-        let mut cmd = command.spawn();
+        let cmd = command.spawn();
 
         match cmd {
             Ok(mut child) => {

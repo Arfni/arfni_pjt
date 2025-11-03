@@ -7,6 +7,15 @@ description: "Modern Python web framework for building APIs"
 author: ARFNI Team
 license: MIT
 
+detection:
+  enabled: true
+  priority: 14
+  required_files:
+    - requirements.txt
+  file_content_patterns:
+    requirements.txt:
+      contains: ["fastapi", "FastAPI"]
+
 provides:
   service_kinds:
     - app.fastapi

@@ -44,6 +44,11 @@ type DockerCompose struct {
 
 // GenerateDockerCompose generates docker-compose.yml from stack
 func GenerateDockerCompose(s *stack.Stack, projectDir string) (string, error) {
+	return GenerateDockerComposeWithTarget(s, projectDir, "")
+}
+
+// GenerateDockerComposeWithTarget generates docker-compose.yml from stack filtering by target type
+func GenerateDockerComposeWithTarget(s *stack.Stack, projectDir string, targetType string) (string, error) {
 	compose := DockerCompose{
 		Version:  "3.8",
 		Services: make(map[string]DockerComposeService),
@@ -52,6 +57,15 @@ func GenerateDockerCompose(s *stack.Stack, projectDir string) (string, error) {
 
 	// Convert each service
 	for name, service := range s.Services {
+		// Filter by target type if specified
+		if targetType != "" {
+			if target, exists := s.Targets[service.Target]; exists {
+				// Skip services that don't match the target type
+				if target.Type != targetType {
+					continue
+				}
+			}
+		}
 		dcService := DockerComposeService{
 			Environment: service.Spec.Env,
 			Ports:       service.Spec.Ports,
@@ -63,11 +77,11 @@ func GenerateDockerCompose(s *stack.Stack, projectDir string) (string, error) {
 		// Handle image or build
 		if service.Spec.Image != "" {
 			dcService.Image = service.Spec.Image
-		} else if service.Spec.Build != "" {
+		} else if service.Spec.Build != nil && !service.Spec.Build.IsEmpty() {
 			// Build path is relative to project directory (where docker-compose runs from)
 			dcService.Build = &DockerComposeBuild{
-				Context:    service.Spec.Build,
-				Dockerfile: "Dockerfile",
+				Context:    service.Spec.Build.GetContext(),
+				Dockerfile: service.Spec.Build.GetDockerfile(),
 			}
 		}
 
