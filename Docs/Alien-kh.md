@@ -165,3 +165,57 @@
   수정: Windows에서 CREATE_NO_WINDOW 플래그를 사용하여 배포 실행 및 프로세스 중지 시 콘솔 창 숨김 처리
 
   5. 기존에 테스트로 따로 작업하던 Go 로직들을 현재 GUI go-arfni.exe로 생성될 수 있도록 병합
+
+# 2025.11.03
+  1. GUI 모니터링 기능 연동 및 자동 시작 구현
+
+  1.1 백엔드 수정 (Go)
+  - pkg/stack/monitoring.go (line 176): Grafana 환경변수 추가
+    - GF_SECURITY_ALLOW_EMBEDDING=true 설정으로 iframe 임베딩 허용
+  - cmd/arfni-monitoring/main.go (lines 676, 699): Grafana 컨테이너 시작 시 환경변수 추가
+    - Local/Hybrid/All-in-one 모드별 적용
+
+  1.2 프론트엔드 신규 구현 (Tauri/React)
+  - src-tauri/src/commands/monitoring.rs (신규 312줄): Tauri 백엔드 명령어 10개 구현
+    - prometheus_query: Prometheus API 쿼리 실행
+    - get_cpu_usage/get_memory_usage/get_network_traffic/get_disk_usage: 메트릭 조회
+    - get_all_metrics: 전체 메트릭 일괄 조회
+    - get_monitoring_config: stack.yaml 설정 파싱
+    - test_prometheus_connection: Prometheus 연결 테스트
+    - start_monitoring_stack: 모니터링 스택 자동 시작
+    - check_monitoring_running: Grafana 실행 상태 확인
+
+  - src-tauri/src/main.rs (lines 95-104): 모니터링 명령어 등록
+  - src-tauri/src/commands/mod.rs: monitoring 모듈 선언
+  - src-tauri/tauri.conf.json (line 22): CSP 정책 수정
+    - frame-src에 localhost 허용 추가
+
+  - src/pages/monitoring/ui/MonitoringPage.tsx (신규 249줄): 모니터링 페이지 컴포넌트
+    - stack.yaml 설정 자동 로드
+    - Grafana 실행 상태 자동 확인
+    - 미실행 시 자동 시작 후 30초간 준비 상태 polling
+    - Grafana 대시보드 목록 페이지 iframe 표시
+    - 새 탭 열기 버튼 및 에러 처리 UI
+
+  - src/pages/logs/ui/LogPage.tsx (lines 809-816): Monitoring Logs 버튼 활성화
+    - disabled 속성 제거 및 onClick 핸들러 추가
+
+  - src/App.tsx: /monitoring 라우트 추가
+
+  1.3 트러블슈팅
+  - 문제: iframe에서 "localhost 연결을 거부했습니다" 오류
+  - 원인: Grafana의 X-Frame-Options: deny 헤더
+  - 해결: GF_SECURITY_ALLOW_EMBEDDING=true 환경변수 설정
+  - 추가 수정: 대시보드 UID 의존성 제거를 위해 /dashboards 경로로 변경
+
+  1.4 생성/수정 파일 요약
+  - 수정 파일: 7개 (Go 2, Rust 3, TypeScript 2)
+  - 신규 파일: 2개 (monitoring.rs, MonitoringPage.tsx)
+  - 총 추가 코드: 561줄
+
+  1.5 문서화
+  - MONITORING_INTEGRATION.md 생성
+    - 수정 파일별 변경 내역
+    - 신규 구현 기능 설명
+    - 트러블슈팅 과정
+    - 빌드 설정 및 아키텍처
