@@ -94,6 +94,7 @@ fn main() {
       //포트체크 명령어
       commands::port_check::list_open_ports,
       commands::port_check::list_listening_ports,
+      commands::port_check::list_ec2_listening_ports,
       // 시스템 명령어
       commands::system::open_downloads_folder,
       commands::system::open_folder_in_explorer,
