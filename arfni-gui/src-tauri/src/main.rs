@@ -91,14 +91,11 @@ fn main() {
       //헬스체크 명령어
       commands::health::check_health,
 
-<<<<<<< HEAD
       //포트체크 명령어
       commands::port_check::list_open_ports,
       commands::port_check::list_listening_ports,
-=======
       // 시스템 명령어
       commands::system::open_downloads_folder,
->>>>>>> develop
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

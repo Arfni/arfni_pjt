@@ -6,8 +6,5 @@ pub mod deployment;
 pub mod file_watcher;
 pub mod ssh_it;
 pub mod health;
-<<<<<<< HEAD
 pub mod port_check;
-=======
 pub mod system;
->>>>>>> develop
