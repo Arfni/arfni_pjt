@@ -632,18 +632,26 @@ func dockerComposeUp(ctx context.Context, dir string, mode MonitoringMode) error
 		stopCmd.Dir = dir
 		stopCmd.Run() // 에러 무시
 
-		// Hybrid 모드용 datasource 파일 생성 (Docker bridge gateway 사용)
+		// Hybrid 모드용 datasource 파일 생성 (OS별로 다른 URL 사용)
 		datasourcePath := filepath.Join(dir, "grafana-datasource.yml")
-		hybridDatasource := `apiVersion: 1
+
+		// OS별로 Prometheus URL 결정
+		prometheusURL := "http://host.docker.internal:9090" // Windows/Mac 기본값
+		if runtime.GOOS == "linux" {
+			// Linux에서는 Docker bridge gateway IP 사용
+			prometheusURL = "http://172.17.0.1:9090"
+		}
+
+		hybridDatasource := fmt.Sprintf(`apiVersion: 1
 
 datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: http://172.17.0.1:9090
+    url: %s
     isDefault: true
     editable: true
-`
+`, prometheusURL)
 		if err := os.WriteFile(datasourcePath, []byte(hybridDatasource), 0644); err != nil {
 			fmt.Printf("%s[WARNING] Failed to create hybrid datasource config: %v%s\n", colorYellow, err, colorReset)
 		}
@@ -665,6 +673,7 @@ datasources:
 			"-e", "GF_AUTH_ANONYMOUS_ENABLED=true",
 			"-e", "GF_AUTH_ANONYMOUS_ORG_ROLE=Admin",
 			"-e", "GF_AUTH_DISABLE_LOGIN_FORM=true",
+			"-e", "GF_SECURITY_ALLOW_EMBEDDING=true",
 			"--restart=unless-stopped",
 			"grafana/grafana:latest")
 		cmd.Stdout = os.Stdout
@@ -687,6 +696,7 @@ datasources:
 				"-e", "GF_AUTH_ANONYMOUS_ENABLED=true",
 				"-e", "GF_AUTH_ANONYMOUS_ORG_ROLE=Admin",
 				"-e", "GF_AUTH_DISABLE_LOGIN_FORM=true",
+				"-e", "GF_SECURITY_ALLOW_EMBEDDING=true",
 				"--restart=unless-stopped",
 				"grafana/grafana:latest")
 			cmd.Stdout = os.Stdout
@@ -737,15 +747,22 @@ func startSSHTunnels(ctx context.Context, host, user, keyPath string, ports []in
 	}
 
 	// 각 포트에 대한 -L 플래그 추가
-	// Bind to both localhost (for host apps) and Docker gateway (for containers)
+	// OS별로 다른 바인딩 전략 사용
 	for _, port := range ports {
-		// localhost용 - 호스트 애플리케이션(optimize 등)에서 접근
-		forwardSpec1 := fmt.Sprintf("127.0.0.1:%d:localhost:%d", port, port)
-		args = append(args, "-L", forwardSpec1)
+		if runtime.GOOS == "linux" {
+			// Linux: localhost와 Docker bridge gateway 둘 다 바인딩
+			// localhost용 - 호스트 애플리케이션(optimize 등)에서 접근
+			forwardSpec1 := fmt.Sprintf("127.0.0.1:%d:localhost:%d", port, port)
+			args = append(args, "-L", forwardSpec1)
 
-		// Docker bridge gateway용 - Docker 컨테이너(Grafana 등)에서 접근
-		forwardSpec2 := fmt.Sprintf("172.17.0.1:%d:localhost:%d", port, port)
-		args = append(args, "-L", forwardSpec2)
+			// Docker bridge gateway용 - Docker 컨테이너(Grafana)에서 접근
+			forwardSpec2 := fmt.Sprintf("172.17.0.1:%d:localhost:%d", port, port)
+			args = append(args, "-L", forwardSpec2)
+		} else {
+			// Windows/Mac: localhost만 사용 (host.docker.internal이 자동 매핑)
+			forwardSpec := fmt.Sprintf("127.0.0.1:%d:localhost:%d", port, port)
+			args = append(args, "-L", forwardSpec)
+		}
 	}
 
 	args = append(args,

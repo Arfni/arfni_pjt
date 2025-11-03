@@ -90,6 +90,18 @@ fn main() {
 
       //헬스체크 명령어
       commands::health::check_health,
+
+      // 모니터링 명령어
+      commands::monitoring::prometheus_query,
+      commands::monitoring::get_cpu_usage,
+      commands::monitoring::get_memory_usage,
+      commands::monitoring::get_network_traffic,
+      commands::monitoring::get_disk_usage,
+      commands::monitoring::get_all_metrics,
+      commands::monitoring::get_monitoring_config,
+      commands::monitoring::test_prometheus_connection,
+      commands::monitoring::start_monitoring_stack,
+      commands::monitoring::check_monitoring_running,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

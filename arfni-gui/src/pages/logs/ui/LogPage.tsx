@@ -807,8 +807,9 @@ export default function LogPage() {
             {/* Monitoring Button */}
             <div className="bg-white p-5 border-t border-gray-200">
               <button
-                disabled
-                className="w-full px-4 py-3 text-white rounded-lg font-medium opacity-50 cursor-not-allowed"
+                onClick={() => navigate('/monitoring', { state: { project, ec2Server } })}
+                disabled={!project || !ec2Server}
+                className="w-full px-4 py-3 text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: '#4C65E2' }}
               >
                 Monitoring Logs
