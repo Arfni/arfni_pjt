@@ -2,6 +2,7 @@
 use anyhow::{Result, Context};
 use serde::{Serialize, Deserialize};
 use std::{fs, path::{PathBuf}, io::Write, process::Command};
+use regex::Regex;
 
 const DATA_DIR_NAME: &str = "data";
 const FILE_NAME: &str = "ssh_targets.json";
@@ -32,6 +33,35 @@ pub fn exec_once_via_system_ssh(host: &str, user: &str, pem: &str, cmd: &str) ->
     }
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
+
+pub fn list_ec2_listening_ports(host: &str, user: &str, pem: &str) -> Result<Vec<u16>> {
+    // EC2 내부에서 실행할 명령
+    let cmd = "sudo ss -tuln";
+
+    let output = exec_once_via_system_ssh(host, user, pem, cmd)?;
+
+    // 예: "tcp   LISTEN 0 4096 0.0.0.0:3306  ..."
+    let re = Regex::new(r":(\d+)\s+").unwrap();
+    let mut ports = vec![];
+
+    for line in output.lines() {
+        if !line.contains("LISTEN") {
+            continue;
+        }
+
+        if let Some(cap) = re.captures(line) {
+            if let Ok(port) = cap[1].parse::<u16>() {
+                if !ports.contains(&port) {
+                    ports.push(port);
+                }
+            }
+        }
+    }
+
+    ports.sort_unstable();
+    Ok(ports)
+}
+
 #[test]
 fn test_ssh_via_system() {
     let host = "";
