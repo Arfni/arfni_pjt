@@ -10,6 +10,8 @@ import TestPage2 from "./pages/test/ui/TestPage2";
 import { DeploymentPage } from "./pages/deployment/ui/DeploymentPage";
 import SshTerminal from "./pages/test/ui/SshTerminal";
 import HealthWatcher from "@pages/test/ui/HealthWatcher";
+import YmlHome from "./pages/test/ui/YmlHome";
+import CreateYml from "./pages/test/ui/CreateYml";
 
 
 const queryClient = new QueryClient({
@@ -37,6 +39,8 @@ function App() {
             <Route path="/test2" element={<TestPage2 />} />
             <Route path="/test3" element={<SshTerminal />} />
             <Route path="/health" element={<HealthWatcher />} />
+            <Route path="/yml" element={<YmlHome />} />
+            <Route path="/yml/create" element={<CreateYml />} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>
