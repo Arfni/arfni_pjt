@@ -10,8 +10,9 @@ import {
   Loader2,
   ArrowLeft,
   Camera,
-  Network
+  Settings
 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
   selectNodes,
@@ -54,7 +55,10 @@ export function Toolbar() {
 
   const [isDeploying, setIsDeploying] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
-  const [showActivePortDialog, setShowActivePortDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState<'png' | 'svg' | 'pdf'>('png');
+  const [showExportSuccess, setShowExportSuccess] = useState(false);
+  const [exportedFilePath, setExportedFilePath] = useState('');
 
   // EC2 프로젝트인지 확인 및 현재 모니터링 모드 가져오기
   const isEC2Project = currentProject?.environment === 'ec2';
@@ -337,13 +341,16 @@ export function Toolbar() {
     }
   }, []);
 
-  // Show Active Port 다이얼로그 열기
-  const handleShowActivePort = useCallback(() => {
-    setShowActivePortDialog(true);
+
+  // Export 다이얼로그 열기
+  const handleOpenExportDialog = useCallback(() => {
+    setShowExportDialog(true);
   }, []);
 
-  // 캔버스 스크린샷 다운로드
-  const handleDownloadScreenshot = useCallback(() => {
+  // Export 실행
+  const handleExport = useCallback(async () => {
+    setShowExportDialog(false);
+
     // ReactFlow 요소 찾기
     const reactFlowElement = document.querySelector('.react-flow') as HTMLElement;
     if (!reactFlowElement) {
@@ -366,13 +373,54 @@ export function Toolbar() {
 
     // 약간의 딜레이 후 스크린샷 생성 (DOM 업데이트 대기)
     setTimeout(() => {
-      // html-to-image를 사용하여 스크린샷 생성 (SVG 지원)
-      import('html-to-image').then(({ toPng }) => {
-        toPng(reactFlowElement, {
-          backgroundColor: '#ffffff',
-          pixelRatio: 2, // 고해상도
-          cacheBust: true,
-        }).then((dataUrl: string) => {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const baseFileName = currentProject
+        ? `${currentProject.name}_canvas_${timestamp}`
+        : `canvas_${timestamp}`;
+
+      // html-to-image를 사용하여 이미지 생성
+      import('html-to-image').then(async (htmlToImage) => {
+        try {
+          let dataUrl: string;
+          let fileName: string;
+
+          if (selectedFormat === 'png') {
+            dataUrl = await htmlToImage.toPng(reactFlowElement, {
+              backgroundColor: '#ffffff',
+              pixelRatio: 2,
+              cacheBust: true,
+            });
+            fileName = `${baseFileName}.png`;
+          } else if (selectedFormat === 'svg') {
+            dataUrl = await htmlToImage.toSvg(reactFlowElement, {
+              backgroundColor: '#ffffff',
+              cacheBust: true,
+            });
+            fileName = `${baseFileName}.svg`;
+          } else if (selectedFormat === 'pdf') {
+            // PDF는 jsPDF 사용
+            const pngDataUrl = await htmlToImage.toPng(reactFlowElement, {
+              backgroundColor: '#ffffff',
+              pixelRatio: 2,
+              cacheBust: true,
+            });
+
+            // jsPDF 동적 import
+            const { jsPDF } = await import('jspdf');
+            const pdf = new jsPDF({
+              orientation: 'landscape',
+              unit: 'px',
+              format: [reactFlowElement.offsetWidth, reactFlowElement.offsetHeight]
+            });
+
+            pdf.addImage(pngDataUrl, 'PNG', 0, 0, reactFlowElement.offsetWidth, reactFlowElement.offsetHeight);
+            const pdfBlob = pdf.output('blob');
+            dataUrl = URL.createObjectURL(pdfBlob);
+            fileName = `${baseFileName}.pdf`;
+          } else {
+            throw new Error('지원하지 않는 형식입니다.');
+          }
+
           // UI 요소들 다시 보이기
           elementsToHide.forEach((el, index) => {
             el.style.display = originalDisplays[index];
@@ -380,90 +428,132 @@ export function Toolbar() {
 
           // 다운로드
           const link = document.createElement('a');
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-          const fileName = currentProject
-            ? `${currentProject.name}_canvas_${timestamp}.png`
-            : `canvas_${timestamp}.png`;
-
           link.href = dataUrl;
           link.download = fileName;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-        }).catch((error: Error) => {
+
+          // 성공 메시지 표시
+          setExportedFilePath(fileName);
+          setShowExportSuccess(true);
+
+        } catch (error) {
           // 에러 발생 시에도 UI 요소들 복원
           elementsToHide.forEach((el, index) => {
             el.style.display = originalDisplays[index];
           });
-          console.error('스크린샷 생성 실패:', error);
-          alert('스크린샷 생성에 실패했습니다.');
-        });
+          console.error('Export 실패:', error);
+          alert('Export에 실패했습니다.');
+        }
       }).catch((error: Error) => {
         // 에러 발생 시에도 UI 요소들 복원
         elementsToHide.forEach((el, index) => {
           el.style.display = originalDisplays[index];
         });
         console.error('라이브러리 로드 실패:', error);
-        alert('스크린샷 라이브러리 로드에 실패했습니다.');
+        alert('Export 라이브러리 로드에 실패했습니다.');
       });
     }, 100);
-  }, [currentProject]);
+  }, [currentProject, selectedFormat]);
+
+  // 폴더 열기
+  const handleOpenFolder = useCallback(async () => {
+    try {
+      // Tauri의 shell.open을 사용하여 다운로드 폴더 열기
+      await invoke('open_downloads_folder');
+    } catch (error) {
+      console.error('폴더 열기 실패:', error);
+      // 폴더 열기 실패시 기본 동작
+      alert('폴더를 열 수 없습니다.');
+    }
+  }, []);
 
   return (
     <>
       <div className="h-12 bg-gray-800 text-white flex items-center justify-between px-4 border-b border-gray-600">
+        {/* Left section */}
         <div className="flex items-center space-x-4">
-        <button
-          onClick={() => navigate('/')}
-          className="p-1 hover:bg-gray-700 rounded transition-colors"
-          title="홈으로"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+          <button
+            onClick={() => navigate('/')}
+            className="p-1 hover:bg-gray-700 rounded transition-colors"
+            title="홈으로"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
 
-        <h1 className="text-lg font-semibold">
-          ARFNI Canvas
-          {currentProject && (
-            <span className="ml-2 text-sm text-gray-400">
-              - {currentProject.name}
-            </span>
+          <h1 className="text-lg font-semibold">
+            ARFNI Canvas
+            {currentProject && (
+              <span className="ml-2 text-sm text-gray-400">
+                - {currentProject.name}
+              </span>
+            )}
+          </h1>
+        </div>
+
+        {/* Middle section */}
+        <div className="flex items-center space-x-2">
+          {/* EC2 모니터링 모드 선택 (EC2 프로젝트만) */}
+          {isEC2Project && (
+            <>
+              <div className="flex items-center gap-2 px-3 py-1 bg-gray-700 rounded">
+                <span className="text-xs text-gray-300">Monitoring:</span>
+                <select
+                  value={currentMonitoringMode}
+                  onChange={(e) => handleMonitoringModeChange(e.target.value)}
+                  disabled={!currentProject}
+                  className="px-2 py-0.5 text-xs bg-gray-600 text-white rounded border border-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  <option value="all-in-one">All-in-One</option>
+                  <option value="hybrid">Hybrid</option>
+                  <option value="no-monitoring">No Monitoring</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => {/* TODO: CI/CD 기능 구현 */}}
+                disabled={!currentProject}
+                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+              >
+                CI/CD
+              </button>
+            </>
           )}
-        </h1>
+        </div>
 
-        <div className="flex space-x-2">
-   
+        {/* Right section */}
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => {/* TODO: 설정 기능 구현 */}}
+            className="p-2 hover:bg-gray-700 rounded transition-colors"
+            title="설정"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
 
           <button
             onClick={handleSave}
             disabled={isSaving || !currentProject}
-            className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+            className="p-2 hover:bg-gray-700 rounded transition-colors relative disabled:opacity-50"
+            title="저장"
           >
             {isSaving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Save className="w-4 h-4" />
             )}
-            Save
-            {isDirty && <span className="ml-1 text-yellow-400">*</span>}
+            {isDirty && <span className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full"></span>}
           </button>
 
-
-          {/* EC2 모니터링 모드 선택 (EC2 프로젝트만) */}
-          {isEC2Project && (
-            <div className="flex items-center gap-2 px-3 py-1 bg-gray-700 rounded">
-              <span className="text-xs text-gray-300">Monitoring:</span>
-              <select
-                value={currentMonitoringMode}
-                onChange={(e) => handleMonitoringModeChange(e.target.value)}
-                disabled={!currentProject}
-                className="px-2 py-0.5 text-xs bg-gray-600 text-white rounded border border-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                <option value="all-in-one">All-in-One</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="no-monitoring">No Monitoring</option>
-              </select>
-            </div>
-          )}
+          <button
+            onClick={handleOpenExportDialog}
+            className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+            title="캔버스 내보내기"
+          >
+            <Camera className="w-4 h-4" />
+            Export
+          </button>
 
           {!isDeploying ? (
             <button
@@ -486,48 +576,91 @@ export function Toolbar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={handleShowActivePort}
-          className="flex items-center gap-2 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
-          title="활성 포트 확인"
-        >
-          <Network className="w-4 h-4" />
-          Show Active Port
-        </button>
+      {/* Export Format Selection Dialog */}
+      {showExportDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-8 w-[500px]">
+            <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Export Image</h2>
 
-        <button
-          onClick={handleDownloadScreenshot}
-          className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
-          title="캔버스 스크린샷 다운로드"
-        >
-          <Camera className="w-4 h-4" />
-          Screenshot
-        </button>
-      </div>
-    </div>
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold text-gray-700 mb-4">File Format</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSelectedFormat('png')}
+                  className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all ${
+                    selectedFormat === 'png'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }`}
+                >
+                  PNG
+                </button>
+                <button
+                  onClick={() => setSelectedFormat('svg')}
+                  className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all ${
+                    selectedFormat === 'svg'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }`}
+                >
+                  SVG
+                </button>
+                <button
+                  onClick={() => setSelectedFormat('pdf')}
+                  className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all ${
+                    selectedFormat === 'pdf'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }`}
+                >
+                  PDF
+                </button>
+              </div>
+            </div>
 
-    {/* Active Port Dialog */}
-    {showActivePortDialog && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg shadow-xl p-6 w-96">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">Active Ports</h2>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowExportDialog(false)}
+                className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleExport}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Success Message */}
+      {showExportSuccess && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl">
+          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-6 h-6" />
+              <span className="font-medium text-lg">Success Export!</span>
+              <button
+                onClick={handleOpenFolder}
+                className="ml-4 underline hover:text-green-100 transition-colors font-medium"
+              >
+                Click here to show save folder.
+              </button>
+            </div>
             <button
-              onClick={() => setShowActivePortDialog(false)}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              onClick={() => setShowExportSuccess(false)}
+              className="text-white hover:text-green-100 transition-colors"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-          <div className="text-gray-600">
-            <p>포트 정보가 여기에 표시됩니다.</p>
-          </div>
         </div>
-      </div>
-    )}
+      )}
     </>
   );
 }

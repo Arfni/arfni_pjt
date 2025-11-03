@@ -90,6 +90,9 @@ fn main() {
 
       //헬스체크 명령어
       commands::health::check_health,
+
+      // 시스템 명령어
+      commands::system::open_downloads_folder,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
