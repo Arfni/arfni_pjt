@@ -38,3 +38,13 @@
 - 캔버스 스크린샷 이미지 다운로드 기능 추가
 - 캔버스 오른쪽 사이드바 속성디테일 내용 수정 완료
 - mvp 1차 기능 완료하여 다음 할 일 회의
+
+# 2025. 11. 03
+
+1. Toolbar 설정 버튼 및 Active Port 기능 추가
+- Settings 아이콘 버튼 추가, Active Port 탭에서 Local/EC2 환경별 활성 - 포트 조회 기능 구현
+- list_listening_ports (Local), list_ec2_listening_ports (EC2) Rust 명령어 연동
+
+2. 파일 시스템 연동 기능 추가
+- Export 성공 시 다운로드 폴더 열기, Project Path 탭에서 프로젝트 폴더 열기 기능 구현
+- open_downloads_folder, open_folder_in_explorer Rust 명령어 구현 (Windows/macOS/Linux 지원)
