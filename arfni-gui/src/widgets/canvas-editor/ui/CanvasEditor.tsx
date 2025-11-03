@@ -33,7 +33,6 @@ import { selectCurrentProject } from '@features/project';
 
 import { ServiceNode } from '@entities/service/ui/ServiceNode';
 import { TargetNode } from '@entities/target/ui/TargetNode';
-import { DatabaseNode } from '@entities/service/ui/DatabaseNode';
 import {
   createServiceNode,
   createTargetNode,
@@ -42,11 +41,10 @@ import {
 import { useAutoSave } from '@features/canvas/hooks/useAutoSave';
 import { pluginService } from '@services/pluginLoader';
 
-// 노드 타입 등록
 const nodeTypes = {
   service: ServiceNode,
   target: TargetNode,
-  database: DatabaseNode,
+  database: ServiceNode,
 };
 
 function CanvasEditorInner() {
@@ -163,23 +161,54 @@ function CanvasEditorInner() {
         // 서비스 노드 - 플러그인 설정 사용
         const serviceData: any = {
           name: canvasConfig?.label || nodeType.toUpperCase(),
-          serviceType: nodeType
+          serviceType: nodeType,
+          icon: plugin?.iconPath // 플러그인 아이콘 저장
         };
 
-        // 플러그인에서 포트 정보 가져오기
-        if (canvasConfig?.ports && canvasConfig.ports.length > 0) {
-          const defaultPort = canvasConfig.ports[0].port;
-          serviceData.ports = [`${defaultPort}:${defaultPort}`];
-        } else {
-          // 기본값 fallback
-          serviceData.ports = ['3000:3000'];
-        }
+        // 플러그인의 serviceTemplate에서 기본값 가져오기
+        if (plugin?.frameworkDefinition?.serviceTemplate?.spec) {
+          const templateSpec = plugin.frameworkDefinition.serviceTemplate.spec;
 
-        // 플러그인 카테고리에 따라 build 경로 설정
-        if (plugin?.manifest.category === 'framework') {
-          serviceData.build = `./apps/${nodeType}`;
+          // ports - 템플릿에 있으면 사용
+          if (templateSpec.ports && templateSpec.ports.length > 0) {
+            serviceData.ports = templateSpec.ports;
+          } else if (canvasConfig?.ports && canvasConfig.ports.length > 0) {
+            const defaultPort = canvasConfig.ports[0].port;
+            serviceData.ports = [`${defaultPort}:${defaultPort}`];
+          }
+
+          // build path - 템플릿에 있으면 사용
+          if (templateSpec.build) {
+            serviceData.build = templateSpec.build;
+          } else if (plugin?.manifest.category === 'framework') {
+            // 사용자가 지정할 수 있도록 빈 값으로 시작
+            serviceData.build = '';
+          }
+
+          // image - 템플릿에 있으면 사용
+          if (templateSpec.image) {
+            serviceData.image = templateSpec.image;
+          }
+
+          // health - 템플릿에 있으면 사용
+          if (templateSpec.health) {
+            serviceData.health = templateSpec.health;
+          }
+
+          // env와 volumes는 초기에는 비워둠 (사용자가 설정)
+          // 연결 시 자동 추가되도록 postProcessFrameworkSpec에서 처리
         } else {
-          serviceData.image = `${nodeType}:latest`;
+          // 템플릿이 없는 경우 플러그인 기본값 사용
+          if (canvasConfig?.ports && canvasConfig.ports.length > 0) {
+            const defaultPort = canvasConfig.ports[0].port;
+            serviceData.ports = [`${defaultPort}:${defaultPort}`];
+          }
+
+          if (plugin?.manifest.category === 'framework') {
+            serviceData.build = '';
+          } else {
+            serviceData.image = `${nodeType}:latest`;
+          }
         }
 
         newNode = createServiceNode(serviceData, position, defaultTarget);
@@ -194,28 +223,29 @@ function CanvasEditorInner() {
         if (canvasConfig?.ports && canvasConfig.ports.length > 0) {
           const defaultPort = canvasConfig.ports[0].port;
           dbData.ports = [`${defaultPort}:${defaultPort}`];
-        } else {
-          // 기본값 fallback
-          switch (nodeType) {
-            case 'mysql':
-              dbData.ports = ['3306:3306'];
-              break;
-            case 'postgres':
-              dbData.ports = ['5432:5432'];
-              break;
-            case 'redis':
-              dbData.ports = ['6379:6379'];
-              break;
-            case 'mongodb':
-              dbData.ports = ['27017:27017'];
-              break;
-            default:
-              dbData.ports = ['3000:3000'];
-          }
         }
 
-        // 버전 정보는 최신 버전으로 설정
-        dbData.version = 'latest';
+        // 플러그인 템플릿에서 기본 설정 가져오기
+        if (plugin?.manifest.contributes?.services) {
+          const serviceTemplate = plugin.manifest.contributes.services[nodeType];
+
+          if (serviceTemplate?.spec) {
+            // 버전 정보
+            if (serviceTemplate.spec.version) {
+              dbData.version = serviceTemplate.spec.version;
+            }
+
+            // 환경변수 템플릿 (사용자가 수정 가능)
+            if (serviceTemplate.spec.env) {
+              dbData.env = {};  // 빈 객체로 시작 (사용자가 필요시 추가)
+            }
+
+            // volumes 템플릿 (사용자가 수정 가능)
+            if (serviceTemplate.spec.volumes) {
+              dbData.volumes = [];  // 빈 배열로 시작 (사용자가 필요시 추가)
+            }
+          }
+        }
 
         newNode = createDatabaseNode(dbData, position, defaultTarget);
       } else if (category === 'target') {

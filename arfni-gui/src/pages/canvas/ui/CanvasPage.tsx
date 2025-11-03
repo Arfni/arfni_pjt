@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CanvasEditor } from '@widgets/canvas-editor';
 import { LogViewer } from '@widgets/log-viewer';
 import { Toolbar } from '@widgets/toolbar';
@@ -18,6 +18,7 @@ export function CanvasPage() {
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const currentProject = useAppSelector(selectCurrentProject);
   const isLoading = useAppSelector(selectProjectLoading);
@@ -28,10 +29,14 @@ export function CanvasPage() {
   useEffect(() => {
     // 전달받은 프로젝트가 있으면 로드 (같은 프로젝트여도 canvas 상태 재로드)
     if (passedProject) {
-      console.log('프로젝트 로드:', passedProject.name, passedProject.path);
-      dispatch(openProject(passedProject.path));
+      dispatch(openProject(passedProject.path))
+        .unwrap()
+        .catch((error) => {
+          alert(`프로젝트를 열 수 없습니다: ${error}`);
+          navigate('/projects');
+        });
     }
-  }, [passedProject, dispatch]);
+  }, [passedProject, dispatch, navigate]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

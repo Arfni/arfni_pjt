@@ -3,6 +3,7 @@ package workflow
 import (
 	"fmt"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -65,7 +66,8 @@ func (c *SSHClient) UploadDirectory(stream *events.Stream, localDir, remoteDir s
 
 	// scp -r source target을 하면 target/source가 되므로
 	// 상위 디렉토리를 만들고 상위 디렉토리로 전송
-	parentDir := filepath.Dir(remoteDir)
+	// 주의: 원격 경로는 Linux 형식이므로 path 패키지 사용 (filepath 아님!)
+	parentDir := path.Dir(remoteDir)
 
 	// 상위 디렉토리 생성
 	if err := c.RunCommand(stream, fmt.Sprintf("mkdir -p %s", parentDir)); err != nil {

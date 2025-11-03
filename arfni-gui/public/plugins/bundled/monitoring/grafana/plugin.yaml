@@ -1,0 +1,35 @@
+apiVersion: v0.1
+name: grafana
+displayName: Grafana
+version: 1.0.0
+category: monitoring
+description: "Analytics and interactive visualization platform"
+author: ARFNI Team
+license: MIT
+
+provides:
+  service_kinds:
+    - monitoring.grafana
+
+contributes:
+  services:
+    grafana:
+      kind: docker.container
+      spec:
+        image: "grafana/grafana:latest"
+        ports:
+          - "3001:3000"
+        env:
+          GF_AUTH_ANONYMOUS_ENABLED: "true"
+          GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+          GF_SECURITY_ADMIN_PASSWORD: "admin"
+
+  canvas:
+    nodeType: grafana
+    label: Grafana
+    description: "Visualization platform"
+    category: infra
+    ports:
+      - name: http
+        port: 3001
+        protocol: tcp

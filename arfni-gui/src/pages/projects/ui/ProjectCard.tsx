@@ -18,10 +18,16 @@ export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: Pr
     await onDelete(project, e);
   };
 
+  const handleCardClick = () => {
+    if (!isDeleting) {
+      navigate('/canvas', { state: { project } });
+    }
+  };
+
   return (
     <div
       className="bg-white rounded-lg border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
-      onClick={() => !isDeleting && navigate('/canvas', { state: { project } })}
+      onClick={handleCardClick}
     >
       {/* Canvas Thumbnail Preview */}
       <div className="h-32 bg-gray-100 relative overflow-hidden">

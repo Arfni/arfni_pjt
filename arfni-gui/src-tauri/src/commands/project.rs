@@ -202,6 +202,11 @@ pub fn open_project(db: State<Database>, project_id: String) -> Result<Project, 
 /// 프로젝트 경로로 열기 (기존 호환성)
 #[tauri::command]
 pub fn open_project_by_path(db: State<Database>, path: String) -> Result<Project, String> {
+    // 프로젝트 폴더 존재 확인
+    if !Path::new(&path).exists() {
+        return Err(format!("프로젝트 폴더를 찾을 수 없습니다: {}", path));
+    }
+
     let conn = db.get_conn();
     let conn = conn.lock().unwrap();
 
@@ -530,6 +535,24 @@ pub fn delete_project(db: State<Database>, project_id: String) -> Result<(), Str
         "DELETE FROM projects WHERE id = ?1",
         params![&project_id],
     ).map_err(|e| format!("DB에서 프로젝트 삭제 실패: {}", e))?;
+
+    Ok(())
+}
+
+/// Write content to a file, creating parent directories if needed
+#[tauri::command]
+pub fn write_file(path: String, content: String) -> Result<(), String> {
+    let file_path = Path::new(&path);
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directories: {}", e))?;
+    }
+
+    // Write the file
+    fs::write(file_path, content)
+        .map_err(|e| format!("Failed to write file: {}", e))?;
 
     Ok(())
 }

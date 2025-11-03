@@ -51,6 +51,7 @@ export interface LoadedPlugin {
   path: string;
   iconPath: string;
   isBundled: boolean;
+  frameworkDefinition?: any; // Framework definition from frameworks/*.yaml
 }
 
 export interface NodeTemplate {
@@ -62,327 +63,98 @@ export interface NodeTemplate {
   plugin?: LoadedPlugin;
 }
 
-// Bundled plugin manifests (hardcoded for now, will be loaded from files later)
-const bundledPluginManifests: PluginManifest[] = [
-  // Database plugins
-  {
-    apiVersion: 'v0.1',
-    name: 'postgresql',
-    displayName: 'PostgreSQL',
-    version: '1.0.0',
-    category: 'database',
-    description: 'Advanced open-source relational database',
-    author: 'ARFNI Team',
-    license: 'MIT',
-    icon: 'icon.png',
-    provides: {
-      service_kinds: ['db.postgres']
-    },
-    contributes: {
-      canvas: {
-        nodeType: 'postgres',
-        label: 'PostgreSQL',
-        description: 'Leading RDBMS',
-        category: 'database',
-        ports: [{ name: 'postgres', port: 5432, protocol: 'tcp' }],
-        connections: {
-          outputs: [{
-            type: 'database',
-            name: 'postgres',
-            protocol: 'postgresql',
-            env_prefix: 'DATABASE'
-          }]
-        }
-      }
-    }
-  },
-  {
-    apiVersion: 'v0.1',
-    name: 'mysql',
-    displayName: 'MySQL',
-    version: '1.0.0',
-    category: 'database',
-    description: 'Popular open-source relational database',
-    author: 'ARFNI Team',
-    license: 'MIT',
-    icon: 'icon.png',
-    provides: {
-      service_kinds: ['db.mysql']
-    },
-    contributes: {
-      canvas: {
-        nodeType: 'mysql',
-        label: 'MySQL',
-        description: 'Open-source DB',
-        category: 'database',
-        ports: [{ name: 'mysql', port: 3306, protocol: 'tcp' }],
-        connections: {
-          outputs: [{
-            type: 'database',
-            name: 'mysql',
-            protocol: 'mysql',
-            env_prefix: 'DATABASE'
-          }]
-        }
-      }
-    }
-  },
-  {
-    apiVersion: 'v0.1',
-    name: 'mongodb',
-    displayName: 'MongoDB',
-    version: '1.0.0',
-    category: 'database',
-    description: 'NoSQL document database',
-    author: 'ARFNI Team',
-    license: 'MIT',
-    icon: 'icon.png',
-    provides: {
-      service_kinds: ['db.mongodb']
-    },
-    contributes: {
-      canvas: {
-        nodeType: 'mongodb',
-        label: 'MongoDB',
-        description: 'Document NoSQL',
-        category: 'database',
-        ports: [{ name: 'mongodb', port: 27017, protocol: 'tcp' }],
-        connections: {
-          outputs: [{
-            type: 'database',
-            name: 'mongodb',
-            protocol: 'mongodb',
-            env_prefix: 'MONGO'
-          }]
-        }
-      }
-    }
-  },
-  // Cache plugin
-  {
-    apiVersion: 'v0.1',
-    name: 'redis',
-    displayName: 'Redis',
-    version: '1.0.0',
-    category: 'cache',
-    description: 'In-memory data structure store',
-    author: 'ARFNI Team',
-    license: 'MIT',
-    icon: 'icon.png',
-    provides: {
-      service_kinds: ['cache.redis']
-    },
-    contributes: {
-      canvas: {
-        nodeType: 'redis',
-        label: 'Redis',
-        description: 'In-memory cache',
-        category: 'database', // NodePalette uses 'database' for cache too
-        ports: [{ name: 'redis', port: 6379, protocol: 'tcp' }],
-        connections: {
-          outputs: [{
-            type: 'cache',
-            name: 'redis',
-            protocol: 'redis',
-            env_prefix: 'REDIS'
-          }]
-        }
-      }
-    }
-  },
-  // Framework plugins
-  {
-    apiVersion: 'v0.1',
-    name: 'react',
-    displayName: 'React',
-    version: '1.0.0',
-    category: 'framework',
-    description: 'JavaScript library for building user interfaces',
-    author: 'ARFNI Team',
-    license: 'MIT',
-    icon: 'icon.png',
-    provides: {
-      service_kinds: ['app.react']
-    },
-    contributes: {
-      canvas: {
-        nodeType: 'react',
-        label: 'React',
-        description: 'Frontend library',
-        category: 'runtime',
-        ports: [{ name: 'http', port: 3000, protocol: 'tcp' }],
-        connections: {
-          inputs: [{
-            type: 'api',
-            name: 'backend',
-            protocol: 'http',
-            env_var: 'REACT_APP_API_URL'
-          }]
-        }
-      }
-    }
-  },
-  {
-    apiVersion: 'v0.1',
-    name: 'nextjs',
-    displayName: 'Next.js',
-    version: '1.0.0',
-    category: 'framework',
-    description: 'React framework for production',
-    author: 'ARFNI Team',
-    license: 'MIT',
-    icon: 'icon.png',
-    provides: {
-      service_kinds: ['app.nextjs']
-    },
-    contributes: {
-      canvas: {
-        nodeType: 'nextjs',
-        label: 'Next.js',
-        description: 'React framework',
-        category: 'runtime',
-        ports: [{ name: 'http', port: 3000, protocol: 'tcp' }],
-        connections: {
-          inputs: [{
-            type: 'api',
-            name: 'backend',
-            protocol: 'http',
-            env_var: 'NEXT_PUBLIC_API_URL'
-          }]
-        }
-      }
-    }
-  },
-  {
-    apiVersion: 'v0.1',
-    name: 'springboot',
-    displayName: 'Spring Boot',
-    version: '1.0.0',
-    category: 'framework',
-    description: 'Java framework for building enterprise applications',
-    author: 'ARFNI Team',
-    license: 'MIT',
-    icon: 'icon.png',
-    provides: {
-      service_kinds: ['app.springboot']
-    },
-    contributes: {
-      canvas: {
-        nodeType: 'spring',
-        label: 'Spring Boot',
-        description: 'Java framework',
-        category: 'runtime',
-        ports: [{ name: 'http', port: 8080, protocol: 'tcp' }],
-        connections: {
-          inputs: [{
-            type: 'database',
-            name: 'database',
-            protocol: 'any',
-            env_var: 'DATABASE_URL'
-          }],
-          outputs: [{
-            type: 'api',
-            name: 'api',
-            protocol: 'http'
-          }]
-        }
-      }
-    }
-  },
-  {
-    apiVersion: 'v0.1',
-    name: 'nodejs',
-    displayName: 'Node.js',
-    version: '1.0.0',
-    category: 'framework',
-    description: 'JavaScript runtime built on Chrome\'s V8 engine',
-    author: 'ARFNI Team',
-    license: 'MIT',
-    icon: 'icon.png',
-    provides: {
-      service_kinds: ['app.nodejs']
-    },
-    contributes: {
-      canvas: {
-        nodeType: 'nodejs',
-        label: 'Node.js',
-        description: 'JavaScript runtime',
-        category: 'runtime',
-        ports: [{ name: 'http', port: 3000, protocol: 'tcp' }],
-        connections: {
-          inputs: [{
-            type: 'database',
-            name: 'database',
-            protocol: 'any',
-            env_var: 'DATABASE_URL'
-          }],
-          outputs: [{
-            type: 'api',
-            name: 'api',
-            protocol: 'http'
-          }]
-        }
-      }
-    }
-  },
-  {
-    apiVersion: 'v0.1',
-    name: 'python',
-    displayName: 'Python',
-    version: '1.0.0',
-    category: 'framework',
-    description: 'Python runtime for web applications',
-    author: 'ARFNI Team',
-    license: 'MIT',
-    icon: 'icon.png',
-    provides: {
-      service_kinds: ['app.python']
-    },
-    contributes: {
-      canvas: {
-        nodeType: 'python',
-        label: 'Python',
-        description: 'Python runtime',
-        category: 'runtime',
-        ports: [{ name: 'http', port: 8000, protocol: 'tcp' }],
-        connections: {
-          inputs: [{
-            type: 'database',
-            name: 'database',
-            protocol: 'any',
-            env_var: 'DATABASE_URL'
-          }],
-          outputs: [{
-            type: 'api',
-            name: 'api',
-            protocol: 'http'
-          }]
-        }
-      }
-    }
-  }
-];
+// Bundled plugins are now loaded dynamically from plugin.yaml files
+// No more hardcoded manifests!
 
 class PluginService {
   private plugins: Map<string, LoadedPlugin> = new Map();
   private nodeTemplates: NodeTemplate[] = [];
+  private isLoaded: boolean = false;
+  private loadingPromise: Promise<void> | null = null;
 
   async loadPlugins(): Promise<void> {
-    console.log('Loading plugins...');
+    // If already loaded, skip
+    if (this.isLoaded) {
+      return;
+    }
 
-    // Load bundled plugins from static configuration
-    this.loadBundledPluginsStatic();
+    // If currently loading, wait for that to finish
+    if (this.loadingPromise) {
+      return this.loadingPromise;
+    }
 
-    // Load user-installed plugins from file system
-    await this.loadUserPlugins();
+    // Create loading promise
+    this.loadingPromise = (async () => {
+      // Clear existing plugins to prevent duplicates
+      this.plugins.clear();
+      this.nodeTemplates = [];
 
-    // Build node templates from plugins
-    await this.buildNodeTemplates();
+      // Load bundled plugins from plugin.yaml files
+      await this.loadBundledPluginsStatic();
+
+      // Load user-installed plugins from file system
+      await this.loadUserPlugins();
+
+      // Build node templates from plugins
+      await this.buildNodeTemplates();
+
+      this.isLoaded = true;
+      this.loadingPromise = null;
+    })();
+
+    return this.loadingPromise;
   }
 
-  private loadBundledPluginsStatic(): void {
-    for (const manifest of bundledPluginManifests) {
-      const pluginPath = `plugins/bundled/${manifest.category}/${manifest.name}`;
+  // Force reload plugins (for plugin manager refresh)
+  async reloadPlugins(): Promise<void> {
+    this.isLoaded = false;
+    this.loadingPromise = null;
+    return this.loadPlugins();
+  }
+
+  private async loadBundledPluginsStatic(): Promise<void> {
+    try {
+      const bundledPath = 'plugins/bundled';
+      const categories = ['database', 'framework', 'cache', 'proxy', 'cicd', 'orchestration', 'monitoring'];
+
+      for (const category of categories) {
+        const categoryPath = `${bundledPath}/${category}`;
+
+        try {
+          // Read all plugin directories in this category
+          const plugins = await this.listBundledPlugins(categoryPath);
+
+          for (const pluginDir of plugins) {
+            const pluginPath = `${categoryPath}/${pluginDir}`;
+            await this.loadBundledPlugin(pluginPath);
+          }
+        } catch (e) {
+          console.log(`No bundled plugins in category: ${category}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading bundled plugins:', error);
+    }
+  }
+
+  private async loadBundledPlugin(pluginPath: string): Promise<void> {
+    try {
+      const manifestPath = `${pluginPath}/plugin.yaml`;
+
+      // Read plugin.yaml from public folder
+      const response = await fetch(`/${manifestPath}`);
+      if (!response.ok) {
+        console.warn(`Plugin manifest not found: ${manifestPath}`);
+        return;
+      }
+
+      const manifestContent = await response.text();
+      const manifest = yaml.load(manifestContent) as PluginManifest;
+
+      if (!manifest.name || !manifest.contributes?.canvas) {
+        return;
+      }
+
       const iconPath = `${pluginPath}/icon.png`;
 
       const plugin: LoadedPlugin = {
@@ -393,8 +165,39 @@ class PluginService {
       };
 
       this.plugins.set(manifest.name, plugin);
-      console.log(`Loaded bundled plugin: ${manifest.displayName || manifest.name}`);
+    } catch (error) {
+      console.error(`Error loading bundled plugin from ${pluginPath}:`, error);
     }
+  }
+
+  private async listBundledPlugins(categoryPath: string): Promise<string[]> {
+    // Try to discover plugins by attempting to fetch common plugin names
+    // This approach tries to load plugins and returns those that exist
+    const category = categoryPath.split('/').pop();
+    const commonPluginNames: Record<string, string[]> = {
+      'database': ['postgresql', 'mysql', 'mongodb', 'mariadb', 'sqlite'],
+      'framework': ['react', 'nextjs', 'springboot', 'nodejs', 'fastapi', 'flask', 'django', 'vue', 'angular'],
+      'cache': ['redis', 'memcached'],
+      'monitoring': ['prometheus', 'grafana', 'node-exporter', 'loki']
+    };
+
+    const candidateNames = commonPluginNames[category || ''] || [];
+    const existingPlugins: string[] = [];
+
+    // Test each candidate to see if it exists
+    for (const name of candidateNames) {
+      try {
+        const testPath = `/${categoryPath}/${name}/plugin.yaml`;
+        const response = await fetch(testPath);
+        if (response.ok) {
+          existingPlugins.push(name);
+        }
+      } catch {
+        // Plugin doesn't exist, skip
+      }
+    }
+
+    return existingPlugins;
   }
 
   private async loadUserPlugins(): Promise<void> {
@@ -478,8 +281,6 @@ class PluginService {
         await this.loadFrameworkTemplate(plugin);
       }
     }
-
-    console.log(`Built ${this.nodeTemplates.length} node templates from plugins`);
   }
 
   private async loadFrameworkTemplate(plugin: LoadedPlugin): Promise<void> {
@@ -523,6 +324,9 @@ class PluginService {
 
       const frameworkConfig = yaml.load(frameworkYaml) as any;
 
+      // Store framework definition in plugin
+      plugin.frameworkDefinition = frameworkConfig;
+
       // Create node template from framework config
       const template: NodeTemplate = {
         type: frameworkConfig.metadata.name,
@@ -565,6 +369,28 @@ class PluginService {
 
   getBundledPlugins(): LoadedPlugin[] {
     return Array.from(this.plugins.values()).filter(p => p.isBundled);
+  }
+
+  /**
+   * Get property form definition for a specific service type from plugins
+   */
+  getPropertyForm(serviceType: string): any[] | null {
+    const plugin = this.plugins.get(serviceType);
+    if (!plugin) return null;
+
+    // Check if plugin has framework definition with propertyForm
+    if (plugin.frameworkDefinition?.propertyForm) {
+      return plugin.frameworkDefinition.propertyForm;
+    }
+
+    return null;
+  }
+
+  /**
+   * Get plugin by service type
+   */
+  getPluginByServiceType(serviceType: string): LoadedPlugin | null {
+    return this.plugins.get(serviceType) || null;
   }
 }
 

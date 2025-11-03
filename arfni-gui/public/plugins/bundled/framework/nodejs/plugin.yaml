@@ -16,12 +16,14 @@ inputs:
   node_version:
     description: "Node.js version"
     type: text
+    scope: build  # Only for Dockerfile FROM statement
     required: false
     default: "18-alpine"
 
   port:
     description: "Application port"
     type: number
+    scope: both  # Needed for Dockerfile EXPOSE and runtime PORT
     required: false
     env_var: PORT
     default: 3000
@@ -29,9 +31,22 @@ inputs:
   database_url:
     description: "Database connection URL"
     type: text
+    scope: runtime  # Only runtime environment variable
     required: false
     env_var: DATABASE_URL
     default: ""
+
+  environment:
+    description: "Node environment"
+    type: select
+    scope: runtime  # Runtime environment variable
+    options:
+      - development
+      - staging
+      - production
+    required: false
+    env_var: NODE_ENV
+    default: production
 
 contributes:
   services:
@@ -44,10 +59,7 @@ contributes:
           dockerfile: "Dockerfile"
         ports:
           - "{{port}}:{{port}}"
-        environment:
-          PORT: "{{port}}"
-          DATABASE_URL: "{{database_url}}"
-          NODE_ENV: "production"
+        environment: {}  # Environment variables will be auto-generated based on scope
 
   canvas:
     nodeType: nodejs

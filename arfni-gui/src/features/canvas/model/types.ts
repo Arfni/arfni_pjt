@@ -25,6 +25,7 @@ export interface ServiceNodeData {
     };
   };
   target?: string;
+  properties?: Record<string, any>; // Plugin-specific properties for buildConfig
   // Additional service-specific fields
   [key: string]: any;
 }

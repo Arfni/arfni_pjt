@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Package, Download, Trash2, CheckCircle, AlertCircle, Search, ExternalLink, RefreshCw } from 'lucide-react';
 import { pluginService, type LoadedPlugin } from '@services/pluginLoader';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { appDataDir, join } from '@tauri-apps/api/path';
 
 interface PluginManagerProps {
   className?: string;
@@ -30,6 +32,13 @@ interface PluginRegistry {
   plugins: RegistryPlugin[];
 }
 
+interface CacheInfo {
+  exists: boolean;
+  valid: boolean;
+  age_hours: number | null;
+  last_updated: string | null;
+}
+
 export function PluginManager({ className = '' }: PluginManagerProps) {
   const [bundledPlugins, setBundledPlugins] = useState<LoadedPlugin[]>([]);
   const [installedPlugins, setInstalledPlugins] = useState<LoadedPlugin[]>([]);
@@ -39,10 +48,13 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
   const [installing, setInstalling] = useState(false);
   const [installUrl, setInstallUrl] = useState('');
   const [loadingRegistry, setLoadingRegistry] = useState(false);
+  const [cacheInfo, setCacheInfo] = useState<CacheInfo | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadPlugins();
     loadRegistryPlugins();
+    loadCacheInfo();
   }, []);
 
   const loadPlugins = async () => {
@@ -55,6 +67,26 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
     }
   };
 
+  const reloadPlugins = async () => {
+    try {
+      await pluginService.reloadPlugins();
+      setBundledPlugins(pluginService.getBundledPlugins());
+      setInstalledPlugins(pluginService.getInstalledPlugins());
+    } catch (error) {
+      console.error('Failed to reload plugins:', error);
+    }
+  };
+
+  const loadCacheInfo = async () => {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const info = await invoke<CacheInfo>('get_cache_info');
+      setCacheInfo(info);
+    } catch (error) {
+      console.error('Failed to load cache info:', error);
+    }
+  };
+
   const loadRegistryPlugins = async () => {
     setLoadingRegistry(true);
     try {
@@ -62,10 +94,27 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       const registryJson = await invoke<string>('load_plugin_registry');
       const registry: PluginRegistry = JSON.parse(registryJson);
       setRegistryPlugins(registry.plugins);
+      await loadCacheInfo(); // Update cache info after loading
     } catch (error) {
       console.error('Failed to load plugin registry:', error);
     } finally {
       setLoadingRegistry(false);
+    }
+  };
+
+  const handleRefreshRegistry = async () => {
+    setRefreshing(true);
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const registryJson = await invoke<string>('refresh_plugin_registry');
+      const registry: PluginRegistry = JSON.parse(registryJson);
+      setRegistryPlugins(registry.plugins);
+      await loadCacheInfo(); // Update cache info after refresh
+      console.log('✅ Registry refreshed successfully');
+    } catch (error) {
+      console.error('Failed to refresh plugin registry:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -93,7 +142,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       alert(`✅ ${result}`);
 
       // Reload plugins after installation
-      await loadPlugins();
+      await reloadPlugins();
     } catch (error) {
       console.error('Failed to install plugin:', error);
       alert(`❌ Failed to install plugin: ${error}`);
@@ -134,7 +183,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       alert(`✅ ${result}`);
 
       // Reload plugins after installation
-      await loadPlugins();
+      await reloadPlugins();
       setInstallUrl('');
     } catch (error) {
       console.error('Failed to install plugin:', error);
@@ -159,7 +208,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       alert(`✅ ${result}`);
 
       // Reload plugins after uninstallation
-      await loadPlugins();
+      await reloadPlugins();
     } catch (error) {
       console.error('Failed to uninstall plugin:', error);
       alert(`❌ Failed to uninstall plugin: ${error}`);
@@ -296,14 +345,32 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
         {/* Available Plugins from Registry */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">Available Plugins from Registry</h3>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">Available Plugins from Registry</h3>
+              {cacheInfo && cacheInfo.exists && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {cacheInfo.valid ? (
+                    <>
+                      Last synced: {cacheInfo.age_hours !== null && cacheInfo.age_hours === 0 ? 'just now' : `${cacheInfo.age_hours} hour${cacheInfo.age_hours !== 1 ? 's' : ''} ago`}
+                      {' '}<span className="text-green-600">(cached)</span>
+                    </>
+                  ) : (
+                    <>
+                      Cache expired ({cacheInfo.age_hours} hours old)
+                      {' '}<span className="text-yellow-600">(stale)</span>
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
             <button
-              onClick={loadRegistryPlugins}
-              disabled={loadingRegistry}
-              className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md flex items-center gap-2 disabled:opacity-50"
+              onClick={handleRefreshRegistry}
+              disabled={refreshing || loadingRegistry}
+              className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md flex items-center gap-2 disabled:opacity-50"
+              title="Force refresh from GitHub (ignores cache)"
             >
-              <RefreshCw className={`w-4 h-4 ${loadingRegistry ? 'animate-spin' : ''}`} />
-              Refresh
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Force Refresh'}
             </button>
           </div>
           {loadingRegistry ? (
@@ -343,6 +410,8 @@ interface PluginCardProps {
 }
 
 function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
+  const [iconUrl, setIconUrl] = useState<string | null>(null);
+
   const categoryColors: Record<string, string> = {
     database: 'bg-blue-100 text-blue-800',
     framework: 'bg-green-100 text-green-800',
@@ -353,12 +422,39 @@ function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
     monitoring: 'bg-red-100 text-red-800',
   };
 
+  useEffect(() => {
+    const loadIconUrl = async () => {
+      if (isBundled) {
+        // Bundled plugins use relative paths
+        setIconUrl(plugin.iconPath);
+      } else {
+        // Installed plugins - use cross-platform path
+        try {
+          const dataDir = await appDataDir();
+          const iconPath = await join(dataDir, 'plugins', 'installed', plugin.manifest.category, plugin.manifest.name, 'icon.png');
+          const assetUrl = convertFileSrc(iconPath);
+          console.log(`Plugin: ${plugin.manifest.name}, Icon Path: ${iconPath}, Asset URL: ${assetUrl}`);
+          setIconUrl(assetUrl);
+        } catch (error) {
+          console.error(`Failed to load icon for ${plugin.manifest.name}:`, error);
+          setIconUrl(null);
+        }
+      }
+    };
+
+    loadIconUrl();
+  }, [plugin, isBundled]);
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-            <Package className="w-6 h-6 text-gray-600" />
+          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+            {iconUrl ? (
+              <img src={iconUrl} alt={plugin.manifest.displayName} className="w-full h-full object-cover" />
+            ) : (
+              <Package className="w-6 h-6 text-gray-600" />
+            )}
           </div>
           <div>
             <h4 className="font-semibold text-gray-900">{plugin.manifest.displayName}</h4>
@@ -410,6 +506,9 @@ interface RegistryPluginCardProps {
 }
 
 function RegistryPluginCard({ plugin, onInstall, installing }: RegistryPluginCardProps) {
+  const [iconUrl, setIconUrl] = useState<string | null>(null);
+  const [iconError, setIconError] = useState(false);
+
   const categoryColors: Record<string, string> = {
     database: 'bg-blue-100 text-blue-800',
     framework: 'bg-green-100 text-green-800',
@@ -420,12 +519,31 @@ function RegistryPluginCard({ plugin, onInstall, installing }: RegistryPluginCar
     monitoring: 'bg-red-100 text-red-800',
   };
 
+  useEffect(() => {
+    // GitHub raw URL for icon
+    const iconGithubUrl = `https://raw.githubusercontent.com/Arfni/arfni-plugins/main/${plugin.path}/icon.png`;
+    setIconUrl(iconGithubUrl);
+  }, [plugin]);
+
+  const handleIconError = () => {
+    setIconError(true);
+  };
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-            <Package className="w-6 h-6 text-gray-600" />
+          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+            {iconUrl && !iconError ? (
+              <img
+                src={iconUrl}
+                alt={plugin.name}
+                className="w-full h-full object-cover"
+                onError={handleIconError}
+              />
+            ) : (
+              <Package className="w-6 h-6 text-gray-600" />
+            )}
           </div>
           <div>
             <h4 className="font-semibold text-gray-900">{plugin.name}</h4>

@@ -17,15 +17,19 @@ import (
 
 // Runner는 전체 워크플로우를 조정합니다
 type Runner struct {
-	stack      *stack.Stack
-	projectDir string
+	stack             *stack.Stack
+	projectDir        string
+	pluginsDir        string
+	bundledPluginsDir string
 }
 
 // NewRunner는 새로운 Runner를 생성합니다
 func NewRunner(s *stack.Stack, projectDir string) *Runner {
 	return &Runner{
-		stack:      s,
-		projectDir: projectDir,
+		stack:             s,
+		projectDir:        projectDir,
+		pluginsDir:        "", // Execute()에서 설정
+		bundledPluginsDir: "", // Execute()에서 설정
 	}
 }
 
@@ -108,8 +112,16 @@ func (r *Runner) healthCheck(ctx context.Context) error {
 	return nil
 }
 
-// Execute는 전체 워크플로우를 실행하며 이벤트를 스트리밍합니다
-func (r *Runner) Execute(stream *events.Stream) error {
+// Execute는 전체 워크플로우를 실행하며 이벤트를 스트리밍합니다 (기본 호환성 유지)
+func (r *Runner) Execute(stream *events.Stream, pluginsDir string) error {
+	return r.ExecuteWithPlugins(stream, pluginsDir, "")
+}
+
+// ExecuteWithPlugins는 전체 워크플로우를 실행하며 bundled 플러그인도 지원합니다
+func (r *Runner) ExecuteWithPlugins(stream *events.Stream, pluginsDir, bundledPluginsDir string) error {
+	r.pluginsDir = pluginsDir               // 플러그인 디렉토리 저장
+	r.bundledPluginsDir = bundledPluginsDir // Bundled 플러그인 디렉토리 저장
+
 	stream.Info("Phase 1/5: Preflight checks...")
 	time.Sleep(500 * time.Millisecond)
 	stream.Success("Preflight checks passed")
@@ -168,8 +180,9 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 
 			stream.Info(fmt.Sprintf("Detected build type: %s", buildType))
 
-			// Generate Dockerfile if it doesn't exist
-			if err := WriteDockerfile(r.projectDir, service.Spec.Build, buildType); err != nil {
+			// Generate Dockerfile with buildConfig and pluginsDir
+			if err := WriteDockerfileWithBundled(r.projectDir, service.Spec.Build, buildType,
+			                         service.Spec.BuildConfig, r.pluginsDir, r.bundledPluginsDir); err != nil {
 				return fmt.Errorf("failed to write Dockerfile for '%s': %w", name, err)
 			}
 
@@ -222,8 +235,7 @@ func (r *Runner) buildImages(stream *events.Stream) error {
 
 // buildImagesLocal은 로컬에서 docker-compose build를 실행합니다
 func (r *Runner) buildImagesLocal(stream *events.Stream) error {
-	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
-	composeFile := filepath.Join(composeDir, "docker-compose.yml")
+	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
 
 	// Check if compose file exists
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
@@ -309,11 +321,11 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 	// 3. 프로젝트 파일들 전송
 	stream.Info("Uploading project files to EC2...")
 
-	// .arfni/compose 디렉토리 전송
-	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
-	remoteComposeDir := workdir + "/.arfni/compose"
-	if err := sshClient.UploadDirectory(stream, composeDir, remoteComposeDir); err != nil {
-		return fmt.Errorf("failed to upload compose files: %w", err)
+	// docker-compose.yml 전송
+	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
+	remoteComposeFile := workdir + "/docker-compose.yml"
+	if err := sshClient.UploadFile(stream, composeFile, remoteComposeFile); err != nil {
+		return fmt.Errorf("failed to upload docker-compose.yml: %w", err)
 	}
 
 	// 빌드 컨텍스트 디렉토리들 전송 (apps 디렉토리 등)
@@ -331,7 +343,7 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 
 	// 4. EC2에서 빌드 실행
 	stream.Info("Building images on EC2...")
-	buildCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml build", workdir)
+	buildCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml build", workdir)
 	if err := sshClient.RunCommand(stream, buildCmd); err != nil {
 		return fmt.Errorf("failed to build on EC2: %w", err)
 	}
@@ -355,8 +367,7 @@ func (r *Runner) deployContainers(stream *events.Stream) error {
 
 // deployContainersLocal은 로컬에서 docker-compose up -d를 실행합니다
 func (r *Runner) deployContainersLocal(stream *events.Stream) error {
-	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
-	composeFile := filepath.Join(composeDir, "docker-compose.yml")
+	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
 
 	stream.Info("Running docker compose up -d...")
 
@@ -425,7 +436,7 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 	stream.Info("Deploying containers on EC2...")
 
 	// docker compose up -d 실행
-	deployCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml up -d", workdir)
+	deployCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml up -d", workdir)
 	if err := sshClient.RunCommand(stream, deployCmd); err != nil {
 		return fmt.Errorf("failed to deploy on EC2: %w", err)
 	}
@@ -449,8 +460,7 @@ func (r *Runner) healthChecks(stream *events.Stream) error {
 
 // healthChecksLocal은 로컬 컨테이너 상태를 확인합니다
 func (r *Runner) healthChecksLocal(stream *events.Stream) error {
-	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
-	composeFile := filepath.Join(composeDir, "docker-compose.yml")
+	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
 
 	// Wait a bit for containers to start
 	time.Sleep(2 * time.Second)
@@ -518,7 +528,7 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 	stream.Info("Checking container status on EC2...")
 
 	// docker compose ps 실행
-	psCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml ps", workdir)
+	psCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml ps", workdir)
 	output, err := sshClient.RunCommandWithOutput(stream, psCmd)
 	if err != nil {
 		return fmt.Errorf("failed to check container status: %w", err)
@@ -527,7 +537,7 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 	stream.Info(output)
 
 	// 컨테이너 ID 확인
-	psqCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml ps -q", workdir)
+	psqCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml ps -q", workdir)
 	output, err = sshClient.RunCommandWithOutput(stream, psqCmd)
 	if err != nil {
 		return fmt.Errorf("failed to get container IDs: %w", err)

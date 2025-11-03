@@ -493,20 +493,89 @@ CMD ["/bin/sh"]
 `
 }
 
-// WriteDockerfile writes a Dockerfile to the specified path
-// Priority: 1) Existing Dockerfile 2) Dynamic generation with project analysis 3) Template fallback
-func WriteDockerfile(projectDir, buildPath string, buildType BuildType) error {
+// WriteDockerfile writes a Dockerfile to the specified path (기본 호환성 유지)
+func WriteDockerfile(projectDir, buildPath string, buildType BuildType,
+                     buildConfig map[string]interface{}, pluginsDir string) error {
+	return WriteDockerfileWithBundled(projectDir, buildPath, buildType, buildConfig, pluginsDir, "")
+}
+
+// WriteDockerfileWithBundled writes a Dockerfile to the specified path
+// Priority: 1) User Dockerfile 2) Plugin template + buildConfig 3) Auto-generation
+func WriteDockerfileWithBundled(projectDir, buildPath string, buildType BuildType,
+                     buildConfig map[string]interface{}, pluginsDir, bundledPluginsDir string) error {
 	dockerfilePath := filepath.Join(projectDir, buildPath, "Dockerfile")
 
-	// Priority 1: Check if Dockerfile already exists (user-provided)
+	// Priority 1: User-provided Dockerfile
 	if fileExists(dockerfilePath) {
-		// Don't overwrite existing Dockerfile - respect user's custom configuration
+		fmt.Printf("[INFO] Using existing Dockerfile at %s\n", dockerfilePath)
 		return nil
 	}
 
-	// Priority 2: Analyze project and generate dynamic Dockerfile
-	config := AnalyzeProject(projectDir, buildPath)
-	dockerfileContent := GenerateDockerfileWithConfig(buildType, config)
+	var dockerfileContent string
+
+	// Priority 2: Plugin template + buildConfig substitution
+	// Convert buildType to service type name
+	serviceType := buildTypeToServiceType(buildType, buildConfig)
+
+	// Try installed plugins first, then bundled plugins
+	var templatePath string
+	var templateErr error
+
+	if pluginsDir != "" {
+		renderer := NewTemplateRenderer(pluginsDir)
+		templatePath, templateErr = renderer.FindPluginTemplate(serviceType)
+		if templateErr == nil {
+			fmt.Printf("[INFO] Found plugin template in installed plugins: %s\n", templatePath)
+		}
+	}
+
+	// If not found in installed plugins, try bundled plugins
+	if templatePath == "" && bundledPluginsDir != "" {
+		bundledRenderer := NewBundledTemplateRenderer(bundledPluginsDir)
+		templatePath, templateErr = bundledRenderer.FindBundledTemplate(serviceType)
+		if templateErr == nil {
+			fmt.Printf("[INFO] Found plugin template in bundled plugins: %s\n", templatePath)
+		}
+	}
+
+	// If template found, render it
+	if templatePath != "" {
+		// Initialize buildConfig if nil
+		if buildConfig == nil {
+			buildConfig = make(map[string]interface{})
+		}
+
+		// Fill missing values with project analysis
+		fillDefaultBuildConfig(projectDir, buildPath, buildType, buildConfig)
+
+		// Create appropriate renderer based on where template was found
+		var rendered string
+		var renderErr error
+
+		if pluginsDir != "" && strings.Contains(templatePath, pluginsDir) {
+			renderer := NewTemplateRenderer(pluginsDir)
+			rendered, renderErr = renderer.RenderTemplate(templatePath, buildConfig)
+		} else {
+			bundledRenderer := NewBundledTemplateRenderer(bundledPluginsDir)
+			rendered, renderErr = bundledRenderer.RenderTemplate(templatePath, buildConfig)
+		}
+
+		if renderErr == nil {
+			dockerfileContent = rendered
+			fmt.Printf("[INFO] Successfully rendered Dockerfile template\n")
+		} else {
+			fmt.Printf("[WARN] Failed to render template: %v, falling back to auto-generation\n", renderErr)
+		}
+	} else {
+		fmt.Printf("[INFO] No plugin template found for %s, using auto-generation\n", serviceType)
+	}
+
+	// Priority 3: Auto-generation (fallback)
+	if dockerfileContent == "" {
+		config := AnalyzeProject(projectDir, buildPath)
+		dockerfileContent = GenerateDockerfileWithConfig(buildType, config)
+		fmt.Printf("[INFO] Generated Dockerfile using auto-detection (BuildType: %s)\n", buildType)
+	}
 
 	// Write Dockerfile
 	if err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644); err != nil {
@@ -514,4 +583,67 @@ func WriteDockerfile(projectDir, buildPath string, buildType BuildType) error {
 	}
 
 	return nil
+}
+
+// buildTypeToServiceType converts BuildType to service type name for plugin lookup
+func buildTypeToServiceType(buildType BuildType, buildConfig map[string]interface{}) string {
+	// Check buildConfig for explicit framework
+	if framework, ok := buildConfig["framework"].(string); ok {
+		return framework
+	}
+
+	// Infer from BuildType
+	switch buildType {
+	case BuildTypePython:
+		// Check if Django is in buildConfig or default to python
+		return "django" // Can be enhanced to check requirements.txt
+	case BuildTypeSpringBoot:
+		return "springboot"
+	case BuildTypeReact:
+		return "react"
+	case BuildTypeNodeJS:
+		return "nodejs"
+	case BuildTypeVue:
+		return "vue"
+	case BuildTypeGo:
+		return "go"
+	default:
+		return strings.ToLower(string(buildType))
+	}
+}
+
+// fillDefaultBuildConfig fills missing buildConfig values from project analysis
+func fillDefaultBuildConfig(projectDir, buildPath string, buildType BuildType,
+                            buildConfig map[string]interface{}) {
+	config := AnalyzeProject(projectDir, buildPath)
+
+	switch buildType {
+	case BuildTypePython:
+		if _, ok := buildConfig["python_version"]; !ok {
+			buildConfig["python_version"] = "3.11"
+		}
+		if _, ok := buildConfig["workers"]; !ok {
+			buildConfig["workers"] = 4
+		}
+	case BuildTypeSpringBoot:
+		if _, ok := buildConfig["java_version"]; !ok {
+			buildConfig["java_version"] = config.JavaVersion
+		}
+		if _, ok := buildConfig["gradle_version"]; !ok {
+			buildConfig["gradle_version"] = config.GradleVersion
+		}
+		if _, ok := buildConfig["build_tool"]; !ok {
+			buildConfig["build_tool"] = config.BuildTool
+		}
+	case BuildTypeReact, BuildTypeVue, BuildTypeNodeJS:
+		if _, ok := buildConfig["node_version"]; !ok {
+			buildConfig["node_version"] = config.NodeVersion
+		}
+		if _, ok := buildConfig["build_command"]; !ok && config.BuildCommand != "" {
+			buildConfig["build_command"] = config.BuildCommand
+		}
+		if _, ok := buildConfig["output_dir"]; !ok && config.OutputDir != "" {
+			buildConfig["output_dir"] = config.OutputDir
+		}
+	}
 }

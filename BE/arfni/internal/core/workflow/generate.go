@@ -26,6 +26,7 @@ type DockerComposeService struct {
 	Volumes     []string              `yaml:"volumes,omitempty"`
 	Command     []string              `yaml:"command,omitempty"`
 	DependsOn   []string              `yaml:"depends_on,omitempty"`
+	Restart     string                `yaml:"restart,omitempty"`
 }
 
 // DockerComposeBuild represents build configuration
@@ -56,6 +57,7 @@ func GenerateDockerCompose(s *stack.Stack, projectDir string) (string, error) {
 			Ports:       service.Spec.Ports,
 			Command:     service.Spec.Command,
 			DependsOn:   service.DependsOn,
+			Restart:     service.Spec.Restart,
 		}
 
 		// Handle image or build
@@ -98,14 +100,14 @@ func WriteDockerCompose(s *stack.Stack, projectDir string) error {
 		return err
 	}
 
-	// Create compose directory
-	composeDir := filepath.Join(projectDir, ".arfni", "compose")
-	if err := os.MkdirAll(composeDir, 0755); err != nil {
-		return fmt.Errorf("failed to create compose directory: %w", err)
+	// Create .arfni directory
+	arfniDir := filepath.Join(projectDir, ".arfni")
+	if err := os.MkdirAll(arfniDir, 0755); err != nil {
+		return fmt.Errorf("failed to create .arfni directory: %w", err)
 	}
 
-	// Write file
-	composeFile := filepath.Join(composeDir, "docker-compose.yml")
+	// Write docker-compose.yml to project root (for correct build context resolution)
+	composeFile := filepath.Join(projectDir, "docker-compose.yml")
 	if err := os.WriteFile(composeFile, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write docker-compose.yml: %w", err)
 	}

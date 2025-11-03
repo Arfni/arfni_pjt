@@ -44,9 +44,9 @@ contributes:
         ports:
           - "27017:27017"
         environment:
-          MONGO_INITDB_ROOT_USERNAME: "{{mongodb_root_username}}"
-          MONGO_INITDB_ROOT_PASSWORD: "{{mongodb_root_password}}"
-          MONGO_INITDB_DATABASE: "{{mongodb_database}}"
+          MONGO_INITDB_ROOT_USERNAME: "admin"
+          MONGO_INITDB_ROOT_PASSWORD: "adminpassword"
+          MONGO_INITDB_DATABASE: "myapp"
         volumes:
           - "mongodb_data:/data/db"
         healthcheck:

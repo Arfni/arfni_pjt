@@ -101,6 +101,36 @@ pub async fn deploy_stack(
             data: None,
         }).unwrap_or(());
 
+        // 플러그인 디렉토리 경로 가져오기 (GUI의 AppData)
+        let plugin_dir = match app_clone.path().app_data_dir() {
+            Ok(mut path) => {
+                path.push("plugins");
+                path.to_string_lossy().to_string()
+            }
+            Err(_) => String::new()
+        };
+
+        // Bundled 플러그인 디렉토리 경로 가져오기
+        let bundled_plugin_dir = match app_clone.path().app_data_dir() {
+            Ok(mut path) => {
+                // 개발 모드에서는 public/plugins/bundled 사용
+                if cfg!(debug_assertions) {
+                    // 프로젝트 루트에서 public/plugins/bundled 경로
+                    let mut dev_path = std::env::current_dir().unwrap_or_default();
+                    dev_path.push("public");
+                    dev_path.push("plugins");
+                    dev_path.push("bundled");
+                    dev_path.to_string_lossy().to_string()
+                } else {
+                    // 프로덕션에서는 리소스 디렉토리 사용
+                    path.push("plugins");
+                    path.push("bundled");
+                    path.to_string_lossy().to_string()
+                }
+            }
+            Err(_) => String::new()
+        };
+
         // 배포 명령 실행 - Go 바이너리 직접 실행
         let mut command = Command::new(&go_binary_path);
         command
@@ -108,7 +138,31 @@ pub async fn deploy_stack(
             .arg("-f")
             .arg(&stack_yaml_path)
             .arg("-project-dir")
-            .arg(&project_path)
+            .arg(&project_path);
+
+        // 플러그인 디렉토리가 있으면 전달
+        if !plugin_dir.is_empty() && Path::new(&plugin_dir).exists() {
+            command.arg("-plugins-dir").arg(&plugin_dir);
+            app_clone.emit("deployment-log", DeploymentLog {
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                level: "info".to_string(),
+                message: format!("플러그인 디렉토리: {}", plugin_dir),
+                data: None,
+            }).unwrap_or(());
+        }
+
+        // Bundled 플러그인 디렉토리가 있으면 전달
+        if !bundled_plugin_dir.is_empty() && Path::new(&bundled_plugin_dir).exists() {
+            command.arg("-bundled-plugins-dir").arg(&bundled_plugin_dir);
+            app_clone.emit("deployment-log", DeploymentLog {
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                level: "info".to_string(),
+                message: format!("Bundled 플러그인 디렉토리: {}", bundled_plugin_dir),
+                data: None,
+            }).unwrap_or(());
+        }
+
+        command
             .current_dir(&project_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());

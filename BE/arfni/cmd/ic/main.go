@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/arfni/arfni/internal/events"
-	"github.com/arfni/arfni/internal/workflow"
-	"github.com/arfni/arfni/pkg/stack"
+	"github.com/arfni/arfni/internal/core/workflow"
+	"github.com/arfni/arfni/internal/core/stack"
 )
 
 func main() {
@@ -21,6 +21,8 @@ func main() {
 	fs := flag.NewFlagSet(sub, flag.ExitOnError)
 	stackPath := fs.String("f", "stack.yaml", "path to stack.yaml")
 	projectDir := fs.String("project-dir", "", "project root directory (default: stack.yaml directory)")
+	pluginsDir := fs.String("plugins-dir", "", "plugins directory path (for template-based Dockerfile generation)")
+	bundledPluginsDir := fs.String("bundled-plugins-dir", "", "bundled plugins directory path (for built-in plugins)")
 	_ = fs.Parse(os.Args[2:])
 
 	// stack.yaml 절대경로 계산
@@ -42,14 +44,10 @@ func main() {
 		stackDir = filepath.Dir(absPath)
 	}
 
-	// 배포 전 모니터링 서비스 자동 추가 (metadata.monitoring.mode 기반)
-	if sub == "run" {
-		if err := stack.EnsureMonitoringServices(absPath); err != nil {
-			fmt.Fprintf(os.Stderr, "[warning] monitoring setup: %v\n", err)
-		}
-	}
+	// Monitoring services are now managed by frontend plugin system
+	// No need to inject monitoring services here anymore
 
-	st, err := stack.Load(absPath)
+	st, err := stack.Parse(absPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[error] load stack: %v\n", err)
 		os.Exit(1)
@@ -63,8 +61,8 @@ func main() {
 		// Create runner with new workflow
 		runner := workflow.NewRunner(st, stackDir)
 
-		// Execute workflow
-		if err := runner.Execute(stream); err != nil {
+		// Execute workflow with pluginsDir and bundledPluginsDir
+		if err := runner.ExecuteWithPlugins(stream, *pluginsDir, *bundledPluginsDir); err != nil {
 			fmt.Fprintf(os.Stderr, "[error] run: %v\n", err)
 			os.Exit(1)
 		}

@@ -44,13 +44,13 @@ contributes:
         ports:
           - "5432:5432"
         environment:
-          POSTGRES_PASSWORD: "{{postgres_password}}"
-          POSTGRES_DB: "{{postgres_db}}"
-          POSTGRES_USER: "{{postgres_user}}"
+          POSTGRES_PASSWORD: "postgres"
+          POSTGRES_DB: "myapp"
+          POSTGRES_USER: "postgres"
         volumes:
           - "postgres_data:/var/lib/postgresql/data"
         healthcheck:
-          test: ["CMD-SHELL", "pg_isready -U {{postgres_user}}"]
+          test: ["CMD-SHELL", "pg_isready -U postgres"]
           interval: 10s
           timeout: 5s
           retries: 5

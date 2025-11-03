@@ -3,32 +3,11 @@ import { Search } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { selectTemplate, selectSelectedTemplate } from '@features/canvas';
 import { pluginService, type NodeTemplate } from '@services/pluginLoader';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { appDataDir, join } from '@tauri-apps/api/path';
 
-// Import bundled plugin icons - these will be used as fallbacks
-import postgresqlImg from '../../../assets/postgresql.png';
-import mysqlImg from '../../../assets/mysql.png';
-import redisImg from '../../../assets/redis.png';
-import mongodbImg from '../../../assets/mongodb.png';
-import reactImg from '../../../assets/react.png';
-import springbootImg from '../../../assets/springboot.png';
-import nodejsImg from '../../../assets/nodejs.png';
-import nextjsImg from '../../../assets/nextjs.png';
-import pythonImg from '../../../assets/python.png';
-
-// Icon mapping for bundled plugins
-const iconMap: Record<string, string> = {
-  postgresql: postgresqlImg,
-  postgres: postgresqlImg,
-  mysql: mysqlImg,
-  redis: redisImg,
-  mongodb: mongodbImg,
-  react: reactImg,
-  nextjs: nextjsImg,
-  spring: springbootImg,
-  springboot: springbootImg,
-  nodejs: nodejsImg,
-  python: pythonImg,
-};
+// No more hardcoded icon imports!
+// Icons are now loaded dynamically from plugin folders
 
 type TabKey = 'DB' | 'Runtime' | 'Infra' | 'Monitor';
 
@@ -57,19 +36,44 @@ export function NodePalette() {
       await pluginService.loadPlugins();
       const templates = pluginService.getNodeTemplates();
 
-      // Map icon paths to actual images for bundled plugins
-      const templatesWithIcons = templates.map(template => {
-        // Check if this is a bundled plugin icon
-        if (template.plugin?.isBundled) {
-          const iconKey = template.type;
-          const mappedIcon = iconMap[iconKey] || iconMap[template.plugin.manifest.name];
-          if (mappedIcon) {
-            return { ...template, icon: mappedIcon };
-          }
+      // Get app data directory for cross-platform path
+      const dataDir = await appDataDir();
+
+      // Map icon paths to actual URLs for both bundled and installed plugins
+      const templatesWithIconsPromises = templates.map(async (template) => {
+        if (!template.plugin) {
+          return template;
         }
-        return template;
+
+        try {
+          let iconUrl: string;
+
+          if (template.plugin.isBundled) {
+            // Bundled plugins: load from public folder
+            // iconPath is like "plugins/bundled/framework/fastapi/icon.png"
+            iconUrl = `/${template.plugin.iconPath}`;
+          } else {
+            // Installed plugins: load from app data directory
+            const iconPath = await join(
+              dataDir,
+              'plugins',
+              'installed',
+              template.plugin.manifest.category,
+              template.plugin.manifest.name,
+              'icon.png'
+            );
+            iconUrl = convertFileSrc(iconPath);
+            console.log(`NodePalette - Plugin: ${template.plugin.manifest.name}, Icon Path: ${iconPath}, Asset URL: ${iconUrl}`);
+          }
+
+          return { ...template, icon: iconUrl };
+        } catch (error) {
+          console.error(`Failed to load icon for ${template.plugin?.manifest.name}:`, error);
+          return template;
+        }
       });
 
+      const templatesWithIcons = await Promise.all(templatesWithIconsPromises);
       setNodeTemplates(templatesWithIcons);
     } catch (error) {
       console.error('Error loading plugins:', error);

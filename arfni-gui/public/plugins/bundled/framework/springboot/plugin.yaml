@@ -1,5 +1,5 @@
 apiVersion: v0.1
-name: springboot
+name: spring
 displayName: Spring Boot
 version: 1.0.0
 category: framework
@@ -10,7 +10,7 @@ icon: icon.png
 
 provides:
   service_kinds:
-    - app.springboot
+    - app.spring
 
 inputs:
   java_version:
@@ -42,19 +42,15 @@ inputs:
 
 contributes:
   services:
-    springboot:
-      kind: app.springboot
+    spring:
+      kind: app.spring
       type: docker.container
       spec:
         build:
           context: "."
           dockerfile: "Dockerfile"
         ports:
-          - "{{port}}:{{port}}"
-        environment:
-          SERVER_PORT: "{{port}}"
-          DATABASE_URL: "{{database_url}}"
-          SPRING_PROFILES_ACTIVE: "{{profile}}"
+          - "8080:8080"
 
   canvas:
     nodeType: spring

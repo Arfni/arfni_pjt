@@ -4,10 +4,21 @@ package stack
 type Stack struct {
 	APIVersion string                 `yaml:"apiVersion"`
 	Name       string                 `yaml:"name"`
+	Metadata   *Metadata              `yaml:"metadata,omitempty"`
 	Targets    map[string]Target      `yaml:"targets"`
 	Services   map[string]Service     `yaml:"services"`
 	Secrets    []string               `yaml:"secrets,omitempty"`
 	Outputs    map[string]string      `yaml:"outputs,omitempty"`
+}
+
+// Metadata는 stack의 메타데이터입니다
+type Metadata struct {
+	Monitoring *MonitoringConfig `yaml:"monitoring,omitempty"`
+}
+
+// MonitoringConfig는 모니터링 설정입니다
+type MonitoringConfig struct {
+	Mode string `yaml:"mode,omitempty"` // "local", "hybrid", "all-in-one"
 }
 
 // Target은 배포 대상 (로컬, EC2 등)을 정의합니다
@@ -30,13 +41,15 @@ type Service struct {
 
 // ServiceSpec은 서비스의 상세 스펙입니다
 type ServiceSpec struct {
-	Image   string            `yaml:"image,omitempty"`
-	Build   string            `yaml:"build,omitempty"`
-	Env     map[string]string `yaml:"env,omitempty"`
-	Ports   []string          `yaml:"ports,omitempty"`
-	Volumes []Volume          `yaml:"volumes,omitempty"`
-	Command []string          `yaml:"command,omitempty"`
-	Health  *HealthCheck      `yaml:"health,omitempty"`
+	Image       string                 `yaml:"image,omitempty"`
+	Build       string                 `yaml:"build,omitempty"`
+	BuildConfig map[string]interface{} `yaml:"buildConfig,omitempty"` // Dockerfile template variables
+	Env         map[string]string      `yaml:"env,omitempty"`
+	Ports       []string               `yaml:"ports,omitempty"`
+	Volumes     []Volume               `yaml:"volumes,omitempty"`
+	Command     []string               `yaml:"command,omitempty"`
+	Restart     string                 `yaml:"restart,omitempty"`
+	Health      *HealthCheck           `yaml:"health,omitempty"`
 }
 
 // Volume은 볼륨 마운트를 정의합니다

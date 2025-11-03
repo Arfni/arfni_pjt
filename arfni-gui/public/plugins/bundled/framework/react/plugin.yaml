@@ -1,7 +1,7 @@
 apiVersion: v0.1
 name: react
 displayName: React
-version: 1.0.0
+version: 1.1.0
 category: framework
 description: "JavaScript library for building user interfaces"
 author: ARFNI Team
@@ -15,23 +15,49 @@ provides:
 inputs:
   node_version:
     description: "Node.js version"
-    type: text
+    type: select
+    scope: build  # Only needed at build time for Dockerfile
+    options:
+      - "16-alpine"
+      - "18-alpine"
+      - "20-alpine"
     required: false
     default: "18-alpine"
 
   port:
     description: "Application port"
     type: number
+    scope: both  # Needed for both Dockerfile EXPOSE and runtime PORT env
     required: false
     env_var: PORT
     default: 3000
 
-  api_url:
-    description: "Backend API URL"
-    type: text
+  environment:
+    description: "Deployment environment"
+    type: select
+    scope: runtime  # Only needed at runtime
+    options:
+      - development
+      - staging
+      - production
+    default: development
+    env_var: NODE_ENV
     required: false
-    env_var: REACT_APP_API_URL
+
+  build_command:
+    description: "Build command"
+    type: text
+    scope: build  # Only for Dockerfile RUN command
+    default: "npm run build"
+    required: false
+
+  start_command:
+    description: "Start command"
+    type: text
+    scope: build  # Only for Dockerfile CMD
     default: ""
+    placeholder: "Defaults to serve -s build -l {port}"
+    required: false
 
 contributes:
   services:
@@ -44,10 +70,8 @@ contributes:
           dockerfile: "Dockerfile"
         ports:
           - "{{port}}:{{port}}"
-        environment:
-          PORT: "{{port}}"
-          REACT_APP_API_URL: "{{api_url}}"
-          NODE_ENV: "production"
+        # No hardcoded environment variables
+        environment: {}
 
   canvas:
     nodeType: react
@@ -63,4 +87,5 @@ contributes:
         - type: api
           name: backend
           protocol: http
-          env_var: REACT_APP_API_URL
+          description: "Backend API connection"
+          optional: true

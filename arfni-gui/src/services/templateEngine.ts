@@ -3,6 +3,8 @@
  * Supports {{variable}} substitution and {{#if}} conditionals
  */
 
+import * as yaml from 'js-yaml';
+
 export interface TemplateContext {
   [key: string]: any;
 }
@@ -57,69 +59,22 @@ export class TemplateEngine {
   }
 
   /**
-   * Parse YAML-like template to object structure
+   * Parse YAML template to object structure
+   * Uses js-yaml library for proper YAML parsing
    */
   static parseYamlTemplate(template: string, context: TemplateContext): any {
-    // First process the template
-    const processed = this.process(template, context);
+    try {
+      // First process template variables
+      const processed = this.process(template, context);
 
-    // Simple YAML parsing (for service templates)
-    // This is a simplified parser - in production, use a proper YAML library
-    const lines = processed.split('\n');
-    const result: any = {};
-    let currentKey: string | null = null;
-    let currentIndent = 0;
-    let currentObject: any = result;
-    const stack: any[] = [result];
+      // Use js-yaml for proper YAML parsing
+      const result = yaml.load(processed);
 
-    for (const line of lines) {
-      // Skip comments and empty lines
-      if (line.trim().startsWith('#') || line.trim() === '') continue;
-
-      const indent = line.length - line.trimStart().length;
-      const trimmed = line.trim();
-
-      // Handle key-value pairs
-      if (trimmed.includes(':')) {
-        const [key, ...valueParts] = trimmed.split(':');
-        const value = valueParts.join(':').trim();
-
-        if (value) {
-          // Simple key-value
-          if (value.startsWith('[') && value.endsWith(']')) {
-            // Array value
-            currentObject[key] = JSON.parse(value);
-          } else if (value === 'true' || value === 'false') {
-            // Boolean value
-            currentObject[key] = value === 'true';
-          } else if (!isNaN(Number(value))) {
-            // Number value
-            currentObject[key] = Number(value);
-          } else {
-            // String value (remove quotes if present)
-            currentObject[key] = value.replace(/^["']|["']$/g, '');
-          }
-        } else {
-          // Nested object
-          currentObject[key] = {};
-          currentKey = key;
-
-          if (indent > currentIndent) {
-            stack.push(currentObject);
-            currentObject = currentObject[key];
-            currentIndent = indent;
-          }
-        }
-      } else if (trimmed.startsWith('- ')) {
-        // Array item
-        const value = trimmed.substring(2);
-        if (!Array.isArray(currentObject[currentKey!])) {
-          currentObject[currentKey!] = [];
-        }
-        currentObject[currentKey!].push(value);
-      }
+      return result || {};
+    } catch (error) {
+      console.error('Failed to parse YAML template:', error);
+      console.error('Template:', template);
+      throw new Error(`YAML parsing failed: ${error}`);
     }
-
-    return result;
   }
 }

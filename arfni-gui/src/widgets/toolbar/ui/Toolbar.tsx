@@ -52,6 +52,7 @@ export function Toolbar() {
   const isSaving = useAppSelector(selectIsSaving);
   const targetNodes = useAppSelector(selectTargetNodes);
 
+
   const [isDeploying, setIsDeploying] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
 
@@ -85,6 +86,7 @@ export function Toolbar() {
       }
 
       // 4. stack.yaml 생성 - updatedProject 사용
+
       const yamlContent = await PluginStackGenerator.generateStack({
         nodes,
         edges,
@@ -324,7 +326,7 @@ export function Toolbar() {
       alert(`배포 실패: ${error}`);
       setIsDeploying(false);
     }
-  }, [currentProject, isDirty, handleSave, dispatch, navigate]);
+  }, [currentProject, isDirty, handleSave, dispatch, navigate, nodes, edges]);
 
   // 배포 중단
   const handleStopDeployment = useCallback(async () => {
