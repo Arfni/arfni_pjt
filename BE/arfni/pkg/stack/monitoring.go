@@ -173,6 +173,7 @@ func ensureGrafana(stack *Stack, targetName string) error {
 				"GF_AUTH_ANONYMOUS_ENABLED":  "true",
 				"GF_AUTH_ANONYMOUS_ORG_ROLE": "Admin",
 				"GF_AUTH_DISABLE_LOGIN_FORM": "true",
+				"GF_SECURITY_ALLOW_EMBEDDING": "true",
 			},
 		},
 	}

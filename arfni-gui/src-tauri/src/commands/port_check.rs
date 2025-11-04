@@ -1,12 +1,30 @@
 use std::process::Command;
 use regex::Regex;
+use serde::{Deserialize};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[derive(Deserialize)]
+pub struct SshSimpleParams {
+    pub host: String,
+    pub user: String,
+    pub pem_path: String,
+}
 
 #[tauri::command]
 pub fn list_open_ports() -> Result<Vec<u16>, String> {
     // netstat 실행
-    let output = Command::new("netstat")
-        .args(&["-ano"])
-        .output()
+    let mut cmd = Command::new("netstat");
+    cmd.args(&["-ano"]);
+
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd.output()
         .map_err(|e| e.to_string())?;
 
     // 결과를 CP949 → UTF-8로 변환 (한글깨짐 방지)
@@ -32,9 +50,16 @@ pub fn list_open_ports() -> Result<Vec<u16>, String> {
 
 #[tauri::command]
 pub fn list_listening_ports() -> Result<Vec<u16>, String> {
-    let output = Command::new("netstat")
-        .args(&["-ano"])
-        .output()
+    let mut cmd = Command::new("netstat");
+    cmd.args(&["-ano"]);
+
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd.output()
         .map_err(|e| e.to_string())?;
 
     let text = String::from_utf8_lossy(&output.stdout);
@@ -61,34 +86,14 @@ pub fn list_listening_ports() -> Result<Vec<u16>, String> {
     Ok(ports)
 }
 
-
+//ec2 포트 체크
 #[tauri::command]
-pub fn scan_ports() -> Result<Vec<u16>, String> {
-    let output = Command::new("netstat")
-        .args(&["-ano"])
-        .output()
-        .map_err(|e| e.to_string())?;
-
-    let text = String::from_utf8_lossy(&output.stdout);
-
-    // LISTENING이 포함된 줄만 필터링
-    let mut ports = vec![];
-    let re = Regex::new(r":(\d+)\s+").unwrap();
-
-    for line in text.lines() {
-        if !line.contains("LISTENING") {
-            continue;
-        }
-
-        if let Some(cap) = re.captures(line) {
-            if let Ok(port) = cap[1].parse::<u16>() {
-                if !ports.contains(&port) {
-                    ports.push(port);
-                }
-            }
-        }
-    }
-
-    ports.sort_unstable();
-    Ok(ports)
+pub fn list_ec2_listening_ports(params : SshSimpleParams)->  Result<Vec<u16>, String> {
+    crate::features::ssh_exec::list_ec2_listening_ports
+(
+        &params.host,
+        &params.user,
+        &params.pem_path,
+    )
+    .map_err(|e| e.to_string())
 }

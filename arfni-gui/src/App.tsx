@@ -5,6 +5,7 @@ import { store } from './app/store';
 import { CanvasPage } from "./pages/canvas/ui/CanvasPage";
 import TestPage from "./pages/test/ui/TestPage";
 import LogPage from "./pages/logs/ui/LogPage";
+import MonitoringPage from "./pages/monitoring/ui/MonitoringPage";
 import ProjectsPage from "./pages/projects/ui/ProjectsPage";
 import SettingsPage from "./pages/settings/ui/SettingsPage";
 import TestPage2 from "./pages/test/ui/TestPage2";
@@ -35,6 +36,7 @@ function App() {
             <Route path="/canvas" element={<CanvasPage />} />
             <Route path="/test" element={<TestPage />} />
             <Route path="/logs" element={<LogPage />} />
+            <Route path="/monitoring" element={<MonitoringPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/test2" element={<TestPage2 />} />

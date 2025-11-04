@@ -19,7 +19,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; frame-src 'self' http://localhost:* https://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http://localhost:* https://localhost:*; connect-src 'self' http://localhost:* https://localhost:* ws://localhost:* wss://localhost:*"
     }
   },
   "bundle": {
@@ -34,7 +34,8 @@
     ],
     "resources": [
       "../../BE/arfni/bin/arfni-go.exe",
-      "../../BE/arfni/bin/ic.exe"
+      "../../BE/arfni/bin/ic.exe",
+      "../../BE/arfni/bin/arfni-monitoring.exe"
     ]
   }
 }
