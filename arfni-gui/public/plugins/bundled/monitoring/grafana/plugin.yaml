@@ -19,10 +19,16 @@ contributes:
         image: "grafana/grafana:latest"
         ports:
           - "3001:3000"
+        volumes:
+          - host: "./grafana/provisioning"
+            mount: "/etc/grafana/provisioning"
+          - host: "grafana-data"
+            mount: "/var/lib/grafana"
         env:
           GF_AUTH_ANONYMOUS_ENABLED: "true"
           GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
           GF_SECURITY_ADMIN_PASSWORD: "admin"
+          GF_AUTH_DISABLE_LOGIN_FORM: "true"
 
   canvas:
     nodeType: grafana
