@@ -48,7 +48,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: Pr
           {
             title: '프로젝트 폴더를 찾을 수 없음',
             kind: 'warning',
-            okLabel: 'DB에서 제거',
+            okLabel: '프로젝트 제거',
             cancelLabel: '취소',
           }
         );
