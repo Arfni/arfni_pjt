@@ -82,24 +82,30 @@ fn resolve_plugin_exe(app: &AppHandle, plugin: &str) -> Result<PathBuf, String> 
   // 1) 리소스 기준 우선 후보들
   let res_plugin_dir = app
     .path()
-    .resolve(&format!("plugins/{plugin}"), BaseDirectory::Resource)
+    .resolve(&format!("_up_/_up_/BE/arfni/bin/{plugin}"), BaseDirectory::Resource)
     .ok();
 
   let res_flat_plugin_exe = app
     .path()
-    .resolve(&format!("plugins/{plugin}.exe"), BaseDirectory::Resource)
+    .resolve(&format!("_up_/_up_/BE/arfni/bin/{plugin}.exe"), BaseDirectory::Resource)
     .ok();
 
   let res_plugin_exe_in_dir = res_plugin_dir
     .as_ref()
     .map(|d| d.join(format!("{plugin}.exe")));
 
-  // 2) 개발 경로(src-tauri/plugins)
-  let mut dev_plugins = PathBuf::from(env!("CARGO_MANIFEST_DIR")); // = src-tauri
-  dev_plugins.push("plugins");
+  // 2) 개발 경로(프로젝트 상위의 BE/arfni/bin)
+  // CARGO_MANIFEST_DIR = <project>/src-tauri
+  // 원하는 경로: <project>/../BE/arfni/bin
+  let mut dev_bin = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+  dev_bin.push("..");
+  dev_bin.push("..");
+  dev_bin.push("BE");
+  dev_bin.push("arfni");
+  dev_bin.push("bin");
 
-  let dev_plugin_dir = dev_plugins.join(plugin);
-  let dev_flat_plugin_exe = dev_plugins.join(format!("{plugin}.exe"));
+  let dev_plugin_dir = dev_bin.join(plugin);
+  let dev_flat_plugin_exe = dev_bin.join(format!("{plugin}.exe"));
   let dev_plugin_exe_in_dir = dev_plugin_dir.join(format!("{plugin}.exe"));
 
   // ==== 탐색 순서 ====
