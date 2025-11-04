@@ -50,11 +50,7 @@ export const createProject = createAsyncThunk(
 
 export const openProject = createAsyncThunk(
   'project/open',
-<<<<<<< HEAD
-  async (path: string, { dispatch }) => {
-=======
   async (path: string, { dispatch, rejectWithValue }) => {
->>>>>>> 3e84bc76c68b64169ad9eb0565df024816734b29
     try {
       // 1. 먼저 캔버스 초기화 (이전 프로젝트 상태 제거)
       dispatch(clearCanvas());
@@ -82,10 +78,6 @@ export const openProject = createAsyncThunk(
       await fileWatcherCommands.watchStackYaml(project.path);
 
       return project;
-<<<<<<< HEAD
-    } catch (error) {
-      console.error('프로젝트 열기 실패:', error);
-=======
     } catch (error: any) {
       // 프로젝트 폴더를 찾을 수 없는 에러인지 확인
       const errorMsg = error?.toString() || String(error);
@@ -96,7 +88,6 @@ export const openProject = createAsyncThunk(
           path: path
         });
       }
->>>>>>> 3e84bc76c68b64169ad9eb0565df024816734b29
       throw error;
     }
   }

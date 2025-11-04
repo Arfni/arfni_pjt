@@ -2,10 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::command;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
-
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
+use tauri::AppHandle;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrometheusMetric {
@@ -321,7 +318,7 @@ async fn ensure_docker_running() -> Result<(), String> {
 /// 모니터링 스택 자동 시작
 #[command]
 pub async fn start_monitoring_stack(
-    app: AppHandle,
+    _app: AppHandle,
     project_path: String,
 ) -> Result<String, String> {
     // Docker Desktop 확인 및 자동 시작
@@ -409,6 +406,7 @@ pub async fn start_monitoring_stack(
 
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
@@ -428,6 +426,7 @@ pub async fn start_monitoring_stack(
 
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
@@ -470,6 +469,7 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
 
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
@@ -479,6 +479,7 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
     // SSH 터널 프로세스 종료 (Windows)
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         let mut kill_cmd = Command::new("taskkill");
         kill_cmd.args(&["/F", "/IM", "ssh.exe"]);
         kill_cmd.creation_flags(CREATE_NO_WINDOW);
@@ -488,6 +489,7 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
     // arfni-monitoring.exe 프로세스 종료 (Windows)
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         let mut kill_monitoring = Command::new("taskkill");
         kill_monitoring.args(&["/F", "/IM", "arfni-monitoring.exe"]);
         kill_monitoring.creation_flags(CREATE_NO_WINDOW);

@@ -33,7 +33,7 @@ export function HealthCheckEditor({ value, onChange, label }: HealthCheckEditorP
     value?.test ? (Array.isArray(value.test) ? value.test.slice(2).join(' ') : value.test) : ''
   );
   const [interval, setInterval] = useState(value?.interval || '30s');
-  const [timeout, setTimeout] = useState(value?.timeout || '10s');
+  const [timeoutValue, setTimeoutValue] = useState(value?.timeout || '10s');
   const [retries, setRetries] = useState(value?.retries || 3);
   const [startPeriod, setStartPeriod] = useState(value?.start_period || '0s');
 
@@ -73,7 +73,7 @@ export function HealthCheckEditor({ value, onChange, label }: HealthCheckEditorP
     onChange({
       test,
       interval,
-      timeout,
+      timeout: timeoutValue,
       retries,
       start_period: startPeriod
     });
@@ -116,7 +116,7 @@ export function HealthCheckEditor({ value, onChange, label }: HealthCheckEditorP
             value={httpUrl}
             onChange={(e) => {
               setHttpUrl(e.target.value);
-              setTimeout(() => updateHealthCheck(), 0);
+              window.setTimeout(() => updateHealthCheck(), 0);
             }}
             placeholder="http://localhost:8000/health"
             style={{
@@ -137,7 +137,7 @@ export function HealthCheckEditor({ value, onChange, label }: HealthCheckEditorP
             value={tcpPort}
             onChange={(e) => {
               setTcpPort(e.target.value);
-              setTimeout(() => updateHealthCheck(), 0);
+              window.setTimeout(() => updateHealthCheck(), 0);
             }}
             placeholder="8000"
             style={{
@@ -158,7 +158,7 @@ export function HealthCheckEditor({ value, onChange, label }: HealthCheckEditorP
             value={execCommand}
             onChange={(e) => {
               setExecCommand(e.target.value);
-              setTimeout(() => updateHealthCheck(), 0);
+              window.setTimeout(() => updateHealthCheck(), 0);
             }}
             placeholder="pg_isready -U postgres"
             style={{
@@ -182,7 +182,7 @@ export function HealthCheckEditor({ value, onChange, label }: HealthCheckEditorP
                 value={interval}
                 onChange={(e) => {
                   setInterval(e.target.value);
-                  setTimeout(() => updateHealthCheck(), 0);
+                  window.setTimeout(() => updateHealthCheck(), 0);
                 }}
                 placeholder="30s"
                 style={{
@@ -198,10 +198,10 @@ export function HealthCheckEditor({ value, onChange, label }: HealthCheckEditorP
               <label style={{ fontSize: '0.75rem', color: '#666' }}>Timeout</label>
               <input
                 type="text"
-                value={timeout}
+                value={timeoutValue}
                 onChange={(e) => {
-                  setTimeout(e.target.value);
-                  setTimeout(() => updateHealthCheck(), 0);
+                  setTimeoutValue(e.target.value);
+                  window.setTimeout(() => updateHealthCheck(), 0);
                 }}
                 placeholder="10s"
                 style={{
@@ -222,7 +222,7 @@ export function HealthCheckEditor({ value, onChange, label }: HealthCheckEditorP
                 value={retries}
                 onChange={(e) => {
                   setRetries(Number(e.target.value));
-                  setTimeout(() => updateHealthCheck(), 0);
+                  window.setTimeout(() => updateHealthCheck(), 0);
                 }}
                 min="1"
                 max="10"
@@ -242,7 +242,7 @@ export function HealthCheckEditor({ value, onChange, label }: HealthCheckEditorP
                 value={startPeriod}
                 onChange={(e) => {
                   setStartPeriod(e.target.value);
-                  setTimeout(() => updateHealthCheck(), 0);
+                  window.setTimeout(() => updateHealthCheck(), 0);
                 }}
                 placeholder="0s"
                 style={{

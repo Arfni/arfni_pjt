@@ -425,8 +425,9 @@ function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
   useEffect(() => {
     const loadIconUrl = async () => {
       if (isBundled) {
-        // Bundled plugins use relative paths
-        setIconUrl(plugin.iconPath);
+        // Bundled plugins - use relative URL in dev, resource path in production
+        // In development, Vite serves the public folder at root
+        setIconUrl(`/${plugin.iconPath}`);
       } else {
         // Installed plugins - use cross-platform path
         try {
@@ -552,7 +553,9 @@ function RegistryPluginCard({ plugin, onInstall, installing }: RegistryPluginCar
         </div>
         <div className="flex items-center gap-2">
           {plugin.verified && (
-            <CheckCircle className="w-4 h-4 text-green-500" title="Verified" />
+            <span title="Verified">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            </span>
           )}
           <a
             href={plugin.homepage}

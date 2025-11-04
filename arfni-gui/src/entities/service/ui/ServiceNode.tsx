@@ -45,11 +45,11 @@ export function ServiceNode({ data, selected, id }: NodeProps<NodeData>) {
         if (plugin) {
           const pluginIconPath = plugin.iconPath;
 
-          // Check if it's a bundled plugin (relative path) or installed plugin (needs conversion)
-          if (pluginIconPath.startsWith('plugins/bundled')) {
-            // Bundled plugin - use relative URL
+          // Check if it's a bundled plugin or installed plugin
+          if (plugin.isBundled) {
+            // Bundled plugin - use relative URL (Vite serves public folder in dev)
             setIconUrl(`/${pluginIconPath}`);
-          } else if (plugin.isBundled === false) {
+          } else {
             // Installed plugin - convert to asset URL
             const dataDir = await appDataDir();
             const category = plugin.manifest.category;

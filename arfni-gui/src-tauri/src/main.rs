@@ -1,7 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // ← 파일 맨 첫 줄(중요)
 use tauri_plugin_dialog;
 use tauri::Manager;
-use std::process::Command;
 
 mod test;
 // re-export 해서 현재 모듈로 끌어오면 매크로 가시성 문제를 피하기 좋습니다

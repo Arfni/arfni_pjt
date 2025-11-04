@@ -112,35 +112,22 @@ pub async fn deploy_stack(
 
         // Bundled 플러그인 디렉토리 경로 가져오기
         let bundled_plugin_dir = if cfg!(debug_assertions) {
-            // 개발 모드: Go 바이너리 기준 상대 경로로 public/plugins/bundled 찾기
-            let go_binary_path_obj = std::path::Path::new(&go_binary_path);
-            if let Some(binary_dir) = go_binary_path_obj.parent() {
-                // ic.exe가 arfni-gui/src-tauri/target/debug/../../BE/arfni/bin/에 있으므로
-                // arfni-gui/public/plugins/bundled로 가려면 상위로 올라가야 함
-                let mut bundled_path = binary_dir.to_path_buf();
-                // target/debug/../../BE/arfni/bin -> target/debug
-                bundled_path.push("..");
-                bundled_path.push("..");
-                bundled_path.push("..");
-                bundled_path.push("..");
-                // 이제 arfni-gui
-                bundled_path.push("public");
-                bundled_path.push("plugins");
-                bundled_path.push("bundled");
+            // 개발 모드: CARGO_MANIFEST_DIR 기준으로 public/plugins/bundled 찾기
+            let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            // src-tauri -> arfni-gui
+            let arfni_gui_dir = manifest_dir.parent().unwrap_or(&manifest_dir);
+            let bundled_path = arfni_gui_dir.join("public").join("plugins").join("bundled");
 
-                // 정규화된 경로
-                if let Ok(canonical) = std::fs::canonicalize(&bundled_path) {
-                    canonical.to_string_lossy().to_string()
-                } else {
-                    bundled_path.to_string_lossy().to_string()
-                }
+            if bundled_path.exists() {
+                bundled_path.to_string_lossy().to_string()
             } else {
                 String::new()
             }
         } else {
             // 프로덕션에서는 리소스 디렉토리 사용
-            match app_clone.path().app_data_dir() {
+            match app_clone.path().resource_dir() {
                 Ok(mut path) => {
+                    path.push("public");
                     path.push("plugins");
                     path.push("bundled");
                     path.to_string_lossy().to_string()
@@ -442,7 +429,27 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
         }
     }
 
-    // 2. Resource 경로들 시도 (배포 환경)
+    // 2. 개발 경로들 시도 (CARGO_MANIFEST_DIR 기준) - 개발 모드 우선
+    let mut dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")); // src-tauri
+    dev_path.push("../../BE/arfni/bin");
+    dev_path.push(&binary_name);
+    if dev_path.exists() {
+        println!("✅ Found Go binary (dev): {:?}", dev_path);
+        return Ok(dev_path.to_string_lossy().to_string());
+    }
+
+    // 3. 프로젝트 루트 찾기 (개발 모드 보조)
+    if let Ok(current_dir) = env::current_dir() {
+        if let Some(project_root) = find_project_root(&current_dir) {
+            let root_based_path = project_root.join("BE").join("arfni").join("bin").join(&binary_name);
+            if root_based_path.exists() {
+                println!("✅ Found Go binary at project root: {:?}", root_based_path);
+                return Ok(root_based_path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    // 4. Resource 경로들 시도 (배포 환경) - 개발 경로 이후에 확인
     let resource_patterns = vec![
         binary_name.clone(),  // Resource/arfni-go.exe
         format!("_up_/_up_/BE/arfni/bin/{}", binary_name),  // Resource/_up_/_up_/BE/arfni/bin/arfni-go.exe
@@ -454,26 +461,6 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
             if path.exists() {
                 println!("✅ Found Go binary in resources: {:?}", path);
                 return Ok(path.to_string_lossy().to_string());
-            }
-        }
-    }
-
-    // 3. 개발 경로들 시도 (CARGO_MANIFEST_DIR 기준)
-    let mut dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")); // src-tauri
-    dev_path.push("../../BE/arfni/bin");
-    dev_path.push(&binary_name);
-    if dev_path.exists() {
-        println!("✅ Found Go binary (dev): {:?}", dev_path);
-        return Ok(dev_path.to_string_lossy().to_string());
-    }
-
-    // 4. 프로젝트 루트 찾기 (개발 모드 보조)
-    if let Ok(current_dir) = env::current_dir() {
-        if let Some(project_root) = find_project_root(&current_dir) {
-            let root_based_path = project_root.join("BE").join("arfni").join("bin").join(&binary_name);
-            if root_based_path.exists() {
-                println!("✅ Found Go binary at project root: {:?}", root_based_path);
-                return Ok(root_based_path.to_string_lossy().to_string());
             }
         }
     }

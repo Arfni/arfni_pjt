@@ -49,8 +49,7 @@ export function NodePalette() {
           let iconUrl: string;
 
           if (template.plugin.isBundled) {
-            // Bundled plugins: load from public folder
-            // iconPath is like "plugins/bundled/framework/fastapi/icon.png"
+            // Bundled plugins: use relative URL (Vite serves public folder in dev)
             iconUrl = `/${template.plugin.iconPath}`;
           } else {
             // Installed plugins: load from app data directory

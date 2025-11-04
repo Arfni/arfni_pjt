@@ -223,14 +223,17 @@ func (r *Runner) getTargetType() string {
 	return "docker-desktop" // 기본값
 }
 
-// getTarget은 서비스들이 사용하는 target을 반환합니다
+// getTarget은 서비스들이 사용하는 EC2 target을 반환합니다
 func (r *Runner) getTarget() (stack.Target, error) {
 	for _, service := range r.stack.Services {
 		if target, exists := r.stack.Targets[service.Target]; exists {
-			return target, nil
+			// EC2 target만 반환
+			if target.Type == "ec2.ssh" {
+				return target, nil
+			}
 		}
 	}
-	return stack.Target{}, fmt.Errorf("no valid target found")
+	return stack.Target{}, fmt.Errorf("no valid EC2 target found")
 }
 
 // buildImages는 docker-compose build를 실행합니다
@@ -380,6 +383,76 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 
 	// Collect EC2 services that need building
 	ec2Services := []string{}
+	for name, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			stream.Info(fmt.Sprintf("Service '%s' uses target '%s' (type: %s)", name, service.Target, targetObj.Type))
+			if targetObj.Type == "ec2.ssh" {
+				ec2Services = append(ec2Services, name)
+			}
+		}
+	}
+
+	stream.Info(fmt.Sprintf("Found %d EC2 services: %v", len(ec2Services), ec2Services))
+
+	// Upload prometheus configuration if prometheus service exists on EC2
+	for _, serviceName := range ec2Services {
+		if serviceName == "prometheus" {
+			// Upload prometheus.yml file
+			prometheusYml := filepath.Join(r.projectDir, "prometheus.yml")
+
+			// If prometheus.yml doesn't exist in project, copy from bundled plugin
+			if _, err := os.Stat(prometheusYml); os.IsNotExist(err) {
+				stream.Info("prometheus.yml not found in project, using bundled version...")
+
+				// Try bundled plugins directory first
+				bundledPrometheusYml := filepath.Join(r.bundledPluginsDir, "monitoring", "prometheus", "prometheus.yml")
+				if _, err := os.Stat(bundledPrometheusYml); err == nil {
+					// Copy bundled prometheus.yml to project directory
+					content, err := os.ReadFile(bundledPrometheusYml)
+					if err != nil {
+						return fmt.Errorf("failed to read bundled prometheus.yml: %w", err)
+					}
+					if err := os.WriteFile(prometheusYml, content, 0644); err != nil {
+						return fmt.Errorf("failed to copy prometheus.yml to project: %w", err)
+					}
+					stream.Success("Copied prometheus.yml from bundled plugin")
+				} else {
+					stream.Info("Warning: prometheus.yml not found in bundled plugins, prometheus may not start correctly")
+				}
+			}
+
+			// Upload prometheus.yml if it exists
+			if _, err := os.Stat(prometheusYml); err == nil {
+				stream.Info("Uploading prometheus.yml...")
+				remotePrometheusYml := workdir + "/prometheus.yml"
+
+				// Remove existing prometheus.yml if it's a directory (from previous failed deployment)
+				if err := sshClient.RunCommand(stream, fmt.Sprintf("rm -rf %s", remotePrometheusYml)); err != nil {
+					stream.Info(fmt.Sprintf("Warning: failed to remove existing prometheus.yml: %v", err))
+				}
+
+				if err := sshClient.UploadFile(stream, prometheusYml, remotePrometheusYml); err != nil {
+					return fmt.Errorf("failed to upload prometheus.yml: %w", err)
+				}
+			}
+
+			// Upload prometheus directory if it exists
+			prometheusDir := filepath.Join(r.projectDir, "prometheus")
+			if _, err := os.Stat(prometheusDir); err == nil {
+				stream.Info("Uploading Prometheus configuration directory...")
+				remotePrometheusDir := workdir + "/prometheus"
+				if err := sshClient.UploadDirectory(stream, prometheusDir, remotePrometheusDir); err != nil {
+					return fmt.Errorf("failed to upload prometheus directory: %w", err)
+				}
+			}
+
+			stream.Success("Prometheus configuration uploaded")
+			break
+		}
+	}
+
+	// Re-collect EC2 services for build context upload
+	ec2Services = []string{}
 	for name, service := range r.stack.Services {
 		if target, exists := r.stack.Targets[service.Target]; exists {
 			if target.Type == "ec2.ssh" {

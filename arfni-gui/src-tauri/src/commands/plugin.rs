@@ -360,7 +360,12 @@ pub async fn install_plugin(
   let client = reqwest::Client::new();
 
   // Determine plugin path in repo (e.g., plugins/frameworks/django)
-  let plugin_path = format!("plugins/{}s/{}", category, plugin_name);
+  // Note: GitHub repo structure varies - framework->frameworks, but database stays database
+  let category_path = match category {
+    "framework" => "frameworks", // framework -> frameworks (plural)
+    _ => category, // database, cicd, orchestration, etc. stay the same
+  };
+  let plugin_path = format!("plugins/{}/{}", category_path, plugin_name);
 
   // Fetch directory tree from GitHub API
   let api_url = format!(

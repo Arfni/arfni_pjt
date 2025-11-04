@@ -22,17 +22,23 @@ export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: Pr
     await onDelete(project, e);
   };
 
-<<<<<<< HEAD
-  const handleCardClick = () => {
-    if (!isDeleting) {
-      navigate('/canvas', { state: { project } });
-=======
   const handleOpenProject = async (destination: 'canvas' | 'logs') => {
     if (isDeleting) return;
 
     // Clear any previous errors
     dispatch(clearError());
 
+    // EC2 projects don't need local path validation - skip openProject thunk
+    if (project.environment === 'ec2') {
+      if (destination === 'canvas') {
+        navigate('/canvas', { state: { project } });
+      } else {
+        navigate('/logs', { state: { project } });
+      }
+      return;
+    }
+
+    // Local projects - validate path before navigation
     try {
       // Dispatch openProject thunk and wait for result
       await dispatch(openProject(project.path)).unwrap();
@@ -75,18 +81,13 @@ export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: Pr
 
       // Clear error after handling
       dispatch(clearError());
->>>>>>> 3e84bc76c68b64169ad9eb0565df024816734b29
     }
   };
 
   return (
     <div
       className="bg-white rounded-lg border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
-<<<<<<< HEAD
-      onClick={handleCardClick}
-=======
       onClick={() => !isDeleting && handleOpenProject('canvas')}
->>>>>>> 3e84bc76c68b64169ad9eb0565df024816734b29
     >
       {/* Canvas Thumbnail Preview */}
       <div className="h-32 bg-gray-100 relative overflow-hidden">

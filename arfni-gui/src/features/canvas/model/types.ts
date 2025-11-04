@@ -66,7 +66,7 @@ export type CustomNodeData = ServiceNodeData | TargetNodeData | DatabaseNodeData
 
 export interface CustomNode extends Node {
   type: 'service' | 'target' | 'database';
-  data: CustomNodeData;
+  data: any; // Use any for flexibility in node data access
 }
 
 // 노드 템플릿 타입
@@ -74,6 +74,10 @@ export interface NodeTemplate {
   type: string;
   category: 'service' | 'database' | 'target';
 }
+
+// Type aliases for backward compatibility
+export type CanvasNode = CustomNode;
+export type CanvasEdge = Edge;
 
 // Canvas State
 export interface CanvasState {

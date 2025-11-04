@@ -226,11 +226,12 @@ export default function ProjectsPage() {
 
     setCreating(true);
     try {
+      const environment: 'local' | 'ec2' = selectedTab === 'plugins' ? 'local' : selectedTab;
       const project = await projectCommands.createProject(
         newProjectName.trim(),
         newProjectPath.trim(),
-        selectedTab, // 현재 선택된 탭 (local or ec2)
-        selectedTab === 'ec2' ? selectedEC2ServerId : undefined
+        environment, // 현재 선택된 탭 (local or ec2)
+        environment === 'ec2' ? selectedEC2ServerId : undefined
       );
       console.log('프로젝트 생성 완료:', project);
 
@@ -241,7 +242,9 @@ export default function ProjectsPage() {
       setCreateError(null);
 
       // 프로젝트 목록 새로고침
-      if (selectedTab === 'ec2') {
+      if (selectedTab === 'plugins') {
+        // plugins 탭에서는 목록을 새로고침하지 않음
+      } else if (selectedTab === 'ec2') {
         loadProjects(selectedTab, selectedEC2ServerId);
       } else {
         loadProjects(selectedTab);
@@ -288,7 +291,9 @@ export default function ProjectsPage() {
       <ProjectsHeader
         loading={loading}
         onRefresh={() => {
-          if (selectedTab === 'ec2') {
+          if (selectedTab === 'plugins') {
+            // plugins 탭에서는 refresh하지 않음
+          } else if (selectedTab === 'ec2') {
             loadProjects(selectedTab, selectedEC2ServerId);
           } else {
             loadProjects(selectedTab);
