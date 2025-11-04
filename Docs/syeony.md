@@ -48,3 +48,9 @@
 2. 파일 시스템 연동 기능 추가
 - Export 성공 시 다운로드 폴더 열기, Project Path 탭에서 프로젝트 폴더 열기 기능 구현
 - open_downloads_folder, open_folder_in_explorer Rust 명령어 구현 (Windows/macOS/Linux 지원)
+
+# 2025. 11. 04
+
+- 캔버스에 AI 버튼 추가
+- 예상 사용자 수, 예상 트래픽 입력받는 AI ASK UI 구현
+- 캔버스 toolbar 컴포넌트(다이얼로그창) 분리로 가독성 향상
