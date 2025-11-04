@@ -206,17 +206,8 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 		stream.Success(fmt.Sprintf("Generated %d Dockerfile(s)", dockerfileCount))
 	}
 
-	// Generate Grafana provisioning files if Grafana service exists
-	stream.Info("Checking for Grafana monitoring setup...")
-	if err := GenerateGrafanaProvisioning(r.stack, r.projectDir, r.bundledPluginsDir); err != nil {
-		stream.Info(fmt.Sprintf("Warning: Failed to generate Grafana provisioning: %v", err))
-	} else {
-		// Check if provisioning was actually created (only if Grafana exists)
-		provisioningPath := filepath.Join(r.projectDir, "grafana", "provisioning")
-		if _, err := os.Stat(provisioningPath); err == nil {
-			stream.Success("Generated Grafana provisioning files with dynamic Prometheus datasource")
-		}
-	}
+	// Note: Grafana provisioning is now handled by arfni-monitoring.exe at runtime
+	// This provides better support for hybrid deployments and OS-specific Docker networking
 
 	return nil
 }
