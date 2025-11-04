@@ -386,9 +386,26 @@ pub async fn start_monitoring_stack(
         // 백그라운드로 실행 (stack.yaml 경로를 인자로 전달)
         let mut cmd = Command::new(&exe_path);
         cmd.arg(stack_yaml_path.to_string_lossy().to_string())
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stdin(Stdio::null());
+
+        // 로그 파일로 출력 (디버깅용)
+        if let Ok(exe_dir) = std::env::current_exe().and_then(|p| p.parent().map(|d| d.to_path_buf()).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "No parent"))) {
+            let log_path = exe_dir.join("monitoring.log");
+            match std::fs::File::create(&log_path) {
+                Ok(log_file) => {
+                    if let Ok(log_file2) = log_file.try_clone() {
+                        cmd.stdout(Stdio::from(log_file))
+                           .stderr(Stdio::from(log_file2));
+                    }
+                },
+                Err(_) => {
+                    // 로그 파일 생성 실패시 null로 fallback
+                    cmd.stdout(Stdio::null()).stderr(Stdio::null());
+                }
+            }
+        } else {
+            cmd.stdout(Stdio::null()).stderr(Stdio::null());
+        }
 
         #[cfg(target_os = "windows")]
         {
@@ -398,7 +415,7 @@ pub async fn start_monitoring_stack(
         cmd.spawn()
             .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
 
-        Ok(format!("Monitoring stack starting with {}", exe_path.display()))
+        Ok(format!("Monitoring stack starting with {} (stack: {})", exe_path.display(), stack_yaml_path.display()))
     } else {
         // arfni-go.exe monitor 명령어 사용
         let mut cmd = Command::new(&exe_path);

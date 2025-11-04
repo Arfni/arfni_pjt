@@ -20,7 +20,7 @@ contributes:
         ports:
           - "9090:9090"
         volumes:
-          - host: "./prometheus/prometheus.yml"
+          - host: "./prometheus.yml"
             mount: "/etc/prometheus/prometheus.yml"
         command:
           - "--config.file=/etc/prometheus/prometheus.yml"

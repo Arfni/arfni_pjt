@@ -107,7 +107,6 @@ export default function LogPage() {
     loadEc2Server();
   }, [project]);
 
-
   // SSH 터미널 연결
   const startSshSession = async () => {
     if (!ec2Server) {

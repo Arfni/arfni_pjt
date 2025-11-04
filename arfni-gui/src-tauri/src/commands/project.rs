@@ -72,6 +72,23 @@ pub fn create_project(
     let project_path = Path::new(&path).join(&name);
     let arfni_path = project_path.join(".arfni");
 
+    // 프로젝트 경로가 이미 존재하는지 확인
+    if project_path.exists() {
+        return Err(format!("해당 경로에 프로젝트 폴더가 이미 존재합니다: {}", project_path.display()));
+    }
+
+    // DB에서 같은 경로의 프로젝트가 있는지 확인하고 있으면 삭제
+    let conn = db.get_conn();
+    let conn_lock = conn.lock().unwrap();
+    let project_path_str = project_path.to_string_lossy().to_string();
+
+    conn_lock.execute(
+        "DELETE FROM projects WHERE path = ?1",
+        params![&project_path_str],
+    ).map_err(|e| format!("기존 프로젝트 DB 정리 실패: {}", e))?;
+
+    drop(conn_lock);
+
     // 프로젝트 디렉토리 생성
     fs::create_dir_all(&project_path)
         .map_err(|e| format!("프로젝트 폴더 생성 실패: {}", e))?;
@@ -189,6 +206,18 @@ pub fn open_project(db: State<Database>, project_id: String) -> Result<Project, 
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
+    // 프로젝트 폴더 존재 여부 확인
+    let project_path = Path::new(&project.path);
+    if !project_path.exists() {
+        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+    }
+
+    // .arfni 디렉토리 존재 여부 확인 (ARFNI 프로젝트인지 검증)
+    let arfni_path = project_path.join(".arfni");
+    if !arfni_path.exists() {
+        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+    }
+
     // 업데이트 시간 갱신
     let updated_at = chrono::Utc::now().to_rfc3339();
     conn.execute(
@@ -230,6 +259,18 @@ pub fn open_project_by_path(db: State<Database>, path: String) -> Result<Project
             stack_yaml_path: row.get(10)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
+
+    // 프로젝트 폴더 존재 여부 확인
+    let project_path = Path::new(&project.path);
+    if !project_path.exists() {
+        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+    }
+
+    // .arfni 디렉토리 존재 여부 확인 (ARFNI 프로젝트인지 검증)
+    let arfni_path = project_path.join(".arfni");
+    if !arfni_path.exists() {
+        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+    }
 
     Ok(project)
 }
@@ -449,6 +490,23 @@ pub fn add_to_recent_projects(db: State<Database>, project_id: String) -> Result
         "REPLACE INTO recent_projects (project_id, opened_at) VALUES (?1, ?2)",
         params![&project_id, &opened_at],
     ).map_err(|e| format!("최근 프로젝트 추가 실패: {}", e))?;
+
+    Ok(())
+}
+
+/// 프로젝트 DB에서만 삭제 (파일 시스템은 유지)
+#[tauri::command]
+pub fn delete_project_from_db_only(db: State<Database>, project_id: String) -> Result<(), String> {
+    // DB에서 삭제 (CASCADE로 recent_projects도 자동 삭제됨)
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    conn.execute(
+        "DELETE FROM projects WHERE id = ?1",
+        params![&project_id],
+    ).map_err(|e| format!("DB에서 프로젝트 삭제 실패: {}", e))?;
+
+    println!("✅ 프로젝트 DB에서 제거 완료 (파일은 유지): {}", project_id);
 
     Ok(())
 }

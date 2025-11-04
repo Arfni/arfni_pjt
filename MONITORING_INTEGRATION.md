@@ -228,14 +228,79 @@ cmd.creation_flags(CREATE_NO_WINDOW);
 4. 1초 간격 polling으로 준비 상태 확인
 5. 60초 타임아웃 후 에러 메시지
 
+## Cross-Platform Path Resolution Fix (2025-01-04)
+
+### Issue
+배포된 앱에서 monitoring 폴더를 찾지 못하는 문제 발생.
+arfni-monitoring.exe가 docker-compose.yml을 찾지 못해 실행 실패.
+
+### Root Cause Analysis
+Tauri 번들 구조에서 실행 파일과 monitoring 폴더 위치:
+- 실행 파일: `_up_/_up_/BE/arfni/bin/arfni-monitoring.exe`
+- monitoring 폴더: `_up_/_up_/monitoring/`
+- 필요한 상대 경로: `../../../monitoring` (3단계 상위)
+
+기존 코드는 4단계 상위로 이동 후 다시 `_up_/_up_`를 추가하는 비효율적 경로 사용.
+
+### Modified Files
+
+#### BE/arfni/cmd/arfni-monitoring/main.go
+- Line 1063-1074: findMonitoringDirectory 함수의 경로 탐색 로직 수정
+- 변경 전:
+  ```go
+  filepath.Join(baseDir, "..", "..", "..", "..", "monitoring"),
+  filepath.Join(baseDir, "..", "..", "..", "..", "_up_", "_up_", "monitoring"),
+  ```
+- 변경 후:
+  ```go
+  filepath.Join(baseDir, "..", "..", "..", "monitoring"),
+  ```
+- baseDir이 `_up_/_up_/BE/arfni/bin`일 때 3단계 상위로 `_up_/_up_`에 도달
+- 추가 경로 탐색 없이 직접 monitoring 폴더 접근
+
+#### arfni-gui/src-tauri/src/commands/monitoring.rs
+- Line 388-418: start_monitoring_stack 함수 수정
+- stdout/stderr를 null 대신 로그 파일로 리다이렉션
+- 로그 파일 위치: 실행 파일과 동일 디렉토리의 monitoring.log
+- 디버깅을 위해 stack.yaml 경로를 반환 메시지에 포함
+
+### Technical Details
+
+배포 환경의 디렉토리 구조:
+```
+C:\Users\[User]\Desktop\arfni-gui\
+  ├─ arfni-gui.exe
+  └─ _up_\
+      └─ _up_\
+          ├─ BE\
+          │   └─ arfni\
+          │       └─ bin\
+          │           └─ arfni-monitoring.exe
+          └─ monitoring\
+              └─ docker-compose.yml
+```
+
+경로 계산:
+- baseDir = filepath.Dir(os.Executable())
+  = `C:\Users\[User]\Desktop\arfni-gui\_up_\_up_\BE\arfni\bin`
+- filepath.Join(baseDir, "..", "..", "..", "monitoring")
+  = `C:\Users\[User]\Desktop\arfni-gui\_up_\_up_\monitoring`
+
+### Verification
+로그 파일 내용 확인으로 문제 진단:
+```
+docker-compose.yml not found at: [incorrect path]
+```
+수정 후 정상 동작 확인.
+
 ## Summary
 
 ### Total Changes (Updated)
-- **Modified files**: 11
+- **Modified files**: 13
 - **New files**: 2
-- **Lines added**: 750+
-- **Go files modified**: 2
-- **TypeScript/Rust files modified**: 9
+- **Lines added**: 780+
+- **Go files modified**: 3
+- **TypeScript/Rust files modified**: 10
 
 ### Implemented Features
 - 모니터링 스택 자동 시작
@@ -248,3 +313,5 @@ cmd.creation_flags(CREATE_NO_WINDOW);
 - Docker Desktop 자동 실행
 - CMD 창 완전 억제
 - 브라우저 자동 열기 비활성화
+- 크로스 플랫폼 경로 해결
+- 모니터링 실행 로그 파일 생성

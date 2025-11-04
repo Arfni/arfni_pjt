@@ -1,15 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+<<<<<<< HEAD
 import { useLocation, useNavigate } from 'react-router-dom';
+=======
+import { useAppSelector } from '@app/hooks';
+import { selectCurrentProject, selectProjectLoading } from '@features/project';
+>>>>>>> 3e84bc76c68b64169ad9eb0565df024816734b29
 import { CanvasEditor } from '@widgets/canvas-editor';
-import { LogViewer } from '@widgets/log-viewer';
 import { Toolbar } from '@widgets/toolbar';
 import { NodePalette } from '@widgets/node-palette';
 import { YamlEditor } from '@widgets/yaml-editor';
 import { PropertyPanel } from '@widgets/property-panel';
-import { useAppDispatch, useAppSelector } from '@app/hooks';
-import { openProject, selectCurrentProject, selectProjectLoading } from '@features/project';
-import { Project } from '@shared/api/tauri/commands';
 
 export function CanvasPage() {
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
@@ -17,6 +18,7 @@ export function CanvasPage() {
   const [yamlHeight, setYamlHeight] = useState(256); // 초기 높이 256px (h-64)
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+<<<<<<< HEAD
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -38,6 +40,11 @@ export function CanvasPage() {
     }
   }, [passedProject, dispatch, navigate]);
 
+=======
+  const currentProject = useAppSelector(selectCurrentProject);
+  const isLoading = useAppSelector(selectProjectLoading);
+
+>>>>>>> 3e84bc76c68b64169ad9eb0565df024816734b29
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
