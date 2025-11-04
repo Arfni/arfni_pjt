@@ -332,29 +332,63 @@ pub async fn start_monitoring_stack(
     }
 
     // BE 폴더의 모니터링 실행 파일 경로 찾기
-    let possible_paths = vec![
-        "C:\\arfni_pjt_new\\BE\\arfni\\bin\\arfni-monitoring.exe",
-        "C:\\arfni_pjt_new\\BE\\arfni\\arfni-monitoring.exe",
-        "C:\\arfni_pjt_new\\BE\\arfni\\start-monitoring-v2.exe",
-        "C:\\arfni_pjt_new\\BE\\arfni\\arfni-go.exe",
-        "C:\\arfni_pjt_new\\BE\\arfni\\bin\\arfni-go.exe",
-    ];
+    let mut possible_paths = vec![];
 
-    let mut exe_path: Option<String> = None;
-    for path in possible_paths {
-        if PathBuf::from(path).exists() {
-            exe_path = Some(path.to_string());
+    // 1. 현재 실행 파일 위치 기준 (배포 시)
+    if let Ok(exe_dir) = std::env::current_exe() {
+        if let Some(parent) = exe_dir.parent() {
+            let base = parent.to_path_buf();
+            possible_paths.push(base.join("resources").join("arfni-monitoring.exe"));
+            possible_paths.push(base.join("resources").join("arfni-go.exe"));
+            possible_paths.push(base.join("arfni-monitoring.exe"));
+            possible_paths.push(base.join("arfni-go.exe"));
+        }
+    }
+
+    // 2. 현재 작업 디렉토리 기준
+    if let Ok(cwd) = std::env::current_dir() {
+        possible_paths.push(cwd.join("BE").join("arfni").join("bin").join("arfni-monitoring.exe"));
+        possible_paths.push(cwd.join("BE").join("arfni").join("bin").join("arfni-go.exe"));
+        possible_paths.push(cwd.join("BE").join("arfni").join("arfni-monitoring.exe"));
+        possible_paths.push(cwd.join("BE").join("arfni").join("arfni-go.exe"));
+    }
+
+    // 3. 절대 경로 (개발 환경)
+    possible_paths.push(PathBuf::from("C:\\arfni_pjt_new\\BE\\arfni\\bin\\arfni-monitoring.exe"));
+    possible_paths.push(PathBuf::from("C:\\arfni_pjt_new\\BE\\arfni\\bin\\arfni-go.exe"));
+    possible_paths.push(PathBuf::from("C:\\arfni_pjt\\BE\\Arfni_test\\bin\\arfni-monitoring.exe"));
+    possible_paths.push(PathBuf::from("C:\\arfni_pjt\\BE\\Arfni_test\\bin\\arfni-go.exe"));
+
+    let mut exe_path: Option<PathBuf> = None;
+    for path in &possible_paths {
+        if path.exists() {
+            exe_path = Some(path.clone());
             break;
         }
     }
 
-    let exe_path = exe_path.ok_or("Monitoring executable not found in BE folder")?;
+    let exe_path = exe_path.ok_or_else(|| {
+        let tried_paths: Vec<String> = possible_paths.iter()
+            .map(|p| p.display().to_string())
+            .collect();
+        format!(
+            "Monitoring executable not found. Please ensure arfni-monitoring.exe or arfni-go.exe is built.\n\
+            Tried paths:\n  - {}\n\
+            Run 'npm run build:go' to build the executable.",
+            tried_paths.join("\n  - ")
+        )
+    })?;
 
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+    // 실행 파일 이름으로 판단
+    let exe_name = exe_path.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+
     // arfni-monitoring.exe 또는 start-monitoring-v2.exe 사용 시
-    if exe_path.contains("arfni-monitoring") || exe_path.contains("start-monitoring-v2") {
+    if exe_name.contains("arfni-monitoring") || exe_name.contains("start-monitoring-v2") {
         // 백그라운드로 실행 (stack.yaml 경로를 인자로 전달)
         let mut cmd = Command::new(&exe_path);
         cmd.arg(stack_yaml_path.to_string_lossy().to_string())
@@ -370,7 +404,7 @@ pub async fn start_monitoring_stack(
         cmd.spawn()
             .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
 
-        Ok(format!("Monitoring stack starting with {}", exe_path))
+        Ok(format!("Monitoring stack starting with {}", exe_path.display()))
     } else {
         // arfni-go.exe monitor 명령어 사용
         let mut cmd = Command::new(&exe_path);
@@ -389,7 +423,7 @@ pub async fn start_monitoring_stack(
         cmd.spawn()
             .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
 
-        Ok(format!("Monitoring stack starting with {}", exe_path))
+        Ok(format!("Monitoring stack starting with {}", exe_path.display()))
     }
 }
 
