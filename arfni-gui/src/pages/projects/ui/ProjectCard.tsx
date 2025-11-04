@@ -1,7 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Server, Loader2, Trash2, Laptop } from 'lucide-react';
-import { Project, CanvasNode, CanvasEdge } from '@shared/api/tauri/commands';
+import { Project, CanvasNode, CanvasEdge, projectCommands } from '@shared/api/tauri/commands';
 import { CanvasPreview } from './CanvasPreview';
+import { useAppDispatch } from '@app/hooks';
+import { openProject, clearError } from '@features/project';
+import { confirm } from '@tauri-apps/plugin-dialog';
 
 interface ProjectCardProps {
   project: Project;
@@ -12,16 +15,68 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: ProjectCardProps) {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
 
   const handleDeleteClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     await onDelete(project, e);
   };
 
+  const handleOpenProject = async (destination: 'canvas' | 'logs') => {
+    if (isDeleting) return;
+
+    // Clear any previous errors
+    dispatch(clearError());
+
+    try {
+      // Dispatch openProject thunk and wait for result
+      await dispatch(openProject(project.path)).unwrap();
+
+      // Success - navigate to the destination
+      if (destination === 'canvas') {
+        navigate('/canvas', { state: { project } });
+      } else {
+        navigate('/logs', { state: { project } });
+      }
+    } catch (error: any) {
+      // Check if it's a PROJECT_FOLDER_NOT_FOUND error
+      const errorMsg = error?.toString() || String(error);
+      if (errorMsg.includes('PROJECT_FOLDER_NOT_FOUND') || error?.type === 'PROJECT_FOLDER_NOT_FOUND') {
+        // Show error dialog
+        const shouldDelete = await confirm(
+          `프로젝트 폴더를 찾을 수 없습니다:\n\n${project.path}\n\n폴더가 삭제되었거나 이동된 것 같습니다.\n\n목록에서 프로젝트를 제거하시겠습니까?`,
+          {
+            title: '프로젝트 폴더를 찾을 수 없음',
+            kind: 'warning',
+            okLabel: 'DB에서 제거',
+            cancelLabel: '취소',
+          }
+        );
+
+        if (shouldDelete) {
+          try {
+            await projectCommands.deleteProjectFromDbOnly(project.id);
+            console.log('프로젝트 DB에서 제거 완료:', project.id);
+            // Trigger a refresh by reloading the page or calling a refresh function
+            window.location.reload();
+          } catch (err) {
+            console.error('프로젝트 제거 실패:', err);
+          }
+        }
+      } else {
+        // Other errors
+        console.error('프로젝트 열기 실패:', error);
+      }
+
+      // Clear error after handling
+      dispatch(clearError());
+    }
+  };
+
   return (
     <div
       className="bg-white rounded-lg border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
-      onClick={() => !isDeleting && navigate('/canvas', { state: { project } })}
+      onClick={() => !isDeleting && handleOpenProject('canvas')}
     >
       {/* Canvas Thumbnail Preview */}
       <div className="h-32 bg-gray-100 relative overflow-hidden">
@@ -76,7 +131,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: Pr
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                navigate('/logs', { state: { project } });
+                handleOpenProject('logs');
               }}
               disabled={isDeleting}
               className="flex-1 px-4 py-2.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 font-medium transition-colors"
@@ -88,7 +143,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: Pr
           <button
             onClick={(e) => {
               e.stopPropagation();
-              navigate('/canvas', { state: { project } });
+              handleOpenProject('canvas');
             }}
             disabled={isDeleting}
             className={`${project.environment === 'local' ? 'w-full' : 'flex-1'} px-4 py-2.5 text-sm text-white disabled:opacity-50 transition-colors font-medium`}

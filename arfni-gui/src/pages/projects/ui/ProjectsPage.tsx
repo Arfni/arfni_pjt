@@ -59,6 +59,12 @@ export default function ProjectsPage() {
       if (environment === 'ec2' && serverId) {
         projectList = await projectCommands.getProjectsByServer(serverId);
         console.log(`EC2 서버 (${serverId}) 프로젝트 목록 로드 완료:`, projectList);
+      } else if (environment === 'ec2' && !serverId) {
+        // EC2 환경인데 서버가 선택되지 않았으면 빈 목록 표시
+        // 최소 300ms 대기하여 사용자가 새로고침을 인지할 수 있도록 함
+        await new Promise(resolve => setTimeout(resolve, 200));
+        projectList = [];
+        console.log('EC2 환경: 서버가 선택되지 않아 빈 목록 표시');
       } else {
         projectList = await projectCommands.getProjectsByEnvironment(environment);
         console.log(`${environment} 프로젝트 목록 로드 완료:`, projectList);
@@ -136,9 +142,9 @@ export default function ProjectsPage() {
     } else {
       // 목록에서만 삭제 선택 - 확인 다이얼로그
       const confirmRemove = await confirm(
-        `"${project.name}" 프로젝트를 최근 목록에서 제거하시겠습니까?\n\n※ 프로젝트 파일은 삭제되지 않습니다.`,
+        `"${project.name}" 프로젝트를 DB와 목록에서 제거하시겠습니까?\n\n※ 프로젝트 파일은 삭제되지 않습니다.`,
         {
-          title: '프로젝트 목록 제거',
+          title: 'DB에서 프로젝트 제거',
           kind: 'info',
           okLabel: '제거',
           cancelLabel: '취소',
@@ -149,11 +155,11 @@ export default function ProjectsPage() {
         return;
       }
 
-      // 목록에서만 제거 실행
+      // DB에서만 제거 실행 (파일은 유지)
       setDeletingProjectPath(project.path);
       try {
-        await projectCommands.removeFromRecentProjects(project.id);
-        console.log('프로젝트 목록에서 제거 완료:', project.id);
+        await projectCommands.deleteProjectFromDbOnly(project.id);
+        console.log('프로젝트 DB에서 제거 완료:', project.id);
         setProjects((prev) => prev.filter((p) => p.id !== project.id));
       } catch (err) {
         console.error('프로젝트 제거 실패:', err);
