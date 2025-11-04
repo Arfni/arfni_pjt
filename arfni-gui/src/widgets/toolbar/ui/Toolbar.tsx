@@ -39,6 +39,7 @@ import {
 import { SettingsDialog } from './dialogs/SettingsDialog';
 import { ExportDialog } from './dialogs/ExportDialog';
 import { ExportSuccessNotification } from './dialogs/ExportSuccessNotification';
+import { AIDialog } from './dialogs/AIDialog';
 
 export function Toolbar() {
   const navigate = useNavigate();
@@ -56,6 +57,7 @@ export function Toolbar() {
   const [selectedFormat, setSelectedFormat] = useState<'png' | 'svg' | 'pdf'>('png');
   const [showExportSuccess, setShowExportSuccess] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showAIDialog, setShowAIDialog] = useState(false);
 
   const isEC2Project = currentProject?.environment === 'ec2';
   const ec2TargetNode = isEC2Project && targetNodes.length > 0 ? targetNodes[0] : null;
@@ -324,6 +326,10 @@ export function Toolbar() {
 
         {/* Right section */}
         <div className="flex items-center space-x-2">
+          <button onClick={() => setShowAIDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="AI">
+            <img src="/src/assets/ai.png" alt="AI" className="w-4 h-4" />
+          </button>
+
           <button onClick={() => setShowSettingsDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="설정">
             <Settings className="w-4 h-4" />
           </button>
@@ -401,6 +407,11 @@ export function Toolbar() {
         onClose={() => setShowSettingsDialog(false)}
         currentProject={currentProject}
         onOpenProjectFolder={handleOpenProjectFolder}
+      />
+
+      <AIDialog
+        show={showAIDialog}
+        onClose={() => setShowAIDialog(false)}
       />
     </>
   );
