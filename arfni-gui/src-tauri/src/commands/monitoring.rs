@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::command;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
+use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -320,6 +321,7 @@ async fn ensure_docker_running() -> Result<(), String> {
 /// 모니터링 스택 자동 시작
 #[command]
 pub async fn start_monitoring_stack(
+    app: AppHandle,
     project_path: String,
 ) -> Result<String, String> {
     // Docker Desktop 확인 및 자동 시작
@@ -334,30 +336,17 @@ pub async fn start_monitoring_stack(
     // BE 폴더의 모니터링 실행 파일 경로 찾기
     let mut possible_paths = vec![];
 
-    // 1. 현재 실행 파일 위치 기준 (배포 시)
-    if let Ok(exe_dir) = std::env::current_exe() {
-        if let Some(parent) = exe_dir.parent() {
-            let base = parent.to_path_buf();
-            possible_paths.push(base.join("resources").join("arfni-monitoring.exe"));
-            possible_paths.push(base.join("resources").join("arfni-go.exe"));
-            possible_paths.push(base.join("arfni-monitoring.exe"));
-            possible_paths.push(base.join("arfni-go.exe"));
-        }
+    // 1. Tauri 리소스 경로 (배포된 앱에서 사용)
+    if let Ok(resource_path) = app.path().resource_dir() {
+        possible_paths.push(resource_path.join("arfni-monitoring.exe"));
+        possible_paths.push(resource_path.join("arfni-go.exe"));
     }
 
-    // 2. 현재 작업 디렉토리 기준
+    // 2. 현재 작업 디렉토리 기준 (개발 환경)
     if let Ok(cwd) = std::env::current_dir() {
         possible_paths.push(cwd.join("BE").join("arfni").join("bin").join("arfni-monitoring.exe"));
         possible_paths.push(cwd.join("BE").join("arfni").join("bin").join("arfni-go.exe"));
-        possible_paths.push(cwd.join("BE").join("arfni").join("arfni-monitoring.exe"));
-        possible_paths.push(cwd.join("BE").join("arfni").join("arfni-go.exe"));
     }
-
-    // 3. 절대 경로 (개발 환경)
-    possible_paths.push(PathBuf::from("C:\\arfni_pjt_new\\BE\\arfni\\bin\\arfni-monitoring.exe"));
-    possible_paths.push(PathBuf::from("C:\\arfni_pjt_new\\BE\\arfni\\bin\\arfni-go.exe"));
-    possible_paths.push(PathBuf::from("C:\\arfni_pjt\\BE\\Arfni_test\\bin\\arfni-monitoring.exe"));
-    possible_paths.push(PathBuf::from("C:\\arfni_pjt\\BE\\Arfni_test\\bin\\arfni-go.exe"));
 
     let mut exe_path: Option<PathBuf> = None;
     for path in &possible_paths {
@@ -372,9 +361,10 @@ pub async fn start_monitoring_stack(
             .map(|p| p.display().to_string())
             .collect();
         format!(
-            "Monitoring executable not found. Please ensure arfni-monitoring.exe or arfni-go.exe is built.\n\
+            "Monitoring executable not found.\n\
             Tried paths:\n  - {}\n\
-            Run 'npm run build:go' to build the executable.",
+            \n\
+            Solution: Run 'npm run build:go' in the project root to build required executables.",
             tried_paths.join("\n  - ")
         )
     })?;
