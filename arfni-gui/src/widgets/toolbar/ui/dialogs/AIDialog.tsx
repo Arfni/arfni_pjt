@@ -9,17 +9,19 @@ interface AIDialogProps {
 export function AIDialog({ show, onClose }: AIDialogProps) {
   const [expectedUsers, setExpectedUsers] = useState('');
   const [expectedTraffic, setExpectedTraffic] = useState<'low' | 'medium' | 'high'>('medium');
+  const [showAIResponse, setShowAIResponse] = useState(false);
 
   const handleAskRabbit = () => {
     // TODO: AI 로직 구현
     console.log('Ask the Rabbit:', { expectedUsers, expectedTraffic });
+    setShowAIResponse(true);
   };
 
   if (!show) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-[600px] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-[600px] max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-2xl font-bold text-gray-800">AI</h2>
@@ -33,13 +35,13 @@ export function AIDialog({ show, onClose }: AIDialogProps) {
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-10">
+        {/* Content - 스크롤 가능 */}
+        <div className="p-10 overflow-y-auto">
           <h3 className="text-lg font-medium text-gray-800 mb-8">
             Which server should I use for this project structure?
           </h3>
 
-          <div className="flex gap-12">
+          <div className="flex gap-6">
             {/* Left side - Form */}
             <div className="flex-1 space-y-8">
               {/* Expected number of users */}
@@ -102,14 +104,21 @@ export function AIDialog({ show, onClose }: AIDialogProps) {
               >
                 Ask the Rabbit
               </button>
+
+              {/* AI Response */}
+              {showAIResponse && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-gray-700">ai설명...</p>
+                </div>
+              )}
             </div>
 
             {/* Right side - Rabbit image */}
-            <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center flex-shrink-0">
               <img
                 src={rabbitImg}
                 alt="Rabbit"
-                className="w-48 h-48 object-contain"
+                className="w-40 h-40 object-contain"
               />
             </div>
           </div>
