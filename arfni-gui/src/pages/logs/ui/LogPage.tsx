@@ -44,13 +44,11 @@ export default function LogPage() {
   }
   const [containers, setContainers] = useState<Container[]>([]);
   const [expandedContainerIds, setExpandedContainerIds] = useState<Set<string>>(new Set());
-  const [selectedContainerIds, setSelectedContainerIds] = useState<Set<string>>(new Set());
   const [loadingContainers, setLoadingContainers] = useState(false);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [openHeaderDropdown, setOpenHeaderDropdown] = useState(false);
 
   // 사이드바 리사이저 상태
-  const [sidebarWidth, setSidebarWidth] = useState(320); // 기본 320px (w-80)
+  const [sidebarWidth, setSidebarWidth] = useState(400); // 기본 400px
   const [isResizing, setIsResizing] = useState(false);
 
   // 자동 스크롤을 위한 ref
@@ -233,47 +231,6 @@ export default function LogPage() {
     }
   };
 
-  // 선택된 컨테이너 시작
-  const startSelectedContainers = async () => {
-    if (!ec2Server || selectedContainerIds.size === 0) return;
-    try {
-      const containerIds = Array.from(selectedContainerIds).join(' ');
-      await invoke('ssh_exec_system', {
-        params: {
-          host: ec2Server.host,
-          user: ec2Server.user,
-          pem_path: ec2Server.pem_path,
-          cmd: `docker start ${containerIds}`
-        }
-      });
-      setTerminalLogs((prev) => [...prev, `✅ ${selectedContainerIds.size} selected containers started`]);
-      fetchContainersQuietly();
-    } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Failed to start selected containers: ${String(err)}`]);
-    }
-  };
-
-  // 선택된 컨테이너 중지
-  const stopSelectedContainers = async () => {
-    if (!ec2Server || selectedContainerIds.size === 0) return;
-    if (!confirm(`Are you sure you want to stop ${selectedContainerIds.size} selected container(s)?`)) return;
-    try {
-      const containerIds = Array.from(selectedContainerIds).join(' ');
-      await invoke('ssh_exec_system', {
-        params: {
-          host: ec2Server.host,
-          user: ec2Server.user,
-          pem_path: ec2Server.pem_path,
-          cmd: `docker stop ${containerIds}`
-        }
-      });
-      setTerminalLogs((prev) => [...prev, `✅ ${selectedContainerIds.size} selected containers stopped`]);
-      fetchContainersQuietly();
-    } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Failed to stop selected containers: ${String(err)}`]);
-    }
-  };
-
   // 모든 컨테이너 시작
   const startAllContainers = async () => {
     if (!ec2Server || containers.length === 0) return;
@@ -362,16 +319,12 @@ export default function LogPage() {
     } else {
       setContainers([]);
       setExpandedContainerIds(new Set());
-      setSelectedContainerIds(new Set());
     }
   }, [connected, ec2Server]);
 
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
     const handleClickOutside = () => {
-      if (openDropdownId) {
-        setOpenDropdownId(null);
-      }
       if (openHeaderDropdown) {
         setOpenHeaderDropdown(false);
       }
@@ -381,7 +334,7 @@ export default function LogPage() {
     return () => {
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [openDropdownId, openHeaderDropdown]);
+  }, [openHeaderDropdown]);
 
   // 사이드바 리사이저 핸들러
   useEffect(() => {
@@ -542,22 +495,6 @@ export default function LogPage() {
                 <h3 className="text-lg font-semibold text-gray-900">Containers</h3>
                 <div className="flex gap-1">
                   <button
-                    onClick={startSelectedContainers}
-                    disabled={!ec2Server || selectedContainerIds.size === 0}
-                    className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Start Selected"
-                  >
-                    <Play className="w-4 h-4" fill="currentColor" />
-                  </button>
-                  <button
-                    onClick={stopSelectedContainers}
-                    disabled={!ec2Server || selectedContainerIds.size === 0}
-                    className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Stop Selected"
-                  >
-                    <Square className="w-4 h-4" fill="currentColor" />
-                  </button>
-                  <button
                     onClick={fetchContainers}
                     disabled={!ec2Server || loadingContainers}
                     className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -607,25 +544,6 @@ export default function LogPage() {
                           <Square className="w-4 h-4" fill="currentColor" />
                           Stop All
                         </button>
-                        <div className="border-t border-gray-200 my-1"></div>
-                        <button
-                          onClick={() => {
-                            setSelectedContainerIds(new Set(containers.map(c => c.id)));
-                            setOpenHeaderDropdown(false);
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          Select All
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedContainerIds(new Set());
-                            setOpenHeaderDropdown(false);
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          Deselect All
-                        </button>
                       </div>
                     )}
                   </div>
@@ -640,25 +558,10 @@ export default function LogPage() {
                 <div className="space-y-2">
                   {containers.map((container) => {
                     const isRunning = container.status.toLowerCase().includes('up');
-                    const isDropdownOpen = openDropdownId === container.id;
                     const isExpanded = expandedContainerIds.has(container.id);
-                    const isSelected = selectedContainerIds.has(container.id);
 
                     const toggleExpand = () => {
                       setExpandedContainerIds(prev => {
-                        const newSet = new Set(prev);
-                        if (newSet.has(container.id)) {
-                          newSet.delete(container.id);
-                        } else {
-                          newSet.add(container.id);
-                        }
-                        return newSet;
-                      });
-                    };
-
-                    const toggleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-                      e.stopPropagation();
-                      setSelectedContainerIds(prev => {
                         const newSet = new Set(prev);
                         if (newSet.has(container.id)) {
                           newSet.delete(container.id);
@@ -677,13 +580,14 @@ export default function LogPage() {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-start gap-2 flex-1 min-w-0">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={toggleSelect}
-                              onClick={(e) => e.stopPropagation()}
-                              className="mt-0.5 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
-                            />
+                            {/* Status indicator circle */}
+                            <div className="mt-0.5">
+                              {isRunning ? (
+                                <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                              ) : (
+                                <div className="w-4 h-4 border-2 border-gray-400 rounded-full"></div>
+                              )}
+                            </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold text-gray-900 truncate">
                                 {container.name}
@@ -697,75 +601,54 @@ export default function LogPage() {
                             </div>
                           </div>
                           <div className="flex gap-1 items-start" onClick={(e) => e.stopPropagation()}>
-                            {/* 더보기 버튼 & 드롭다운 */}
-                            <div className="relative">
+                            {/* Start/Stop button */}
+                            {isRunning ? (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setOpenDropdownId(isDropdownOpen ? null : container.id);
+                                  stopContainer(container.id, container.name);
                                 }}
-                                className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                                title="More"
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="Stop"
                               >
-                                <MoreVertical className="w-4 h-4" />
+                                <Square className="w-4 h-4" fill="currentColor" />
                               </button>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startContainer(container.id, container.name);
+                                }}
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title="Start"
+                              >
+                                <Play className="w-4 h-4" fill="currentColor" />
+                              </button>
+                            )}
 
-                              {/* 드롭다운 메뉴 */}
-                              {isDropdownOpen && (
-                                <div
-                                  className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {isRunning ? (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        stopContainer(container.id, container.name);
-                                        setOpenDropdownId(null);
-                                      }}
-                                      className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                    >
-                                      <Square className="w-4 h-4" fill="currentColor" />
-                                      Stop
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        startContainer(container.id, container.name);
-                                        setOpenDropdownId(null);
-                                      }}
-                                      className="w-full px-3 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
-                                    >
-                                      <Play className="w-4 h-4" fill="currentColor" />
-                                      Start
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      restartContainer(container.id, container.name);
-                                      setOpenDropdownId(null);
-                                    }}
-                                    className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
-                                  >
-                                    <RotateCw className="w-4 h-4" />
-                                    Restart
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      removeContainer(container.id, container.name);
-                                      setOpenDropdownId(null);
-                                    }}
-                                    className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                            {/* Restart button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                restartContainer(container.id, container.name);
+                              }}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Restart"
+                            >
+                              <RotateCw className="w-4 h-4" />
+                            </button>
+
+                            {/* Delete button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeContainer(container.id, container.name);
+                              }}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
 

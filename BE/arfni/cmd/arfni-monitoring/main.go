@@ -1069,8 +1069,8 @@ func findMonitoringDirectory() string {
 		filepath.Join(baseDir, "..", "monitoring"),
 		// 4. 실행 파일 상위상위 폴더/monitoring (bin/subdir 대응)
 		filepath.Join(baseDir, "..", "..", "monitoring"),
-		// 5. C:\arfni_pjt\BE\Arfni_test\monitoring (절대 경로 폴백)
-		"C:\\arfni_pjt\\BE\\Arfni_test\\monitoring",
+		// 5. Tauri 번들 구조: baseDir = _up_/_up_/BE/arfni/bin이므로 ../../../monitoring
+		filepath.Join(baseDir, "..", "..", "..", "monitoring"),
 	}
 
 	for _, candidate := range candidates {

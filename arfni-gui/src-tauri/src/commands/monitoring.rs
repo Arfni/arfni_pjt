@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::command;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
+use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -320,6 +321,7 @@ async fn ensure_docker_running() -> Result<(), String> {
 /// 모니터링 스택 자동 시작
 #[command]
 pub async fn start_monitoring_stack(
+    app: AppHandle,
     project_path: String,
 ) -> Result<String, String> {
     // Docker Desktop 확인 및 자동 시작
@@ -332,35 +334,78 @@ pub async fn start_monitoring_stack(
     }
 
     // BE 폴더의 모니터링 실행 파일 경로 찾기
-    let possible_paths = vec![
-        "C:\\arfni_pjt_new\\BE\\arfni\\bin\\arfni-monitoring.exe",
-        "C:\\arfni_pjt_new\\BE\\arfni\\arfni-monitoring.exe",
-        "C:\\arfni_pjt_new\\BE\\arfni\\start-monitoring-v2.exe",
-        "C:\\arfni_pjt_new\\BE\\arfni\\arfni-go.exe",
-        "C:\\arfni_pjt_new\\BE\\arfni\\bin\\arfni-go.exe",
-    ];
+    let mut possible_paths = vec![];
 
-    let mut exe_path: Option<String> = None;
-    for path in possible_paths {
-        if PathBuf::from(path).exists() {
-            exe_path = Some(path.to_string());
+    // 1. 실행 파일 위치 기준 (배포된 앱)
+    // Tauri가 ../../BE/arfni/bin 을 _up_/_up_/BE/arfni/bin 으로 복사함
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            // 배포된 앱의 리소스 경로
+            possible_paths.push(exe_dir.join("_up_").join("_up_").join("BE").join("arfni").join("bin").join("arfni-monitoring.exe"));
+            possible_paths.push(exe_dir.join("_up_").join("_up_").join("BE").join("arfni").join("bin").join("arfni-go.exe"));
+        }
+    }
+
+    // 2. 현재 작업 디렉토리 기준 (개발 환경)
+    if let Ok(cwd) = std::env::current_dir() {
+        possible_paths.push(cwd.join("BE").join("arfni").join("bin").join("arfni-monitoring.exe"));
+        possible_paths.push(cwd.join("BE").join("arfni").join("bin").join("arfni-go.exe"));
+    }
+
+    let mut exe_path: Option<PathBuf> = None;
+    for path in &possible_paths {
+        if path.exists() {
+            exe_path = Some(path.clone());
             break;
         }
     }
 
-    let exe_path = exe_path.ok_or("Monitoring executable not found in BE folder")?;
+    let exe_path = exe_path.ok_or_else(|| {
+        let tried_paths: Vec<String> = possible_paths.iter()
+            .map(|p| p.display().to_string())
+            .collect();
+        format!(
+            "Monitoring executable not found.\n\
+            Tried paths:\n  - {}\n\
+            \n\
+            Solution: Run 'npm run build:go' in the project root to build required executables.",
+            tried_paths.join("\n  - ")
+        )
+    })?;
 
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+    // 실행 파일 이름으로 판단
+    let exe_name = exe_path.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+
     // arfni-monitoring.exe 또는 start-monitoring-v2.exe 사용 시
-    if exe_path.contains("arfni-monitoring") || exe_path.contains("start-monitoring-v2") {
+    if exe_name.contains("arfni-monitoring") || exe_name.contains("start-monitoring-v2") {
         // 백그라운드로 실행 (stack.yaml 경로를 인자로 전달)
         let mut cmd = Command::new(&exe_path);
         cmd.arg(stack_yaml_path.to_string_lossy().to_string())
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stdin(Stdio::null());
+
+        // 로그 파일로 출력 (디버깅용)
+        if let Ok(exe_dir) = std::env::current_exe().and_then(|p| p.parent().map(|d| d.to_path_buf()).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "No parent"))) {
+            let log_path = exe_dir.join("monitoring.log");
+            match std::fs::File::create(&log_path) {
+                Ok(log_file) => {
+                    if let Ok(log_file2) = log_file.try_clone() {
+                        cmd.stdout(Stdio::from(log_file))
+                           .stderr(Stdio::from(log_file2));
+                    }
+                },
+                Err(_) => {
+                    // 로그 파일 생성 실패시 null로 fallback
+                    cmd.stdout(Stdio::null()).stderr(Stdio::null());
+                }
+            }
+        } else {
+            cmd.stdout(Stdio::null()).stderr(Stdio::null());
+        }
 
         #[cfg(target_os = "windows")]
         {
@@ -370,7 +415,7 @@ pub async fn start_monitoring_stack(
         cmd.spawn()
             .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
 
-        Ok(format!("Monitoring stack starting with {}", exe_path))
+        Ok(format!("Monitoring stack starting with {} (stack: {})", exe_path.display(), stack_yaml_path.display()))
     } else {
         // arfni-go.exe monitor 명령어 사용
         let mut cmd = Command::new(&exe_path);
@@ -389,7 +434,7 @@ pub async fn start_monitoring_stack(
         cmd.spawn()
             .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
 
-        Ok(format!("Monitoring stack starting with {}", exe_path))
+        Ok(format!("Monitoring stack starting with {}", exe_path.display()))
     }
 }
 
