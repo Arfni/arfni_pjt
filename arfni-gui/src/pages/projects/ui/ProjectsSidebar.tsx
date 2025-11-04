@@ -1,4 +1,5 @@
-import { Laptop, Server, Package } from 'lucide-react';
+import { Laptop, Server, Package, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface ProjectsSidebarProps {
   selectedTab: 'local' | 'ec2' | 'plugins';
@@ -6,6 +7,8 @@ interface ProjectsSidebarProps {
 }
 
 export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarProps) {
+  const navigate = useNavigate();
+
   return (
     <aside className="w-24 bg-white border-r border-gray-200 flex flex-col">
       <div className="p-3 flex-1 flex flex-col items-center gap-3">
@@ -52,6 +55,17 @@ export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarPro
             <Package className="w-5 h-5 text-white" />
           </div>
           <span className={`text-xs font-medium ${selectedTab === 'plugins' ? 'text-blue-700' : 'text-gray-700'}`}>Plugins</span>
+        </button>
+      </div>
+
+      {/* Settings Button at Bottom */}
+      <div className="p-3 border-t border-gray-200">
+        <button
+          onClick={() => navigate('/settings')}
+          className="w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-gray-100"
+        >
+          <Settings className="w-5 h-5 text-gray-600" />
+          <span className="text-xs font-medium text-gray-700">Settings</span>
         </button>
       </div>
     </aside>

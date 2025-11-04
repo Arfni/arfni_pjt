@@ -10,6 +10,7 @@ interface ServerSelectionModalProps {
   selectedServerId: string;
   onSelectServer: (serverId: string) => void;
   onAddNewServer: () => void;
+  onEditServer: (server: EC2Server) => void;
   onServerDeleted?: () => void;
 }
 
@@ -20,6 +21,7 @@ export function ServerSelectionModal({
   selectedServerId,
   onSelectServer,
   onAddNewServer,
+  onEditServer,
   onServerDeleted,
 }: ServerSelectionModalProps) {
   const [connectingServerId, setConnectingServerId] = useState<string | null>(null);
@@ -92,11 +94,9 @@ export function ServerSelectionModal({
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={onClose}
     >
       <div
         className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4"
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -136,7 +136,7 @@ export function ServerSelectionModal({
                     disabled={isConnecting}
                     className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-50'
+                        ? 'border-blue-500 bg-blue-100'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     } ${isConnecting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
@@ -162,7 +162,8 @@ export function ServerSelectionModal({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // TODO: 편집 기능 구현
+                                onClose();
+                                onEditServer(server);
                               }}
                               className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                               title="Edit Server"

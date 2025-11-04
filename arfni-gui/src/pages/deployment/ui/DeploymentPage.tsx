@@ -103,10 +103,10 @@ export function DeploymentPage() {
 
   const handleConfirm = () => {
     if (currentProject?.environment === 'local') {
-      navigate('/projects');
+      navigate('/projects', { replace: true });
     } else {
       // EC2는 다른 동작 (향후 정의)
-      navigate('/canvas');
+      navigate('/canvas', { replace: true });
     }
   };
 

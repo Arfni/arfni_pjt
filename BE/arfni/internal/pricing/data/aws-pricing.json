@@ -1,0 +1,202 @@
+{
+  "region": "ap-northeast-2",
+  "region_name": "Seoul",
+  "currency": "USD",
+  "last_updated": "2024-10-31",
+  "ec2": {
+    "t3.micro": {
+      "vcpu": 2,
+      "memory_gb": 1,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0116,
+      "price_per_month": 8.47,
+      "description": "Burstable, ideal for low-traffic applications"
+    },
+    "t3.small": {
+      "vcpu": 2,
+      "memory_gb": 2,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0232,
+      "price_per_month": 16.94,
+      "description": "Burstable, good for small web apps"
+    },
+    "t3.medium": {
+      "vcpu": 2,
+      "memory_gb": 4,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0464,
+      "price_per_month": 33.87,
+      "description": "Burstable, suitable for medium web apps"
+    },
+    "t3.large": {
+      "vcpu": 2,
+      "memory_gb": 8,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0928,
+      "price_per_month": 67.74,
+      "description": "Burstable, for larger applications"
+    },
+    "t3.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.1856,
+      "price_per_month": 135.49,
+      "description": "Burstable, high-performance apps"
+    },
+    "m5.large": {
+      "vcpu": 2,
+      "memory_gb": 8,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.107,
+      "price_per_month": 78.11,
+      "description": "General purpose, balanced compute/memory"
+    },
+    "m5.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.214,
+      "price_per_month": 156.22,
+      "description": "General purpose, production workloads"
+    },
+    "c5.large": {
+      "vcpu": 2,
+      "memory_gb": 4,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.095,
+      "price_per_month": 69.35,
+      "description": "Compute optimized, CPU-intensive apps"
+    },
+    "r5.large": {
+      "vcpu": 2,
+      "memory_gb": 16,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.14,
+      "price_per_month": 102.2,
+      "description": "Memory optimized, memory-intensive apps"
+    }
+  },
+  "rds": {
+    "db.t3.micro": {
+      "vcpu": 2,
+      "memory_gb": 1,
+      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "price_per_hour": 0.018,
+      "price_per_month": 13.14,
+      "description": "Development/testing databases"
+    },
+    "db.t3.small": {
+      "vcpu": 2,
+      "memory_gb": 2,
+      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "price_per_hour": 0.036,
+      "price_per_month": 26.28,
+      "description": "Small production databases"
+    },
+    "db.t3.medium": {
+      "vcpu": 2,
+      "memory_gb": 4,
+      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "price_per_hour": 0.072,
+      "price_per_month": 52.56,
+      "description": "Medium production databases"
+    },
+    "db.t3.large": {
+      "vcpu": 2,
+      "memory_gb": 8,
+      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "price_per_hour": 0.144,
+      "price_per_month": 105.12,
+      "description": "Large production databases"
+    },
+    "db.m5.large": {
+      "vcpu": 2,
+      "memory_gb": 8,
+      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "price_per_hour": 0.166,
+      "price_per_month": 121.18,
+      "description": "General purpose production databases"
+    },
+    "db.r5.large": {
+      "vcpu": 2,
+      "memory_gb": 16,
+      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "price_per_hour": 0.24,
+      "price_per_month": 175.2,
+      "description": "Memory-intensive databases"
+    }
+  },
+  "elasticache": {
+    "cache.t3.micro": {
+      "vcpu": 2,
+      "memory_gb": 0.5,
+      "engines": ["Redis", "Memcached"],
+      "price_per_hour": 0.02,
+      "price_per_month": 14.6,
+      "description": "Development/testing cache"
+    },
+    "cache.t3.small": {
+      "vcpu": 2,
+      "memory_gb": 1.37,
+      "engines": ["Redis", "Memcached"],
+      "price_per_hour": 0.04,
+      "price_per_month": 29.2,
+      "description": "Small production cache"
+    },
+    "cache.t3.medium": {
+      "vcpu": 2,
+      "memory_gb": 3.09,
+      "engines": ["Redis", "Memcached"],
+      "price_per_hour": 0.08,
+      "price_per_month": 58.4,
+      "description": "Medium production cache"
+    },
+    "cache.m5.large": {
+      "vcpu": 2,
+      "memory_gb": 6.38,
+      "engines": ["Redis", "Memcached"],
+      "price_per_hour": 0.133,
+      "price_per_month": 97.09,
+      "description": "High-performance cache"
+    },
+    "cache.r5.large": {
+      "vcpu": 2,
+      "memory_gb": 13.07,
+      "engines": ["Redis", "Memcached"],
+      "price_per_hour": 0.201,
+      "price_per_month": 146.73,
+      "description": "Memory-intensive cache"
+    }
+  },
+  "storage": {
+    "ebs_gp3": {
+      "type": "General Purpose SSD (gp3)",
+      "price_per_gb_month": 0.088,
+      "iops_included": 3000,
+      "throughput_mbps_included": 125,
+      "description": "Default storage for most workloads"
+    },
+    "ebs_io2": {
+      "type": "Provisioned IOPS SSD (io2)",
+      "price_per_gb_month": 0.142,
+      "price_per_iops_month": 0.072,
+      "description": "High-performance storage"
+    }
+  },
+  "data_transfer": {
+    "outbound_first_10tb": 0.126,
+    "outbound_next_40tb": 0.122,
+    "outbound_next_100tb": 0.117,
+    "inbound": 0.0,
+    "description": "Data transfer OUT to internet (per GB)"
+  },
+  "load_balancer": {
+    "alb": {
+      "price_per_hour": 0.0252,
+      "price_per_lcu_hour": 0.008,
+      "price_per_month_base": 18.396,
+      "description": "Application Load Balancer"
+    }
+  }
+}
