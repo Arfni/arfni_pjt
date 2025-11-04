@@ -1,0 +1,38 @@
+name: test-app
+
+services:
+  spring:
+    kind: service
+    target: local
+    spec:
+      image: myapp-spring:latest
+      ports:
+        - "8080:8080"
+
+  python:
+    kind: service
+    target: local
+    spec:
+      image: myapp-python:latest
+      ports:
+        - "5000:5000"
+
+  mysql:
+    kind: service
+    target: local
+    spec:
+      image: mysql:8.0
+      ports:
+        - "3306:3306"
+
+  redis:
+    kind: service
+    target: local
+    spec:
+      image: redis:7
+      ports:
+        - "6379:6379"
+
+targets:
+  local:
+    type: local

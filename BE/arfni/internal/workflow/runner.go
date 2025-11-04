@@ -135,6 +135,38 @@ func (r *Runner) generate(stream *events.Stream) error {
 	}
 
 	stream.Success(fmt.Sprintf("Generated docker-compose.yml for %d services", len(r.stack.Services)))
+
+	// Generate Dockerfiles for services that need them
+	stream.Info("Generating Dockerfiles...")
+	dockerfileCount := 0
+	for name, service := range r.stack.Services {
+		if service.Spec.Build != "" {
+			stream.Info(fmt.Sprintf("Detecting build type for service '%s' at path: %s", name, service.Spec.Build))
+
+			// Detect build type
+			buildType, err := DetectBuildType(r.projectDir, service.Spec.Build)
+			if err != nil {
+				stream.Info(fmt.Sprintf("Warning: Could not detect build type for '%s': %v", name, err))
+				continue
+			}
+
+			stream.Info(fmt.Sprintf("Detected build type: %s", buildType))
+
+			// Generate Dockerfile if it doesn't exist
+			if err := WriteDockerfile(r.projectDir, service.Spec.Build, buildType); err != nil {
+				return fmt.Errorf("failed to write Dockerfile for '%s': %w", name, err)
+			}
+
+			dockerfilePath := fmt.Sprintf("%s/Dockerfile", service.Spec.Build)
+			stream.Success(fmt.Sprintf("Generated Dockerfile for '%s' (%s) at %s", name, buildType, dockerfilePath))
+			dockerfileCount++
+		}
+	}
+
+	if dockerfileCount > 0 {
+		stream.Success(fmt.Sprintf("Generated %d Dockerfile(s)", dockerfileCount))
+	}
+
 	return nil
 }
 
@@ -326,7 +358,9 @@ func (r *Runner) deployEC2(stream *events.Stream) error {
 	for _, svc := range r.stack.Services {
 		for _, vol := range svc.Spec.Volumes {
 			localPath := filepath.Join(r.projectDir, vol.Host)
-			remotePath := ec2.Workdir + "/" + vol.Host
+			// Clean vol.Host path (remove ./ prefix)
+			cleanPath := strings.TrimPrefix(vol.Host, "./")
+			remotePath := ec2.Workdir + "/" + cleanPath
 
 			fi, err := os.Stat(localPath)
 			if err != nil {
@@ -335,10 +369,21 @@ func (r *Runner) deployEC2(stream *events.Stream) error {
 			}
 
 			if fi.IsDir() {
-				if err := r.scpDir(ctx, localPath, ec2, vol.Host); err != nil {
+				if err := r.scpDir(ctx, localPath, ec2, cleanPath); err != nil {
 					return fmt.Errorf("failed to upload volume dir %s: %w", vol.Host, err)
 				}
 			} else {
+				// Create parent directory on EC2 before uploading file
+				// Use path package for Unix paths (not filepath which uses OS separator)
+				remoteDir := ec2.Workdir
+				if idx := strings.LastIndex(cleanPath, "/"); idx > 0 {
+					remoteDir = ec2.Workdir + "/" + cleanPath[:idx]
+				}
+				mkdirCmd := fmt.Sprintf("mkdir -p %s", remoteDir)
+				if _, err := r.sshRun(ctx, ec2, mkdirCmd); err != nil {
+					return fmt.Errorf("failed to create remote directory for %s: %w", vol.Host, err)
+				}
+
 				if err := r.scpFile(ctx, localPath, ec2, remotePath); err != nil {
 					return fmt.Errorf("failed to upload volume file %s: %w", vol.Host, err)
 				}

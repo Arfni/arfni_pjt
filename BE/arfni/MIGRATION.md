@@ -256,7 +256,7 @@ cd examples/ec2
 
 **확인사항:**
 - EC2 타겟에서만 실행됨
-- start-monitoring-v2.exe 정상 호출
+- arfni-monitoring.exe 정상 호출
 
 ## 이식 과정에서 발생한 이슈
 

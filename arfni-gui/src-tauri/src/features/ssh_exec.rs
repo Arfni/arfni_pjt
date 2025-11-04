@@ -4,6 +4,9 @@ use serde::{Serialize, Deserialize};
 use std::{fs, path::{PathBuf}, io::Write, process::Command};
 use regex::Regex;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 const DATA_DIR_NAME: &str = "data";
 const FILE_NAME: &str = "ssh_targets.json";
 
@@ -16,14 +19,22 @@ pub struct SshParams {
 
 pub fn exec_once_via_system_ssh(host: &str, user: &str, pem: &str, cmd: &str) -> Result<String> {
     let target = format!("{user}@{host}");
-    let out = Command::new("ssh")
-        .args([
+    let mut command = Command::new("ssh");
+    command.args([
             "-i", pem,
             // 최초 접속 시 known_hosts 자동 등록. 보안정책에 맞춰 조정 가능
             "-o", "StrictHostKeyChecking=accept-new",
             &target,
             cmd,
-        ])
+        ]);
+
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let out = command
         .output()
         .with_context(|| "failed to spawn ssh")?;
 
