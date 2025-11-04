@@ -275,3 +275,55 @@ TailwindCSS 기반 반응형 레이아웃
 SSH 인증키를 활용하여 터미널 없이 GUI에서 원격 포트 스캔 가능
 
 개발 및 운영 환경의 포트 개방 상태 점검 자동화 기반 기능 완성
+
+🧾 개발일지 — 2025.11.04
+🛠️ 주요 개발 내용
+1. YMLGEN 플러그인 구조 완성 (Go)
+
+기존 단일 하드코딩 템플릿 구조 → 외부 템플릿(.yaml.tmpl) + 메타데이터(.meta.json) 기반으로 개선
+
+Payload 구조 설계: template, template_file, output, vars 로 구성
+
+findTemplateByKey() 구현
+
+exe 경로 기준 templates/ 폴더 자동 탐색
+
+YMLGEN_TEMPLATES 환경 변수로 외부 디렉토리 지정 가능
+
+다중 경로(exeDir, cwd, ENV) 순회하여 템플릿 검색 지원
+
+mode: "list" 명령으로 .meta.json 자동 스캔 → 템플릿 정보(JSON)로 반환
+
+mode: "stdin" 명령으로 전달된 변수(vars) 바인딩 → YAML 렌더링 성공
+
+YMLGEN_DEBUG=1 환경 변수 추가 → 실행 시 템플릿 스캔 경로 출력 가능
+
+2. React – Tauri – Go 연동 구현
+
+React에서 invoke("run_plugin_with_mode") 로 Go 플러그인 직접 호출
+
+mode: "list" → 템플릿 목록(JSON) 수신 후 동적 렌더링
+
+mode: "stdin" → 선택된 템플릿 + 변수값을 전달해 YML 파일 생성
+
+기존 하드코딩된 buildSpringYaml() 제거, 완전한 동적 구조로 변경
+
+Tauri Rust 코드에서 YMLGEN_TEMPLATES 환경 변수 세팅 → 플러그인이 exe 옆 templates/ 폴더 인식
+
+3. 템플릿 자동 인식 및 UI 렌더링
+
+templates/*.meta.json 기반으로 React가 자동 폼 구성
+
+각 템플릿별로 name, description, vars 필드 동적 반영
+
+변수 입력 폼과 YML 미리보기 자동 갱신
+
+PowerShell 및 React 모두에서 템플릿 2개(s, spring) 정상 인식 확인
+
+4. 테스트 및 결과
+
+PowerShell에서 {"mode": "list"} 입력 → 모든 템플릿 메타데이터 출력 확인
+
+React UI에서 목록 자동 로드 및 선택 가능
+
+YML 생성 버튼 클릭 시 YAML 텍스트 정상 렌더링 및 복사 기능 확인

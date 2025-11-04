@@ -219,3 +219,73 @@
     - 신규 구현 기능 설명
     - 트러블슈팅 과정
     - 빌드 설정 및 아키텍처
+
+# 2025.11.04
+  1. 모니터링 시스템 개선 및 안정화
+
+  1.1 CMD 창 숨김 처리
+  - 문제: EC2 연결 및 모니터링 실행 시 CMD 창 표시
+  - 해결: Windows CREATE_NO_WINDOW 플래그 적용
+    - monitoring.rs: ensure_docker_running, start_monitoring_stack에 적용
+    - ssh_exec.rs: SSH 명령 실행 시 적용
+    - port_check.rs: netstat 명령 실행 시 적용
+
+  1.2 모니터링 리소스 자동 정리
+  - 문제: GUI 종료 시 Docker 컨테이너 및 프로세스 잔존
+  - 해결:
+    - main.rs: WindowEvent::CloseRequested 핸들러 추가
+      - docker rm -f로 grafana, prometheus 컨테이너 완전 삭제
+      - taskkill로 ssh.exe, arfni-monitoring.exe 프로세스 종료
+    - MonitoringPage.tsx: useEffect cleanup 함수 추가
+      - 컴포넌트 언마운트 시 stop_monitoring_stack 호출
+    - monitoring.rs: stop_monitoring_stack 명령어 구현
+
+  1.3 Docker Desktop 자동 실행
+  - 문제: Docker Desktop 미실행 시 모니터링 실패
+  - 해결: ensure_docker_running 함수 구현
+    - docker info로 실행 상태 확인
+    - 미실행 시 Docker Desktop.exe 자동 실행
+    - Program Files, Program Files (x86) 경로 탐색
+    - 최대 60초 대기 (1초 간격 polling)
+
+  1.4 브라우저 자동 열기 비활성화
+  - arfni-monitoring/main.go (line 299): AutoOpenBrowser = false 설정
+  - 이유: GUI iframe으로 표시하므로 별도 브라우저 창 불필요
+
+  1.5 문서화
+  - MONITORING_INTEGRATION.md 업데이트
+    - CMD 창 숨김 구현 내역
+    - 리소스 정리 로직 설명
+    - Docker Desktop 자동 실행 구현
+
+  2. 크로스 플랫폼 경로 해결 문제 해결
+
+  2.1 문제 상황
+  - 증상: 배포된 앱에서 "Monitoring executable not found" 오류
+  - 원인: 개발자 컴퓨터의 절대 경로 하드코딩
+  - 영향: 다른 컴퓨터에서 모니터링 기능 미작동
+
+  2.2 원인 분석
+  - Tauri 번들 구조:
+    - arfni-gui.exe 위치: C:\Users\[User]\Desktop\arfni-gui\
+    - arfni-monitoring.exe 위치: C:\Users\[User]\Desktop\arfni-gui\_up_\_up_\BE\arfni\bin\
+    - monitoring 폴더 위치: C:\Users\[User]\Desktop\arfni-gui\_up_\_up_\monitoring\
+  - 문제: findMonitoringDirectory 함수가 잘못된 상대 경로 사용
+
+  2.3 해결
+  - arfni-monitoring/main.go (lines 1063-1074):
+    - 기존: filepath.Join(baseDir, "..", "..", "..", "..", "_up_", "_up_", "monitoring")
+    - 수정: filepath.Join(baseDir, "..", "..", "..", "monitoring")
+    - 설명: baseDir = _up_/_up_/BE/arfni/bin이므로 3단계 상위로 이동
+
+  - monitoring.rs (lines 388-418):
+    - stdout/stderr를 null 대신 monitoring.log 파일로 리다이렉션
+    - 디버깅을 위해 실행 로그 저장
+    - 반환 메시지에 stack.yaml 경로 포함
+  2.5 문서화
+  - MONITORING_INTEGRATION.md에 "Cross-Platform Path Resolution Fix" 섹션 추가
+    - 문제 상황 및 원인 분석
+    - Tauri 번들 디렉토리 구조 설명
+    - 경로 계산 로직 설명
+    - 수정 파일 및 변경 내역
+
