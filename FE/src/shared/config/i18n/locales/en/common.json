@@ -1,0 +1,19 @@
+{
+  "appName": "ARFNI",
+  "navigation": {
+    "download": "Download",
+    "features": "Features",
+    "roadmap": "Roadmap",
+    "docs": "Docs"
+  },
+  "footer": {
+    "copyright": "© {{year}} {{appName}}. All rights reserved.",
+    "madeWith": "Made with by the ARFNI Team",
+    "quickLinks": "Quick Links",
+    "resources": "Resources",
+    "documentation": "Documentation",
+    "apiReference": "API Reference",
+    "blog": "Blog",
+    "support": "Support"
+  }
+}

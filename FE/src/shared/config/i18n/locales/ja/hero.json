@@ -1,0 +1,16 @@
+{
+  "title": {
+    "line1": "AIとインフラを",
+    "line2": "ワンクリックで",
+    "line3": "つなげよう！"
+  },
+  "description": "キャンバスでモデリングすると、<strong>stack.yaml</strong>とパイプラインが自動生成され、ローカル・EC2にデプロイされます。",
+  "buttons": {
+    "download": "Windows版 .exe ダウンロード",
+    "github": "GitHub"
+  },
+  "platformNote": "macOS/Linuxは順次サポート予定",
+  "illustration": {
+    "alt": "AI インフラストラクチャモデリング"
+  }
+}

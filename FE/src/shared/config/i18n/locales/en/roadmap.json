@@ -1,0 +1,29 @@
+{
+  "eyebrow": "ROADMAP",
+  "heading": "See You in the Next Update",
+  "description": "ARFNI is continuously evolving. Check out the features coming soon.",
+  "items": {
+    "costEstimation": {
+      "title": "AI Cost Estimation",
+      "description": "Analyze resources and estimate monthly costs."
+    },
+    "deploymentAdvice": {
+      "title": "Post-Deployment Advice",
+      "description": "Summarize logs and health results to provide improvement tips."
+    },
+    "multiCloud": {
+      "title": "Multi-Cloud Support",
+      "description": "Support various cloud platforms including AWS, GCP, and Azure."
+    },
+    "enterpriseSecurity": {
+      "title": "Enterprise Security",
+      "description": "Provide enterprise-grade security features and compliance tools."
+    }
+  },
+  "status": {
+    "planned": "Planned",
+    "inProgress": "In Progress",
+    "planning": "Planning",
+    "completed": "Completed"
+  }
+}

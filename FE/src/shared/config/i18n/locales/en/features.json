@@ -1,0 +1,23 @@
+{
+  "eyebrow": "Features",
+  "heading": "Infrastructure Modeling Made Easy with AI",
+  "description": "Manage complex infrastructure configurations simply with an intuitive visual interface",
+  "cards": {
+    "visualDesign": {
+      "title": "Visual Design → Auto-generate stack.yaml",
+      "description": "Connect nodes on the canvas and instantly sync to stack.yaml."
+    },
+    "localDocker": {
+      "title": "Support Both Local Docker & EC2-SSH",
+      "description": "Develop and test locally, then safely deploy to EC2 with the same pipeline."
+    },
+    "oneShotExecution": {
+      "title": "One-Shot Execution and Health Check",
+      "description": "One Apply command auto-executes Generate→Build→Up→Post→Health."
+    },
+    "realTimeMonitoring": {
+      "title": "Real-Time Monitoring",
+      "description": "Monitor deployed service status in real-time and receive notifications."
+    }
+  }
+}

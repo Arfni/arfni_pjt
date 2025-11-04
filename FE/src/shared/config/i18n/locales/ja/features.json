@@ -1,0 +1,23 @@
+{
+  "eyebrow": "機能",
+  "heading": "AIで簡単になるインフラモデリング",
+  "description": "複雑なインフラ構成を直感的なビジュアルインターフェースで簡単に管理",
+  "cards": {
+    "visualDesign": {
+      "title": "ビジュアル設計 → stack.yaml自動生成",
+      "description": "キャンバスでノードを接続すると、即座にstack.yamlに同期されます。"
+    },
+    "localDocker": {
+      "title": "ローカルDocker & EC2-SSH同時サポート",
+      "description": "同じパイプラインでローカル開発・テスト後、EC2に安全にデプロイ。"
+    },
+    "oneShotExecution": {
+      "title": "ワンショット実行とヘルスチェック",
+      "description": "Apply一回でGenerate→Build→Up→Post→Healthまで自動実行。"
+    },
+    "realTimeMonitoring": {
+      "title": "リアルタイムモニタリング",
+      "description": "デプロイされたサービスの状態をリアルタイムで監視し、通知を受け取ります。"
+    }
+  }
+}

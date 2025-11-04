@@ -1,0 +1,23 @@
+{
+  "eyebrow": "기능",
+  "heading": "AI가 쉬워지는 인프라 모델링",
+  "description": "복잡한 인프라 구성을 직관적인 비주얼 인터페이스로 간단하게 관리하세요",
+  "cards": {
+    "visualDesign": {
+      "title": "시각적 설계 → stack.yaml 자동 생성",
+      "description": "캔버스에서 노드를 잇는 즉시 동일 모델이 stack.yaml로 동기화됩니다."
+    },
+    "localDocker": {
+      "title": "로컬 Docker & EC2-SSH 동시 지원",
+      "description": "동일 파이프라인으로 로컬 개발/테스트 후 EC2에 안전 배포."
+    },
+    "oneShotExecution": {
+      "title": "원샷 실행과 Health 체크",
+      "description": "Apply 한 번으로 Generate→Build→Up→Post→Health까지 자동 진행."
+    },
+    "realTimeMonitoring": {
+      "title": "실시간 모니터링",
+      "description": "배포된 서비스의 상태를 실시간으로 모니터링하고 알림을 받습니다."
+    }
+  }
+}
