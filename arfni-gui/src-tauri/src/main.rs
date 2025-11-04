@@ -127,11 +127,8 @@ fn main() {
       commands::project::remove_from_recent_projects,
       commands::project::update_project,
       commands::project::delete_project,
-<<<<<<< HEAD
       commands::project::write_file,
-=======
       commands::project::delete_project_from_db_only,
->>>>>>> 3e84bc76c68b64169ad9eb0565df024816734b29
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,
