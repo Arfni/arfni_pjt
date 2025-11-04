@@ -36,6 +36,8 @@
       "../../BE/arfni/bin/arfni-go.exe",
       "../../BE/arfni/bin/ic.exe",
       "../../BE/arfni/bin/arfni-monitoring.exe",
+      "../../BE/arfni/bin/ymlgen.exe",
+      "../../BE/arfni/bin/templates",
       "../../monitoring"
     ]
   }
