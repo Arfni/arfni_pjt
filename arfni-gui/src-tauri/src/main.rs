@@ -119,6 +119,7 @@ fn main() {
       commands::project::remove_from_recent_projects,
       commands::project::update_project,
       commands::project::delete_project,
+      commands::project::delete_project_from_db_only,
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,
