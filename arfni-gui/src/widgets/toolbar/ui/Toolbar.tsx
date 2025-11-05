@@ -412,6 +412,7 @@ export function Toolbar() {
       <AIDialog
         show={showAIDialog}
         onClose={() => setShowAIDialog(false)}
+        currentProject={currentProject}
       />
     </>
   );
