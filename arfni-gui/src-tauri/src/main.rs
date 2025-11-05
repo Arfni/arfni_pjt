@@ -159,6 +159,7 @@ fn main() {
 
       // 비용 예측 명령어
       commands::pricing::estimate_cost,
+      commands::pricing::optimize,
 
       // 시스템 명령어
       commands::system::open_downloads_folder,

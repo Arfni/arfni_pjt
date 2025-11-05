@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::process::Command;
+use tauri::State;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+
+use crate::db::{Database, api_key as repo};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EstimateCostRequest {
@@ -63,12 +66,69 @@ pub struct CostEstimationResult {
     pub optimization_tips: Vec<String>,
 }
 
+// Optimization Report Types
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ActualUsageMetrics {
+    pub cpu_usage_percent: f64,
+    pub memory_used_mb: f64,
+    pub memory_usage_percent: f64,
+    pub disk_used_gb: f64,
+    pub disk_usage_percent: f64,
+    pub network_inbound_mb_24h: f64,
+    pub network_outbound_mb_24h: f64,
+    pub instance_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CostAnalysis {
+    pub current_instance_type: String,
+    pub current_monthly_cost: f64,
+    pub estimated_data_transfer_cost: f64,
+    pub actual_data_transfer_cost: f64,
+    pub potential_savings: f64,
+    pub savings_percent: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PerformanceAnalysis {
+    pub cpu_bottleneck: bool,
+    pub memory_bottleneck: bool,
+    pub disk_bottleneck: bool,
+    pub bottlenecks: Vec<String>,
+    pub health_status: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Recommendation {
+    pub priority: String,
+    pub category: String,
+    pub title: String,
+    pub description: String,
+    pub impact: String,
+    #[serde(default)]
+    pub savings: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OptimizationReport {
+    pub actual_usage: ActualUsageMetrics,
+    pub cost_analysis: CostAnalysis,
+    pub performance_analysis: PerformanceAnalysis,
+    pub recommendations: Vec<Recommendation>,
+}
+
 #[tauri::command]
 pub async fn estimate_cost(
+    db: State<'_, Database>,
     stack_path: String,
 ) -> Result<CostEstimationResult, String> {
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    // Get API key from database
+    let api_key = repo::get_active_value(&db, "etc")
+        .map_err(|e| format!("Failed to get API key: {}", e))?
+        .ok_or_else(|| "No active API key found in 'etc' provider. Please add an API key in settings.".to_string())?;
 
     // Find arfni-go.exe
     let exe_path = find_arfni_go_executable()?;
@@ -77,7 +137,8 @@ pub async fn estimate_cost(
     let mut cmd = Command::new(&exe_path);
     cmd.arg("estimate-cost")
         .arg("-f")
-        .arg(&stack_path);
+        .arg(&stack_path)
+        .env("GMS_KEY", api_key);
 
     #[cfg(target_os = "windows")]
     {
@@ -105,6 +166,61 @@ pub async fn estimate_cost(
         Ok(result)
     } else {
         Err("No cost estimation result found in output".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn optimize(
+    db: State<'_, Database>,
+    prometheus_url: Option<String>,
+) -> Result<OptimizationReport, String> {
+    #[cfg(target_os = "windows")]
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    // Get API key from database
+    let api_key = repo::get_active_value(&db, "etc")
+        .map_err(|e| format!("Failed to get API key: {}", e))?
+        .ok_or_else(|| "No active API key found in 'etc' provider. Please add an API key in settings.".to_string())?;
+
+    // Find arfni-go.exe
+    let exe_path = find_arfni_go_executable()?;
+
+    // Use default Prometheus URL if not provided
+    let prometheus = prometheus_url.unwrap_or_else(|| "http://localhost:9090".to_string());
+
+    // Build command
+    let mut cmd = Command::new(&exe_path);
+    cmd.arg("optimize")
+        .arg("-prometheus")
+        .arg(&prometheus)
+        .env("GMS_KEY", api_key);
+
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    // Execute command
+    let output = cmd.output()
+        .map_err(|e| format!("Failed to execute optimize command: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Optimize command failed: {}", stderr));
+    }
+
+    // Parse output
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Find JSON output (starts with __OPTIMIZATION_REPORT__)
+    let json_marker = "__OPTIMIZATION_REPORT__";
+    if let Some(json_start) = stdout.find(json_marker) {
+        let json_str = &stdout[json_start + json_marker.len()..];
+        let result: OptimizationReport = serde_json::from_str(json_str)
+            .map_err(|e| format!("Failed to parse optimization result: {}", e))?;
+        Ok(result)
+    } else {
+        Err("No optimization report found in output".to_string())
     }
 }
 
