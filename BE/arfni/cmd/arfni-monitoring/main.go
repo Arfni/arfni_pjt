@@ -488,12 +488,16 @@ func validateConfig(cfg *Config) error {
 		errors = append(errors, fmt.Sprintf("%s  ✗ Grafana and Node Exporter cannot use the same port: %d%s\n    → Assign different ports", colorRed, cfg.Monitoring.GrafanaPort, colorReset))
 	}
 
-	// 3. Docker Compose 파일 확인 (다중 경로 시도)
-	composeDir := findMonitoringDirectory()
-	composePath := filepath.Join(composeDir, "docker-compose.yml")
-
-	if _, err := os.Stat(composePath); os.IsNotExist(err) {
-		errors = append(errors, fmt.Sprintf("%s  ✗ docker-compose.yml not found at: %s%s\n    → Ensure monitoring directory with docker-compose.yml exists", colorRed, composePath, colorReset))
+	// 3. Monitoring plugins 확인
+	pluginsDir := findPluginsDirectory()
+	if pluginsDir == "" {
+		errors = append(errors, fmt.Sprintf("%s  ✗ Monitoring plugins directory not found%s\n    → Ensure bundled monitoring plugins exist", colorRed, colorReset))
+	} else {
+		// Grafana plugin 확인
+		grafanaPlugin := filepath.Join(pluginsDir, "grafana", "plugin.yaml")
+		if _, err := os.Stat(grafanaPlugin); os.IsNotExist(err) {
+			errors = append(errors, fmt.Sprintf("%s  ✗ Grafana plugin not found at: %s%s\n    → Ensure grafana plugin exists", colorRed, pluginsDir, colorReset))
+		}
 	}
 
 	// 에러가 있으면 모두 출력
@@ -641,7 +645,7 @@ func dockerComposeUp(ctx context.Context, dir string, mode MonitoringMode) error
 		return nil
 
 	case ModeHybrid:
-		// Hybrid: Grafana만 실행
+		// Hybrid: Grafana만 실행 (docker-compose 사용)
 		fmt.Printf("%s   Pulling Grafana image...%s\n", colorBlue, colorReset)
 		pullCmd := exec.CommandContext(ctx, "docker", "compose", "pull", "grafana")
 		pullCmd.Dir = dir
@@ -654,76 +658,15 @@ func dockerComposeUp(ctx context.Context, dir string, mode MonitoringMode) error
 		stopCmd.Dir = dir
 		stopCmd.Run() // 에러 무시
 
-		// Hybrid 모드용 datasource 파일 생성 (OS별로 다른 URL 사용)
-		datasourcePath := filepath.Join(dir, "grafana-datasource.yml")
-
-		// OS별로 Prometheus URL 결정
-		prometheusURL := "http://host.docker.internal:9090" // Windows/Mac 기본값
-		if runtime.GOOS == "linux" {
-			// Linux에서는 Docker bridge gateway IP 사용
-			prometheusURL = "http://172.17.0.1:9090"
-		}
-
-		hybridDatasource := fmt.Sprintf(`apiVersion: 1
-
-datasources:
-  - name: Prometheus
-    type: prometheus
-    access: proxy
-    url: %s
-    isDefault: true
-    editable: true
-`, prometheusURL)
-		if err := os.WriteFile(datasourcePath, []byte(hybridDatasource), 0644); err != nil {
-			fmt.Printf("%s[WARNING] Failed to create hybrid datasource config: %v%s\n", colorYellow, err, colorReset)
-		}
-
 		fmt.Printf("%s   Starting Grafana container...%s\n", colorBlue, colorReset)
 
-		// Docker Compose를 사용하되 extra_hosts 추가
-		// host-gateway를 사용하여 호스트 IP로 매핑
-		cmd := exec.CommandContext(ctx, "docker", "run", "-d",
-			"--name", "grafana",
-			"--add-host=host.docker.internal:host-gateway",
-			"-p", "3000:3000",
-			"-v", "grafana-data:/var/lib/grafana",
-			"-v", filepath.Join(dir, "grafana-datasource.yml")+":/etc/grafana/provisioning/datasources/datasource.yml",
-			"-v", filepath.Join(dir, "grafana-dashboard.yml")+":/etc/grafana/provisioning/dashboards/dashboard.yml",
-			"-v", filepath.Join(dir, "dashboards")+":/etc/grafana/provisioning/dashboards",
-			"-e", "GF_SECURITY_ADMIN_USER=admin",
-			"-e", "GF_SECURITY_ADMIN_PASSWORD=admin",
-			"-e", "GF_AUTH_ANONYMOUS_ENABLED=true",
-			"-e", "GF_AUTH_ANONYMOUS_ORG_ROLE=Admin",
-			"-e", "GF_AUTH_DISABLE_LOGIN_FORM=true",
-			"-e", "GF_SECURITY_ALLOW_EMBEDDING=true",
-			"--restart=unless-stopped",
-			"grafana/grafana:latest")
+		// Use docker-compose to start Grafana
+		cmd := exec.CommandContext(ctx, "docker", "compose", "up", "-d", "grafana")
+		cmd.Dir = dir
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			// 이미 존재하는 컨테이너가 있으면 제거하고 다시 시도
-			removeCmd := exec.CommandContext(ctx, "docker", "rm", "-f", "grafana")
-			removeCmd.Run()
-
-			cmd = exec.CommandContext(ctx, "docker", "run", "-d",
-				"--name", "grafana",
-				"--add-host=host.docker.internal:host-gateway",
-				"-p", "3000:3000",
-				"-v", "grafana-data:/var/lib/grafana",
-				"-v", filepath.Join(dir, "grafana-datasource.yml")+":/etc/grafana/provisioning/datasources/datasource.yml",
-				"-v", filepath.Join(dir, "grafana-dashboard.yml")+":/etc/grafana/provisioning/dashboards/dashboard.yml",
-				"-v", filepath.Join(dir, "dashboards")+":/etc/grafana/provisioning/dashboards",
-				"-e", "GF_SECURITY_ADMIN_USER=admin",
-				"-e", "GF_SECURITY_ADMIN_PASSWORD=admin",
-				"-e", "GF_AUTH_ANONYMOUS_ENABLED=true",
-				"-e", "GF_AUTH_ANONYMOUS_ORG_ROLE=Admin",
-				"-e", "GF_AUTH_DISABLE_LOGIN_FORM=true",
-				"-e", "GF_SECURITY_ALLOW_EMBEDDING=true",
-				"--restart=unless-stopped",
-				"grafana/grafana:latest")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			return cmd.Run()
+			return fmt.Errorf("failed to start grafana: %w", err)
 		}
 		return nil
 
@@ -1079,19 +1022,16 @@ func parseEC2InfoFromStack(stackPath string) (*EC2Config, error) {
 func findPluginsDirectory() string {
 	exePath, _ := os.Executable()
 	baseDir := filepath.Dir(exePath)
-	cwd, _ := os.Getwd()
 
-	// 시도할 경로 목록 (우선순위 순서)
+	// 시도할 경로 목록 (우선순위 순서) - 실행 파일 위치 기준만 사용
 	candidates := []string{
-		// 1. 개발 환경: arfni-gui/public/plugins/bundled/monitoring
-		filepath.Join(cwd, "arfni-gui", "public", "plugins", "bundled", "monitoring"),
-		// 2. Tauri 번들: _up_/public/plugins/bundled/monitoring
+		// 1. Production: bin/../plugins/bundled/monitoring (바이너리가 resources/bin 안에 있음)
+		filepath.Join(baseDir, "..", "plugins", "bundled", "monitoring"),
+		// 2. Tauri 번들 (legacy): _up_/public/plugins/bundled/monitoring
 		filepath.Join(baseDir, "_up_", "public", "plugins", "bundled", "monitoring"),
-		// 3. 실행파일 기준 상대 경로
+		// 3. 개발 환경: 실행파일 기준 상대 경로
 		filepath.Join(baseDir, "..", "..", "..", "arfni-gui", "public", "plugins", "bundled", "monitoring"),
-		// 4. 레거시 폴백: monitoring 디렉토리
-		filepath.Join(cwd, "monitoring"),
-		filepath.Join(baseDir, "..", "..", "..", "monitoring"),
+		filepath.Join(baseDir, "..", "..", "arfni-gui", "public", "plugins", "bundled", "monitoring"),
 	}
 
 	for _, candidate := range candidates {
@@ -1106,8 +1046,7 @@ func findPluginsDirectory() string {
 		}
 	}
 
-	// 레거시 fallback
-	return findMonitoringDirectory()
+	return ""
 }
 
 // findMonitoringDirectory는 레거시 monitoring 디렉토리를 찾습니다 (fallback)

@@ -1,0 +1,36 @@
+apiVersion: v0.1
+name: node-exporter
+displayName: Node Exporter
+version: 1.0.0
+category: monitoring
+description: "Prometheus exporter for hardware and OS metrics"
+author: ARFNI Team
+license: MIT
+
+provides:
+  service_kinds:
+    - monitoring.node-exporter
+
+contributes:
+  services:
+    node-exporter:
+      kind: docker.container
+      spec:
+        image: "prom/node-exporter:latest"
+        ports:
+          - "9100:9100"
+        command:
+          - "--path.rootfs=/host"
+        volumes:
+          - host: "/"
+            mount: "/host"
+
+  canvas:
+    nodeType: node-exporter
+    label: Node Exporter
+    description: "System metrics exporter"
+    category: infra
+    ports:
+      - name: metrics
+        port: 9100
+        protocol: tcp

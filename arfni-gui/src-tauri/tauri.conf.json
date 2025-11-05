@@ -39,11 +39,9 @@
       "icons/icon.icns",
       "icons/arfni_logo.ico"
     ],
-    "resources": {
-      "../../BE/arfni/bin/arfni-go.exe": "./",
-      "../../BE/arfni/bin/ic.exe": "./",
-      "../../BE/arfni/bin/arfni-monitoring.exe": "./",
-      "../public/plugins/bundled": "plugins/bundled"
-    }
+    "resources": [
+      "resources/bin/*",
+      "resources/plugins/bundled"
+    ]
   }
 }

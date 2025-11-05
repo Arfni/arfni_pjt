@@ -188,7 +188,7 @@ pub async fn deploy_stack(
 
                             if let Ok(exe_path) = std::env::current_exe() {
                                 if let Some(exe_dir) = exe_path.parent() {
-                                    let exe_bundled_path = exe_dir.join("plugins").join("bundled");
+                                    let exe_bundled_path = exe_dir.join("resources").join("plugins").join("bundled");
                                     if exe_bundled_path.exists() {
                                         app_clone.emit("deployment-log", DeploymentLog {
                                             timestamp: chrono::Utc::now().to_rfc3339(),
@@ -543,9 +543,8 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
 
     // 4. Resource 경로들 시도 (배포 환경) - 개발 경로 이후에 확인
     let resource_patterns = vec![
-        binary_name.clone(),  // Resource/arfni-go.exe
-        format!("_up_/_up_/BE/arfni/bin/{}", binary_name),  // Resource/_up_/_up_/BE/arfni/bin/arfni-go.exe
-        format!("BE/arfni/bin/{}", binary_name),  // Resource/BE/arfni/bin/arfni-go.exe
+        format!("bin/{}", binary_name),  // Resource/bin/arfni-go.exe (resources/bin/* 매핑)
+        binary_name.clone(),  // Resource/arfni-go.exe (fallback)
     ];
 
     for pattern in resource_patterns {

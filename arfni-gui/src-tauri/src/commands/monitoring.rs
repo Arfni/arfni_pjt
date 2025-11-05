@@ -334,12 +334,12 @@ pub async fn start_monitoring_stack(
     let mut possible_paths = vec![];
 
     // 1. 실행 파일 위치 기준 (배포된 앱)
-    // Tauri가 ../../BE/arfni/bin 을 _up_/_up_/BE/arfni/bin 으로 복사함
+    // Tauri가 resources/bin/* glob으로 resources/bin 폴더 구조 유지
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
-            // 배포된 앱의 리소스 경로
-            possible_paths.push(exe_dir.join("_up_").join("_up_").join("BE").join("arfni").join("bin").join("arfni-monitoring.exe"));
-            possible_paths.push(exe_dir.join("_up_").join("_up_").join("BE").join("arfni").join("bin").join("arfni-go.exe"));
+            // 프로덕션: resources/bin 폴더에 있음
+            possible_paths.push(exe_dir.join("resources").join("bin").join("arfni-monitoring.exe"));
+            possible_paths.push(exe_dir.join("resources").join("bin").join("arfni-go.exe"));
         }
     }
 

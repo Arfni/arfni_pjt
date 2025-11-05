@@ -75,12 +75,16 @@ func LoadMonitoringPlugin(pluginPath string) (*PluginSpec, error) {
 
 // GenerateDockerComposeFromPlugins generates a docker-compose.yml from plugin specs
 func GenerateDockerComposeFromPlugins(pluginsDir string, mode MonitoringMode, outputPath string) error {
+	// outputPath is like /tmp/arfni-monitoring-xxx/docker-compose.yml
+	// outputDir is /tmp/arfni-monitoring-xxx
+	outputDir := filepath.Dir(outputPath)
 	compose := DockerCompose{
 		Version:  "3.8",
 		Services: make(map[string]DockerComposeService),
 		Networks: map[string]interface{}{
 			"monitoring": nil,
 		},
+		Volumes: make(map[string]interface{}),
 	}
 
 	// Determine which services to include based on mode
@@ -118,14 +122,25 @@ func GenerateDockerComposeFromPlugins(pluginsDir string, mode MonitoringMode, ou
 
 			// Convert volume format from plugin to docker-compose
 			for _, vol := range svc.Spec.Volumes {
-				// Replace relative paths with absolute paths
 				hostPath := vol.Host
-				if strings.HasPrefix(hostPath, "./") {
-					// Make path relative to the plugin directory
-					hostPath = filepath.Join(pluginsDir, serviceName, strings.TrimPrefix(hostPath, "./"))
+
+				// Check if it's a named volume (no path separators)
+				if !strings.Contains(hostPath, "/") && !strings.Contains(hostPath, "\\") && !strings.HasPrefix(hostPath, ".") {
+					// Named volume - add to volumes section and use as-is
+					compose.Volumes[hostPath] = nil
+					volumeStr := fmt.Sprintf("%s:%s", hostPath, vol.Mount)
+					composeService.Volumes = append(composeService.Volumes, volumeStr)
+				} else {
+					// Host path - replace relative paths with absolute paths
+					if strings.HasPrefix(hostPath, "./") {
+						// Remove leading "./" and join with output directory (where files are copied to)
+						// This allows CopyAndUpdateProvisioningFiles to copy files to the right location
+						relativePath := strings.TrimPrefix(hostPath, "./")
+						hostPath = filepath.Join(outputDir, relativePath)
+					}
+					volumeStr := fmt.Sprintf("%s:%s", hostPath, vol.Mount)
+					composeService.Volumes = append(composeService.Volumes, volumeStr)
 				}
-				volumeStr := fmt.Sprintf("%s:%s", hostPath, vol.Mount)
-				composeService.Volumes = append(composeService.Volumes, volumeStr)
 			}
 
 			// Special handling for Grafana in hybrid mode
@@ -172,6 +187,7 @@ func GenerateDockerComposeFromPlugins(pluginsDir string, mode MonitoringMode, ou
 func CopyAndUpdateProvisioningFiles(pluginsDir, outputDir string, mode MonitoringMode) error {
 	// Copy Grafana provisioning files
 	grafanaProvDir := filepath.Join(pluginsDir, "grafana", "provisioning")
+	// Output matches the volume path: outputDir/grafana/provisioning
 	outputProvDir := filepath.Join(outputDir, "grafana", "provisioning")
 
 	// Create directories

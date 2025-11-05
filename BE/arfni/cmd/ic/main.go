@@ -35,8 +35,9 @@ func main() {
 
 			// Try multiple possible paths
 			possiblePaths := []string{
-				filepath.Join(exeDir, "plugins", "bundled"),      // Same level: <exe_dir>/plugins/bundled
-				filepath.Join(exeDir, "..", "plugins", "bundled"), // One level up
+				filepath.Join(exeDir, "..", "resources", "plugins", "bundled"), // Production: bin/../resources/plugins/bundled
+				filepath.Join(exeDir, "plugins", "bundled"),                    // Fallback: <exe_dir>/plugins/bundled
+				filepath.Join(exeDir, "..", "plugins", "bundled"),              // Fallback: One level up
 			}
 
 			fmt.Fprintf(os.Stderr, "[info] Searching for bundled plugins...\n")
