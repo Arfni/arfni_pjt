@@ -228,9 +228,10 @@ fn find_arfni_go_executable() -> Result<std::path::PathBuf, String> {
     let mut possible_paths = vec![];
 
     // 1. Bundled app paths (Tauri resources)
+    // Tauri bundles resources to exe_dir/resources/
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
-            possible_paths.push(exe_dir.join("_up_").join("_up_").join("BE").join("arfni").join("bin").join("arfni-go.exe"));
+            possible_paths.push(exe_dir.join("resources").join("bin").join("arfni-go.exe"));
         }
     }
 

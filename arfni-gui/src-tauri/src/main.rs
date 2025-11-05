@@ -11,7 +11,6 @@ mod features;
 mod db;
 
 fn main() {
-
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -29,47 +28,27 @@ fn main() {
 
             // 윈도우 닫힐 때 모니터링 스택 정리
             let window = app.get_webview_window("main").unwrap();
-            window.on_window_event(|event| {
-                if let tauri::WindowEvent::CloseRequested { .. } = event {
-                    // 모니터링 스택 종료 (동기 방식)
-                    std::thread::spawn(|| {
-                        use std::process::Command;
+            let window_clone = window.clone();
 
-                        #[cfg(target_os = "windows")]
-                        use std::os::windows::process::CommandExt;
+            window.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    println!("[main.rs] Window close requested");
 
-                        #[cfg(target_os = "windows")]
-                        const CREATE_NO_WINDOW: u32 = 0x08000000;
+                    // 창을 먼저 숨김 (사용자는 즉시 닫힌 것처럼 보임)
+                    let _ = window_clone.hide();
 
-                        // Docker 컨테이너 완전 삭제 (stop + rm)
-                        let mut docker_cmd = Command::new("docker");
-                        docker_cmd.args(&["rm", "-f", "grafana", "prometheus"]);
+                    // 백그라운드에서 cleanup 실행
+                    std::thread::spawn(move || {
+                        println!("[main.rs] Starting cleanup in background...");
+                        cleanup_monitoring_stack();
+                        println!("[main.rs] Cleanup completed");
 
-                        #[cfg(target_os = "windows")]
-                        {
-                            docker_cmd.creation_flags(CREATE_NO_WINDOW);
-                        }
-
-                        let _ = docker_cmd.output();
-
-                        // SSH 프로세스 종료 (Windows)
-                        #[cfg(target_os = "windows")]
-                        {
-                            let mut kill_cmd = Command::new("taskkill");
-                            kill_cmd.args(&["/F", "/IM", "ssh.exe"]);
-                            kill_cmd.creation_flags(CREATE_NO_WINDOW);
-                            let _ = kill_cmd.output();
-                        }
-
-                        // arfni-monitoring.exe 프로세스도 종료
-                        #[cfg(target_os = "windows")]
-                        {
-                            let mut kill_monitoring = Command::new("taskkill");
-                            kill_monitoring.args(&["/F", "/IM", "arfni-monitoring.exe"]);
-                            kill_monitoring.creation_flags(CREATE_NO_WINDOW);
-                            let _ = kill_monitoring.output();
-                        }
+                        // cleanup 완료 후 프로세스 종료
+                        std::process::exit(0);
                     });
+
+                    // CloseRequested를 막음 (우리가 수동으로 종료함)
+                    api.prevent_close();
                 }
             });
 
@@ -178,8 +157,106 @@ fn main() {
       commands::keys::list_api_keys,
       commands::keys::delete_api_key,
       commands::keys::set_active_api_key,
-      commands::keys::get_active_api_key,      
+      commands::keys::get_active_api_key,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
+}
+
+fn cleanup_monitoring_stack() {
+    use std::process::Command;
+    use std::fs::OpenOptions;
+    use std::io::Write;
+
+    #[cfg(target_os = "windows")]
+    use std::os::windows::process::CommandExt;
+
+    #[cfg(target_os = "windows")]
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    // 로그 파일 생성
+    let log_path = std::env::temp_dir().join("arfni_cleanup.log");
+    let mut log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .ok();
+
+    let mut log = |msg: &str| {
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+        let log_msg = format!("[{}] {}\n", timestamp, msg);
+        println!("{}", log_msg.trim());
+        if let Some(ref mut f) = log_file {
+            let _ = f.write_all(log_msg.as_bytes());
+        }
+    };
+
+    log(&format!("Cleanup started. Log file: {}", log_path.display()));
+
+    // 1. arfni-monitoring.exe 프로세스 종료
+    #[cfg(target_os = "windows")]
+    {
+        let mut kill_monitoring = Command::new("taskkill");
+        kill_monitoring.args(&["/F", "/IM", "arfni-monitoring.exe"]);
+        kill_monitoring.creation_flags(CREATE_NO_WINDOW);
+        match kill_monitoring.output() {
+            Ok(_) => log("Killed arfni-monitoring.exe"),
+            Err(e) => log(&format!("Failed to kill arfni-monitoring.exe: {}", e)),
+        }
+    }
+
+    // 2. 모니터링 관련 Docker 컨테이너 정리
+    let name_patterns = vec!["grafana", "prometheus", "node-exporter"];
+
+    for pattern in &name_patterns {
+        log(&format!("Searching for containers with name pattern: {}", pattern));
+
+        let mut list_cmd = Command::new("docker");
+        list_cmd.args(&["ps", "-aq", "--filter", &format!("name={}", pattern)]);
+
+        #[cfg(target_os = "windows")]
+        {
+            list_cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        match list_cmd.output() {
+            Ok(output) => {
+                let container_ids = String::from_utf8_lossy(&output.stdout);
+                let ids: Vec<&str> = container_ids.lines()
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+
+                log(&format!("Found {} containers for pattern '{}'", ids.len(), pattern));
+
+                for container_id in ids {
+                    let mut rm_cmd = Command::new("docker");
+                    rm_cmd.args(&["rm", "-f", container_id]);
+
+                    #[cfg(target_os = "windows")]
+                    {
+                        rm_cmd.creation_flags(CREATE_NO_WINDOW);
+                    }
+
+                    match rm_cmd.output() {
+                        Ok(_) => log(&format!("Removed container: {}", container_id)),
+                        Err(e) => log(&format!("Failed to remove {}: {}", container_id, e)),
+                    }
+                }
+            }
+            Err(e) => log(&format!("Failed to list containers: {}", e)),
+        }
+    }
+
+    // 3. SSH 프로세스 종료
+    #[cfg(target_os = "windows")]
+    {
+        let mut kill_cmd = Command::new("taskkill");
+        kill_cmd.args(&["/F", "/IM", "ssh.exe"]);
+        kill_cmd.creation_flags(CREATE_NO_WINDOW);
+        let _ = kill_cmd.output();
+        log("Killed ssh.exe");
+    }
+
+    log("Cleanup completed");
 }

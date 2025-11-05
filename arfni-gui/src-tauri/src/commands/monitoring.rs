@@ -463,20 +463,70 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-    // Docker 컨테이너 완전 삭제 (stop + rm을 -f로 한번에)
-    let mut cmd = Command::new("docker");
-    cmd.args(&["rm", "-f", "grafana", "prometheus"]);
+    println!("[stop_monitoring_stack] Starting cleanup...");
 
+    // 1. arfni-monitoring.exe 프로세스 종료 (Windows)
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        let mut kill_monitoring = Command::new("taskkill");
+        kill_monitoring.args(&["/F", "/IM", "arfni-monitoring.exe"]);
+        kill_monitoring.creation_flags(CREATE_NO_WINDOW);
+
+        match kill_monitoring.output() {
+            Ok(output) => {
+                println!("[stop_monitoring_stack] Killed arfni-monitoring.exe: {}",
+                    String::from_utf8_lossy(&output.stdout));
+            }
+            Err(e) => {
+                println!("[stop_monitoring_stack] Failed to kill arfni-monitoring.exe: {}", e);
+            }
+        }
     }
 
-    // 실행 (에러 무시 - 컨테이너가 없을 수도 있음)
-    let _ = cmd.output();
+    // 2. 모니터링 관련 컨테이너 찾아서 정리 (이름 패턴 기반)
+    let name_patterns = vec!["grafana", "prometheus", "node-exporter"];
 
-    // SSH 터널 프로세스 종료 (Windows)
+    for pattern in name_patterns {
+        let mut list_cmd = Command::new("docker");
+        list_cmd.args(&["ps", "-aq", "--filter", &format!("name={}", pattern)]);
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            list_cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        if let Ok(output) = list_cmd.output() {
+            let container_ids = String::from_utf8_lossy(&output.stdout);
+            let ids: Vec<&str> = container_ids.lines()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            if !ids.is_empty() {
+                println!("[stop_monitoring_stack] Found {} containers matching name pattern '{}'", ids.len(), pattern);
+
+                for id in ids {
+                    let mut rm_cmd = Command::new("docker");
+                    rm_cmd.args(&["rm", "-f", id]);
+
+                    #[cfg(target_os = "windows")]
+                    {
+                        use std::os::windows::process::CommandExt;
+                        rm_cmd.creation_flags(CREATE_NO_WINDOW);
+                    }
+
+                    match rm_cmd.output() {
+                        Ok(_) => println!("[stop_monitoring_stack] Removed container: {}", id),
+                        Err(e) => println!("[stop_monitoring_stack] Failed to remove container {}: {}", id, e),
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. SSH 터널 프로세스 종료 (Windows)
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
@@ -484,16 +534,6 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
         kill_cmd.args(&["/F", "/IM", "ssh.exe"]);
         kill_cmd.creation_flags(CREATE_NO_WINDOW);
         let _ = kill_cmd.output();
-    }
-
-    // arfni-monitoring.exe 프로세스 종료 (Windows)
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        let mut kill_monitoring = Command::new("taskkill");
-        kill_monitoring.args(&["/F", "/IM", "arfni-monitoring.exe"]);
-        kill_monitoring.creation_flags(CREATE_NO_WINDOW);
-        let _ = kill_monitoring.output();
     }
 
     // SSH 터널 프로세스 종료 (Unix)
@@ -504,5 +544,6 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
         let _ = kill_cmd.output();
     }
 
+    println!("[stop_monitoring_stack] Cleanup completed");
     Ok("Monitoring stack stopped".to_string())
 }
