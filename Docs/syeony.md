@@ -54,3 +54,9 @@
 - 캔버스에 AI 버튼 추가
 - 예상 사용자 수, 예상 트래픽 입력받는 AI ASK UI 구현
 - 캔버스 toolbar 컴포넌트(다이얼로그창) 분리로 가독성 향상
+
+# 2025. 11. 05
+
+- 프로젝트 열려있을때 경로 이동 및 삭제 시 file lock
+- AI 다이얼로그창 UI 수정 (겹쳐진 스크롤 없애고 토끼 위치 재배치)
+- 블록 상,하,좌,우 연결 추가(/src/entities/service/ui/에 DatabaseNode, ServiceNode, TargetNode 파일 수정)
