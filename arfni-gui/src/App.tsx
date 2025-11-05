@@ -15,6 +15,7 @@ import HealthWatcher from "@pages/test/ui/HealthWatcher";
 import YmlHome from "./pages/test/ui/YmlHome";
 import CreateYml from "./pages/test/ui/CreateYml";
 import PortTest from "@pages/test/ui/PortTest";
+import ApiKeysPage from "@pages/test/ui/ApiKeysPage";
 
 
 const queryClient = new QueryClient({
@@ -47,6 +48,7 @@ function App() {
             <Route path="/yml" element={<YmlHome />} />
             <Route path="/yml/create" element={<CreateYml />} />
             <Route path="/port" element={<PortTest />} />
+            <Route path="/apikey" element={<ApiKeysPage />} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>

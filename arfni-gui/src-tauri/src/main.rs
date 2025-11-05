@@ -178,6 +178,13 @@ fn main() {
       // 시스템 명령어
       commands::system::open_downloads_folder,
       commands::system::open_folder_in_explorer,
+
+      //api_key
+      commands::keys::add_api_key,
+      commands::keys::list_api_keys,
+      commands::keys::delete_api_key,
+      commands::keys::set_active_api_key,
+      commands::keys::get_active_api_key,      
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
