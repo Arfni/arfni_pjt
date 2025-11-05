@@ -161,8 +161,45 @@ export function Toolbar() {
       return;
     }
     if (isDirty) {
-      const shouldSave = confirm('변경사항을 먼저 저장하시겠습니까?');
-      if (shouldSave) await handleSave();
+      try {
+        let ec2Server = null;
+        if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
+          ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
+        }
+        const stackYaml = stackYamlGenerator(nodes, edges, {
+          projectName: currentProject.name,
+          environment: currentProject.environment,
+          ec2Server: ec2Server || undefined,
+          secrets: [],
+          outputs: {},
+        });
+        const yamlContent = stackToYamlString(stackYaml);
+        const canvasNodes: CanvasNode[] = nodes.map(node => ({
+          id: node.id,
+          node_type: node.type,
+          data: node.data,
+          position: node.position,
+        }));
+        const canvasEdges: CanvasEdge[] = edges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+        }));
+        await dispatch(saveStackYaml({
+          projectPath: currentProject.path,
+          yamlContent,
+          canvasData: {
+            nodes: canvasNodes,
+            edges: canvasEdges,
+            project_name: currentProject.name,
+            secrets: [],
+          },
+        })).unwrap();
+        dispatch(setDirty(false));
+      } catch (error) {
+        alert(`저장 실패: ${error}`);
+        return;
+      }
     }
     if (currentProject.environment === 'local') {
       try {
@@ -191,7 +228,7 @@ export function Toolbar() {
       alert(`배포 실패: ${error}`);
       setIsDeploying(false);
     }
-  }, [currentProject, isDirty, handleSave, dispatch, navigate]);
+  }, [currentProject, isDirty, nodes, edges, dispatch, navigate]);
 
   const handleStopDeployment = useCallback(async () => {
     try {
