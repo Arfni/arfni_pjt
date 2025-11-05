@@ -117,14 +117,14 @@ impl Database {
             println!("✅ Migration 003 completed");
         }
 
-        if current_version < 4 {
-            println!("⬆️ Running migration 004...");
-            let migration_sql = include_str!("../../migrations/004_add_api_key.sql");
-            conn.execute_batch(migration_sql)
-                .context("Failed to run migration 004")?;
-            conn.execute("INSERT INTO schema_version (version) VALUES (4)", [])?;
-            println!("✅ Migration 004 completed");
-        }
+            if current_version < 4 {
+                println!("⬆️ Running migration 004...");
+                let migration_sql = include_str!("../../migrations/004_add_api_key.sql");
+                conn.execute_batch(migration_sql)
+                    .with_context(|| format!("Failed to run migration 004 (SQL begin)"))?;
+                conn.execute("INSERT INTO schema_version (version) VALUES (4)", [])?;
+                println!("✅ Migration 004 completed");
+            }
 
         println!("✅ All database migrations completed successfully");
         Ok(())

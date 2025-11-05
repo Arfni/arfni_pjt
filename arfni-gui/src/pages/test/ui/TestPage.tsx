@@ -266,6 +266,12 @@ export default function TestPage() {
               title="ssh 페이지로 이동">
               포트 체크
           </button>
+          <button
+              onClick={() => navigate("/apikey")}
+              className="ml-auto px-3 py-1 border rounded hover:bg-gray-100 text-sm"
+              title="ssh 페이지로 이동">
+              apikey테스트
+          </button>
 
                   <button
               onClick={() => navigate("/health")}
