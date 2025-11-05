@@ -15,10 +15,10 @@ export const Footer = () => {
   ];
 
   return (
-    <footer className="bg-gray-900 text-white">
+    <footer className="bg-[#1A1A1A] text-white">
       <Container>
         {/* Main Footer */}
-        <div className="py-12 grid md:grid-cols-4 gap-8">
+        <div className="py-16 grid md:grid-cols-4 gap-8">
           {/* Brand */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -128,7 +128,7 @@ export const Footer = () => {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ delay: 0.3 }}
-          className="py-6 border-t border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4"
+          className="py-8 border-t border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4"
         >
           <p className="text-gray-400 text-sm text-center md:text-left">
             © {currentYear} {APP_NAME}. All rights reserved.

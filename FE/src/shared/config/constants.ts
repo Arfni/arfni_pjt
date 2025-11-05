@@ -15,7 +15,7 @@ export const SOCIAL_LINKS = {
 } as const;
 
 export const DOWNLOAD_LINKS = {
-  windows: '/downloads/ARFNI_Setup_x64.exe',
+  windows: 'https://github.com/Arfni/arfni-exe/releases/download/0.01/Setup.exe',
   mac: null, // Coming soon
   linux: null, // Coming soon
 } as const;

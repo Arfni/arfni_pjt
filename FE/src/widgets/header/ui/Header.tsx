@@ -57,7 +57,7 @@ export const Header = () => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
             <ul className="flex items-center gap-8">
-              {['download', 'features', 'roadmap', 'docs'].map((item) => (
+              {['download', 'features', 'docs'].map((item) => (
                 <motion.li
                   key={item}
                   whileHover={{ scale: 1.05 }}
@@ -100,7 +100,7 @@ export const Header = () => {
           >
             <Container>
               <ul className="py-4 space-y-2">
-                {['download', 'features', 'roadmap', 'docs'].map((item, index) => (
+                {['download', 'features', 'docs'].map((item, index) => (
                   <motion.li
                     key={item}
                     initial={{ x: -20, opacity: 0 }}

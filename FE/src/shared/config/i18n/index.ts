@@ -6,36 +6,36 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import koCommon from './locales/ko/common.json';
 import koHero from './locales/ko/hero.json';
 import koFeatures from './locales/ko/features.json';
-import koRoadmap from './locales/ko/roadmap.json';
+import koIntegrations from './locales/ko/integrations.json';
 
 import enCommon from './locales/en/common.json';
 import enHero from './locales/en/hero.json';
 import enFeatures from './locales/en/features.json';
-import enRoadmap from './locales/en/roadmap.json';
+import enIntegrations from './locales/en/integrations.json';
 
 import jaCommon from './locales/ja/common.json';
 import jaHero from './locales/ja/hero.json';
 import jaFeatures from './locales/ja/features.json';
-import jaRoadmap from './locales/ja/roadmap.json';
+import jaIntegrations from './locales/ja/integrations.json';
 
 const resources = {
   ko: {
     common: koCommon,
     hero: koHero,
     features: koFeatures,
-    roadmap: koRoadmap,
+    integrations: koIntegrations,
   },
   en: {
     common: enCommon,
     hero: enHero,
     features: enFeatures,
-    roadmap: enRoadmap,
+    integrations: enIntegrations,
   },
   ja: {
     common: jaCommon,
     hero: jaHero,
     features: jaFeatures,
-    roadmap: jaRoadmap,
+    integrations: jaIntegrations,
   },
 };
 
@@ -46,7 +46,7 @@ i18n
     resources,
     fallbackLng: 'ko',
     defaultNS: 'common',
-    ns: ['common', 'hero', 'features', 'roadmap'],
+    ns: ['common', 'hero', 'features', 'integrations'],
 
     interpolation: {
       escapeValue: false,

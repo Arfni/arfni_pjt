@@ -1,0 +1,11 @@
+{
+  "eyebrow": "연동",
+  "heading": "다양한 프레임워크와 기술 스택 지원",
+  "description": "플러그인 시스템을 통해 계속 확장되는 프레임워크 생태계",
+  "categories": {
+    "frontend": "Frontend",
+    "backend": "Backend",
+    "database": "Database",
+    "infrastructure": "Infrastructure"
+  }
+}

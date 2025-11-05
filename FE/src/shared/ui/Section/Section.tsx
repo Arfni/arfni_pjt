@@ -17,7 +17,7 @@ const Section = forwardRef<HTMLElement, SectionProps>(
     const content = (
       <>
         {(eyebrow || heading || description) && (
-          <div className="mb-8 text-center">
+          <div className="mb-16 text-center">
             {eyebrow && (
               <span className="text-sm font-semibold uppercase tracking-wider text-primary-600">
                 {eyebrow}
@@ -29,7 +29,7 @@ const Section = forwardRef<HTMLElement, SectionProps>(
               </h2>
             )}
             {description && (
-              <p className="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">
+              <p className="mt-6 text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed">
                 {description}
               </p>
             )}
@@ -47,7 +47,7 @@ const Section = forwardRef<HTMLElement, SectionProps>(
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.5 }}
-          className={cn('py-16 sm:py-24', className)}
+          className={cn('py-20 sm:py-32', className)}
           {...props}
         >
           {content}
@@ -58,7 +58,7 @@ const Section = forwardRef<HTMLElement, SectionProps>(
     return (
       <section
         ref={ref}
-        className={cn('py-16 sm:py-24', className)}
+        className={cn('py-20 sm:py-32', className)}
         {...props}
       >
         {content}

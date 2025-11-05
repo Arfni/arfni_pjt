@@ -112,15 +112,12 @@ export const Hero = () => {
               }}
               className="relative"
             >
-              {/* Placeholder for illustration - replace with actual image */}
-              <div className="aspect-square bg-gradient-to-br from-primary-100 to-primary-50 rounded-2xl shadow-2xl flex items-center justify-center">
-                <div className="text-center p-8">
-                  <div className="w-32 h-32 mx-auto bg-gradient-to-br from-primary-600 to-primary-400 rounded-2xl flex items-center justify-center mb-4">
-                    <span className="text-white text-6xl font-bold">A</span>
-                  </div>
-                  <p className="text-gray-600">AI Infrastructure Modeling</p>
-                </div>
-              </div>
+              {/* ARFNI Blocks Illustration */}
+              <img
+                src="/images/arfni-blocks.png"
+                alt="ARFNI - AI Infrastructure Modeling"
+                className="w-full h-auto max-w-md mx-auto drop-shadow-2xl"
+              />
 
               {/* Floating elements */}
               <motion.div

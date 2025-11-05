@@ -1,0 +1,11 @@
+{
+  "eyebrow": "Integrations",
+  "heading": "Support for Various Frameworks and Tech Stacks",
+  "description": "Continuously expanding framework ecosystem through plugin system",
+  "categories": {
+    "frontend": "Frontend",
+    "backend": "Backend",
+    "database": "Database",
+    "infrastructure": "Infrastructure"
+  }
+}

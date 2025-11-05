@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { Header } from '../../../widgets/header';
 import { Hero } from '../../../widgets/hero';
 import { Features } from '../../../widgets/features';
-import { Roadmap } from '../../../widgets/roadmap';
+import { Integrations } from '../../../widgets/integrations';
 import { Footer } from '../../../widgets/footer';
 
 export const LandingPage = () => {
@@ -18,7 +18,7 @@ export const LandingPage = () => {
       <main>
         <Hero />
         <Features />
-        <Roadmap />
+        <Integrations />
       </main>
 
       <Footer />
