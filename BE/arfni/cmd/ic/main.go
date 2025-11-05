@@ -26,6 +26,36 @@ func main() {
 	bundledPluginsDir := fs.String("bundled-plugins-dir", "", "bundled plugins directory path (for built-in plugins)")
 	_ = fs.Parse(os.Args[2:])
 
+	// Set default bundled plugins directory if not provided
+	if *bundledPluginsDir == "" {
+		// Try to find bundled plugins relative to the executable
+		exePath, err := os.Executable()
+		if err == nil {
+			exeDir := filepath.Dir(exePath)
+
+			// Try multiple possible paths
+			possiblePaths := []string{
+				filepath.Join(exeDir, "plugins", "bundled"),      // Same level: <exe_dir>/plugins/bundled
+				filepath.Join(exeDir, "..", "plugins", "bundled"), // One level up
+			}
+
+			fmt.Fprintf(os.Stderr, "[info] Searching for bundled plugins...\n")
+			for _, defaultBundled := range possiblePaths {
+				fmt.Fprintf(os.Stderr, "[info]   Trying: %s\n", defaultBundled)
+				if _, err := os.Stat(defaultBundled); err == nil {
+					*bundledPluginsDir = defaultBundled
+					fmt.Fprintf(os.Stderr, "[info] ✅ Using bundled plugins dir: %s\n", defaultBundled)
+					break
+				}
+			}
+
+			if *bundledPluginsDir == "" {
+				fmt.Fprintf(os.Stderr, "[warning] ⚠️ Could not find bundled plugins in default locations\n")
+				fmt.Fprintf(os.Stderr, "[warning]   Tried: %v\n", possiblePaths)
+			}
+		}
+	}
+
 	// stack.yaml 절대경로 계산
 	absPath, err := filepath.Abs(*stackPath)
 	if err != nil {

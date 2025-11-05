@@ -425,16 +425,20 @@ function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
   useEffect(() => {
     const loadIconUrl = async () => {
       if (isBundled) {
-        // Bundled plugins - use relative URL in dev, resource path in production
-        // In development, Vite serves the public folder at root
+        // Bundled plugins - use relative URL (works in both dev and production)
+        // Dev: Vite serves public folder at root
+        // Prod: Tauri serves bundled resources
         setIconUrl(`/${plugin.iconPath}`);
       } else {
-        // Installed plugins - use cross-platform path
+        // Installed plugins - use plugin.iconPath from pluginLoader
+        // iconPath format: "plugins/installed/framework/django/icon.png"
         try {
           const dataDir = await appDataDir();
-          const iconPath = await join(dataDir, 'plugins', 'installed', plugin.manifest.category, plugin.manifest.name, 'icon.png');
+          // Remove 'plugins/' prefix and join with appDataDir
+          const relativePath = plugin.iconPath.replace(/^plugins\//, '');
+          const iconPath = await join(dataDir, relativePath);
           const assetUrl = convertFileSrc(iconPath);
-          console.log(`Plugin: ${plugin.manifest.name}, Icon Path: ${iconPath}, Asset URL: ${assetUrl}`);
+          console.log(`Installed Plugin Icon: ${plugin.manifest.name}, Path: ${iconPath}, URL: ${assetUrl}`);
           setIconUrl(assetUrl);
         } catch (error) {
           console.error(`Failed to load icon for ${plugin.manifest.name}:`, error);

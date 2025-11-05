@@ -49,20 +49,13 @@ export function NodePalette() {
           let iconUrl: string;
 
           if (template.plugin.isBundled) {
-            // Bundled plugins: use relative URL (Vite serves public folder in dev)
+            // Bundled plugins: use relative URL
             iconUrl = `/${template.plugin.iconPath}`;
           } else {
-            // Installed plugins: load from app data directory
-            const iconPath = await join(
-              dataDir,
-              'plugins',
-              'installed',
-              template.plugin.manifest.category,
-              template.plugin.manifest.name,
-              'icon.png'
-            );
+            // Installed plugins: load from app data directory using plugin.iconPath
+            const relativePath = template.plugin.iconPath.replace(/^plugins\//, '');
+            const iconPath = await join(dataDir, relativePath);
             iconUrl = convertFileSrc(iconPath);
-            console.log(`NodePalette - Plugin: ${template.plugin.manifest.name}, Icon Path: ${iconPath}, Asset URL: ${iconUrl}`);
           }
 
           return { ...template, icon: iconUrl };

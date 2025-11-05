@@ -379,10 +379,23 @@ pub async fn install_plugin(
     .header("User-Agent", "arfni-plugin-installer")
     .send()
     .await
-    .map_err(|e| format!("Failed to fetch plugin directory: {}", e))?;
+    .map_err(|e| format!("Failed to fetch plugin directory from GitHub.\nError: {}\n\nTroubleshooting:\n  1. Check your internet connection\n  2. Verify the plugin repository exists\n  3. GitHub API may be rate-limited (60 requests/hour without auth)", e))?;
 
   if !response.status().is_success() {
-    return Err(format!("Failed to fetch plugin directory: HTTP {}", response.status()));
+    let status = response.status();
+    let error_body = response.text().await.unwrap_or_default();
+    return Err(format!(
+      "Failed to fetch plugin from GitHub:\n\
+       Status: HTTP {}\n\
+       Plugin: {}/{}\n\
+       Path: {}\n\
+       Details: {}\n\n\
+       Troubleshooting:\n\
+       1. Verify the plugin exists in the repository\n\
+       2. Check if the version/branch '{}' exists\n\
+       3. GitHub API may be rate-limited (try again later)",
+      status, owner, repo, plugin_path, error_body, version
+    ));
   }
 
   let files: Vec<serde_json::Value> = response.json()

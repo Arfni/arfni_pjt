@@ -119,20 +119,112 @@ pub async fn deploy_stack(
             let bundled_path = arfni_gui_dir.join("public").join("plugins").join("bundled");
 
             if bundled_path.exists() {
+                app_clone.emit("deployment-log", DeploymentLog {
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                    level: "info".to_string(),
+                    message: format!("✅ [DEV] Found bundled plugins at: {}", bundled_path.display()),
+                    data: None,
+                }).unwrap_or(());
                 bundled_path.to_string_lossy().to_string()
             } else {
+                app_clone.emit("deployment-log", DeploymentLog {
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                    level: "warning".to_string(),
+                    message: format!("⚠️ [DEV] Bundled plugins NOT found at: {}", bundled_path.display()),
+                    data: None,
+                }).unwrap_or(());
                 String::new()
             }
         } else {
             // 프로덕션에서는 리소스 디렉토리 사용
+            // tauri.conf.json에서 ../public/plugins/bundled -> plugins/bundled 매핑
             match app_clone.path().resource_dir() {
-                Ok(mut path) => {
-                    path.push("public");
-                    path.push("plugins");
-                    path.push("bundled");
-                    path.to_string_lossy().to_string()
+                Ok(path) => {
+                    // 디버깅: 리소스 디렉토리 내용 출력
+                    app_clone.emit("deployment-log", DeploymentLog {
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        level: "info".to_string(),
+                        message: format!("🔍 [PROD] Resource directory: {}", path.display()),
+                        data: None,
+                    }).unwrap_or(());
+
+                    // 리소스 디렉토리 하위 항목 나열
+                    if let Ok(entries) = std::fs::read_dir(&path) {
+                        for entry in entries.flatten() {
+                            app_clone.emit("deployment-log", DeploymentLog {
+                                timestamp: chrono::Utc::now().to_rfc3339(),
+                                level: "info".to_string(),
+                                message: format!("  📁 {}", entry.file_name().to_string_lossy()),
+                                data: None,
+                            }).unwrap_or(());
+                        }
+                    }
+
+                    // 경로 1: plugins/bundled (명시적 매핑)
+                    let bundled_path = path.join("plugins").join("bundled");
+                    if bundled_path.exists() {
+                        app_clone.emit("deployment-log", DeploymentLog {
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                            level: "info".to_string(),
+                            message: format!("✅ [PROD] Found bundled plugins at: {}", bundled_path.display()),
+                            data: None,
+                        }).unwrap_or(());
+                        bundled_path.to_string_lossy().to_string()
+                    } else {
+                        // 경로 2: public/plugins/bundled (fallback)
+                        let bundled_path_alt = path.join("public").join("plugins").join("bundled");
+                        if bundled_path_alt.exists() {
+                            app_clone.emit("deployment-log", DeploymentLog {
+                                timestamp: chrono::Utc::now().to_rfc3339(),
+                                level: "info".to_string(),
+                                message: format!("✅ [PROD] Found bundled plugins (fallback) at: {}", bundled_path_alt.display()),
+                                data: None,
+                            }).unwrap_or(());
+                            bundled_path_alt.to_string_lossy().to_string()
+                        } else {
+                            // 경로 3: 실행 파일 근처에서 찾기 (최후 fallback)
+                            let mut found = false;
+                            let mut result_path = String::new();
+
+                            if let Ok(exe_path) = std::env::current_exe() {
+                                if let Some(exe_dir) = exe_path.parent() {
+                                    let exe_bundled_path = exe_dir.join("plugins").join("bundled");
+                                    if exe_bundled_path.exists() {
+                                        app_clone.emit("deployment-log", DeploymentLog {
+                                            timestamp: chrono::Utc::now().to_rfc3339(),
+                                            level: "info".to_string(),
+                                            message: format!("✅ [PROD] Found bundled plugins (exe fallback) at: {}", exe_bundled_path.display()),
+                                            data: None,
+                                        }).unwrap_or(());
+                                        found = true;
+                                        result_path = exe_bundled_path.to_string_lossy().to_string();
+                                    }
+                                }
+                            }
+
+                            if !found {
+                                app_clone.emit("deployment-log", DeploymentLog {
+                                    timestamp: chrono::Utc::now().to_rfc3339(),
+                                    level: "warning".to_string(),
+                                    message: format!("⚠️ [PROD] Bundled plugins NOT found. Tried: {}, {}",
+                                        bundled_path.display(), bundled_path_alt.display()),
+                                    data: None,
+                                }).unwrap_or(());
+                            }
+
+                            result_path
+                        }
+                    }
                 }
-                Err(_) => String::new()
+                Err(e) => {
+                    app_clone.emit("deployment-log", DeploymentLog {
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        level: "error".to_string(),
+                        message: format!("❌ [PROD] Failed to get resource dir: {}", e),
+                        data: None,
+                    }).unwrap_or(());
+                    String::new()
+                }
             }
         };
 
