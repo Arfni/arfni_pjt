@@ -327,3 +327,96 @@ PowerShell에서 {"mode": "list"} 입력 → 모든 템플릿 메타데이터 �
 React UI에서 목록 자동 로드 및 선택 가능
 
 YML 생성 버튼 클릭 시 YAML 텍스트 정상 렌더링 및 복사 기능 확인
+🧾 개발일지 — 2025.11.05
+🛠️ 주요 개발 내용
+
+API Key 관리 기능 (DB + Tauri Command + React UI) 구현
+
+🔹 1. SQLite 기반 api_keys 테이블 스키마 설계 및 마이그레이션 추가
+
+새로운 마이그레이션 파일 004_add_api_keys.sql 생성
+
+컬럼:
+
+id, provider, label, api_key, created_at, updated_at, last_used_at, is_active
+
+(provider, label) 기준 UNIQUE 제약 설정
+
+Provider별로 항상 1개의 활성 키만 존재하도록 설계 (is_active 관리)
+
+run_migrations() 함수에 버전 4 마이그레이션 로직 추가
+
+기존 DB에서 api_key 컬럼 누락 오류 발생 → ALTER TABLE로 컬럼 추가 및 DB 재생성으로 해결
+
+🔹 2. Rust (Tauri) 백엔드 기능 구현
+
+경로: src-tauri/src/db/api_key.rs, src-tauri/src/commands/api_key.rs
+
+add_or_update_api_key()
+→ Provider + Label 중복 시 UPDATE, 없으면 INSERT (UPSERT)
+→ set_active 플래그가 true면 같은 provider의 다른 키는 모두 비활성화
+→ 트랜잭션(transaction())을 사용해 일관성 보장
+
+list()
+→ 전체 키 목록 조회 및 ApiKeyMeta 구조체로 매핑
+
+set_active()
+→ 선택한 id의 provider를 찾아 모든 키를 비활성화 후, 해당 키만 활성화
+
+delete()
+→ 지정된 id의 키 삭제
+
+get_active_value()
+→ 활성화된 키의 평문 값을 반환 (로그용 / 복사용)
+
+#[tauri::command]로 등록된 프론트엔드용 함수
+→ add_api_key, list_api_keys, delete_api_key, set_active_api_key, get_active_api_key
+
+🔹 3. React 프론트엔드 UI 구현
+
+파일: src/pages/ApiKeysPage.tsx
+
+Tauri invoke() 기반 CRUD 호출 구현
+
+주요 기능:
+
+새 키 추가 / 업데이트 (Provider, Label, API Key 입력)
+
+저장 후 활성화 여부 선택 (set_active 체크박스)
+
+저장된 키 목록 조회 / 새로고침
+
+활성화 상태 표시 (Active 배지)
+
+키 삭제 및 활성화 전환
+
+현재 활성 키 복사(Copy Active)
+
+Tailwind 기반 레이아웃 구성:
+
+상단 Add / Update 폼
+
+하단 Saved Keys 목록
+
+실시간 반영: 추가·삭제·활성화 시 자동 fetchList()로 갱신
+
+🔹 4. 버그 수정 및 개선
+
+cannot mutate immutable variable 'conn' 오류 해결
+→ let mut conn = conn.lock().unwrap(); 로 변경
+
+Rusqlite params![] 문법으로 execute 인자 수정
+
+DB 컬럼 누락(no column named api_key) 오류 해결
+→ 새 마이그레이션 파일 추가 및 DB 재생성으로 해결
+
+Rust 반환 타입 불일치 오류 해결
+→ Result<()> vs Result<String> 정리, 커맨드 함수는 Result<(), String> 형태로 통일
+
+🔹 5. 결과 및 확인
+
+API Key 저장, 삭제, 활성화 전환, 목록 조회, 복사 기능 모두 정상 동작 확인
+
+Tauri <-> React 간 통신 정상 (invoke 기반)
+
+데이터는 SQLite에 영구 저장, Provider별 단일 활성화 정책 정상 작동
