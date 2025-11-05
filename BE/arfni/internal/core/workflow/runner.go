@@ -17,15 +17,19 @@ import (
 
 // Runner는 전체 워크플로우를 조정합니다
 type Runner struct {
-	stack      *stack.Stack
-	projectDir string
+	stack             *stack.Stack
+	projectDir        string
+	pluginsDir        string
+	bundledPluginsDir string
 }
 
 // NewRunner는 새로운 Runner를 생성합니다
 func NewRunner(s *stack.Stack, projectDir string) *Runner {
 	return &Runner{
-		stack:      s,
-		projectDir: projectDir,
+		stack:             s,
+		projectDir:        projectDir,
+		pluginsDir:        "", // Execute()에서 설정
+		bundledPluginsDir: "", // Execute()에서 설정
 	}
 }
 
@@ -108,8 +112,17 @@ func (r *Runner) healthCheck(ctx context.Context) error {
 	return nil
 }
 
-// Execute는 전체 워크플로우를 실행하며 이벤트를 스트리밍합니다
-func (r *Runner) Execute(stream *events.Stream) error {
+// Execute는 전체 워크플로우를 실행하며 이벤트를 스트리밍합니다 (기본 호환성 유지)
+// Deprecated: Use ExecuteWithPlugins instead
+func (r *Runner) Execute(stream *events.Stream, pluginsDir string) error {
+	return r.ExecuteWithPlugins(stream, pluginsDir, "")
+}
+
+// ExecuteWithPlugins는 전체 워크플로우를 실행하며 bundled 플러그인도 지원합니다
+func (r *Runner) ExecuteWithPlugins(stream *events.Stream, pluginsDir, bundledPluginsDir string) error {
+	r.pluginsDir = pluginsDir               // 플러그인 디렉토리 저장
+	r.bundledPluginsDir = bundledPluginsDir // Bundled 플러그인 디렉토리 저장
+
 	stream.Info("Phase 1/5: Preflight checks...")
 	time.Sleep(500 * time.Millisecond)
 	stream.Success("Preflight checks passed")
@@ -145,8 +158,16 @@ func (r *Runner) Execute(stream *events.Stream) error {
 func (r *Runner) generateFiles(stream *events.Stream) error {
 	stream.Info("Generating docker-compose.yml...")
 
-	// Generate docker-compose.yml
-	if err := WriteDockerCompose(r.stack, r.projectDir); err != nil {
+	// For local deployment, include all services (no filtering)
+	// EC2 deployment will be filtered later in buildImagesEC2/deployContainersEC2
+	content, err := GenerateDockerComposeWithTarget(r.stack, r.projectDir, "")
+	if err != nil {
+		return fmt.Errorf("failed to generate docker-compose.yml: %w", err)
+	}
+
+	// Write docker-compose.yml
+	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
+	if err := os.WriteFile(composeFile, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write docker-compose.yml: %w", err)
 	}
 
@@ -156,11 +177,12 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 	stream.Info("Generating Dockerfiles...")
 	dockerfileCount := 0
 	for name, service := range r.stack.Services {
-		if service.Spec.Build != "" {
-			stream.Info(fmt.Sprintf("Detecting build type for service '%s' at path: %s", name, service.Spec.Build))
+		if service.Spec.Build != nil && !service.Spec.Build.IsEmpty() {
+			buildContext := service.Spec.Build.GetContext()
+			stream.Info(fmt.Sprintf("Detecting build type for service '%s' at path: %s", name, buildContext))
 
-			// Detect build type
-			buildType, err := DetectBuildType(r.projectDir, service.Spec.Build)
+			// Detect build type using plugin-based detection
+			buildType, err := DetectBuildType(r.projectDir, buildContext, r.pluginsDir, r.bundledPluginsDir)
 			if err != nil {
 				stream.Info(fmt.Sprintf("Warning: Could not detect build type for '%s': %v", name, err))
 				continue
@@ -168,12 +190,13 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 
 			stream.Info(fmt.Sprintf("Detected build type: %s", buildType))
 
-			// Generate Dockerfile if it doesn't exist
-			if err := WriteDockerfile(r.projectDir, service.Spec.Build, buildType); err != nil {
+			// Generate Dockerfile with buildConfig and pluginsDir
+			if err := WriteDockerfileWithBundled(r.projectDir, buildContext, buildType,
+			                         service.Spec.BuildConfig, r.pluginsDir, r.bundledPluginsDir); err != nil {
 				return fmt.Errorf("failed to write Dockerfile for '%s': %w", name, err)
 			}
 
-			dockerfilePath := fmt.Sprintf("%s/Dockerfile", service.Spec.Build)
+			dockerfilePath := fmt.Sprintf("%s/%s", buildContext, service.Spec.Build.GetDockerfile())
 			stream.Success(fmt.Sprintf("Generated Dockerfile for '%s' (%s) at %s", name, buildType, dockerfilePath))
 			dockerfileCount++
 		}
@@ -182,6 +205,9 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 	if dockerfileCount > 0 {
 		stream.Success(fmt.Sprintf("Generated %d Dockerfile(s)", dockerfileCount))
 	}
+
+	// Note: Grafana provisioning is now handled by arfni-monitoring.exe at runtime
+	// This provides better support for hybrid deployments and OS-specific Docker networking
 
 	return nil
 }
@@ -197,44 +223,83 @@ func (r *Runner) getTargetType() string {
 	return "docker-desktop" // 기본값
 }
 
-// getTarget은 서비스들이 사용하는 target을 반환합니다
+// getTarget은 서비스들이 사용하는 EC2 target을 반환합니다
 func (r *Runner) getTarget() (stack.Target, error) {
 	for _, service := range r.stack.Services {
 		if target, exists := r.stack.Targets[service.Target]; exists {
-			return target, nil
+			// EC2 target만 반환
+			if target.Type == "ec2.ssh" {
+				return target, nil
+			}
 		}
 	}
-	return stack.Target{}, fmt.Errorf("no valid target found")
+	return stack.Target{}, fmt.Errorf("no valid EC2 target found")
 }
 
 // buildImages는 docker-compose build를 실행합니다
 func (r *Runner) buildImages(stream *events.Stream) error {
-	targetType := r.getTargetType()
+	// Check which targets are used by services
+	hasLocal := false
+	hasEC2 := false
 
-	// EC2인 경우 원격 빌드
-	if targetType == "ec2.ssh" {
-		return r.buildImagesEC2(stream)
+	for _, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "local" {
+				hasLocal = true
+			} else if targetObj.Type == "ec2.ssh" {
+				hasEC2 = true
+			}
+		}
 	}
 
-	// 로컬 빌드
-	return r.buildImagesLocal(stream)
+	// Build for EC2 if any service uses it
+	if hasEC2 {
+		if err := r.buildImagesEC2(stream); err != nil {
+			return err
+		}
+	}
+
+	// Build locally if any service uses local target
+	if hasLocal {
+		if err := r.buildImagesLocal(stream); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // buildImagesLocal은 로컬에서 docker-compose build를 실행합니다
 func (r *Runner) buildImagesLocal(stream *events.Stream) error {
-	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
-	composeFile := filepath.Join(composeDir, "docker-compose.yml")
+	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
 
 	// Check if compose file exists
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
 		return fmt.Errorf("docker-compose.yml not found: %s", composeFile)
 	}
 
-	stream.Info("Running docker compose build...")
+	// Collect service names with local target
+	localServices := []string{}
+	for name, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "local" {
+				localServices = append(localServices, name)
+			}
+		}
+	}
 
-	// Run docker compose build with --project-directory
+	if len(localServices) == 0 {
+		stream.Info("No local services to build")
+		return nil
+	}
+
+	stream.Info(fmt.Sprintf("Running docker compose build for local services: %v", localServices))
+
+	// Run docker compose build with --project-directory and specific service names
 	// This ensures build contexts are relative to project directory, not compose file location
-	cmd := exec.Command("docker", "compose", "--project-directory", r.projectDir, "-f", composeFile, "build")
+	cmdArgs := []string{"compose", "--project-directory", r.projectDir, "-f", composeFile, "build"}
+	cmdArgs = append(cmdArgs, localServices...)
+	cmd := exec.Command("docker", cmdArgs...)
 	cmd.Dir = r.projectDir
 
 	// Hide console window on Windows
@@ -309,18 +374,110 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 	// 3. 프로젝트 파일들 전송
 	stream.Info("Uploading project files to EC2...")
 
-	// .arfni/compose 디렉토리 전송
-	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
-	remoteComposeDir := workdir + "/.arfni/compose"
-	if err := sshClient.UploadDirectory(stream, composeDir, remoteComposeDir); err != nil {
-		return fmt.Errorf("failed to upload compose files: %w", err)
+	// docker-compose.yml 전송
+	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
+	remoteComposeFile := workdir + "/docker-compose.yml"
+	if err := sshClient.UploadFile(stream, composeFile, remoteComposeFile); err != nil {
+		return fmt.Errorf("failed to upload docker-compose.yml: %w", err)
 	}
 
-	// 빌드 컨텍스트 디렉토리들 전송 (apps 디렉토리 등)
+	// Collect EC2 services that need building
+	ec2Services := []string{}
 	for name, service := range r.stack.Services {
-		if service.Spec.Build != "" {
-			localBuildPath := filepath.Join(r.projectDir, service.Spec.Build)
-			remoteBuildPath := workdir + "/" + service.Spec.Build
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			stream.Info(fmt.Sprintf("Service '%s' uses target '%s' (type: %s)", name, service.Target, targetObj.Type))
+			if targetObj.Type == "ec2.ssh" {
+				ec2Services = append(ec2Services, name)
+			}
+		}
+	}
+
+	stream.Info(fmt.Sprintf("Found %d EC2 services: %v", len(ec2Services), ec2Services))
+
+	// Upload prometheus configuration if prometheus service exists on EC2
+	for _, serviceName := range ec2Services {
+		if serviceName == "prometheus" {
+			// Upload prometheus.yml file
+			prometheusYml := filepath.Join(r.projectDir, "prometheus.yml")
+
+			// If prometheus.yml doesn't exist in project, copy from bundled plugin
+			if _, err := os.Stat(prometheusYml); os.IsNotExist(err) {
+				stream.Info("prometheus.yml not found in project, using bundled version...")
+
+				// Try bundled plugins directory first
+				bundledPrometheusYml := filepath.Join(r.bundledPluginsDir, "monitoring", "prometheus", "prometheus.yml")
+				if _, err := os.Stat(bundledPrometheusYml); err == nil {
+					// Copy bundled prometheus.yml to project directory
+					content, err := os.ReadFile(bundledPrometheusYml)
+					if err != nil {
+						return fmt.Errorf("failed to read bundled prometheus.yml: %w", err)
+					}
+					if err := os.WriteFile(prometheusYml, content, 0644); err != nil {
+						return fmt.Errorf("failed to copy prometheus.yml to project: %w", err)
+					}
+					stream.Success("Copied prometheus.yml from bundled plugin")
+				} else {
+					stream.Info("Warning: prometheus.yml not found in bundled plugins, prometheus may not start correctly")
+				}
+			}
+
+			// Upload prometheus.yml if it exists
+			if _, err := os.Stat(prometheusYml); err == nil {
+				stream.Info("Uploading prometheus.yml...")
+				remotePrometheusYml := workdir + "/prometheus.yml"
+
+				// Remove existing prometheus.yml if it's a directory (from previous failed deployment)
+				if err := sshClient.RunCommand(stream, fmt.Sprintf("rm -rf %s", remotePrometheusYml)); err != nil {
+					stream.Info(fmt.Sprintf("Warning: failed to remove existing prometheus.yml: %v", err))
+				}
+
+				if err := sshClient.UploadFile(stream, prometheusYml, remotePrometheusYml); err != nil {
+					return fmt.Errorf("failed to upload prometheus.yml: %w", err)
+				}
+			}
+
+			// Upload prometheus directory if it exists
+			prometheusDir := filepath.Join(r.projectDir, "prometheus")
+			if _, err := os.Stat(prometheusDir); err == nil {
+				stream.Info("Uploading Prometheus configuration directory...")
+				remotePrometheusDir := workdir + "/prometheus"
+				if err := sshClient.UploadDirectory(stream, prometheusDir, remotePrometheusDir); err != nil {
+					return fmt.Errorf("failed to upload prometheus directory: %w", err)
+				}
+			}
+
+			stream.Success("Prometheus configuration uploaded")
+			break
+		}
+	}
+
+	// Re-collect EC2 services for build context upload
+	ec2Services = []string{}
+	for name, service := range r.stack.Services {
+		if target, exists := r.stack.Targets[service.Target]; exists {
+			if target.Type == "ec2.ssh" {
+				ec2Services = append(ec2Services, name)
+			}
+		}
+	}
+
+	if len(ec2Services) == 0 {
+		stream.Info("No EC2 services to build")
+		return nil
+	}
+
+	// 빌드 컨텍스트 디렉토리들 전송 (EC2 타겟 서비스만)
+	for name, service := range r.stack.Services {
+		// Only upload for EC2 services
+		targetObj, exists := r.stack.Targets[service.Target]
+		if !exists || targetObj.Type != "ec2.ssh" {
+			continue
+		}
+
+		if service.Spec.Build != nil && !service.Spec.Build.IsEmpty() {
+			buildContext := service.Spec.Build.GetContext()
+			localBuildPath := filepath.Join(r.projectDir, buildContext)
+			remoteBuildPath := workdir + "/" + buildContext
 
 			stream.Info(fmt.Sprintf("Uploading build context for %s...", name))
 			if err := sshClient.UploadDirectory(stream, localBuildPath, remoteBuildPath); err != nil {
@@ -329,9 +486,13 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 		}
 	}
 
-	// 4. EC2에서 빌드 실행
-	stream.Info("Building images on EC2...")
-	buildCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml build", workdir)
+	// 4. EC2에서 빌드 실행 (EC2 서비스만)
+	stream.Info(fmt.Sprintf("Building images on EC2: %v", ec2Services))
+	serviceList := ""
+	for _, svc := range ec2Services {
+		serviceList += " " + svc
+	}
+	buildCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml build%s", workdir, serviceList)
 	if err := sshClient.RunCommand(stream, buildCmd); err != nil {
 		return fmt.Errorf("failed to build on EC2: %w", err)
 	}
@@ -342,26 +503,62 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 
 // deployContainers는 docker-compose up -d를 실행합니다
 func (r *Runner) deployContainers(stream *events.Stream) error {
-	targetType := r.getTargetType()
+	// Check which targets are used by services
+	hasLocal := false
+	hasEC2 := false
 
-	// EC2인 경우 원격 배포
-	if targetType == "ec2.ssh" {
-		return r.deployContainersEC2(stream)
+	for _, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "local" {
+				hasLocal = true
+			} else if targetObj.Type == "ec2.ssh" {
+				hasEC2 = true
+			}
+		}
 	}
 
-	// 로컬 배포
-	return r.deployContainersLocal(stream)
+	// Deploy to EC2 if any service uses it
+	if hasEC2 {
+		if err := r.deployContainersEC2(stream); err != nil {
+			return err
+		}
+	}
+
+	// Deploy locally if any service uses local target
+	if hasLocal {
+		if err := r.deployContainersLocal(stream); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // deployContainersLocal은 로컬에서 docker-compose up -d를 실행합니다
 func (r *Runner) deployContainersLocal(stream *events.Stream) error {
-	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
-	composeFile := filepath.Join(composeDir, "docker-compose.yml")
+	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
 
-	stream.Info("Running docker compose up -d...")
+	// Collect service names with local target
+	localServices := []string{}
+	for name, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "local" {
+				localServices = append(localServices, name)
+			}
+		}
+	}
 
-	// Run docker compose up -d with --project-directory
-	cmd := exec.Command("docker", "compose", "--project-directory", r.projectDir, "-f", composeFile, "up", "-d")
+	if len(localServices) == 0 {
+		stream.Info("No local services to deploy")
+		return nil
+	}
+
+	stream.Info(fmt.Sprintf("Running docker compose up -d for local services: %v", localServices))
+
+	// Run docker compose up -d with specific service names
+	cmdArgs := []string{"compose", "--project-directory", r.projectDir, "-f", composeFile, "up", "-d"}
+	cmdArgs = append(cmdArgs, localServices...)
+	cmd := exec.Command("docker", cmdArgs...)
 	cmd.Dir = r.projectDir
 
 	// Hide console window on Windows
@@ -419,13 +616,32 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 		return err
 	}
 
+	// Collect service names with EC2 target
+	ec2Services := []string{}
+	for name, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "ec2.ssh" {
+				ec2Services = append(ec2Services, name)
+			}
+		}
+	}
+
+	if len(ec2Services) == 0 {
+		stream.Info("No EC2 services to deploy")
+		return nil
+	}
+
 	sshClient := NewSSHClient(target, r.projectDir)
 	workdir := sshClient.GetWorkdir()
 
-	stream.Info("Deploying containers on EC2...")
+	stream.Info(fmt.Sprintf("Deploying containers on EC2: %v", ec2Services))
 
-	// docker compose up -d 실행
-	deployCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml up -d", workdir)
+	// docker compose up -d with specific service names
+	serviceList := ""
+	for _, svc := range ec2Services {
+		serviceList += " " + svc
+	}
+	deployCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml up -d%s", workdir, serviceList)
 	if err := sshClient.RunCommand(stream, deployCmd); err != nil {
 		return fmt.Errorf("failed to deploy on EC2: %w", err)
 	}
@@ -436,21 +652,40 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 
 // healthChecks는 컨테이너 상태를 확인합니다
 func (r *Runner) healthChecks(stream *events.Stream) error {
-	targetType := r.getTargetType()
+	// Check which targets are used by services
+	hasLocal := false
+	hasEC2 := false
 
-	// EC2인 경우 원격 헬스체크
-	if targetType == "ec2.ssh" {
-		return r.healthChecksEC2(stream)
+	for _, service := range r.stack.Services {
+		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			if targetObj.Type == "local" {
+				hasLocal = true
+			} else if targetObj.Type == "ec2.ssh" {
+				hasEC2 = true
+			}
+		}
 	}
 
-	// 로컬 헬스체크
-	return r.healthChecksLocal(stream)
+	// Health check for EC2 if any service uses it
+	if hasEC2 {
+		if err := r.healthChecksEC2(stream); err != nil {
+			return err
+		}
+	}
+
+	// Health check locally if any service uses local target
+	if hasLocal {
+		if err := r.healthChecksLocal(stream); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // healthChecksLocal은 로컬 컨테이너 상태를 확인합니다
 func (r *Runner) healthChecksLocal(stream *events.Stream) error {
-	composeDir := filepath.Join(r.projectDir, ".arfni", "compose")
-	composeFile := filepath.Join(composeDir, "docker-compose.yml")
+	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
 
 	// Wait a bit for containers to start
 	time.Sleep(2 * time.Second)
@@ -518,7 +753,7 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 	stream.Info("Checking container status on EC2...")
 
 	// docker compose ps 실행
-	psCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml ps", workdir)
+	psCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml ps", workdir)
 	output, err := sshClient.RunCommandWithOutput(stream, psCmd)
 	if err != nil {
 		return fmt.Errorf("failed to check container status: %w", err)
@@ -527,7 +762,7 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 	stream.Info(output)
 
 	// 컨테이너 ID 확인
-	psqCmd := fmt.Sprintf("cd %s && docker compose -f .arfni/compose/docker-compose.yml ps -q", workdir)
+	psqCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml ps -q", workdir)
 	output, err = sshClient.RunCommandWithOutput(stream, psqCmd)
 	if err != nil {
 		return fmt.Errorf("failed to get container IDs: %w", err)

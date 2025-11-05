@@ -1,14 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/arfni/arfni/internal/events"
-	"github.com/arfni/arfni/internal/workflow"
-	"github.com/arfni/arfni/pkg/stack"
+	"github.com/arfni/arfni/internal/core/workflow"
+	"github.com/arfni/arfni/internal/core/stack"
 )
 
 func main() {
@@ -21,7 +22,40 @@ func main() {
 	fs := flag.NewFlagSet(sub, flag.ExitOnError)
 	stackPath := fs.String("f", "stack.yaml", "path to stack.yaml")
 	projectDir := fs.String("project-dir", "", "project root directory (default: stack.yaml directory)")
+	pluginsDir := fs.String("plugins-dir", "", "plugins directory path (for template-based Dockerfile generation)")
+	bundledPluginsDir := fs.String("bundled-plugins-dir", "", "bundled plugins directory path (for built-in plugins)")
 	_ = fs.Parse(os.Args[2:])
+
+	// Set default bundled plugins directory if not provided
+	if *bundledPluginsDir == "" {
+		// Try to find bundled plugins relative to the executable
+		exePath, err := os.Executable()
+		if err == nil {
+			exeDir := filepath.Dir(exePath)
+
+			// Try multiple possible paths
+			possiblePaths := []string{
+				filepath.Join(exeDir, "..", "resources", "plugins", "bundled"), // Production: bin/../resources/plugins/bundled
+				filepath.Join(exeDir, "plugins", "bundled"),                    // Fallback: <exe_dir>/plugins/bundled
+				filepath.Join(exeDir, "..", "plugins", "bundled"),              // Fallback: One level up
+			}
+
+			fmt.Fprintf(os.Stderr, "[info] Searching for bundled plugins...\n")
+			for _, defaultBundled := range possiblePaths {
+				fmt.Fprintf(os.Stderr, "[info]   Trying: %s\n", defaultBundled)
+				if _, err := os.Stat(defaultBundled); err == nil {
+					*bundledPluginsDir = defaultBundled
+					fmt.Fprintf(os.Stderr, "[info] ✅ Using bundled plugins dir: %s\n", defaultBundled)
+					break
+				}
+			}
+
+			if *bundledPluginsDir == "" {
+				fmt.Fprintf(os.Stderr, "[warning] ⚠️ Could not find bundled plugins in default locations\n")
+				fmt.Fprintf(os.Stderr, "[warning]   Tried: %v\n", possiblePaths)
+			}
+		}
+	}
 
 	// stack.yaml 절대경로 계산
 	absPath, err := filepath.Abs(*stackPath)
@@ -42,14 +76,10 @@ func main() {
 		stackDir = filepath.Dir(absPath)
 	}
 
-	// 배포 전 모니터링 서비스 자동 추가 (metadata.monitoring.mode 기반)
-	if sub == "run" {
-		if err := stack.EnsureMonitoringServices(absPath); err != nil {
-			fmt.Fprintf(os.Stderr, "[warning] monitoring setup: %v\n", err)
-		}
-	}
+	// Monitoring services are now managed by frontend plugin system
+	// No need to inject monitoring services here anymore
 
-	st, err := stack.Load(absPath)
+	st, err := stack.Parse(absPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[error] load stack: %v\n", err)
 		os.Exit(1)
@@ -63,10 +93,16 @@ func main() {
 		// Create runner with new workflow
 		runner := workflow.NewRunner(st, stackDir)
 
-		// Execute workflow
-		if err := runner.Execute(stream); err != nil {
+		// Execute workflow with pluginsDir and bundledPluginsDir
+		if err := runner.ExecuteWithPlugins(stream, *pluginsDir, *bundledPluginsDir); err != nil {
 			fmt.Fprintf(os.Stderr, "[error] run: %v\n", err)
 			os.Exit(1)
+		}
+
+		// Generate and output deployment results
+		outputs := workflow.GenerateOutputs(st, stackDir)
+		if outputsJSON, err := json.Marshal(outputs); err == nil {
+			fmt.Printf("__OUTPUTS__%s\n", string(outputsJSON))
 		}
 
 		fmt.Println("\n[SUCCESS] Deployment completed successfully!")

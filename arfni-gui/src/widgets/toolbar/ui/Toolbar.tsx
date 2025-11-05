@@ -28,7 +28,7 @@ import {
   setCurrentProject,
 } from '@features/project';
 import { startDeployment } from '@features/deployment/model/deploymentSlice';
-import { stackYamlGenerator, stackToYamlString } from '@features/canvas/lib/stackYamlGenerator';
+import { PluginStackGenerator } from '@features/canvas/lib/pluginStackGenerator';
 import {
   deploymentCommands,
   projectCommands,
@@ -51,6 +51,7 @@ export function Toolbar() {
   const currentProject = useAppSelector(selectCurrentProject);
   const isSaving = useAppSelector(selectIsSaving);
   const targetNodes = useAppSelector(selectTargetNodes);
+
 
   const [isDeploying, setIsDeploying] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -76,16 +77,18 @@ export function Toolbar() {
       if (updatedProject.ec2_server_id) {
         ec2Server = await ec2ServerCommands.getServerById(updatedProject.ec2_server_id);
       }
-      const stackYaml = stackYamlGenerator(nodes, edges, {
+
+      // 4. stack.yaml 생성 - updatedProject 사용
+      const yamlContent = await PluginStackGenerator.generateStack({
+        nodes,
+        edges,
         projectName: updatedProject.name,
-        environment: updatedProject.environment,
+        environment: updatedProject.environment as 'local' | 'ec2',
         ec2Server: ec2Server || undefined,
         mode: updatedProject.mode,
         workdir: updatedProject.workdir,
         secrets: [],
-        outputs: {},
       });
-      const yamlContent = stackToYamlString(stackYaml);
       const canvasData = {
         nodes: nodes.map(node => ({
           id: node.id,
@@ -119,14 +122,20 @@ export function Toolbar() {
       if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
         ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
       }
-      const stackYaml = stackYamlGenerator(nodes, edges, {
+
+      // Canvas 노드를 stack.yaml로 변환
+      const yamlContent = await PluginStackGenerator.generateStack({
+        nodes,
+        edges,
         projectName: currentProject.name,
-        environment: currentProject.environment,
+        environment: currentProject.environment as 'local' | 'ec2',
         ec2Server: ec2Server || undefined,
+        mode: currentProject.mode,
+        workdir: currentProject.workdir,
         secrets: [],
-        outputs: {},
       });
-      const yamlContent = stackToYamlString(stackYaml);
+
+      // Canvas 노드를 Tauri 형식으로 변환
       const canvasNodes: CanvasNode[] = nodes.map(node => ({
         id: node.id,
         node_type: node.type,
@@ -191,7 +200,7 @@ export function Toolbar() {
       alert(`배포 실패: ${error}`);
       setIsDeploying(false);
     }
-  }, [currentProject, isDirty, handleSave, dispatch, navigate]);
+  }, [currentProject, isDirty, handleSave, dispatch, navigate, nodes, edges]);
 
   const handleStopDeployment = useCallback(async () => {
     try {

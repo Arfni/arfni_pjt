@@ -19,7 +19,14 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; frame-src 'self' http://localhost:* https://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http://localhost:* https://localhost:*; connect-src 'self' http://localhost:* https://localhost:* ws://localhost:* wss://localhost:*"
+      "csp": "default-src 'self'; frame-src 'self' http://localhost:* https://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http://localhost:* https://localhost:* https://raw.githubusercontent.com; connect-src 'self' http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* https://api.github.com https://raw.githubusercontent.com",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPDATA/**",
+          "$RESOURCE/**"
+        ]
+      }
     }
   },
   "bundle": {
@@ -33,12 +40,10 @@
       "icons/arfni_logo.ico"
     ],
     "resources": [
-      "../../BE/arfni/bin/arfni-go.exe",
-      "../../BE/arfni/bin/ic.exe",
-      "../../BE/arfni/bin/arfni-monitoring.exe",
+      "resources/bin/*",
+      "resources/plugins/bundled",
       "../../BE/arfni/bin/ymlgen.exe",
-      "../../BE/arfni/bin/templates",
-      "../../monitoring"
+      "../../BE/arfni/bin/templates"
     ]
   }
 }

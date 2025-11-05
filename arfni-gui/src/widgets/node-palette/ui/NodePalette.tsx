@@ -1,94 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { selectTemplate, selectSelectedTemplate } from '@features/canvas';
+import { pluginService, type NodeTemplate } from '@services/pluginLoader';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { appDataDir, join } from '@tauri-apps/api/path';
 
-import postgresqlImg from '../../../assets/postgresql.png';
-import mysqlImg from '../../../assets/mysql.png';
-import redisImg from '../../../assets/redis.png';
-import mongodbImg from '../../../assets/mongodb.png';
-import reactImg from '../../../assets/react.png';
-import springbootImg from '../../../assets/springboot.png';
-import nodejsImg from '../../../assets/nodejs.png';
-import nextjsImg from '../../../assets/nextjs.png';
-import pythonImg from '../../../assets/python.png';
-
-interface NodeTemplate {
-  type: string;
-  label: string;
-  description: string;
-  icon: string;
-  category: 'runtime' | 'database' | 'infra' | 'monitor';
-}
-
-const nodeTemplates: NodeTemplate[] = [
-  // DB
-  {
-    type: 'postgres',
-    label: 'PostgreSQL',
-    description: 'Leading RDBMS',
-    icon: postgresqlImg,
-    category: 'database',
-  },
-  {
-    type: 'mysql',
-    label: 'MySQL',
-    description: 'Open-source DB',
-    icon: mysqlImg,
-    category: 'database',
-  },
-  {
-    type: 'redis',
-    label: 'Redis',
-    description: 'In-memory cache',
-    icon: redisImg,
-    category: 'database',
-  },
-  {
-    type: 'mongodb',
-    label: 'MongoDB',
-    description: 'Document NoSQL',
-    icon: mongodbImg,
-    category: 'database',
-  },
-
-  // Runtime
-  {
-    type: 'react',
-    label: 'React',
-    description: 'Frontend library',
-    icon: reactImg,
-    category: 'runtime',
-  },
-  {
-    type: 'nextjs',
-    label: 'Next.js',
-    description: 'React framework',
-    icon: nextjsImg,
-    category: 'runtime',
-  },
-  {
-    type: 'spring',
-    label: 'Spring Boot',
-    description: 'Java framework',
-    icon: springbootImg,
-    category: 'runtime',
-  },
-  {
-    type: 'nodejs',
-    label: 'Node.js',
-    description: 'JavaScript runtime',
-    icon: nodejsImg,
-    category: 'runtime',
-  },
-  {
-    type: 'python',
-    label: 'Python',
-    description: 'Python runtime',
-    icon: pythonImg,
-    category: 'runtime',
-  },
-];
+// No more hardcoded icon imports!
+// Icons are now loaded dynamically from plugin folders
 
 type TabKey = 'DB' | 'Runtime' | 'Infra' | 'Monitor';
 
@@ -104,6 +23,58 @@ export function NodePalette() {
   const selectedTemplate = useAppSelector(selectSelectedTemplate);
   const [activeTab, setActiveTab] = useState<TabKey>('DB');
   const [searchQuery, setSearchQuery] = useState('');
+  const [nodeTemplates, setNodeTemplates] = useState<NodeTemplate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadPlugins();
+  }, []);
+
+  const loadPlugins = async () => {
+    try {
+      setIsLoading(true);
+      await pluginService.loadPlugins();
+      const templates = pluginService.getNodeTemplates();
+
+      // Get app data directory for cross-platform path
+      const dataDir = await appDataDir();
+
+      // Map icon paths to actual URLs for both bundled and installed plugins
+      const templatesWithIconsPromises = templates.map(async (template) => {
+        if (!template.plugin) {
+          return template;
+        }
+
+        try {
+          let iconUrl: string;
+
+          if (template.plugin.isBundled) {
+            // Bundled plugins: use relative URL
+            iconUrl = `/${template.plugin.iconPath}`;
+          } else {
+            // Installed plugins: load from app data directory using plugin.iconPath
+            const relativePath = template.plugin.iconPath.replace(/^plugins\//, '');
+            const iconPath = await join(dataDir, relativePath);
+            iconUrl = convertFileSrc(iconPath);
+          }
+
+          return { ...template, icon: iconUrl };
+        } catch (error) {
+          console.error(`Failed to load icon for ${template.plugin?.manifest.name}:`, error);
+          return template;
+        }
+      });
+
+      const templatesWithIcons = await Promise.all(templatesWithIconsPromises);
+      setNodeTemplates(templatesWithIcons);
+    } catch (error) {
+      console.error('Error loading plugins:', error);
+      // Fallback to empty templates if plugin loading fails
+      setNodeTemplates([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // 클릭 방식 제거 - 드래그 앤 드롭만 사용
   // const handleTemplateClick = (nodeType: string, category: 'runtime' | 'database' | 'infra' | 'monitor') => {
@@ -172,36 +143,43 @@ export function NodePalette() {
 
       {/* Block List */}
       <div className="flex-1 overflow-y-auto px-3 py-2">
-        <div className="space-y-2">
-          {filteredNodes.map((node) => {
-            const isSelected = selectedTemplate?.type === node.type;
-            return (
-              <div
-                key={node.type}
-                draggable
-                onDragStart={(e) => onDragStart(e, node.type, node.category)}
-                className="bg-white border border-gray-200 rounded-lg p-2.5 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 transition-all"
-              >
-                <div className="flex items-start gap-2">
-                  <img src={node.icon} alt={node.label} className="w-8 h-8 flex-shrink-0 pointer-events-none" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-gray-900 truncate">
-                      {node.label}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">
-                      {node.description}
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="text-sm text-gray-500 mt-2">Loading plugins...</div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredNodes.map((node) => {
+              const isSelected = selectedTemplate?.type === node.type;
+              return (
+                <div
+                  key={node.type}
+                  draggable
+                  onDragStart={(e) => onDragStart(e, node.type, node.category)}
+                  className="bg-white border border-gray-200 rounded-lg p-2.5 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 transition-all"
+                >
+                  <div className="flex items-start gap-2">
+                    <img src={node.icon} alt={node.label} className="w-8 h-8 flex-shrink-0 pointer-events-none" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 truncate">
+                        {node.label}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {node.description}
+                      </div>
                     </div>
                   </div>
                 </div>
+              );
+            })}
+            {filteredNodes.length === 0 && !isLoading && (
+              <div className="text-center py-8 text-sm text-gray-500">
+                No blocks found
               </div>
-            );
-          })}
-          {filteredNodes.length === 0 && (
-            <div className="text-center py-8 text-sm text-gray-500">
-              No blocks found
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

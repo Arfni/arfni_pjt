@@ -1,7 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // ← 파일 맨 첫 줄(중요)
 use tauri_plugin_dialog;
 use tauri::Manager;
-use std::process::Command;
 
 mod test;
 // re-export 해서 현재 모듈로 끌어오면 매크로 가시성 문제를 피하기 좋습니다
@@ -101,6 +100,14 @@ fn main() {
       commands::plugin::run_plugin,
       commands::plugin::run_plugin_with_args,
       commands::plugin::run_plugin_with_mode,
+      commands::plugin::install_plugin,
+      commands::plugin::uninstall_plugin,
+      commands::plugin::list_installed_plugins,
+      commands::plugin::load_plugin_registry,
+      commands::plugin::refresh_plugin_registry,
+      commands::plugin::clear_registry_cache,
+      commands::plugin::get_cache_info,
+      commands::plugin::read_plugin_template,
       commands::plugin_check::list_targets,
       commands::plugin_check::read_plugins,
 
@@ -119,6 +126,7 @@ fn main() {
       commands::project::remove_from_recent_projects,
       commands::project::update_project,
       commands::project::delete_project,
+      commands::project::write_file,
       commands::project::delete_project_from_db_only,
 
       // 배포 명령어

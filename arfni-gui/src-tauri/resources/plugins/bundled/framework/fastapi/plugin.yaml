@@ -1,0 +1,53 @@
+apiVersion: v0.1
+name: fastapi
+displayName: FastAPI
+version: 1.0.0
+category: framework
+description: "Modern Python web framework for building APIs"
+author: ARFNI Team
+license: MIT
+
+detection:
+  enabled: true
+  priority: 14
+  required_files:
+    - requirements.txt
+  file_content_patterns:
+    requirements.txt:
+      contains: ["fastapi", "FastAPI"]
+
+provides:
+  service_kinds:
+    - app.fastapi
+
+contributes:
+  services:
+    fastapi:
+      kind: app.fastapi
+      type: docker.container
+      spec:
+        build:
+          context: "."
+          dockerfile: "Dockerfile"
+        ports:
+          - "8000:8000"
+
+  canvas:
+    nodeType: fastapi
+    label: FastAPI
+    description: "FastAPI web framework"
+    category: runtime
+    ports:
+      - name: http
+        port: 8000
+        protocol: tcp
+    connections:
+      inputs:
+        - type: database
+          name: database
+          protocol: any
+          env_var: DATABASE_URL
+      outputs:
+        - type: api
+          name: api
+          protocol: http

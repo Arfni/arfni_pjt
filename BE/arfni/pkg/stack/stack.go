@@ -49,14 +49,16 @@ type Volume struct {
 }
 
 type ServiceSpec struct {
-	Image      string            `yaml:"image,omitempty"`
-	Build      string            `yaml:"build,omitempty"`
-	Dockerfile string            `yaml:"dockerfile,omitempty"`
-	Env        map[string]string `yaml:"env,omitempty"`
-	Ports      []string          `yaml:"ports,omitempty"` // "host:container"
-	Volumes    []Volume          `yaml:"volumes,omitempty"`
-	Command    []string          `yaml:"command,omitempty"`
-	Health     *HealthCheck      `yaml:"health,omitempty"`
+	Image       string                 `yaml:"image,omitempty"`
+	Build       string                 `yaml:"build,omitempty"`
+	BuildConfig map[string]interface{} `yaml:"buildConfig,omitempty"` // Dockerfile template variables
+	Dockerfile  string                 `yaml:"dockerfile,omitempty"`
+	Env         map[string]string      `yaml:"env,omitempty"`
+	Ports       []string               `yaml:"ports,omitempty"` // "host:container"
+	Volumes     []Volume               `yaml:"volumes,omitempty"`
+	Command     []string               `yaml:"command,omitempty"`
+	Restart     string                 `yaml:"restart,omitempty"`
+	Health      *HealthCheck           `yaml:"health,omitempty"`
 }
 
 type HealthCheck struct {

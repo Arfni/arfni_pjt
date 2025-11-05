@@ -1,5 +1,5 @@
 # Binaries for programs and plugins
-*.exe
+# *.exe (commented out to include bin/ executables)
 *.exe~
 *.dll
 *.so
@@ -18,11 +18,11 @@ vendor/
 go.work
 
 # Build output
-/bin/
+# /bin/ (commented out to include executables)
 /dist/
 /build/
 /arfni
-arfni.exe
+# arfni.exe (commented out to include bin/ executables)
 
 # IDE specific files
 .idea/

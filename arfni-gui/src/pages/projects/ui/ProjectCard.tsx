@@ -28,6 +28,17 @@ export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: Pr
     // Clear any previous errors
     dispatch(clearError());
 
+    // EC2 projects don't need local path validation - skip openProject thunk
+    if (project.environment === 'ec2') {
+      if (destination === 'canvas') {
+        navigate('/canvas', { state: { project } });
+      } else {
+        navigate('/logs', { state: { project } });
+      }
+      return;
+    }
+
+    // Local projects - validate path before navigation
     try {
       // Dispatch openProject thunk and wait for result
       await dispatch(openProject(project.path)).unwrap();
