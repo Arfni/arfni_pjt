@@ -2,6 +2,7 @@
 use tauri_plugin_dialog;
 use tauri::Manager;
 use std::process::Command;
+use std::sync::Mutex;
 
 mod test;
 // re-export 해서 현재 모듈로 끌어오면 매크로 가시성 문제를 피하기 좋습니다
@@ -28,10 +29,21 @@ fn main() {
             // 앱 상태로 DB 저장 (전역 접근 가능)
             app.manage(db);
 
+            // 프로젝트 잠금 상태 초기화
+            app.manage(Mutex::new(commands::project::ProjectLock::new()));
+
             // 윈도우 닫힐 때 모니터링 스택 정리
             let window = app.get_webview_window("main").unwrap();
-            window.on_window_event(|event| {
+            let app_handle_clone = app.handle().clone();
+            window.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    // 프로젝트 잠금 파일 해제
+                    if let Some(lock) = app_handle_clone.try_state::<Mutex<commands::project::ProjectLock>>() {
+                        let mut lock_guard = lock.lock().unwrap();
+                        lock_guard.file = None;
+                        lock_guard.path = None;
+                    }
+
                     // 모니터링 스택 종료 (동기 방식)
                     std::thread::spawn(|| {
                         use std::process::Command;
@@ -120,6 +132,7 @@ fn main() {
       commands::project::update_project,
       commands::project::delete_project,
       commands::project::delete_project_from_db_only,
+      commands::project::close_project,
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,
@@ -157,8 +170,10 @@ fn main() {
       commands::port_check::list_listening_ports,
       commands::port_check::list_ec2_listening_ports,
 
+      
       // 비용 예측 명령어
       commands::pricing::estimate_cost,
+
 
       // 시스템 명령어
       commands::system::open_downloads_folder,
