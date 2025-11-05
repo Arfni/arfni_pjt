@@ -206,21 +206,34 @@ func (c *PrometheusClient) GetDiskUsage() (usedGB float64, usagePercent float64,
 	return usedGB, usagePercent, nil
 }
 
-// GetInstanceInfo retrieves EC2 instance type from node_exporter labels
+// GetInstanceInfo retrieves EC2 instance type from node_exporter textfile collector
 func (c *PrometheusClient) GetInstanceInfo() (string, error) {
-	query := `node_uname_info`
+	// Try ec2_instance_type_info first (from textfile collector)
+	query := `ec2_instance_type_info`
 	results, err := c.Query(query)
-	if err != nil {
-		return "", err
+	if err == nil && len(results) > 0 {
+		// Get instance type from label
+		if instanceType, ok := results[0].Labels["type"]; ok && instanceType != "unknown" {
+			return instanceType, nil
+		}
 	}
 
-	if len(results) == 0 {
-		return "", fmt.Errorf("no instance info available")
+	// Fallback: Try ec2_instance_info (full metadata)
+	query = `ec2_instance_info`
+	results, err = c.Query(query)
+	if err == nil && len(results) > 0 {
+		if instanceType, ok := results[0].Labels["instance_type"]; ok && instanceType != "unknown" {
+			return instanceType, nil
+		}
 	}
 
-	// Try to get instance type from labels
-	if instanceType, ok := results[0].Labels["instance_type"]; ok {
-		return instanceType, nil
+	// Fallback: Try node_uname_info (legacy)
+	query = `node_uname_info`
+	results, err = c.Query(query)
+	if err == nil && len(results) > 0 {
+		if instanceType, ok := results[0].Labels["instance_type"]; ok {
+			return instanceType, nil
+		}
 	}
 
 	return "unknown", nil
