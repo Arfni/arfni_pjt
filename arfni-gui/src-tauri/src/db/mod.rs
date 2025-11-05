@@ -3,6 +3,7 @@ use rusqlite::{Connection, params};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager};
+pub mod api_key;
 
 /// 데이터베이스 연결을 관리하는 구조체
 pub struct Database {
@@ -116,6 +117,15 @@ impl Database {
             println!("✅ Migration 003 completed");
         }
 
+        if current_version < 4 {
+            println!("⬆️ Running migration 004...");
+            let migration_sql = include_str!("../../migrations/004_add_api_key.sql");
+            conn.execute_batch(migration_sql)
+                .context("Failed to run migration 004")?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (4)", [])?;
+            println!("✅ Migration 004 completed");
+        }
+
         println!("✅ All database migrations completed successfully");
         Ok(())
     }
@@ -202,6 +212,10 @@ fn migrate_projects(_app: &AppHandle, _db: &Database) -> Result<()> {
     println!("  - Projects migration: skipped (no legacy data)");
     Ok(())
 }
+
+
+
+
 
 #[cfg(test)]
 mod tests {
