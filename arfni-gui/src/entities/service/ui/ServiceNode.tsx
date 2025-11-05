@@ -42,9 +42,29 @@ export function ServiceNode({ data, selected, id }: NodeProps<ServiceNodeData>) 
         ${selected ? 'bg-[#2563EB]' : 'bg-white border border-gray-200'}
       `}
     >
+      {/* 상하좌우 핸들 - 각 방향마다 source와 target 모두 */}
       <Handle
         type="target"
         position={Position.Left}
+        id="target-left"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
+        type="source"
+        position={Position.Left}
+        id="source-left"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="target-top"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
+        type="source"
+        position={Position.Top}
+        id="source-top"
         className="w-3 h-3 !bg-gray-400 border-2 border-white"
       />
 
@@ -100,8 +120,27 @@ export function ServiceNode({ data, selected, id }: NodeProps<ServiceNodeData>) 
       </div>
 
       <Handle
+        type="target"
+        position={Position.Right}
+        id="target-right"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
         type="source"
         position={Position.Right}
+        id="source-right"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="target-bottom"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="source-bottom"
         className="w-3 h-3 !bg-gray-400 border-2 border-white"
       />
     </div>
