@@ -8,6 +8,7 @@
 # Binaries for programs and plugins
 *.exe
 !BE/arfni/bin/*.exe
+!arfni-gui/src-tauri/resources/bin/*.exe
 *.exe~
 *.dll
 *.so

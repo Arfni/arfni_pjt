@@ -354,21 +354,11 @@ type StackConfig struct {
 func runCostEstimation(args []string) {
 	fs := flag.NewFlagSet("estimate-cost", flag.ExitOnError)
 	stackFileFlag := fs.String("f", "stack.yaml", "path to stack.yaml")
-	usersFlag := fs.Int("users", 100, "expected number of users")
-	trafficFlag := fs.String("traffic", "medium", "expected traffic level (low, medium, high)")
 	deploymentFlag := fs.String("deployment", "simple", "deployment type (simple, production)")
 	fs.Parse(args)
 
 	stackFile := *stackFileFlag
-	expectedUsers := *usersFlag
-	expectedTraffic := *trafficFlag
 	deploymentType := *deploymentFlag
-
-	// Validate traffic level
-	if expectedTraffic != "low" && expectedTraffic != "medium" && expectedTraffic != "high" {
-		fmt.Printf("[ERROR] Invalid traffic level: %s (must be low, medium, or high)\n", expectedTraffic)
-		os.Exit(1)
-	}
 
 	// Validate deployment type
 	if deploymentType != "simple" && deploymentType != "production" {
@@ -397,8 +387,6 @@ func runCostEstimation(args []string) {
 	fmt.Println("================================================")
 	fmt.Println()
 	fmt.Printf("Stack File:        %s\n", stackFile)
-	fmt.Printf("Expected Users:    %d\n", expectedUsers)
-	fmt.Printf("Expected Traffic:  %s\n", expectedTraffic)
 	fmt.Printf("Deployment Type:   %s\n", deploymentType)
 	if deploymentType == "simple" {
 		fmt.Println("                   (Docker containers on single EC2)")
@@ -445,11 +433,9 @@ func runCostEstimation(args []string) {
 
 	// Create cost estimation request
 	req := pricing.CostEstimationRequest{
-		Services:        services,
-		ExpectedUsers:   expectedUsers,
-		ExpectedTraffic: expectedTraffic,
-		Region:          "ap-northeast-2",
-		DeploymentType:  deploymentType,
+		Services:       services,
+		Region:         "ap-northeast-2",
+		DeploymentType: deploymentType,
 	}
 
 	// Initialize cost estimator

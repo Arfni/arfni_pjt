@@ -41,7 +41,9 @@
     ],
     "resources": [
       "resources/bin/*",
-      "resources/plugins/bundled"
+      "resources/plugins/bundled",
+      "../../BE/arfni/bin/ymlgen.exe",
+      "../../BE/arfni/bin/templates"
     ]
   }
 }

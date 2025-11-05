@@ -4,7 +4,6 @@ import {
   Save,
   PlayCircle,
   StopCircle,
-  CheckCircle,
   Loader2,
   ArrowLeft,
   Camera,
@@ -37,6 +36,10 @@ import {
   CanvasEdge,
   ec2ServerCommands,
 } from '@shared/api/tauri/commands';
+import { SettingsDialog } from './dialogs/SettingsDialog';
+import { ExportDialog } from './dialogs/ExportDialog';
+import { ExportSuccessNotification } from './dialogs/ExportSuccessNotification';
+import { AIDialog } from './dialogs/AIDialog';
 
 export function Toolbar() {
   const navigate = useNavigate();
@@ -51,11 +54,11 @@ export function Toolbar() {
 
 
   const [isDeploying, setIsDeploying] = useState(false);
-  const [isValidating, setIsValidating] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<'png' | 'svg' | 'pdf'>('png');
   const [showExportSuccess, setShowExportSuccess] = useState(false);
-  const [exportedFilePath, setExportedFilePath] = useState('');
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showAIDialog, setShowAIDialog] = useState(false);
 
   const isEC2Project = currentProject?.environment === 'ec2';
   const ec2TargetNode = isEC2Project && targetNodes.length > 0 ? targetNodes[0] : null;
@@ -209,12 +212,6 @@ export function Toolbar() {
     }
   }, []);
 
-  // Export 다이얼로그 열기
-  const handleOpenExportDialog = useCallback(() => {
-    setShowExportDialog(true);
-  }, []);
-
-  // Export 실행
   const handleConfirmExport = useCallback(async () => {
     setShowExportDialog(false);
     const reactFlowElement = document.querySelector('.react-flow') as HTMLElement;
@@ -258,7 +255,6 @@ export function Toolbar() {
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          setExportedFilePath(fileName);
           setShowExportSuccess(true);
         } catch (error) {
           elementsToHide.forEach((el, index) => el.style.display = originalDisplays[index]);
@@ -277,6 +273,20 @@ export function Toolbar() {
       alert('폴더를 열 수 없습니다.');
     }
   }, []);
+
+  const handleOpenProjectFolder = useCallback(async () => {
+    if (!currentProject?.path) {
+      alert('프로젝트 경로가 없습니다.');
+      return;
+    }
+    try {
+      await invoke('open_folder_in_explorer', { path: currentProject.path });
+    } catch (error) {
+      console.error('폴더 열기 실패:', error);
+      alert('폴더를 열 수 없습니다.');
+    }
+  }, [currentProject]);
+
 
   return (
     <>
@@ -325,7 +335,11 @@ export function Toolbar() {
 
         {/* Right section */}
         <div className="flex items-center space-x-2">
-          <button onClick={() => { }} className="p-2 hover:bg-gray-700 rounded transition-colors" title="설정">
+          <button onClick={() => setShowAIDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="AI">
+            <img src="/src/assets/ai.png" alt="AI" className="w-4 h-4" />
+          </button>
+
+          <button onClick={() => setShowSettingsDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="설정">
             <Settings className="w-4 h-4" />
           </button>
 
@@ -353,7 +367,7 @@ export function Toolbar() {
           </button>
 
           <button
-            onClick={handleOpenExportDialog}
+            onClick={() => setShowExportDialog(true)}
             className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
             title="캔버스 내보내기"
           >
@@ -383,91 +397,32 @@ export function Toolbar() {
       </div>
 
 
-      {/* Export Format Selection Dialog */}
-      {showExportDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-8 w-[500px]">
-            <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Export Image</h2>
+      <ExportDialog
+        show={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        selectedFormat={selectedFormat}
+        onFormatChange={setSelectedFormat}
+        onConfirm={handleConfirmExport}
+      />
 
-            <div className="mb-6">
-              <h3 className="text-xl font-semibold text-gray-700 mb-4">File Format</h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSelectedFormat('png')}
-                  className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all ${
-                    selectedFormat === 'png'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  }`}
-                >
-                  PNG
-                </button>
-                <button
-                  onClick={() => setSelectedFormat('svg')}
-                  className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all ${
-                    selectedFormat === 'svg'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  }`}
-                >
-                  SVG
-                </button>
-                <button
-                  onClick={() => setSelectedFormat('pdf')}
-                  className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all ${
-                    selectedFormat === 'pdf'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  }`}
-                >
-                  PDF
-                </button>
-              </div>
-            </div>
+      <ExportSuccessNotification
+        show={showExportSuccess}
+        onClose={() => setShowExportSuccess(false)}
+        onOpenFolder={handleOpenFolder}
+      />
 
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowExportDialog(false)}
-                className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleConfirmExport}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SettingsDialog
+        show={showSettingsDialog}
+        onClose={() => setShowSettingsDialog(false)}
+        currentProject={currentProject}
+        onOpenProjectFolder={handleOpenProjectFolder}
+      />
 
-      {/* Export Success */}
-      {showExportSuccess && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl">
-          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-6 h-6" />
-              <span className="font-medium text-lg">Success Export!</span>
-              <button
-                onClick={handleOpenFolder}
-                className="ml-4 underline hover:text-green-100 transition-colors font-medium"
-              >
-                Click here to show save folder.
-              </button>
-            </div>
-            <button
-              onClick={() => setShowExportSuccess(false)}
-              className="text-white hover:text-green-100 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
+      <AIDialog
+        show={showAIDialog}
+        onClose={() => setShowAIDialog(false)}
+        currentProject={currentProject}
+      />
     </>
   );
 }
