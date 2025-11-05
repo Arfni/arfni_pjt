@@ -2,86 +2,2834 @@
   "region": "ap-northeast-2",
   "region_name": "Seoul",
   "currency": "USD",
-  "last_updated": "2024-10-31",
+  "last_updated": "2025-01-15",
   "ec2": {
+    "t4g.nano": {
+      "vcpu": 2,
+      "memory_gb": 0.5,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0052,
+      "price_per_month": 3.8,
+      "description": "Burstable performance, dev/test workloads"
+    },
+    "t4g.micro": {
+      "vcpu": 2,
+      "memory_gb": 1.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0104,
+      "price_per_month": 7.59,
+      "description": "Burstable performance, dev/test workloads"
+    },
+    "t4g.small": {
+      "vcpu": 2,
+      "memory_gb": 2.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0208,
+      "price_per_month": 15.18,
+      "description": "Burstable performance, small production"
+    },
+    "t4g.medium": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0416,
+      "price_per_month": 30.37,
+      "description": "Burstable performance, small production"
+    },
+    "t4g.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0832,
+      "price_per_month": 60.74,
+      "description": "Burstable performance, production workloads"
+    },
+    "t4g.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.1664,
+      "price_per_month": 121.47,
+      "description": "Burstable performance, production workloads"
+    },
+    "t4g.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.3328,
+      "price_per_month": 242.94,
+      "description": "Burstable performance, high-performance production"
+    },
+    "t3.nano": {
+      "vcpu": 2,
+      "memory_gb": 0.5,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0065,
+      "price_per_month": 4.75,
+      "description": "Burstable performance, dev/test workloads"
+    },
     "t3.micro": {
       "vcpu": 2,
-      "memory_gb": 1,
+      "memory_gb": 1.0,
       "storage_gb": "EBS Only",
-      "price_per_hour": 0.0116,
-      "price_per_month": 8.47,
-      "description": "Burstable, ideal for low-traffic applications"
+      "price_per_hour": 0.013,
+      "price_per_month": 9.49,
+      "description": "Burstable performance, dev/test workloads"
     },
     "t3.small": {
       "vcpu": 2,
-      "memory_gb": 2,
+      "memory_gb": 2.0,
       "storage_gb": "EBS Only",
-      "price_per_hour": 0.0232,
-      "price_per_month": 16.94,
-      "description": "Burstable, good for small web apps"
+      "price_per_hour": 0.026,
+      "price_per_month": 18.98,
+      "description": "Burstable performance, small production"
     },
     "t3.medium": {
       "vcpu": 2,
-      "memory_gb": 4,
+      "memory_gb": 4.0,
       "storage_gb": "EBS Only",
-      "price_per_hour": 0.0464,
-      "price_per_month": 33.87,
-      "description": "Burstable, suitable for medium web apps"
+      "price_per_hour": 0.052,
+      "price_per_month": 37.96,
+      "description": "Burstable performance, small production"
     },
     "t3.large": {
       "vcpu": 2,
-      "memory_gb": 8,
+      "memory_gb": 8.0,
       "storage_gb": "EBS Only",
-      "price_per_hour": 0.0928,
-      "price_per_month": 67.74,
-      "description": "Burstable, for larger applications"
+      "price_per_hour": 0.104,
+      "price_per_month": 75.92,
+      "description": "Burstable performance, production workloads"
     },
     "t3.xlarge": {
       "vcpu": 4,
-      "memory_gb": 16,
+      "memory_gb": 16.0,
       "storage_gb": "EBS Only",
-      "price_per_hour": 0.1856,
-      "price_per_month": 135.49,
-      "description": "Burstable, high-performance apps"
+      "price_per_hour": 0.208,
+      "price_per_month": 151.84,
+      "description": "Burstable performance, production workloads"
+    },
+    "t3.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.416,
+      "price_per_month": 303.68,
+      "description": "Burstable performance, high-performance production"
+    },
+    "t3a.nano": {
+      "vcpu": 2,
+      "memory_gb": 0.5,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0059,
+      "price_per_month": 4.31,
+      "description": "Burstable performance, dev/test workloads"
+    },
+    "t3a.micro": {
+      "vcpu": 2,
+      "memory_gb": 1.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0117,
+      "price_per_month": 8.54,
+      "description": "Burstable performance, dev/test workloads"
+    },
+    "t3a.small": {
+      "vcpu": 2,
+      "memory_gb": 2.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0234,
+      "price_per_month": 17.08,
+      "description": "Burstable performance, small production"
+    },
+    "t3a.medium": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0468,
+      "price_per_month": 34.16,
+      "description": "Burstable performance, small production"
+    },
+    "t3a.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0936,
+      "price_per_month": 68.33,
+      "description": "Burstable performance, production workloads"
+    },
+    "t3a.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.1872,
+      "price_per_month": 136.66,
+      "description": "Burstable performance, production workloads"
+    },
+    "t3a.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.3744,
+      "price_per_month": 273.31,
+      "description": "Burstable performance, high-performance production"
+    },
+    "t2.nano": {
+      "vcpu": 1,
+      "memory_gb": 0.5,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0072,
+      "price_per_month": 5.26,
+      "description": "Burstable performance, dev/test workloads"
+    },
+    "t2.micro": {
+      "vcpu": 1,
+      "memory_gb": 1.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0144,
+      "price_per_month": 10.51,
+      "description": "Burstable performance, dev/test workloads"
+    },
+    "t2.small": {
+      "vcpu": 1,
+      "memory_gb": 2.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0288,
+      "price_per_month": 21.02,
+      "description": "Burstable performance, small production"
+    },
+    "t2.medium": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0576,
+      "price_per_month": 42.05,
+      "description": "Burstable performance, small production"
+    },
+    "t2.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.1152,
+      "price_per_month": 84.1,
+      "description": "Burstable performance, production workloads"
+    },
+    "t2.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.2304,
+      "price_per_month": 168.19,
+      "description": "Burstable performance, production workloads"
+    },
+    "t2.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.4608,
+      "price_per_month": 336.38,
+      "description": "Burstable performance, high-performance production"
+    },
+    "m8g.medium": {
+      "vcpu": 1,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.05517,
+      "price_per_month": 40.27,
+      "description": "General purpose, balanced, small production"
+    },
+    "m8g.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.11034,
+      "price_per_month": 80.55,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m8g.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.22068,
+      "price_per_month": 161.1,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m8g.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.44136,
+      "price_per_month": 322.19,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m8g.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.88272,
+      "price_per_month": 644.39,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m8g.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.76544,
+      "price_per_month": 1288.77,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m8g.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.64816,
+      "price_per_month": 1933.16,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m8g.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.53088,
+      "price_per_month": 2577.54,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m8g.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 5.29632,
+      "price_per_month": 3866.31,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m8g.48xlarge": {
+      "vcpu": 192,
+      "memory_gb": 768.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 10.59264,
+      "price_per_month": 7732.63,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m8g.metal-24xl": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 5.29632,
+      "price_per_month": 3866.31,
+      "description": "General purpose, balanced"
+    },
+    "m8g.metal-48xl": {
+      "vcpu": 192,
+      "memory_gb": 768.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 10.59264,
+      "price_per_month": 7732.63,
+      "description": "General purpose, balanced"
+    },
+    "m7g.medium": {
+      "vcpu": 1,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0502,
+      "price_per_month": 36.65,
+      "description": "General purpose, balanced, small production"
+    },
+    "m7g.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.1003,
+      "price_per_month": 73.22,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m7g.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.2006,
+      "price_per_month": 146.44,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m7g.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.4012,
+      "price_per_month": 292.88,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7g.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.8024,
+      "price_per_month": 585.75,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7g.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.6048,
+      "price_per_month": 1171.5,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7g.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.4072,
+      "price_per_month": 1757.26,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7g.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.2096,
+      "price_per_month": 2343.01,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7g.metal": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.2096,
+      "price_per_month": 2343.01,
+      "description": "General purpose, balanced"
+    },
+    "m7gd.medium": {
+      "vcpu": 1,
+      "memory_gb": 4.0,
+      "storage_gb": "1 x 59 NVMe SSD",
+      "price_per_hour": 0.0657,
+      "price_per_month": 47.96,
+      "description": "General purpose, balanced, small production"
+    },
+    "m7gd.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "1 x 118 NVMe SSD",
+      "price_per_hour": 0.1314,
+      "price_per_month": 95.92,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m7gd.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 237 NVMe SSD",
+      "price_per_hour": 0.2627,
+      "price_per_month": 191.77,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m7gd.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "1 x 475 NVMe SSD",
+      "price_per_hour": 0.5254,
+      "price_per_month": 383.54,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7gd.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "1 x 950 NVMe SSD",
+      "price_per_hour": 1.0509,
+      "price_per_month": 767.16,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7gd.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "1 x 1900 NVMe SSD",
+      "price_per_hour": 2.1018,
+      "price_per_month": 1534.31,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7gd.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "2 x 1425 NVMe SSD",
+      "price_per_hour": 3.1526,
+      "price_per_month": 2301.4,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7gd.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "2 x 1900 NVMe SSD",
+      "price_per_hour": 4.2035,
+      "price_per_month": 3068.55,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7gd.metal": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "2 x 1900 NVMe SSD",
+      "price_per_hour": 4.2035,
+      "price_per_month": 3068.55,
+      "description": "General purpose, balanced"
+    },
+    "m7i.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.1239,
+      "price_per_month": 90.45,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m7i.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.2478,
+      "price_per_month": 180.89,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m7i.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.4956,
+      "price_per_month": 361.79,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.9912,
+      "price_per_month": 723.58,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.9824,
+      "price_per_month": 1447.15,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.9736,
+      "price_per_month": 2170.73,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.9648,
+      "price_per_month": 2894.3,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 5.9472,
+      "price_per_month": 4341.46,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i.48xlarge": {
+      "vcpu": 192,
+      "memory_gb": 768.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 11.8944,
+      "price_per_month": 8682.91,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i.metal-24xl": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 5.9472,
+      "price_per_month": 4341.46,
+      "description": "General purpose, balanced"
+    },
+    "m7i.metal-48xl": {
+      "vcpu": 192,
+      "memory_gb": 768.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 11.8944,
+      "price_per_month": 8682.91,
+      "description": "General purpose, balanced"
+    },
+    "m7i-flex.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.11771,
+      "price_per_month": 85.93,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m7i-flex.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.23542,
+      "price_per_month": 171.86,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m7i-flex.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.47084,
+      "price_per_month": 343.71,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i-flex.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.94168,
+      "price_per_month": 687.43,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i-flex.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.88336,
+      "price_per_month": 1374.85,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i-flex.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.82504,
+      "price_per_month": 2062.28,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m7i-flex.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.76672,
+      "price_per_month": 2749.71,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6g.medium": {
+      "vcpu": 1,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.047,
+      "price_per_month": 34.31,
+      "description": "General purpose, balanced, small production"
+    },
+    "m6g.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.094,
+      "price_per_month": 68.62,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6g.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.188,
+      "price_per_month": 137.24,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6g.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.376,
+      "price_per_month": 274.48,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6g.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.752,
+      "price_per_month": 548.96,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6g.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.504,
+      "price_per_month": 1097.92,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6g.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.256,
+      "price_per_month": 1646.88,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6g.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.008,
+      "price_per_month": 2195.84,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6g.metal": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.008,
+      "price_per_month": 2195.84,
+      "description": "General purpose, balanced"
+    },
+    "m6gd.medium": {
+      "vcpu": 1,
+      "memory_gb": 4.0,
+      "storage_gb": "1 x 59 NVMe SSD",
+      "price_per_hour": 0.0556,
+      "price_per_month": 40.59,
+      "description": "General purpose, balanced, small production"
+    },
+    "m6gd.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "1 x 118 NVMe SSD",
+      "price_per_hour": 0.1112,
+      "price_per_month": 81.18,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6gd.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 237 NVMe SSD",
+      "price_per_hour": 0.2224,
+      "price_per_month": 162.35,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6gd.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "1 x 475 NVMe SSD",
+      "price_per_hour": 0.4448,
+      "price_per_month": 324.7,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6gd.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "1 x 950 NVMe SSD",
+      "price_per_hour": 0.8896,
+      "price_per_month": 649.41,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6gd.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "1 x 1900 NVMe SSD",
+      "price_per_hour": 1.7792,
+      "price_per_month": 1298.82,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6gd.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "2 x 1425 NVMe SSD",
+      "price_per_hour": 2.6688,
+      "price_per_month": 1948.22,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6gd.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "2 x 1900 NVMe SSD",
+      "price_per_hour": 3.5584,
+      "price_per_month": 2597.63,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6gd.metal": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "2 x 1900 NVMe SSD",
+      "price_per_hour": 3.5584,
+      "price_per_month": 2597.63,
+      "description": "General purpose, balanced"
+    },
+    "m6i.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.118,
+      "price_per_month": 86.14,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6i.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.236,
+      "price_per_month": 172.28,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6i.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.472,
+      "price_per_month": 344.56,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6i.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.944,
+      "price_per_month": 689.12,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6i.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.888,
+      "price_per_month": 1378.24,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6i.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.832,
+      "price_per_month": 2067.36,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6i.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.776,
+      "price_per_month": 2756.48,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6i.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 5.664,
+      "price_per_month": 4134.72,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6i.32xlarge": {
+      "vcpu": 128,
+      "memory_gb": 512.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 7.552,
+      "price_per_month": 5512.96,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6i.metal": {
+      "vcpu": 128,
+      "memory_gb": 512.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 7.552,
+      "price_per_month": 5512.96,
+      "description": "General purpose, balanced"
+    },
+    "m6id.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "1 x 118 NVMe SSD",
+      "price_per_hour": 0.14595,
+      "price_per_month": 106.54,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6id.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 237 NVMe SSD",
+      "price_per_hour": 0.2919,
+      "price_per_month": 213.09,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6id.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "474 NVMe SSD 1개",
+      "price_per_hour": 0.5838,
+      "price_per_month": 426.17,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6id.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "1 x 950 NVMe SSD",
+      "price_per_hour": 1.1676,
+      "price_per_month": 852.35,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6id.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "1 x 1900 NVMe SSD",
+      "price_per_hour": 2.3352,
+      "price_per_month": 1704.7,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6id.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "2 x 1425 NVMe SSD",
+      "price_per_hour": 3.5028,
+      "price_per_month": 2557.04,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6id.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "2 x 1900 NVMe SSD",
+      "price_per_hour": 4.6704,
+      "price_per_month": 3409.39,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6id.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "1425 NVMe SSD 4개",
+      "price_per_hour": 7.0056,
+      "price_per_month": 5114.09,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6id.32xlarge": {
+      "vcpu": 128,
+      "memory_gb": 512.0,
+      "storage_gb": "4 x 1900 NVMe SSD",
+      "price_per_hour": 9.3408,
+      "price_per_month": 6818.78,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6id.metal": {
+      "vcpu": 128,
+      "memory_gb": 512.0,
+      "storage_gb": "4 x 1900 NVMe SSD",
+      "price_per_hour": 9.3408,
+      "price_per_month": 6818.78,
+      "description": "General purpose, balanced"
+    },
+    "m6idn.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "1 x 118 NVMe SSD",
+      "price_per_hour": 0.19305,
+      "price_per_month": 140.93,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6idn.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 237 NVMe SSD",
+      "price_per_hour": 0.3861,
+      "price_per_month": 281.85,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6idn.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "474 NVMe SSD 1개",
+      "price_per_hour": 0.7722,
+      "price_per_month": 563.71,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6idn.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "1 x 950 NVMe SSD",
+      "price_per_hour": 1.5444,
+      "price_per_month": 1127.41,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6idn.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "1 x 1900 NVMe SSD",
+      "price_per_hour": 3.0888,
+      "price_per_month": 2254.82,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6idn.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "2 x 1425 NVMe SSD",
+      "price_per_hour": 4.6332,
+      "price_per_month": 3382.24,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6idn.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "2 x 1900 NVMe SSD",
+      "price_per_hour": 6.1776,
+      "price_per_month": 4509.65,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6idn.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "1425 NVMe SSD 4개",
+      "price_per_hour": 9.2664,
+      "price_per_month": 6764.47,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6idn.32xlarge": {
+      "vcpu": 128,
+      "memory_gb": 512.0,
+      "storage_gb": "4 x 1900 NVMe SSD",
+      "price_per_hour": 12.3552,
+      "price_per_month": 9019.3,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6idn.metal": {
+      "vcpu": 128,
+      "memory_gb": 512.0,
+      "storage_gb": "4 x 1900 NVMe SSD",
+      "price_per_hour": 12.3552,
+      "price_per_month": 9019.3,
+      "description": "General purpose, balanced"
+    },
+    "m6in.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.16848,
+      "price_per_month": 122.99,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6in.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.33696,
+      "price_per_month": 245.98,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m6in.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.67392,
+      "price_per_month": 491.96,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6in.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.34784,
+      "price_per_month": 983.92,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6in.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.69568,
+      "price_per_month": 1967.85,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6in.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.04352,
+      "price_per_month": 2951.77,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6in.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 5.39136,
+      "price_per_month": 3935.69,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6in.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 8.08704,
+      "price_per_month": 5903.54,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6in.32xlarge": {
+      "vcpu": 128,
+      "memory_gb": 512.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 10.78272,
+      "price_per_month": 7871.39,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m6in.metal": {
+      "vcpu": 128,
+      "memory_gb": 512.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 10.78272,
+      "price_per_month": 7871.39,
+      "description": "General purpose, balanced"
     },
     "m5.large": {
       "vcpu": 2,
-      "memory_gb": 8,
+      "memory_gb": 8.0,
       "storage_gb": "EBS Only",
-      "price_per_hour": 0.107,
-      "price_per_month": 78.11,
-      "description": "General purpose, balanced compute/memory"
+      "price_per_hour": 0.118,
+      "price_per_month": 86.14,
+      "description": "General purpose, balanced, production workloads"
     },
     "m5.xlarge": {
       "vcpu": 4,
-      "memory_gb": 16,
+      "memory_gb": 16.0,
       "storage_gb": "EBS Only",
-      "price_per_hour": 0.214,
-      "price_per_month": 156.22,
-      "description": "General purpose, production workloads"
+      "price_per_hour": 0.236,
+      "price_per_month": 172.28,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m5.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.472,
+      "price_per_month": 344.56,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.944,
+      "price_per_month": 689.12,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.888,
+      "price_per_month": 1378.24,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.832,
+      "price_per_month": 2067.36,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.776,
+      "price_per_month": 2756.48,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 5.664,
+      "price_per_month": 4134.72,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5.metal": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 5.664,
+      "price_per_month": 4134.72,
+      "description": "General purpose, balanced"
+    },
+    "m5a.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.106,
+      "price_per_month": 77.38,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m5a.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.212,
+      "price_per_month": 154.76,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m5a.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.424,
+      "price_per_month": 309.52,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5a.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.848,
+      "price_per_month": 619.04,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5a.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.696,
+      "price_per_month": 1238.08,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5a.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.544,
+      "price_per_month": 1857.12,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5a.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.392,
+      "price_per_month": 2476.16,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5a.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 5.088,
+      "price_per_month": 3714.24,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5ad.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "1 x 75 NVMe SSD",
+      "price_per_hour": 0.127,
+      "price_per_month": 92.71,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m5ad.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 150 NVMe SSD",
+      "price_per_hour": 0.254,
+      "price_per_month": 185.42,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m5ad.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "1 x 300 NVMe SSD",
+      "price_per_hour": 0.508,
+      "price_per_month": 370.84,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5ad.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "2 x 300 NVMe SSD",
+      "price_per_hour": 1.016,
+      "price_per_month": 741.68,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5ad.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "2 x 600 NVMe SSD",
+      "price_per_hour": 2.032,
+      "price_per_month": 1483.36,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5ad.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "2 x 900 NVMe SSD",
+      "price_per_hour": 3.048,
+      "price_per_month": 2225.04,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5ad.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "4 x 600 NVMe SSD",
+      "price_per_hour": 4.064,
+      "price_per_month": 2966.72,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5ad.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "4 x 900 NVMe SSD",
+      "price_per_hour": 6.096,
+      "price_per_month": 4450.08,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5d.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "1 x 75 NVMe SSD",
+      "price_per_hour": 0.139,
+      "price_per_month": 101.47,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m5d.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 150 NVMe SSD",
+      "price_per_hour": 0.278,
+      "price_per_month": 202.94,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m5d.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "1 x 300 NVMe SSD",
+      "price_per_hour": 0.556,
+      "price_per_month": 405.88,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5d.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "2 x 300 NVMe SSD",
+      "price_per_hour": 1.112,
+      "price_per_month": 811.76,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5d.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "2 x 600 NVMe SSD",
+      "price_per_hour": 2.224,
+      "price_per_month": 1623.52,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5d.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "2 x 900 NVMe SSD",
+      "price_per_hour": 3.336,
+      "price_per_month": 2435.28,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5d.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "4 x 600 NVMe SSD",
+      "price_per_hour": 4.448,
+      "price_per_month": 3247.04,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5d.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "4 x 900 NVMe SSD",
+      "price_per_hour": 6.672,
+      "price_per_month": 4870.56,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5d.metal": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "4 x 900 NVMe SSD",
+      "price_per_hour": 6.672,
+      "price_per_month": 4870.56,
+      "description": "General purpose, balanced"
+    },
+    "m5zn.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.203,
+      "price_per_month": 148.19,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m5zn.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.406,
+      "price_per_month": 296.38,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m5zn.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.812,
+      "price_per_month": 592.76,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5zn.3xlarge": {
+      "vcpu": 12,
+      "memory_gb": 48.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.218,
+      "price_per_month": 889.14,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5zn.6xlarge": {
+      "vcpu": 24,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.436,
+      "price_per_month": 1778.28,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5zn.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.872,
+      "price_per_month": 3556.56,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m5zn.metal": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.872,
+      "price_per_month": 3556.56,
+      "description": "General purpose, balanced"
+    },
+    "m4.large": {
+      "vcpu": 2,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.123,
+      "price_per_month": 89.79,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m4.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.246,
+      "price_per_month": 179.58,
+      "description": "General purpose, balanced, production workloads"
+    },
+    "m4.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.492,
+      "price_per_month": 359.16,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m4.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.984,
+      "price_per_month": 718.32,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m4.10xlarge": {
+      "vcpu": 40,
+      "memory_gb": 160.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.46,
+      "price_per_month": 1795.8,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "m4.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.936,
+      "price_per_month": 2873.28,
+      "description": "General purpose, balanced, high-performance production"
+    },
+    "c8g.medium": {
+      "vcpu": 1,
+      "memory_gb": 2.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.04488,
+      "price_per_month": 32.76,
+      "description": "Compute optimized, small production"
+    },
+    "c8g.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.08976,
+      "price_per_month": 65.52,
+      "description": "Compute optimized, production workloads"
+    },
+    "c8g.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.17952,
+      "price_per_month": 131.05,
+      "description": "Compute optimized, production workloads"
+    },
+    "c8g.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.35904,
+      "price_per_month": 262.1,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c8g.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.71808,
+      "price_per_month": 524.2,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c8g.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.43616,
+      "price_per_month": 1048.4,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c8g.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.15424,
+      "price_per_month": 1572.6,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c8g.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.87232,
+      "price_per_month": 2096.79,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c8g.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.30848,
+      "price_per_month": 3145.19,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c8g.48xlarge": {
+      "vcpu": 192,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 8.61696,
+      "price_per_month": 6290.38,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c8g.metal-24xl": {
+      "vcpu": 96,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.30848,
+      "price_per_month": 3145.19,
+      "description": "Compute optimized"
+    },
+    "c8g.metal-48xl": {
+      "vcpu": 192,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 8.61696,
+      "price_per_month": 6290.38,
+      "description": "Compute optimized"
+    },
+    "c7g.medium": {
+      "vcpu": 1,
+      "memory_gb": 2.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0408,
+      "price_per_month": 29.78,
+      "description": "Compute optimized, small production"
+    },
+    "c7g.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0816,
+      "price_per_month": 59.57,
+      "description": "Compute optimized, production workloads"
+    },
+    "c7g.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.1632,
+      "price_per_month": 119.14,
+      "description": "Compute optimized, production workloads"
+    },
+    "c7g.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.3264,
+      "price_per_month": 238.27,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7g.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.6528,
+      "price_per_month": 476.54,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7g.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.3056,
+      "price_per_month": 953.09,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7g.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.9584,
+      "price_per_month": 1429.63,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7g.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.6112,
+      "price_per_month": 1906.18,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7g.metal": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.6112,
+      "price_per_month": 1906.18,
+      "description": "Compute optimized"
+    },
+    "c7gd.medium": {
+      "vcpu": 1,
+      "memory_gb": 2.0,
+      "storage_gb": "1 x 59 NVMe SSD",
+      "price_per_hour": 0.052,
+      "price_per_month": 37.96,
+      "description": "Compute optimized, small production"
+    },
+    "c7gd.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "1 x 118 NVMe SSD",
+      "price_per_hour": 0.104,
+      "price_per_month": 75.92,
+      "description": "Compute optimized, production workloads"
+    },
+    "c7gd.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "1 x 237 NVMe SSD",
+      "price_per_hour": 0.2079,
+      "price_per_month": 151.77,
+      "description": "Compute optimized, production workloads"
+    },
+    "c7gd.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 475 NVMe SSD",
+      "price_per_hour": 0.4158,
+      "price_per_month": 303.53,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7gd.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "1 x 950 NVMe SSD",
+      "price_per_hour": 0.8317,
+      "price_per_month": 607.14,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7gd.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "1 x 1900 NVMe SSD",
+      "price_per_hour": 1.6634,
+      "price_per_month": 1214.28,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7gd.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "2 x 1425 NVMe SSD",
+      "price_per_hour": 2.495,
+      "price_per_month": 1821.35,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7gd.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "2 x 1900 NVMe SSD",
+      "price_per_hour": 3.3267,
+      "price_per_month": 2428.49,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7gd.metal": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "2 x 1900 NVMe SSD",
+      "price_per_hour": 3.3267,
+      "price_per_month": 2428.49,
+      "description": "Compute optimized"
+    },
+    "c7i.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.1008,
+      "price_per_month": 73.58,
+      "description": "Compute optimized, production workloads"
+    },
+    "c7i.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.2016,
+      "price_per_month": 147.17,
+      "description": "Compute optimized, production workloads"
+    },
+    "c7i.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.4032,
+      "price_per_month": 294.34,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.8064,
+      "price_per_month": 588.67,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.6128,
+      "price_per_month": 1177.34,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.4192,
+      "price_per_month": 1766.02,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.2256,
+      "price_per_month": 2354.69,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.8384,
+      "price_per_month": 3532.03,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i.48xlarge": {
+      "vcpu": 192,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 9.6768,
+      "price_per_month": 7064.06,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i.metal-24xl": {
+      "vcpu": 96,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.8384,
+      "price_per_month": 3532.03,
+      "description": "Compute optimized"
+    },
+    "c7i.metal-48xl": {
+      "vcpu": 192,
+      "memory_gb": 384.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 9.6768,
+      "price_per_month": 7064.06,
+      "description": "Compute optimized"
+    },
+    "c7i-flex.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.09576,
+      "price_per_month": 69.9,
+      "description": "Compute optimized, production workloads"
+    },
+    "c7i-flex.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.19152,
+      "price_per_month": 139.81,
+      "description": "Compute optimized, production workloads"
+    },
+    "c7i-flex.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.38304,
+      "price_per_month": 279.62,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i-flex.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.76608,
+      "price_per_month": 559.24,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i-flex.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.53216,
+      "price_per_month": 1118.48,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i-flex.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.29824,
+      "price_per_month": 1677.72,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c7i-flex.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.06432,
+      "price_per_month": 2236.95,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6g.medium": {
+      "vcpu": 1,
+      "memory_gb": 2.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0385,
+      "price_per_month": 28.11,
+      "description": "Compute optimized, small production"
+    },
+    "c6g.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.077,
+      "price_per_month": 56.21,
+      "description": "Compute optimized, production workloads"
+    },
+    "c6g.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.154,
+      "price_per_month": 112.42,
+      "description": "Compute optimized, production workloads"
+    },
+    "c6g.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.308,
+      "price_per_month": 224.84,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6g.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.616,
+      "price_per_month": 449.68,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6g.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.232,
+      "price_per_month": 899.36,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6g.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.848,
+      "price_per_month": 1349.04,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6g.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.464,
+      "price_per_month": 1798.72,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6g.metal": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.464,
+      "price_per_month": 1798.72,
+      "description": "Compute optimized"
+    },
+    "c6gd.medium": {
+      "vcpu": 1,
+      "memory_gb": 2.0,
+      "storage_gb": "1 x 59 NVMe SSD",
+      "price_per_hour": 0.044,
+      "price_per_month": 32.12,
+      "description": "Compute optimized, small production"
+    },
+    "c6gd.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "1 x 118 NVMe SSD",
+      "price_per_hour": 0.088,
+      "price_per_month": 64.24,
+      "description": "Compute optimized, production workloads"
+    },
+    "c6gd.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "1 x 237 NVMe SSD",
+      "price_per_hour": 0.176,
+      "price_per_month": 128.48,
+      "description": "Compute optimized, production workloads"
+    },
+    "c6gd.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 475 NVMe SSD",
+      "price_per_hour": 0.352,
+      "price_per_month": 256.96,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6gd.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "1 x 950 NVMe SSD",
+      "price_per_hour": 0.704,
+      "price_per_month": 513.92,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6gd.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "1 x 1900 NVMe SSD",
+      "price_per_hour": 1.408,
+      "price_per_month": 1027.84,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6gd.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "2 x 1425 NVMe SSD",
+      "price_per_hour": 2.112,
+      "price_per_month": 1541.76,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6gd.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "2 x 1900 NVMe SSD",
+      "price_per_hour": 2.816,
+      "price_per_month": 2055.68,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6gd.metal": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "2 x 1900 NVMe SSD",
+      "price_per_hour": 2.816,
+      "price_per_month": 2055.68,
+      "description": "Compute optimized"
+    },
+    "c6gn.medium": {
+      "vcpu": 1,
+      "memory_gb": 2.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.04875,
+      "price_per_month": 35.59,
+      "description": "Compute optimized, small production"
+    },
+    "c6gn.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.0975,
+      "price_per_month": 71.17,
+      "description": "Compute optimized, production workloads"
+    },
+    "c6gn.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.195,
+      "price_per_month": 142.35,
+      "description": "Compute optimized, production workloads"
+    },
+    "c6gn.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.39,
+      "price_per_month": 284.7,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6gn.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.78,
+      "price_per_month": 569.4,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6gn.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.56,
+      "price_per_month": 1138.8,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6gn.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.34,
+      "price_per_month": 1708.2,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6gn.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.12,
+      "price_per_month": 2277.6,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6i.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.096,
+      "price_per_month": 70.08,
+      "description": "Compute optimized, production workloads"
+    },
+    "c6i.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.192,
+      "price_per_month": 140.16,
+      "description": "Compute optimized, production workloads"
+    },
+    "c6i.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.384,
+      "price_per_month": 280.32,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6i.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.768,
+      "price_per_month": 560.64,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6i.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.536,
+      "price_per_month": 1121.28,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6in.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.0744,
+      "price_per_month": 2244.31,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6in.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.0992,
+      "price_per_month": 2992.42,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6in.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 6.1488,
+      "price_per_month": 4488.62,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6in.32xlarge": {
+      "vcpu": 128,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 8.1984,
+      "price_per_month": 5984.83,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c6in.metal": {
+      "vcpu": 128,
+      "memory_gb": 256.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 8.1984,
+      "price_per_month": 5984.83,
+      "description": "Compute optimized"
     },
     "c5.large": {
       "vcpu": 2,
-      "memory_gb": 4,
+      "memory_gb": 4.0,
       "storage_gb": "EBS Only",
-      "price_per_hour": 0.095,
-      "price_per_month": 69.35,
-      "description": "Compute optimized, CPU-intensive apps"
+      "price_per_hour": 0.096,
+      "price_per_month": 70.08,
+      "description": "Compute optimized, production workloads"
     },
-    "r5.large": {
-      "vcpu": 2,
-      "memory_gb": 16,
+    "c5.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
       "storage_gb": "EBS Only",
-      "price_per_hour": 0.14,
-      "price_per_month": 102.2,
-      "description": "Memory optimized, memory-intensive apps"
+      "price_per_hour": 0.192,
+      "price_per_month": 140.16,
+      "description": "Compute optimized, production workloads"
+    },
+    "c5.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.384,
+      "price_per_month": 280.32,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.768,
+      "price_per_month": 560.64,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5.9xlarge": {
+      "vcpu": 36,
+      "memory_gb": 72.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.728,
+      "price_per_month": 1261.44,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.304,
+      "price_per_month": 1681.92,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5.18xlarge": {
+      "vcpu": 72,
+      "memory_gb": 144.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.456,
+      "price_per_month": 2522.88,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.608,
+      "price_per_month": 3363.84,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5.metal": {
+      "vcpu": 96,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.608,
+      "price_per_month": 3363.84,
+      "description": "Compute optimized"
+    },
+    "c5a.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.086,
+      "price_per_month": 62.78,
+      "description": "Compute optimized, production workloads"
+    },
+    "c5a.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.172,
+      "price_per_month": 125.56,
+      "description": "Compute optimized, production workloads"
+    },
+    "c5a.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.344,
+      "price_per_month": 251.12,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5a.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.688,
+      "price_per_month": 502.24,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5a.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.376,
+      "price_per_month": 1004.48,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5a.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.064,
+      "price_per_month": 1506.72,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5a.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.752,
+      "price_per_month": 2008.96,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5a.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.128,
+      "price_per_month": 3013.44,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5d.large": {
+      "vcpu": 2,
+      "memory_gb": 4.0,
+      "storage_gb": "1 x 50 NVMe SSD",
+      "price_per_hour": 0.11,
+      "price_per_month": 80.3,
+      "description": "Compute optimized, production workloads"
+    },
+    "c5d.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "1 x 100 NVMe SSD",
+      "price_per_hour": 0.22,
+      "price_per_month": 160.6,
+      "description": "Compute optimized, production workloads"
+    },
+    "c5d.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 200 NVMe SSD",
+      "price_per_hour": 0.44,
+      "price_per_month": 321.2,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5d.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "1 x 400 NVMe SSD",
+      "price_per_hour": 0.88,
+      "price_per_month": 642.4,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5d.9xlarge": {
+      "vcpu": 36,
+      "memory_gb": 72.0,
+      "storage_gb": "1 x 900 NVMe SSD",
+      "price_per_hour": 1.98,
+      "price_per_month": 1445.4,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5d.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 96.0,
+      "storage_gb": "2 x 900 NVMe SSD",
+      "price_per_hour": 2.64,
+      "price_per_month": 1927.2,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5d.18xlarge": {
+      "vcpu": 72,
+      "memory_gb": 144.0,
+      "storage_gb": "2 x 900 NVMe SSD",
+      "price_per_hour": 3.96,
+      "price_per_month": 2890.8,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5d.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 192.0,
+      "storage_gb": "4 x 900 NVMe SSD",
+      "price_per_hour": 5.28,
+      "price_per_month": 3854.4,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5d.metal": {
+      "vcpu": 96,
+      "memory_gb": 192.0,
+      "storage_gb": "4 x 900 NVMe SSD",
+      "price_per_hour": 5.28,
+      "price_per_month": 3854.4,
+      "description": "Compute optimized"
+    },
+    "c5n.large": {
+      "vcpu": 2,
+      "memory_gb": 5.25,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.122,
+      "price_per_month": 89.06,
+      "description": "Compute optimized, production workloads"
+    },
+    "c5n.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 10.5,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.244,
+      "price_per_month": 178.12,
+      "description": "Compute optimized, production workloads"
+    },
+    "c5n.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 21.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.488,
+      "price_per_month": 356.24,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5n.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 42.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.976,
+      "price_per_month": 712.48,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5n.9xlarge": {
+      "vcpu": 36,
+      "memory_gb": 96.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.196,
+      "price_per_month": 1603.08,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5n.18xlarge": {
+      "vcpu": 72,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.392,
+      "price_per_month": 3206.16,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c5n.metal": {
+      "vcpu": 72,
+      "memory_gb": 192.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.392,
+      "price_per_month": 3206.16,
+      "description": "Compute optimized"
+    },
+    "c4.large": {
+      "vcpu": 2,
+      "memory_gb": 3.75,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.114,
+      "price_per_month": 83.22,
+      "description": "Compute optimized, production workloads"
+    },
+    "c4.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 7.5,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.227,
+      "price_per_month": 165.71,
+      "description": "Compute optimized, production workloads"
+    },
+    "c4.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 15.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.454,
+      "price_per_month": 331.42,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c4.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 30.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.907,
+      "price_per_month": 662.11,
+      "description": "Compute optimized, high-performance production"
+    },
+    "c4.8xlarge": {
+      "vcpu": 36,
+      "memory_gb": 60.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.815,
+      "price_per_month": 1324.95,
+      "description": "Compute optimized, high-performance production"
+    },
+    "p5en.48xlarge": {
+      "vcpu": 192,
+      "memory_gb": 2048.0,
+      "storage_gb": "8 x 3840 NVMe SSD",
+      "price_per_hour": 87.34848,
+      "price_per_month": 63764.39,
+      "description": "GPU for ML/HPC, high-performance production"
+    },
+    "p4d.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 1152.0,
+      "storage_gb": "8 x 1000 SSD",
+      "price_per_hour": 30.41028,
+      "price_per_month": 22199.5,
+      "description": "GPU for ML/HPC, high-performance production"
+    },
+    "p3.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 61.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 4.234,
+      "price_per_month": 3090.82,
+      "description": "GPU for ML/HPC, high-performance production"
+    },
+    "p3.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 244.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 16.936,
+      "price_per_month": 12363.28,
+      "description": "GPU for ML/HPC, high-performance production"
+    },
+    "p3.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 488.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 33.872,
+      "price_per_month": 24726.56,
+      "description": "GPU for ML/HPC, high-performance production"
+    },
+    "p2.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 61.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.465,
+      "price_per_month": 1069.45,
+      "description": "GPU for ML/HPC, production workloads"
+    },
+    "p2.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 488.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 11.72,
+      "price_per_month": 8555.6,
+      "description": "GPU for ML/HPC, high-performance production"
+    },
+    "p2.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 732.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 23.44,
+      "price_per_month": 17111.2,
+      "description": "GPU for ML/HPC, high-performance production"
+    },
+    "g6.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 250GB NVMe SSD",
+      "price_per_hour": 0.9896,
+      "price_per_month": 722.41,
+      "description": "Graphics/GPU intensive, production workloads"
+    },
+    "g6.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "1 x 450GB NVMe SSD",
+      "price_per_hour": 1.20208,
+      "price_per_month": 877.52,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "1 x 600GB NVMe SSD",
+      "price_per_hour": 1.62704,
+      "price_per_month": 1187.74,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "2 x 450GB NVMe SSD",
+      "price_per_hour": 2.47695,
+      "price_per_month": 1808.17,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "4 X 940GB NVMe SSD",
+      "price_per_hour": 5.65823,
+      "price_per_month": 4130.51,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "2 x 940GB NVMe SSD",
+      "price_per_hour": 4.17678,
+      "price_per_month": 3049.05,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "4 X 940GB NVMe SSD",
+      "price_per_hour": 8.20797,
+      "price_per_month": 5991.82,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6.48xlarge": {
+      "vcpu": 192,
+      "memory_gb": 768.0,
+      "storage_gb": "8 x 940 NVMe SSD",
+      "price_per_hour": 16.41595,
+      "price_per_month": 11983.64,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6e.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 32.0,
+      "storage_gb": "1 x 250GB NVMe SSD",
+      "price_per_hour": 2.288,
+      "price_per_month": 1670.24,
+      "description": "Graphics/GPU intensive, production workloads"
+    },
+    "g6e.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 64.0,
+      "storage_gb": "1 x 450GB NVMe SSD",
+      "price_per_hour": 2.75652,
+      "price_per_month": 2012.26,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6e.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 128.0,
+      "storage_gb": "1 x 600GB NVMe SSD",
+      "price_per_hour": 3.69355,
+      "price_per_month": 2696.29,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6e.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 256.0,
+      "storage_gb": "1 x 900GB NVMe SSD",
+      "price_per_hour": 5.56762,
+      "price_per_month": 4064.36,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6e.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 384.0,
+      "storage_gb": "2 x 1900 GB NVMe SSD",
+      "price_per_hour": 12.90014,
+      "price_per_month": 9417.1,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6e.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 512.0,
+      "storage_gb": "1 x 1900GB NVMe SSD",
+      "price_per_hour": 9.31575,
+      "price_per_month": 6800.5,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6e.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 768.0,
+      "storage_gb": "2 x 1900 GB NVMe SSD",
+      "price_per_hour": 18.52234,
+      "price_per_month": 13521.31,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g6e.48xlarge": {
+      "vcpu": 192,
+      "memory_gb": 1536.0,
+      "storage_gb": "4 x 1900 GB NVMe SSD",
+      "price_per_hour": 37.04468,
+      "price_per_month": 27042.62,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "1 x 250GB NVMe SSD",
+      "price_per_hour": 1.237,
+      "price_per_month": 903.01,
+      "description": "Graphics/GPU intensive, production workloads"
+    },
+    "g5.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "1 x 450GB NVMe SSD",
+      "price_per_hour": 1.4903,
+      "price_per_month": 1087.92,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "1 x 600GB NVMe SSD",
+      "price_per_hour": 1.99691,
+      "price_per_month": 1457.74,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "1 x 900GB NVMe SSD",
+      "price_per_hour": 3.01012,
+      "price_per_month": 2197.39,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "1 x 3800GB NVMe SSD",
+      "price_per_hour": 6.97442,
+      "price_per_month": 5091.33,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "1 x 1900GB NVMe SSD",
+      "price_per_hour": 5.03653,
+      "price_per_month": 3676.67,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5.24xlarge": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "1 x 3800GB NVMe SSD",
+      "price_per_hour": 10.01404,
+      "price_per_month": 7310.25,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5.48xlarge": {
+      "vcpu": 192,
+      "memory_gb": 768.0,
+      "storage_gb": "2 x 3800GB NVMe SSD",
+      "price_per_hour": 20.02809,
+      "price_per_month": 14620.51,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5g.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 8.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.5166,
+      "price_per_month": 377.12,
+      "description": "Graphics/GPU intensive, production workloads"
+    },
+    "g5g.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 16.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.6839,
+      "price_per_month": 499.25,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5g.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 32.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.0185,
+      "price_per_month": 743.5,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5g.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 64.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.6876,
+      "price_per_month": 1231.95,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5g.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.3752,
+      "price_per_month": 2463.9,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g5g.metal": {
+      "vcpu": 64,
+      "memory_gb": 128.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 3.3752,
+      "price_per_month": 2463.9,
+      "description": "Graphics/GPU intensive"
+    },
+    "g4dn.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 16.0,
+      "storage_gb": "125GB NVMe SSD",
+      "price_per_hour": 0.647,
+      "price_per_month": 472.31,
+      "description": "Graphics/GPU intensive, production workloads"
+    },
+    "g4dn.2xlarge": {
+      "vcpu": 8,
+      "memory_gb": 32.0,
+      "storage_gb": "225GB NVMe SSD",
+      "price_per_hour": 0.925,
+      "price_per_month": 675.25,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g4dn.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 64.0,
+      "storage_gb": "225GB NVMe SSD",
+      "price_per_hour": 1.481,
+      "price_per_month": 1081.13,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g4dn.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 128.0,
+      "storage_gb": "900GB NVMe SSD",
+      "price_per_hour": 2.677,
+      "price_per_month": 1954.21,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g4dn.12xlarge": {
+      "vcpu": 48,
+      "memory_gb": 192.0,
+      "storage_gb": "900GB NVMe SSD",
+      "price_per_hour": 4.812,
+      "price_per_month": 3512.76,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g4dn.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 256.0,
+      "storage_gb": "900GB NVMe SSD",
+      "price_per_hour": 5.353,
+      "price_per_month": 3907.69,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g4dn.metal": {
+      "vcpu": 96,
+      "memory_gb": 384.0,
+      "storage_gb": "2 x 900GB NVMe SSD",
+      "price_per_hour": 9.624,
+      "price_per_month": 7025.52,
+      "description": "Graphics/GPU intensive"
+    },
+    "g3.4xlarge": {
+      "vcpu": 16,
+      "memory_gb": 122.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 1.42,
+      "price_per_month": 1036.6,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g3.8xlarge": {
+      "vcpu": 32,
+      "memory_gb": 244.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 2.84,
+      "price_per_month": 2073.2,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g3.16xlarge": {
+      "vcpu": 64,
+      "memory_gb": 488.0,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 5.68,
+      "price_per_month": 4146.4,
+      "description": "Graphics/GPU intensive, high-performance production"
+    },
+    "g3s.xlarge": {
+      "vcpu": 4,
+      "memory_gb": 30.5,
+      "storage_gb": "EBS Only",
+      "price_per_hour": 0.934,
+      "price_per_month": 681.82,
+      "description": "Graphics/GPU intensive, production workloads"
     }
   },
   "rds": {
     "db.t3.micro": {
       "vcpu": 2,
       "memory_gb": 1,
-      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "engines": [
+        "MySQL",
+        "PostgreSQL",
+        "MariaDB"
+      ],
       "price_per_hour": 0.018,
       "price_per_month": 13.14,
       "description": "Development/testing databases"
@@ -89,7 +2837,11 @@
     "db.t3.small": {
       "vcpu": 2,
       "memory_gb": 2,
-      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "engines": [
+        "MySQL",
+        "PostgreSQL",
+        "MariaDB"
+      ],
       "price_per_hour": 0.036,
       "price_per_month": 26.28,
       "description": "Small production databases"
@@ -97,7 +2849,11 @@
     "db.t3.medium": {
       "vcpu": 2,
       "memory_gb": 4,
-      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "engines": [
+        "MySQL",
+        "PostgreSQL",
+        "MariaDB"
+      ],
       "price_per_hour": 0.072,
       "price_per_month": 52.56,
       "description": "Medium production databases"
@@ -105,7 +2861,11 @@
     "db.t3.large": {
       "vcpu": 2,
       "memory_gb": 8,
-      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "engines": [
+        "MySQL",
+        "PostgreSQL",
+        "MariaDB"
+      ],
       "price_per_hour": 0.144,
       "price_per_month": 105.12,
       "description": "Large production databases"
@@ -113,7 +2873,11 @@
     "db.m5.large": {
       "vcpu": 2,
       "memory_gb": 8,
-      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "engines": [
+        "MySQL",
+        "PostgreSQL",
+        "MariaDB"
+      ],
       "price_per_hour": 0.166,
       "price_per_month": 121.18,
       "description": "General purpose production databases"
@@ -121,7 +2885,11 @@
     "db.r5.large": {
       "vcpu": 2,
       "memory_gb": 16,
-      "engines": ["MySQL", "PostgreSQL", "MariaDB"],
+      "engines": [
+        "MySQL",
+        "PostgreSQL",
+        "MariaDB"
+      ],
       "price_per_hour": 0.24,
       "price_per_month": 175.2,
       "description": "Memory-intensive databases"
@@ -131,7 +2899,10 @@
     "cache.t3.micro": {
       "vcpu": 2,
       "memory_gb": 0.5,
-      "engines": ["Redis", "Memcached"],
+      "engines": [
+        "Redis",
+        "Memcached"
+      ],
       "price_per_hour": 0.02,
       "price_per_month": 14.6,
       "description": "Development/testing cache"
@@ -139,7 +2910,10 @@
     "cache.t3.small": {
       "vcpu": 2,
       "memory_gb": 1.37,
-      "engines": ["Redis", "Memcached"],
+      "engines": [
+        "Redis",
+        "Memcached"
+      ],
       "price_per_hour": 0.04,
       "price_per_month": 29.2,
       "description": "Small production cache"
@@ -147,7 +2921,10 @@
     "cache.t3.medium": {
       "vcpu": 2,
       "memory_gb": 3.09,
-      "engines": ["Redis", "Memcached"],
+      "engines": [
+        "Redis",
+        "Memcached"
+      ],
       "price_per_hour": 0.08,
       "price_per_month": 58.4,
       "description": "Medium production cache"
@@ -155,7 +2932,10 @@
     "cache.m5.large": {
       "vcpu": 2,
       "memory_gb": 6.38,
-      "engines": ["Redis", "Memcached"],
+      "engines": [
+        "Redis",
+        "Memcached"
+      ],
       "price_per_hour": 0.133,
       "price_per_month": 97.09,
       "description": "High-performance cache"
@@ -163,7 +2943,10 @@
     "cache.r5.large": {
       "vcpu": 2,
       "memory_gb": 13.07,
-      "engines": ["Redis", "Memcached"],
+      "engines": [
+        "Redis",
+        "Memcached"
+      ],
       "price_per_hour": 0.201,
       "price_per_month": 146.73,
       "description": "Memory-intensive cache"

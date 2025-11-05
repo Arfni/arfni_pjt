@@ -61,7 +61,23 @@ func (e *CostEstimator) calculateTierCost(tierName string, tier TierRecommendati
 		TierName:    tierName,
 		Description: tier.Description,
 		Warnings:    tier.Warnings,
-		Details:     CostDetails{},
+		Details: CostDetails{
+			EC2Items:     make([]CostItem, 0),
+			RDSItems:     make([]CostItem, 0),
+			CacheItems:   make([]CostItem, 0),
+			StorageItems: make([]CostItem, 0),
+		},
+	}
+
+	// Extract instance type and specs for display
+	if len(tier.EC2Instances) > 0 {
+		instanceType := tier.EC2Instances[0].Type
+		if ec2Instance, ok := e.pricing.EC2[instanceType]; ok {
+			breakdown.InstanceType = fmt.Sprintf("%s (%d vCPU, %.0fGB RAM)",
+				instanceType, ec2Instance.VCPU, ec2Instance.MemoryGB)
+		} else {
+			breakdown.InstanceType = instanceType
+		}
 	}
 
 	// Validate memory for simple deployment (validation only, no auto-fix)
