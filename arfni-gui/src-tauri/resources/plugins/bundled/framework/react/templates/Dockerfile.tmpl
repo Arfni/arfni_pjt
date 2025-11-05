@@ -1,0 +1,33 @@
+# Build stage
+FROM node:{{default "18" .node_version}} AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --production
+
+# Copy application code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM node:{{default "18" .node_version}}
+
+WORKDIR /app
+
+# Install serve to run the application
+RUN npm install -g serve
+
+# Copy built application from builder
+COPY --from=builder /app/build ./build
+
+# Expose port
+EXPOSE {{default 3000 .port}}
+
+# Start the application
+CMD ["serve", "-s", "build", "-l", "{{default 3000 .port}}"]

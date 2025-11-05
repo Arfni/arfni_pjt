@@ -3,7 +3,7 @@ import { EC2Server } from '@shared/api/tauri/commands';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
-  selectedTab: 'local' | 'ec2';
+  selectedTab: 'local' | 'ec2' | 'plugins';
   newProjectName: string;
   newProjectPath: string;
   creating: boolean;

@@ -2,10 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::command;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
-
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
+use tauri::AppHandle;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrometheusMetric {
@@ -321,7 +318,7 @@ async fn ensure_docker_running() -> Result<(), String> {
 /// 모니터링 스택 자동 시작
 #[command]
 pub async fn start_monitoring_stack(
-    app: AppHandle,
+    _app: AppHandle,
     project_path: String,
 ) -> Result<String, String> {
     // Docker Desktop 확인 및 자동 시작
@@ -337,12 +334,12 @@ pub async fn start_monitoring_stack(
     let mut possible_paths = vec![];
 
     // 1. 실행 파일 위치 기준 (배포된 앱)
-    // Tauri가 ../../BE/arfni/bin 을 _up_/_up_/BE/arfni/bin 으로 복사함
+    // Tauri가 resources/bin/* glob으로 resources/bin 폴더 구조 유지
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
-            // 배포된 앱의 리소스 경로
-            possible_paths.push(exe_dir.join("_up_").join("_up_").join("BE").join("arfni").join("bin").join("arfni-monitoring.exe"));
-            possible_paths.push(exe_dir.join("_up_").join("_up_").join("BE").join("arfni").join("bin").join("arfni-go.exe"));
+            // 프로덕션: resources/bin 폴더에 있음
+            possible_paths.push(exe_dir.join("resources").join("bin").join("arfni-monitoring.exe"));
+            possible_paths.push(exe_dir.join("resources").join("bin").join("arfni-go.exe"));
         }
     }
 
@@ -409,6 +406,7 @@ pub async fn start_monitoring_stack(
 
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
@@ -428,6 +426,7 @@ pub async fn start_monitoring_stack(
 
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
@@ -470,6 +469,7 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
 
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
@@ -479,6 +479,7 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
     // SSH 터널 프로세스 종료 (Windows)
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         let mut kill_cmd = Command::new("taskkill");
         kill_cmd.args(&["/F", "/IM", "ssh.exe"]);
         kill_cmd.creation_flags(CREATE_NO_WINDOW);
@@ -488,6 +489,7 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
     // arfni-monitoring.exe 프로세스 종료 (Windows)
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         let mut kill_monitoring = Command::new("taskkill");
         kill_monitoring.args(&["/F", "/IM", "arfni-monitoring.exe"]);
         kill_monitoring.creation_flags(CREATE_NO_WINDOW);

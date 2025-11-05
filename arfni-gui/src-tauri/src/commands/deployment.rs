@@ -101,6 +101,133 @@ pub async fn deploy_stack(
             data: None,
         }).unwrap_or(());
 
+        // 플러그인 디렉토리 경로 가져오기 (GUI의 AppData)
+        let plugin_dir = match app_clone.path().app_data_dir() {
+            Ok(mut path) => {
+                path.push("plugins");
+                path.to_string_lossy().to_string()
+            }
+            Err(_) => String::new()
+        };
+
+        // Bundled 플러그인 디렉토리 경로 가져오기
+        let bundled_plugin_dir = if cfg!(debug_assertions) {
+            // 개발 모드: CARGO_MANIFEST_DIR 기준으로 public/plugins/bundled 찾기
+            let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            // src-tauri -> arfni-gui
+            let arfni_gui_dir = manifest_dir.parent().unwrap_or(&manifest_dir);
+            let bundled_path = arfni_gui_dir.join("public").join("plugins").join("bundled");
+
+            if bundled_path.exists() {
+                app_clone.emit("deployment-log", DeploymentLog {
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                    level: "info".to_string(),
+                    message: format!("✅ [DEV] Found bundled plugins at: {}", bundled_path.display()),
+                    data: None,
+                }).unwrap_or(());
+                bundled_path.to_string_lossy().to_string()
+            } else {
+                app_clone.emit("deployment-log", DeploymentLog {
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                    level: "warning".to_string(),
+                    message: format!("⚠️ [DEV] Bundled plugins NOT found at: {}", bundled_path.display()),
+                    data: None,
+                }).unwrap_or(());
+                String::new()
+            }
+        } else {
+            // 프로덕션에서는 리소스 디렉토리 사용
+            // tauri.conf.json에서 ../public/plugins/bundled -> plugins/bundled 매핑
+            match app_clone.path().resource_dir() {
+                Ok(path) => {
+                    // 디버깅: 리소스 디렉토리 내용 출력
+                    app_clone.emit("deployment-log", DeploymentLog {
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        level: "info".to_string(),
+                        message: format!("🔍 [PROD] Resource directory: {}", path.display()),
+                        data: None,
+                    }).unwrap_or(());
+
+                    // 리소스 디렉토리 하위 항목 나열
+                    if let Ok(entries) = std::fs::read_dir(&path) {
+                        for entry in entries.flatten() {
+                            app_clone.emit("deployment-log", DeploymentLog {
+                                timestamp: chrono::Utc::now().to_rfc3339(),
+                                level: "info".to_string(),
+                                message: format!("  📁 {}", entry.file_name().to_string_lossy()),
+                                data: None,
+                            }).unwrap_or(());
+                        }
+                    }
+
+                    // 경로 1: plugins/bundled (명시적 매핑)
+                    let bundled_path = path.join("plugins").join("bundled");
+                    if bundled_path.exists() {
+                        app_clone.emit("deployment-log", DeploymentLog {
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                            level: "info".to_string(),
+                            message: format!("✅ [PROD] Found bundled plugins at: {}", bundled_path.display()),
+                            data: None,
+                        }).unwrap_or(());
+                        bundled_path.to_string_lossy().to_string()
+                    } else {
+                        // 경로 2: public/plugins/bundled (fallback)
+                        let bundled_path_alt = path.join("public").join("plugins").join("bundled");
+                        if bundled_path_alt.exists() {
+                            app_clone.emit("deployment-log", DeploymentLog {
+                                timestamp: chrono::Utc::now().to_rfc3339(),
+                                level: "info".to_string(),
+                                message: format!("✅ [PROD] Found bundled plugins (fallback) at: {}", bundled_path_alt.display()),
+                                data: None,
+                            }).unwrap_or(());
+                            bundled_path_alt.to_string_lossy().to_string()
+                        } else {
+                            // 경로 3: 실행 파일 근처에서 찾기 (최후 fallback)
+                            let mut found = false;
+                            let mut result_path = String::new();
+
+                            if let Ok(exe_path) = std::env::current_exe() {
+                                if let Some(exe_dir) = exe_path.parent() {
+                                    let exe_bundled_path = exe_dir.join("resources").join("plugins").join("bundled");
+                                    if exe_bundled_path.exists() {
+                                        app_clone.emit("deployment-log", DeploymentLog {
+                                            timestamp: chrono::Utc::now().to_rfc3339(),
+                                            level: "info".to_string(),
+                                            message: format!("✅ [PROD] Found bundled plugins (exe fallback) at: {}", exe_bundled_path.display()),
+                                            data: None,
+                                        }).unwrap_or(());
+                                        found = true;
+                                        result_path = exe_bundled_path.to_string_lossy().to_string();
+                                    }
+                                }
+                            }
+
+                            if !found {
+                                app_clone.emit("deployment-log", DeploymentLog {
+                                    timestamp: chrono::Utc::now().to_rfc3339(),
+                                    level: "warning".to_string(),
+                                    message: format!("⚠️ [PROD] Bundled plugins NOT found. Tried: {}, {}",
+                                        bundled_path.display(), bundled_path_alt.display()),
+                                    data: None,
+                                }).unwrap_or(());
+                            }
+
+                            result_path
+                        }
+                    }
+                }
+                Err(e) => {
+                    app_clone.emit("deployment-log", DeploymentLog {
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        level: "error".to_string(),
+                        message: format!("❌ [PROD] Failed to get resource dir: {}", e),
+                        data: None,
+                    }).unwrap_or(());
+                    String::new()
+                }
+            }
+        };
+
         // 배포 명령 실행 - Go 바이너리 직접 실행
         let mut command = Command::new(&go_binary_path);
         command
@@ -108,7 +235,31 @@ pub async fn deploy_stack(
             .arg("-f")
             .arg(&stack_yaml_path)
             .arg("-project-dir")
-            .arg(&project_path)
+            .arg(&project_path);
+
+        // 플러그인 디렉토리가 있으면 전달
+        if !plugin_dir.is_empty() && Path::new(&plugin_dir).exists() {
+            command.arg("-plugins-dir").arg(&plugin_dir);
+            app_clone.emit("deployment-log", DeploymentLog {
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                level: "info".to_string(),
+                message: format!("플러그인 디렉토리: {}", plugin_dir),
+                data: None,
+            }).unwrap_or(());
+        }
+
+        // Bundled 플러그인 디렉토리가 있으면 전달
+        if !bundled_plugin_dir.is_empty() && Path::new(&bundled_plugin_dir).exists() {
+            command.arg("-bundled-plugins-dir").arg(&bundled_plugin_dir);
+            app_clone.emit("deployment-log", DeploymentLog {
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                level: "info".to_string(),
+                message: format!("Bundled 플러그인 디렉토리: {}", bundled_plugin_dir),
+                data: None,
+            }).unwrap_or(());
+        }
+
+        command
             .current_dir(&project_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -120,7 +271,7 @@ pub async fn deploy_stack(
             command.creation_flags(CREATE_NO_WINDOW);
         }
 
-        let mut cmd = command.spawn();
+        let cmd = command.spawn();
 
         match cmd {
             Ok(mut child) => {
@@ -370,23 +521,7 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
         }
     }
 
-    // 2. Resource 경로들 시도 (배포 환경)
-    let resource_patterns = vec![
-        binary_name.clone(),  // Resource/arfni-go.exe
-        format!("_up_/_up_/BE/arfni/bin/{}", binary_name),  // Resource/_up_/_up_/BE/arfni/bin/arfni-go.exe
-        format!("BE/arfni/bin/{}", binary_name),  // Resource/BE/arfni/bin/arfni-go.exe
-    ];
-
-    for pattern in resource_patterns {
-        if let Ok(path) = app.path().resolve(&pattern, BaseDirectory::Resource) {
-            if path.exists() {
-                println!("✅ Found Go binary in resources: {:?}", path);
-                return Ok(path.to_string_lossy().to_string());
-            }
-        }
-    }
-
-    // 3. 개발 경로들 시도 (CARGO_MANIFEST_DIR 기준)
+    // 2. 개발 경로들 시도 (CARGO_MANIFEST_DIR 기준) - 개발 모드 우선
     let mut dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")); // src-tauri
     dev_path.push("../../BE/arfni/bin");
     dev_path.push(&binary_name);
@@ -395,13 +530,28 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
         return Ok(dev_path.to_string_lossy().to_string());
     }
 
-    // 4. 프로젝트 루트 찾기 (개발 모드 보조)
+    // 3. 프로젝트 루트 찾기 (개발 모드 보조)
     if let Ok(current_dir) = env::current_dir() {
         if let Some(project_root) = find_project_root(&current_dir) {
             let root_based_path = project_root.join("BE").join("arfni").join("bin").join(&binary_name);
             if root_based_path.exists() {
                 println!("✅ Found Go binary at project root: {:?}", root_based_path);
                 return Ok(root_based_path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    // 4. Resource 경로들 시도 (배포 환경) - 개발 경로 이후에 확인
+    let resource_patterns = vec![
+        format!("bin/{}", binary_name),  // Resource/bin/arfni-go.exe (resources/bin/* 매핑)
+        binary_name.clone(),  // Resource/arfni-go.exe (fallback)
+    ];
+
+    for pattern in resource_patterns {
+        if let Ok(path) = app.path().resolve(&pattern, BaseDirectory::Resource) {
+            if path.exists() {
+                println!("✅ Found Go binary in resources: {:?}", path);
+                return Ok(path.to_string_lossy().to_string());
             }
         }
     }

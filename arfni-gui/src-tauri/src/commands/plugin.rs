@@ -1,5 +1,6 @@
 use tauri::{AppHandle, path::BaseDirectory};
 use tauri::Manager;
+use serde::{Serialize, Deserialize};
 use std::{
   fs,
   io::Write,
@@ -308,4 +309,552 @@ pub async fn run_plugin_with_args(
   args: Vec<String>
 ) -> Result<String, String> {
   run_plugin_with_mode(app, plugin, PluginRunArgs::Cli { args }).await
+}
+
+// Plugin installation/management commands
+
+#[derive(Serialize, Deserialize)]
+pub struct PluginInfo {
+  pub name: String,
+  pub version: String,
+  pub github_url: Option<String>,
+  pub installed_at: String,
+  pub is_bundled: bool,
+}
+
+/// Install a plugin from GitHub
+#[tauri::command]
+pub async fn install_plugin(
+  app: AppHandle,
+  owner: String,
+  repo: String,
+  version: String,
+  manifest_yaml: String,
+) -> Result<String, String> {
+  // Get user plugins directory
+  let app_data_dir = app.path()
+    .app_data_dir()
+    .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+  let user_plugins_dir = app_data_dir.join("plugins").join("installed");
+  fs::create_dir_all(&user_plugins_dir)
+    .map_err(|e| format!("Failed to create plugins directory: {}", e))?;
+
+  // Extract category from manifest
+  let manifest: serde_yaml::Value = serde_yaml::from_str(&manifest_yaml)
+    .map_err(|e| format!("Failed to parse manifest YAML: {}", e))?;
+
+  let category = manifest.get("category")
+    .and_then(|v| v.as_str())
+    .ok_or_else(|| "Plugin manifest missing 'category' field".to_string())?;
+
+  let plugin_name = manifest.get("name")
+    .and_then(|v| v.as_str())
+    .ok_or_else(|| "Plugin manifest missing 'name' field".to_string())?;
+
+  // Create plugin directory
+  let plugin_dir = user_plugins_dir.join(category).join(plugin_name);
+  fs::create_dir_all(&plugin_dir)
+    .map_err(|e| format!("Failed to create plugin directory: {}", e))?;
+
+  // Save plugin.yaml
+  let manifest_path = plugin_dir.join("plugin.yaml");
+  fs::write(&manifest_path, &manifest_yaml)
+    .map_err(|e| format!("Failed to write plugin.yaml: {}", e))?;
+
+  // Download entire plugin directory from GitHub using GitHub API
+  let client = reqwest::Client::new();
+
+  // Determine plugin path in repo (e.g., plugins/frameworks/django)
+  // Note: GitHub repo structure varies - framework->frameworks, but database stays database
+  let category_path = match category {
+    "framework" => "frameworks", // framework -> frameworks (plural)
+    _ => category, // database, cicd, orchestration, etc. stay the same
+  };
+  let plugin_path = format!("plugins/{}/{}", category_path, plugin_name);
+
+  // Fetch directory tree from GitHub API
+  let api_url = format!(
+    "https://api.github.com/repos/{}/{}/contents/{}?ref={}",
+    owner, repo, plugin_path, version
+  );
+
+  println!("Fetching plugin files from: {}", api_url);
+
+  let response = client.get(&api_url)
+    .header("User-Agent", "arfni-plugin-installer")
+    .send()
+    .await
+    .map_err(|e| format!("Failed to fetch plugin directory from GitHub.\nError: {}\n\nTroubleshooting:\n  1. Check your internet connection\n  2. Verify the plugin repository exists\n  3. GitHub API may be rate-limited (60 requests/hour without auth)", e))?;
+
+  if !response.status().is_success() {
+    let status = response.status();
+    let error_body = response.text().await.unwrap_or_default();
+    return Err(format!(
+      "Failed to fetch plugin from GitHub:\n\
+       Status: HTTP {}\n\
+       Plugin: {}/{}\n\
+       Path: {}\n\
+       Details: {}\n\n\
+       Troubleshooting:\n\
+       1. Verify the plugin exists in the repository\n\
+       2. Check if the version/branch '{}' exists\n\
+       3. GitHub API may be rate-limited (try again later)",
+      status, owner, repo, plugin_path, error_body, version
+    ));
+  }
+
+  let files: Vec<serde_json::Value> = response.json()
+    .await
+    .map_err(|e| format!("Failed to parse GitHub response: {}", e))?;
+
+  // Download all files recursively
+  download_directory_recursive(&client, files, &plugin_dir, &owner, &repo, &version, &plugin_path).await?;
+
+  println!("✅ Downloaded {} files for plugin '{}'", count_files(&plugin_dir), plugin_name);
+
+  // Save plugin info to database or JSON file
+  let plugin_info = PluginInfo {
+    name: plugin_name.to_string(),
+    version: version.clone(),
+    github_url: Some(format!("https://github.com/{}/{}", owner, repo)),
+    installed_at: chrono::Local::now().to_rfc3339(),
+    is_bundled: false,
+  };
+
+  // Store in a JSON file for now
+  let plugins_json_path = app_data_dir.join("installed_plugins.json");
+  let mut plugins: Vec<PluginInfo> = if plugins_json_path.exists() {
+    let json_str = fs::read_to_string(&plugins_json_path)
+      .map_err(|e| format!("Failed to read plugins JSON: {}", e))?;
+    serde_json::from_str(&json_str).unwrap_or_default()
+  } else {
+    Vec::new()
+  };
+
+  // Remove old version if exists
+  plugins.retain(|p| p.name != plugin_name);
+  plugins.push(plugin_info);
+
+  let json_str = serde_json::to_string_pretty(&plugins)
+    .map_err(|e| format!("Failed to serialize plugins JSON: {}", e))?;
+  fs::write(&plugins_json_path, json_str)
+    .map_err(|e| format!("Failed to write plugins JSON: {}", e))?;
+
+  Ok(format!("Plugin '{}' installed successfully with all files", plugin_name))
+}
+
+/// Recursively download directory from GitHub
+fn download_directory_recursive<'a>(
+  client: &'a reqwest::Client,
+  files: Vec<serde_json::Value>,
+  target_dir: &'a Path,
+  owner: &'a str,
+  repo: &'a str,
+  version: &'a str,
+  base_path: &'a str,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>> + Send + 'a>> {
+  Box::pin(async move {
+    for file in files {
+      let file_type = file.get("type")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Missing type field in GitHub response".to_string())?;
+
+      let file_name = file.get("name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Missing name field in GitHub response".to_string())?;
+
+      let file_path = file.get("path")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Missing path field in GitHub response".to_string())?;
+
+      if file_type == "file" {
+        // Download file
+        let download_url = file.get("download_url")
+          .and_then(|v| v.as_str())
+          .ok_or_else(|| format!("Missing download_url for file: {}", file_name))?;
+
+        let response = client.get(download_url)
+          .send()
+          .await
+          .map_err(|e| format!("Failed to download {}: {}", file_name, e))?;
+
+        if response.status().is_success() {
+          let content = response.bytes()
+            .await
+            .map_err(|e| format!("Failed to read bytes for {}: {}", file_name, e))?;
+
+          // Calculate relative path within plugin directory
+          let relative_path = file_path.strip_prefix(base_path)
+            .unwrap_or(file_path)
+            .trim_start_matches('/');
+
+          let target_file = target_dir.join(relative_path);
+
+          // Create parent directories
+          if let Some(parent) = target_file.parent() {
+            fs::create_dir_all(parent)
+              .map_err(|e| format!("Failed to create directory for {}: {}", file_name, e))?;
+          }
+
+          // Write file
+          fs::write(&target_file, &content)
+            .map_err(|e| format!("Failed to write {}: {}", file_name, e))?;
+
+          println!("  ✓ Downloaded: {}", relative_path);
+        }
+      } else if file_type == "dir" {
+        // Recursively download subdirectory
+        let subdir_url = file.get("url")
+          .and_then(|v| v.as_str())
+          .ok_or_else(|| format!("Missing url for directory: {}", file_name))?;
+
+        let response = client.get(subdir_url)
+          .header("User-Agent", "arfni-plugin-installer")
+          .send()
+          .await
+          .map_err(|e| format!("Failed to fetch subdirectory {}: {}", file_name, e))?;
+
+        if response.status().is_success() {
+          let subfiles: Vec<serde_json::Value> = response.json()
+            .await
+            .map_err(|e| format!("Failed to parse subdirectory response: {}", e))?;
+
+          download_directory_recursive(client, subfiles, target_dir, owner, repo, version, base_path).await?;
+        }
+      }
+    }
+
+    Ok(())
+  })
+}
+
+/// Count files in directory recursively
+fn count_files(dir: &Path) -> usize {
+  let mut count = 0;
+  if let Ok(entries) = fs::read_dir(dir) {
+    for entry in entries.flatten() {
+      let path = entry.path();
+      if path.is_file() {
+        count += 1;
+      } else if path.is_dir() {
+        count += count_files(&path);
+      }
+    }
+  }
+  count
+}
+
+/// Uninstall a plugin
+#[tauri::command]
+pub async fn uninstall_plugin(
+  app: AppHandle,
+  plugin_name: String,
+) -> Result<String, String> {
+  // Get user plugins directory
+  let app_data_dir = app.path()
+    .app_data_dir()
+    .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+  let user_plugins_dir = app_data_dir.join("plugins").join("installed");
+
+  // Find and remove plugin directory
+  if user_plugins_dir.exists() {
+    for category_dir in fs::read_dir(&user_plugins_dir)
+      .map_err(|e| format!("Failed to read plugins directory: {}", e))?
+    {
+      if let Ok(category) = category_dir {
+        let plugin_dir = category.path().join(&plugin_name);
+        if plugin_dir.exists() {
+          fs::remove_dir_all(&plugin_dir)
+            .map_err(|e| format!("Failed to remove plugin directory: {}", e))?;
+        }
+      }
+    }
+  }
+
+  // Update plugins JSON
+  let plugins_json_path = app_data_dir.join("installed_plugins.json");
+  if plugins_json_path.exists() {
+    let json_str = fs::read_to_string(&plugins_json_path)
+      .map_err(|e| format!("Failed to read plugins JSON: {}", e))?;
+
+    let mut plugins: Vec<PluginInfo> = serde_json::from_str(&json_str).unwrap_or_default();
+    plugins.retain(|p| p.name != plugin_name);
+
+    let json_str = serde_json::to_string_pretty(&plugins)
+      .map_err(|e| format!("Failed to serialize plugins JSON: {}", e))?;
+    fs::write(&plugins_json_path, json_str)
+      .map_err(|e| format!("Failed to write plugins JSON: {}", e))?;
+  }
+
+  Ok(format!("Plugin '{}' uninstalled successfully", plugin_name))
+}
+
+/// List installed plugins
+#[tauri::command]
+pub async fn list_installed_plugins(
+  app: AppHandle,
+) -> Result<Vec<PluginInfo>, String> {
+  let app_data_dir = app.path()
+    .app_data_dir()
+    .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+  let plugins_json_path = app_data_dir.join("installed_plugins.json");
+
+  if plugins_json_path.exists() {
+    let json_str = fs::read_to_string(&plugins_json_path)
+      .map_err(|e| format!("Failed to read plugins JSON: {}", e))?;
+
+    let plugins: Vec<PluginInfo> = serde_json::from_str(&json_str)
+      .map_err(|e| format!("Failed to parse plugins JSON: {}", e))?;
+
+    Ok(plugins)
+  } else {
+    Ok(Vec::new())
+  }
+}
+
+/// Cache metadata structure
+#[derive(Serialize, Deserialize)]
+struct RegistryCache {
+  timestamp: String,
+  registry: serde_json::Value,
+}
+
+/// Get cache file path
+fn get_cache_path(app: &AppHandle) -> Result<PathBuf, String> {
+  let app_data_dir = app.path()
+    .app_data_dir()
+    .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+  let cache_dir = app_data_dir.join("cache");
+  fs::create_dir_all(&cache_dir)
+    .map_err(|e| format!("Failed to create cache directory: {}", e))?;
+
+  Ok(cache_dir.join("plugin_registry.json"))
+}
+
+/// Check if cache is valid (less than 24 hours old)
+fn is_cache_valid(cache_path: &Path) -> bool {
+  if !cache_path.exists() {
+    return false;
+  }
+
+  // Read cache file
+  let Ok(cache_content) = fs::read_to_string(cache_path) else {
+    return false;
+  };
+
+  let Ok(cache): Result<RegistryCache, _> = serde_json::from_str(&cache_content) else {
+    return false;
+  };
+
+  // Parse timestamp
+  let Ok(cached_time) = chrono::DateTime::parse_from_rfc3339(&cache.timestamp) else {
+    return false;
+  };
+
+  // Check if less than 24 hours old
+  let now = chrono::Local::now();
+  let duration = now.signed_duration_since(cached_time);
+
+  duration.num_hours() < 24
+}
+
+/// Fetch registry from GitHub
+async fn fetch_registry_from_github() -> Result<String, String> {
+  let registry_url = "https://raw.githubusercontent.com/Arfni/arfni-plugins/main/registry/index.json";
+
+  let client = reqwest::Client::new();
+  let response = client.get(registry_url)
+    .send()
+    .await
+    .map_err(|e| format!("Failed to fetch plugin registry: {}", e))?;
+
+  if !response.status().is_success() {
+    return Err(format!("Failed to fetch plugin registry: HTTP {}", response.status()));
+  }
+
+  let registry_json = response.text()
+    .await
+    .map_err(|e| format!("Failed to read registry response: {}", e))?;
+
+  Ok(registry_json)
+}
+
+/// Save registry to cache
+fn save_to_cache(app: &AppHandle, registry_json: &str) -> Result<(), String> {
+  let cache_path = get_cache_path(app)?;
+
+  let registry_value: serde_json::Value = serde_json::from_str(registry_json)
+    .map_err(|e| format!("Failed to parse registry JSON: {}", e))?;
+
+  let cache = RegistryCache {
+    timestamp: chrono::Local::now().to_rfc3339(),
+    registry: registry_value,
+  };
+
+  let cache_json = serde_json::to_string_pretty(&cache)
+    .map_err(|e| format!("Failed to serialize cache: {}", e))?;
+
+  fs::write(&cache_path, cache_json)
+    .map_err(|e| format!("Failed to write cache: {}", e))?;
+
+  Ok(())
+}
+
+/// Load registry from cache
+fn load_from_cache(app: &AppHandle) -> Result<String, String> {
+  let cache_path = get_cache_path(app)?;
+
+  if !cache_path.exists() {
+    return Err("Cache file does not exist".to_string());
+  }
+
+  let cache_content = fs::read_to_string(&cache_path)
+    .map_err(|e| format!("Failed to read cache file: {}", e))?;
+
+  let cache: RegistryCache = serde_json::from_str(&cache_content)
+    .map_err(|e| format!("Failed to parse cache: {}", e))?;
+
+  let registry_json = serde_json::to_string(&cache.registry)
+    .map_err(|e| format!("Failed to serialize registry from cache: {}", e))?;
+
+  Ok(registry_json)
+}
+
+/// Load plugin registry from GitHub or local cache (with 24-hour caching)
+#[tauri::command]
+pub async fn load_plugin_registry(app: AppHandle) -> Result<String, String> {
+  let cache_path = get_cache_path(&app)?;
+
+  // Check if cache is valid
+  if is_cache_valid(&cache_path) {
+    println!("📦 Loading plugin registry from cache");
+    return load_from_cache(&app);
+  }
+
+  println!("🌐 Fetching plugin registry from GitHub");
+
+  // Fetch from GitHub
+  match fetch_registry_from_github().await {
+    Ok(registry_json) => {
+      // Save to cache
+      if let Err(e) = save_to_cache(&app, &registry_json) {
+        eprintln!("⚠️  Failed to save cache: {}", e);
+      } else {
+        println!("✅ Registry cached successfully");
+      }
+      Ok(registry_json)
+    }
+    Err(e) => {
+      // If GitHub fetch fails, try to use stale cache
+      println!("⚠️  Failed to fetch from GitHub: {}", e);
+      println!("🔄 Attempting to use stale cache");
+
+      match load_from_cache(&app) {
+        Ok(cached_registry) => {
+          println!("✅ Using stale cache");
+          Ok(cached_registry)
+        }
+        Err(_) => Err(e), // Return original GitHub error if no cache available
+      }
+    }
+  }
+}
+
+/// Force refresh registry (ignore cache)
+#[tauri::command]
+pub async fn refresh_plugin_registry(app: AppHandle) -> Result<String, String> {
+  println!("🔄 Force refreshing plugin registry");
+
+  let registry_json = fetch_registry_from_github().await?;
+
+  // Save to cache
+  if let Err(e) = save_to_cache(&app, &registry_json) {
+    eprintln!("⚠️  Failed to save cache: {}", e);
+  } else {
+    println!("✅ Registry cached successfully");
+  }
+
+  Ok(registry_json)
+}
+
+/// Clear registry cache
+#[tauri::command]
+pub async fn clear_registry_cache(app: AppHandle) -> Result<String, String> {
+  let cache_path = get_cache_path(&app)?;
+
+  if cache_path.exists() {
+    fs::remove_file(&cache_path)
+      .map_err(|e| format!("Failed to clear cache: {}", e))?;
+    Ok("Cache cleared successfully".to_string())
+  } else {
+    Ok("No cache to clear".to_string())
+  }
+}
+
+/// Get cache information
+#[tauri::command]
+pub async fn get_cache_info(app: AppHandle) -> Result<serde_json::Value, String> {
+  let cache_path = get_cache_path(&app)?;
+
+  if !cache_path.exists() {
+    return Ok(serde_json::json!({
+      "exists": false,
+      "valid": false,
+      "age_hours": null,
+      "last_updated": null,
+    }));
+  }
+
+  let cache_content = fs::read_to_string(&cache_path)
+    .map_err(|e| format!("Failed to read cache file: {}", e))?;
+
+  let cache: RegistryCache = serde_json::from_str(&cache_content)
+    .map_err(|e| format!("Failed to parse cache: {}", e))?;
+
+  let cached_time = chrono::DateTime::parse_from_rfc3339(&cache.timestamp)
+    .map_err(|e| format!("Failed to parse timestamp: {}", e))?;
+
+  let now = chrono::Local::now();
+  let duration = now.signed_duration_since(cached_time);
+  let age_hours = duration.num_hours();
+
+  Ok(serde_json::json!({
+    "exists": true,
+    "valid": age_hours < 24,
+    "age_hours": age_hours,
+    "last_updated": cache.timestamp,
+  }))
+}
+
+/// Read plugin template file
+#[tauri::command]
+pub async fn read_plugin_template(
+  app: AppHandle,
+  plugin_path: String,
+  template_path: String,
+) -> Result<String, String> {
+  // Get resource directory for bundled plugins
+  let resource_dir = app.path()
+    .resource_dir()
+    .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+
+  // Check if it's a bundled plugin or user-installed
+  let full_path = if plugin_path.starts_with("bundled/") {
+    // Bundled plugin - look in resources/plugins
+    resource_dir.join("plugins").join(&plugin_path[8..]).join(&template_path)
+  } else {
+    // User-installed plugin
+    let app_data_dir = app.path()
+      .app_data_dir()
+      .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    app_data_dir.join("plugins").join("installed").join(&plugin_path).join(&template_path)
+  };
+
+  // Read the template file
+  fs::read_to_string(&full_path)
+    .map_err(|e| format!("Failed to read template file at {:?}: {}", full_path, e))
 }

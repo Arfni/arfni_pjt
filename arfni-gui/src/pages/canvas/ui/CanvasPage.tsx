@@ -1,7 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useAppSelector } from '@app/hooks';
-import { selectCurrentProject, selectProjectLoading } from '@features/project';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAppDispatch, useAppSelector } from '@app/hooks';
+import { openProject, selectCurrentProject, selectProjectLoading } from '@features/project';
+import { Project } from '@shared/api/tauri/commands';
 import { CanvasEditor } from '@widgets/canvas-editor';
 import { Toolbar } from '@widgets/toolbar';
 import { NodePalette } from '@widgets/node-palette';
@@ -14,9 +16,26 @@ export function CanvasPage() {
   const [yamlHeight, setYamlHeight] = useState(256); // 초기 높이 256px (h-64)
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const currentProject = useAppSelector(selectCurrentProject);
   const isLoading = useAppSelector(selectProjectLoading);
 
+  // ProjectsPage에서 전달받은 프로젝트 정보
+  const passedProject = location.state?.project as Project | undefined;
+
+  useEffect(() => {
+    // 전달받은 프로젝트가 있으면 로드 (같은 프로젝트여도 canvas 상태 재로드)
+    if (passedProject) {
+      dispatch(openProject(passedProject.path))
+        .unwrap()
+        .catch((error) => {
+          alert(`프로젝트를 열 수 없습니다: ${error}`);
+          navigate('/projects');
+        });
+    }
+  }, [passedProject, dispatch, navigate]);
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);

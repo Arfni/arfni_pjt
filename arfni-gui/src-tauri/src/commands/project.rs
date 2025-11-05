@@ -766,3 +766,21 @@ pub fn delete_project(
 
     Ok(())
 }
+
+/// Write content to a file, creating parent directories if needed
+#[tauri::command]
+pub fn write_file(path: String, content: String) -> Result<(), String> {
+    let file_path = Path::new(&path);
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directories: {}", e))?;
+    }
+
+    // Write the file
+    fs::write(file_path, content)
+        .map_err(|e| format!("Failed to write file: {}", e))?;
+
+    Ok(())
+}

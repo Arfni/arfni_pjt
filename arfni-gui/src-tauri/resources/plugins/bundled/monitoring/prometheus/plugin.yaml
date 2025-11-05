@@ -1,0 +1,39 @@
+apiVersion: v0.1
+name: prometheus
+displayName: Prometheus
+version: 1.0.0
+category: monitoring
+description: "Prometheus monitoring and alerting system"
+author: ARFNI Team
+license: MIT
+
+provides:
+  service_kinds:
+    - monitoring.prometheus
+
+contributes:
+  services:
+    prometheus:
+      kind: docker.container
+      spec:
+        image: "prom/prometheus:latest"
+        ports:
+          - "9090:9090"
+        volumes:
+          - host: "./prometheus.yml"
+            mount: "/etc/prometheus/prometheus.yml"
+        command:
+          - "--config.file=/etc/prometheus/prometheus.yml"
+          - "--storage.tsdb.path=/prometheus"
+          - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+          - "--web.console.templates=/usr/share/prometheus/consoles"
+
+  canvas:
+    nodeType: prometheus
+    label: Prometheus
+    description: "Monitoring system"
+    category: infra
+    ports:
+      - name: http
+        port: 9090
+        protocol: tcp
