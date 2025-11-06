@@ -13,6 +13,7 @@ import {
 interface OptimizeDialogProps {
   show: boolean;
   onClose: () => void;
+  prometheusUrl?: string; // Optional prometheus URL (default: localhost:9090)
 }
 
 interface ActualUsageMetrics {
@@ -59,7 +60,7 @@ interface OptimizationReport {
   recommendations: Recommendation[];
 }
 
-export function OptimizeDialog({ show, onClose }: OptimizeDialogProps) {
+export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhost:9090' }: OptimizeDialogProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OptimizationReport | null>(null);
@@ -70,7 +71,7 @@ export function OptimizeDialog({ show, onClose }: OptimizeDialogProps) {
 
     try {
       const report = await invoke<OptimizationReport>('optimize', {
-        prometheusUrl: 'http://localhost:9090',
+        prometheusUrl,
       });
       setResult(report);
     } catch (err) {
@@ -181,10 +182,15 @@ export function OptimizeDialog({ show, onClose }: OptimizeDialogProps) {
             <div className="space-y-6">
               {/* Actual Usage Section */}
               <div className="bg-gray-50 rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Cpu className="w-5 h-5 text-purple-600" />
-                  실제 리소스 사용량
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Cpu className="w-5 h-5 text-purple-600" />
+                    실제 리소스 사용량
+                  </h3>
+                  <div className="bg-purple-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm">
+                    {result.actual_usage.instance_type || result.cost_analysis.current_instance_type}
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white rounded-lg p-4 border border-gray-200">
                     <div className="text-sm text-gray-500 mb-1">CPU</div>
