@@ -289,3 +289,99 @@
     - 경로 계산 로직 설명
     - 수정 파일 및 변경 내역
 
+# 2025.11.05
+  1. AI 최적화 시스템 고도화 - 시계열 데이터 분석 통합
+
+  1.1 Prometheus 시계열 데이터 분석 기능 구현
+  - internal/pricing/prometheus.go (신규 구현):
+    - TimeSeriesData 구조체: 시계열 메트릭 데이터 저장
+    - TimeSeriesStats 구조체: 통계 정보 (Min, Max, Average, P50, P95, P99, StdDev, PeakHours)
+    - QueryRange 함수: Prometheus range query API 호출
+    - CalculateStats 함수: 시계열 데이터 통계 계산 (백분위수, 표준편차, 피크 시간대 분석)
+
+  1.2 AI 최적화 프롬프트 개선
+  - internal/pricing/optimizer.go (lines 150-300):
+    - 시스템 프롬프트 개선:
+      - 시계열 데이터 인용 의무화 (CRITICAL REQUIREMENTS)
+      - min, avg, max, P50, P95, P99 값 명시 요구
+      - 표준편차 기반 변동성 분석 요구
+      - 피크 시간대 기반 스케일링 전략 제안
+    - GetTimeSeriesData 함수 추가:
+      - CPU, 메모리, 디스크 사용률 24시간 분석
+      - 각 메트릭별 통계 계산 및 반환
+    - GenerateOptimizationPrompt 함수 수정:
+      - 시계열 통계를 프롬프트에 포함
+      - 실시간 스냅샷 + 24시간 트렌드 분석 결합
+
+  1.3 트러블슈팅
+  - 문제: "ts.Values undefined (type time.Time has no field or method Values)"
+  - 원인: Prometheus API 응답 파싱 시 변수명 충돌
+  - 해결: 변수명 ts → timestamp로 변경 (prometheus.go line 89)
+
+
+  2. 모니터링 정리 로직 디버깅
+
+  2.1 문제 상황
+  - 증상: GUI 종료 시 Docker 컨테이너가 정리되지 않음
+  - 원인 후보:
+    - Cleanup 함수가 호출되지 않음
+    - Docker 명령어가 컨테이너를 찾지 못함
+    - Background thread가 조기 종료됨
+
+  2.2 디버깅 로깅 추가
+  - src-tauri/src/main.rs (cleanup_monitoring_stack 함수):
+    - 로그 파일 생성: %TEMP%\arfni_cleanup.log
+    - 타임스탬프 기반 로그 기록
+    - 각 정리 단계별 상세 로그:
+      - arfni-monitoring.exe 프로세스 종료 결과
+      - Docker 컨테이너 검색 결과 (패턴별)
+      - 각 컨테이너 삭제 성공/실패 로그
+      - SSH 프로세스 종료 로그
+
+  2.3 Docker 컨테이너 검색 로직 개선
+  - monitoring.rs (stop_monitoring_stack):
+    - 기존: --filter ancestor=grafana/grafana (이미지 기반)
+    - 수정: --filter name=grafana (이름 패턴 기반)
+    - 이유: 타임스탬프가 포함된 컨테이너 이름 대응
+      - 예: arfni-monitoring-20251106-015425-grafana-1
+
+# 2025.11.06
+  1. SSH 터널 시스템 구현 - 원격 Prometheus 최적화 지원
+
+  1.1 SSH 터널 관리 기능 구현
+  - src-tauri/src/features/ssh_rt.rs (lines 45-314):
+    - TunnelHandle 구조체: 터널 세션 관리 (id, child, local_port, remote_port)
+    - TUNNELS 글로벌 맵: 여러 터널 동시 관리
+    - open_tunnel 함수:
+      - SSH 포트 포워딩 생성 (ssh -L localPort:localhost:remotePort -N)
+      - ExitOnForwardFailure 옵션으로 포트 충돌 감지
+      - stderr 모니터링으로 에러 이벤트 전송
+      - CREATE_NO_WINDOW 플래그로 Windows 콘솔 숨김
+    - close_tunnel 함수: 터널 프로세스 종료 및 세션 제거
+    - close_all_tunnels 함수: 앱 종료 시 전체 터널 정리
+
+  1.2 Tauri 명령어 등록
+  - src-tauri/src/commands/ssh_it.rs (lines 35-51):
+    - tunnel_open 명령어: (params: SshParams, local_port: u16, remote_port: u16) → UUID
+    - tunnel_close 명령어: (id: String) → Result
+    - generate_handler에 명령어 추가 (line 56)
+  - src-tauri/src/main.rs (lines 77-78):
+    - tunnel_open, tunnel_close 핸들러 등록
+
+  1.3 LogPage 터널 통합
+  - src/pages/logs/ui/LogPage.tsx:
+    - 터널 상태 추가 (lines 36-38): tunnelId, tunnelOpen
+    - 터널 이벤트 리스너 (lines 89-104):
+      - tunnel:opened: 터널 생성 성공 메시지 표시
+      - tunnel:stderr: 터널 에러 로그 출력
+      - tunnel:closed: 터널 종료 시 상태 초기화
+    - openTunnel 함수 (lines 180-203):
+      - EC2 서버 정보로 터널 생성
+      - localhost:9091 → remote:9090 포워딩
+      - 성공 시 터미널에 사용 방법 안내 표시
+    - closeTunnel 함수 (lines 205-214): 터널 종료 및 상태 정리
+    - UI 버튼 추가 (lines 477-494):
+      - Open Tunnel: 녹색 버튼, EC2 서버 정보 필요
+      - Close Tunnel: 주황색 버튼, 터널 열린 상태에서 활성화
+
+
