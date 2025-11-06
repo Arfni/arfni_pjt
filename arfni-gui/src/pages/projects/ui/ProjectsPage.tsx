@@ -29,6 +29,28 @@ export default function ProjectsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingProjectPath, setDeletingProjectPath] = useState<string | null>(null);
 
+  // Pin 상태 관리 (localStorage에 저장)
+  const [pinnedProjects, setPinnedProjects] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('pinnedProjects');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+
+  // Pin 토글 함수
+  const togglePin = useCallback((projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPinnedProjects((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(projectId)) {
+        newSet.delete(projectId);
+      } else {
+        newSet.add(projectId);
+      }
+      // localStorage에 저장
+      localStorage.setItem('pinnedProjects', JSON.stringify(Array.from(newSet)));
+      return newSet;
+    });
+  }, []);
+
   // 프로젝트 생성 모달 상태
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -406,15 +428,27 @@ export default function ProjectsPage() {
         {!loading && !error && projects.length > 0 && (
           <div className="flex-1 overflow-y-auto min-h-0">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
-              {projects.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  canvasPreview={canvasPreviews[project.id]}
-                  isDeleting={deletingProjectPath === project.path}
-                  onDelete={handleDeleteProject}
-                />
-              ))}
+              {projects
+                .sort((a, b) => {
+                  // 핀된 프로젝트를 먼저 표시
+                  const aIsPinned = pinnedProjects.has(a.id);
+                  const bIsPinned = pinnedProjects.has(b.id);
+                  if (aIsPinned && !bIsPinned) return -1;
+                  if (!aIsPinned && bIsPinned) return 1;
+                  // 같은 pin 상태면 생성일 기준으로 정렬
+                  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                })
+                .map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    canvasPreview={canvasPreviews[project.id]}
+                    isDeleting={deletingProjectPath === project.path}
+                    isPinned={pinnedProjects.has(project.id)}
+                    onDelete={handleDeleteProject}
+                    onTogglePin={togglePin}
+                  />
+                ))}
             </div>
           </div>
         )}

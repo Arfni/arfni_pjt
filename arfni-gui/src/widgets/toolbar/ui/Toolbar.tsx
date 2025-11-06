@@ -8,7 +8,8 @@ import {
   ArrowLeft,
   Camera,
   Settings,
-  FileText
+  FileText,
+  AlignJustify
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
@@ -18,6 +19,7 @@ import {
   selectIsDirty,
   setDirty,
   selectTargetNodes,
+  autoAlignNodes,
 } from '@features/canvas';
 import {
   selectCurrentProject,
@@ -329,6 +331,10 @@ export function Toolbar() {
     }
   }, [currentProject]);
 
+  const handleAutoAlign = useCallback(() => {
+    dispatch(autoAlignNodes());
+  }, [dispatch]);
+
 
   return (
     <>
@@ -367,7 +373,7 @@ export function Toolbar() {
               <button
                 onClick={() => { }}
                 disabled={!currentProject}
-                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+                className="px-2.5 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50"
               >
                 CI/CD
               </button>
@@ -401,19 +407,29 @@ export function Toolbar() {
 
           <button
             onClick={() => navigate('/yml')}
-            className="flex items-center gap-2 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
             title="GitHub Actions YML 생성"
           >
-            <FileText className="w-4 h-4" />
+            <FileText className="w-3.5 h-3.5" />
             Github YML
           </button>
 
           <button
+            onClick={handleAutoAlign}
+            disabled={nodes.length === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="노드 자동 정렬"
+          >
+            <AlignJustify className="w-3.5 h-3.5" />
+            Auto Alignment
+          </button>
+
+          <button
             onClick={() => setShowExportDialog(true)}
-            className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors"
             title="캔버스 내보내기"
           >
-            <Camera className="w-4 h-4" />
+            <Camera className="w-3.5 h-3.5" />
             Export
           </button>
 
@@ -421,17 +437,17 @@ export function Toolbar() {
             <button
               onClick={handleDeploy}
               disabled={!currentProject}
-              className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+              className="px-2.5 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
-              <PlayCircle className="w-4 h-4" />
+              <PlayCircle className="w-3.5 h-3.5" />
               Deploy
             </button>
           ) : (
             <button
               onClick={handleStopDeployment}
-              className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex items-center gap-1"
+              className="px-2.5 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors flex items-center gap-1.5"
             >
-              <StopCircle className="w-4 h-4" />
+              <StopCircle className="w-3.5 h-3.5" />
               Stop
             </button>
           )}
