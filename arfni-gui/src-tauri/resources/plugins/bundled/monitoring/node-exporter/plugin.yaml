@@ -21,9 +21,67 @@ contributes:
           - "9100:9100"
         command:
           - "--path.rootfs=/host"
+          - "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector"
         volumes:
           - host: "/"
             mount: "/host"
+          - host: "/var/lib/node_exporter/textfile_collector"
+            mount: "/var/lib/node_exporter/textfile_collector"
+      post_deploy:
+        - type: ssh_exec
+          command: |
+            # Create textfile collector directory
+            mkdir -p /var/lib/node_exporter/textfile_collector
+
+            # Copy and execute instance info collector script
+            cat > /tmp/collect_instance_info.sh << 'SCRIPT_EOF'
+            #!/bin/bash
+            TEXTFILE_DIR="/var/lib/node_exporter/textfile_collector"
+            OUTPUT_FILE="$TEXTFILE_DIR/instance_info.prom"
+            mkdir -p "$TEXTFILE_DIR"
+
+            METADATA_URL="http://169.254.169.254/latest/meta-data"
+            TOKEN_URL="http://169.254.169.254/latest/api/token"
+            TOKEN=$(curl -s -X PUT "$TOKEN_URL" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" 2>/dev/null)
+
+            get_metadata() {
+                local path=$1
+                if [ -n "$TOKEN" ]; then
+                    curl -s -H "X-aws-ec2-metadata-token: $TOKEN" "$METADATA_URL/$path" 2>/dev/null
+                else
+                    curl -s "$METADATA_URL/$path" 2>/dev/null
+                fi
+            }
+
+            INSTANCE_TYPE=$(get_metadata "instance-type")
+            INSTANCE_ID=$(get_metadata "instance-id")
+            AVAILABILITY_ZONE=$(get_metadata "placement/availability-zone")
+            REGION=$(echo "$AVAILABILITY_ZONE" | sed 's/[a-z]$//')
+
+            if [ -z "$INSTANCE_TYPE" ]; then
+                echo "# Not running on EC2" > "$OUTPUT_FILE"
+                echo "ec2_instance_info{instance_type=\"unknown\",instance_id=\"unknown\",region=\"unknown\",az=\"unknown\"} 1" >> "$OUTPUT_FILE"
+                exit 0
+            fi
+
+            cat > "$OUTPUT_FILE" << EOF
+            # HELP ec2_instance_info EC2 instance metadata
+            # TYPE ec2_instance_info gauge
+            ec2_instance_info{instance_type="$INSTANCE_TYPE",instance_id="$INSTANCE_ID",region="$REGION",availability_zone="$AVAILABILITY_ZONE"} 1
+
+            # HELP ec2_instance_type_info EC2 instance type
+            # TYPE ec2_instance_type_info gauge
+            ec2_instance_type_info{type="$INSTANCE_TYPE"} 1
+            EOF
+
+            chmod 644 "$OUTPUT_FILE"
+            SCRIPT_EOF
+
+            chmod +x /tmp/collect_instance_info.sh
+            /tmp/collect_instance_info.sh
+
+            # Set up cron job to refresh every 5 minutes
+            (crontab -l 2>/dev/null | grep -v collect_instance_info; echo "*/5 * * * * /tmp/collect_instance_info.sh") | crontab -
 
   canvas:
     nodeType: node-exporter

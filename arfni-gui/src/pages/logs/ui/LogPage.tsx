@@ -1,11 +1,12 @@
 ﻿import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Terminal, Play, Square, Trash2, RotateCw, MoreVertical, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Terminal, Play, Square, Trash2, RotateCw, MoreVertical, RefreshCw, Sparkles } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
 import { ec2ServerCommands, EC2Server, Project } from '@shared/api/tauri/commands';
+import { OptimizeDialog } from '@widgets/toolbar/ui/dialogs/OptimizeDialog';
 
 // 로그 라인에 색상 적용하는 헬퍼 함수
 function getLogLineStyle(line: string): string {
@@ -46,6 +47,7 @@ export default function LogPage() {
   const [expandedContainerIds, setExpandedContainerIds] = useState<Set<string>>(new Set());
   const [loadingContainers, setLoadingContainers] = useState(false);
   const [openHeaderDropdown, setOpenHeaderDropdown] = useState(false);
+  const [showOptimizeDialog, setShowOptimizeDialog] = useState(false);
 
   // 사이드바 리사이저 상태
   const [sidebarWidth, setSidebarWidth] = useState(400); // 기본 400px
@@ -687,7 +689,7 @@ export default function LogPage() {
 
 
             {/* Monitoring Button */}
-            <div className="bg-white p-5 border-t border-gray-200">
+            <div className="bg-white p-5 border-t border-gray-200 space-y-3">
               <button
                 onClick={() => navigate('/monitoring', { state: { project, ec2Server } })}
                 disabled={!project || !ec2Server}
@@ -696,11 +698,25 @@ export default function LogPage() {
               >
                 Monitoring Logs
               </button>
+              <button
+                onClick={() => setShowOptimizeDialog(true)}
+                disabled={!project || !ec2Server}
+                className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                Optimize
+              </button>
             </div>
           </aside>
           </>
         )}
       </main>
+
+      {/* Optimize Dialog */}
+      <OptimizeDialog
+        show={showOptimizeDialog}
+        onClose={() => setShowOptimizeDialog(false)}
+      />
     </div>
   );
 }

@@ -236,6 +236,8 @@ func CopyAndUpdateProvisioningFiles(pluginsDir, outputDir string, mode Monitorin
 	// Copy Prometheus configuration
 	prometheusPath := filepath.Join(pluginsDir, "prometheus", "prometheus.yml")
 	if data, err := os.ReadFile(prometheusPath); err == nil {
+		// No changes needed - node-exporter:9100 works in Docker network
+		// Docker Compose automatically creates a network where services can communicate by name
 		outputPath := filepath.Join(outputDir, "prometheus.yml")
 		if err := os.WriteFile(outputPath, data, 0644); err != nil {
 			return fmt.Errorf("failed to write prometheus.yml: %w", err)

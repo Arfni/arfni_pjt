@@ -206,22 +206,225 @@ func (c *PrometheusClient) GetDiskUsage() (usedGB float64, usagePercent float64,
 	return usedGB, usagePercent, nil
 }
 
-// GetInstanceInfo retrieves EC2 instance type from node_exporter labels
+// GetInstanceInfo retrieves EC2 instance type from node_exporter textfile collector
 func (c *PrometheusClient) GetInstanceInfo() (string, error) {
-	query := `node_uname_info`
+	// Try ec2_instance_type_info first (from textfile collector)
+	query := `ec2_instance_type_info`
 	results, err := c.Query(query)
-	if err != nil {
-		return "", err
+	if err == nil && len(results) > 0 {
+		// Get instance type from label
+		if instanceType, ok := results[0].Labels["type"]; ok && instanceType != "unknown" {
+			return instanceType, nil
+		}
 	}
 
-	if len(results) == 0 {
-		return "", fmt.Errorf("no instance info available")
+	// Fallback: Try ec2_instance_info (full metadata)
+	query = `ec2_instance_info`
+	results, err = c.Query(query)
+	if err == nil && len(results) > 0 {
+		if instanceType, ok := results[0].Labels["instance_type"]; ok && instanceType != "unknown" {
+			return instanceType, nil
+		}
 	}
 
-	// Try to get instance type from labels
-	if instanceType, ok := results[0].Labels["instance_type"]; ok {
-		return instanceType, nil
+	// Fallback: Try node_uname_info (legacy)
+	query = `node_uname_info`
+	results, err = c.Query(query)
+	if err == nil && len(results) > 0 {
+		if instanceType, ok := results[0].Labels["instance_type"]; ok {
+			return instanceType, nil
+		}
 	}
 
 	return "unknown", nil
+}
+
+// TimeSeriesData represents a time series of metric values
+type TimeSeriesData struct {
+	Timestamps []time.Time
+	Values     []float64
+}
+
+// TimeSeriesStats contains statistical analysis of time series data
+type TimeSeriesStats struct {
+	Min       float64
+	Max       float64
+	Average   float64
+	P50       float64 // Median
+	P95       float64 // 95th percentile
+	P99       float64 // 99th percentile
+	StdDev    float64 // Standard deviation
+	PeakHours []int   // Hours (0-23) with highest usage
+}
+
+// QueryRange executes a PromQL range query for time series data
+func (c *PrometheusClient) QueryRange(query string, duration time.Duration, step time.Duration) (*TimeSeriesData, error) {
+	queryURL := fmt.Sprintf("%s/api/v1/query_range", c.BaseURL)
+
+	end := time.Now()
+	start := end.Add(-duration)
+
+	params := url.Values{}
+	params.Add("query", query)
+	params.Add("start", fmt.Sprintf("%d", start.Unix()))
+	params.Add("end", fmt.Sprintf("%d", end.Unix()))
+	params.Add("step", fmt.Sprintf("%ds", int(step.Seconds())))
+
+	fullURL := fmt.Sprintf("%s?%s", queryURL, params.Encode())
+
+	resp, err := c.Client.Get(fullURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query Prometheus range: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Prometheus API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var promResp struct {
+		Status string `json:"status"`
+		Data   struct {
+			ResultType string `json:"resultType"`
+			Result     []struct {
+				Metric map[string]string `json:"metric"`
+				Values [][]interface{}   `json:"values"`
+			} `json:"result"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &promResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if promResp.Status != "success" {
+		return nil, fmt.Errorf("query failed: %s", promResp.Status)
+	}
+
+	if len(promResp.Data.Result) == 0 {
+		return nil, fmt.Errorf("no data returned")
+	}
+
+	tsData := &TimeSeriesData{
+		Timestamps: make([]time.Time, 0),
+		Values:     make([]float64, 0),
+	}
+
+	for _, valueArr := range promResp.Data.Result[0].Values {
+		if len(valueArr) < 2 {
+			continue
+		}
+
+		timestamp := int64(valueArr[0].(float64))
+		valueStr, ok := valueArr[1].(string)
+		if !ok {
+			continue
+		}
+
+		var value float64
+		fmt.Sscanf(valueStr, "%f", &value)
+
+		tsData.Timestamps = append(tsData.Timestamps, time.Unix(timestamp, 0))
+		tsData.Values = append(tsData.Values, value)
+	}
+
+	return tsData, nil
+}
+
+// CalculateStats computes statistical metrics for time series data
+func (ts *TimeSeriesData) CalculateStats() TimeSeriesStats {
+	if len(ts.Values) == 0 {
+		return TimeSeriesStats{}
+	}
+
+	// Sort values for percentile calculations
+	sortedValues := make([]float64, len(ts.Values))
+	copy(sortedValues, ts.Values)
+
+	// Simple bubble sort (good enough for small datasets)
+	for i := 0; i < len(sortedValues); i++ {
+		for j := i + 1; j < len(sortedValues); j++ {
+			if sortedValues[i] > sortedValues[j] {
+				sortedValues[i], sortedValues[j] = sortedValues[j], sortedValues[i]
+			}
+		}
+	}
+
+	// Calculate basic stats
+	stats := TimeSeriesStats{
+		Min: sortedValues[0],
+		Max: sortedValues[len(sortedValues)-1],
+	}
+
+	// Average
+	sum := 0.0
+	for _, v := range ts.Values {
+		sum += v
+	}
+	stats.Average = sum / float64(len(ts.Values))
+
+	// Percentiles
+	stats.P50 = sortedValues[int(float64(len(sortedValues))*0.50)]
+	stats.P95 = sortedValues[int(float64(len(sortedValues))*0.95)]
+	stats.P99 = sortedValues[int(float64(len(sortedValues))*0.99)]
+
+	// Standard deviation
+	variance := 0.0
+	for _, v := range ts.Values {
+		diff := v - stats.Average
+		variance += diff * diff
+	}
+	stats.StdDev = float64(int(float64(variance) / float64(len(ts.Values)) * 100)) / 100
+
+	// Peak hours analysis (group by hour)
+	hourlyMax := make(map[int]float64)
+	for i, timestamp := range ts.Timestamps {
+		hour := timestamp.Hour()
+		if val, exists := hourlyMax[hour]; !exists || ts.Values[i] > val {
+			hourlyMax[hour] = ts.Values[i]
+		}
+	}
+
+	// Find top 3 peak hours
+	type hourValue struct {
+		hour  int
+		value float64
+	}
+	hours := make([]hourValue, 0, len(hourlyMax))
+	for h, v := range hourlyMax {
+		hours = append(hours, hourValue{h, v})
+	}
+
+	// Sort by value descending
+	for i := 0; i < len(hours); i++ {
+		for j := i + 1; j < len(hours); j++ {
+			if hours[i].value < hours[j].value {
+				hours[i], hours[j] = hours[j], hours[i]
+			}
+		}
+	}
+
+	// Get top 3 hours
+	for i := 0; i < 3 && i < len(hours); i++ {
+		stats.PeakHours = append(stats.PeakHours, hours[i].hour)
+	}
+
+	return stats
+}
+
+// GetCPUUsageTimeSeries gets CPU usage over the last 24 hours
+func (c *PrometheusClient) GetCPUUsageTimeSeries() (*TimeSeriesData, error) {
+	query := `100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)`
+	return c.QueryRange(query, 24*time.Hour, 30*time.Minute)
+}
+
+// GetMemoryUsageTimeSeries gets memory usage percentage over the last 24 hours
+func (c *PrometheusClient) GetMemoryUsageTimeSeries() (*TimeSeriesData, error) {
+	query := `100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))`
+	return c.QueryRange(query, 24*time.Hour, 30*time.Minute)
 }
