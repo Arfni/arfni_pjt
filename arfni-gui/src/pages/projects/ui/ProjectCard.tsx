@@ -182,7 +182,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
               className="flex-1 px-4 py-2.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 font-medium transition-colors"
               style={{ borderRadius: '10px' }}
             >
-              View Log
+              Project Status
             </button>
           )}
           <button

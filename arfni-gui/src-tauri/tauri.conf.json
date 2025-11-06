@@ -15,6 +15,7 @@
         "title": "Arfni",
         "width": 1280,
         "height": 800,
+        "decorations": false,
         "dragDropEnabled": false
       }
     ],
@@ -41,9 +42,7 @@
     ],
     "resources": [
       "resources/bin/*",
-      "resources/plugins/bundled",
-      "../../BE/arfni/bin/ymlgen.exe",
-      "../../BE/arfni/bin/templates"
+      "resources/plugins/bundled"
     ]
   }
 }

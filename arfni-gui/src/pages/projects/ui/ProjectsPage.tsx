@@ -5,7 +5,6 @@ import { projectCommands, Project, ec2ServerCommands, EC2Server, CanvasNode, Can
 import { confirm, open } from '@tauri-apps/plugin-dialog';
 import { ServerSelectionModal } from './ServerSelectionModal';
 import { AddServerModal } from './AddServerModal';
-import { ProjectsHeader } from './ProjectsHeader';
 import { ProjectsSidebar } from './ProjectsSidebar';
 import { ProjectCard } from './ProjectCard';
 import { CreateProjectModal } from './CreateProjectModal';
@@ -309,28 +308,14 @@ export default function ProjectsPage() {
   }, [selectedTab, selectedEC2ServerId, loadProjects, location.key]);
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
-      <ProjectsHeader
-        loading={loading}
-        onRefresh={() => {
-          if (selectedTab === 'plugins') {
-            // plugins 탭에서는 refresh하지 않음
-          } else if (selectedTab === 'ec2') {
-            loadProjects(selectedTab, selectedEC2ServerId);
-          } else {
-            loadProjects(selectedTab);
-          }
-        }}
+    <div className="h-full flex bg-white overflow-hidden">
+      <ProjectsSidebar
+        selectedTab={selectedTab}
+        onTabChange={setSelectedTab}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        <ProjectsSidebar
-          selectedTab={selectedTab}
-          onTabChange={setSelectedTab}
-        />
-
-        {/* Main Content */}
-        <main className="flex-1 flex flex-col px-6 py-3 overflow-hidden min-h-0">
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col px-6 py-3 overflow-hidden min-h-0">
         {selectedTab === 'plugins' ? (
           <PluginManager className="flex-1" />
         ) : (
@@ -454,8 +439,7 @@ export default function ProjectsPage() {
         )}
           </>
         )}
-        </main>
-      </div>
+      </main>
 
       <CreateProjectModal
         isOpen={showCreateModal}
