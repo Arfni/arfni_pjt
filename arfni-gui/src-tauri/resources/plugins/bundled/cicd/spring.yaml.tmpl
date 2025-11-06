@@ -1,0 +1,125 @@
+name: Build JAR & Deploy to EC2 (image rebuild on server)
+
+on:
+  push:
+    branches: ["{{ .BRANCH }}"]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "{{ .BRANCH }}"
+        required: true
+        default: "{{ .BRANCH }}"
+
+env:
+  JAVA_VERSION: "{{ .JAVA_VERSION }}"
+  JAVA_DIST: "{{ .JAVA_DIST }}"
+  DEPLOY_ROOT: "{{ .DEPLOY_ROOT }}"
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout source (push or manual)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ "{{" }} github.event_name == 'workflow_dispatch' && inputs.branch || github.ref_name {{ "}}" }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ "{{" }} env.JAVA_VERSION {{ "}}" }}
+          distribution: ${{ "{{" }} env.JAVA_DIST {{ "}}" }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Ensure gradlew is executable
+        run: chmod +x ./gradlew
+
+      - name: Build Spring Boot JAR
+        run: ./gradlew clean bootJar --no-daemon
+
+      - name: Prepare upload artifact
+        run: |
+          set -euo pipefail
+          JAR_GLOB="build/libs/*.jar"
+          UPLOAD_DIR="build/upload"
+          UPLOAD_NAME="app.new.jar"
+          JAR_PATH=$(ls -t ${JAR_GLOB} | head -n1)
+          echo "[INFO] Picked jar: ${JAR_PATH}"
+          mkdir -p "${UPLOAD_DIR}"
+          cp -f "${JAR_PATH}" "${UPLOAD_DIR}/${UPLOAD_NAME}"
+          ls -lh "${UPLOAD_DIR}/${UPLOAD_NAME}"
+
+      - name: Ensure target dirs exist on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ "{{" }} secrets.EC2_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.EC2_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.EC2_SSH_KEY {{ "}}" }}
+          script: |
+            set -euo pipefail
+            mkdir -p "${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}/apps/backups"
+
+      - name: Copy to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ "{{" }} secrets.EC2_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.EC2_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.EC2_SSH_KEY {{ "}}" }}
+          source: build/upload/app.new.jar
+          target: ${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}/apps
+          overwrite: true
+          strip_components: 2
+
+      - name: Backup previous JAR, swap, and restart
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ "{{" }} secrets.EC2_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.EC2_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.EC2_SSH_KEY {{ "}}" }}
+          script: |
+            set -euo pipefail
+            cd "${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}"
+            APP_DIR="${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}/apps"
+            BACKUP_DIR="${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}/apps/backups"
+            UPLOAD_NAME="app.new.jar"
+            FINAL_NAME="app.jar"
+            DOCKER_COMPOSE="sudo docker compose"
+
+            if [ ! -s "${APP_DIR}/${UPLOAD_NAME}" ]; then
+              echo "[ERROR] ${APP_DIR}/${UPLOAD_NAME} not found or empty"; exit 1
+            fi
+
+            if [ -f "${APP_DIR}/${FINAL_NAME}" ]; then
+              TS=$(date +%Y%m%d-%H%M%S)
+              mv -f "${APP_DIR}/${FINAL_NAME}" "${BACKUP_DIR}/app-${TS}.jar"
+              echo "[INFO] Backed up to ${BACKUP_DIR}/app-${TS}.jar"
+            else
+              echo "[INFO] No previous ${FINAL_NAME} to backup."
+            fi
+
+            ls -1t "${BACKUP_DIR}"/app-*.jar 2>/dev/null | tail -n +6 | xargs -r rm -f
+
+            mv -f "${APP_DIR}/${UPLOAD_NAME}" "${APP_DIR}/${FINAL_NAME}"
+            ls -lh "${APP_DIR}/${FINAL_NAME}"
+
+            echo "[INFO] Docker compose rebuild..."
+            ${DOCKER_COMPOSE} down
+            ${DOCKER_COMPOSE} build {{ .DOCKER_SERVICE }}
+            echo "[INFO] Starting {{ .DOCKER_SERVICE }}..."
+            ${DOCKER_COMPOSE} up -d {{ .DOCKER_SERVICE }}
+
+            echo "[INFO] Running containers:"
+            sudo docker ps --format "table {{`{{.Names}}`}}\t{{`{{.Image}}`}}\t{{`{{.Status}}`}}"
+
+            echo "[INFO] Tail {{ .DOCKER_SERVICE }} logs (last 80 lines):"
+            CID=$(sudo docker ps -qf "name={{ .DOCKER_SERVICE }}" | head -n1 || true)
+            if [ -n "${CID:-}" ]; then
+              sudo docker logs --tail=80 "${CID}" || true
+            else
+              echo "[WARN] {{ .DOCKER_SERVICE }} container not found"
+            fi

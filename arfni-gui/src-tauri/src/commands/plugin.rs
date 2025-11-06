@@ -83,12 +83,12 @@ fn resolve_plugin_exe(app: &AppHandle, plugin: &str) -> Result<PathBuf, String> 
   // 1) 리소스 기준 우선 후보들
   let res_plugin_dir = app
     .path()
-    .resolve(&format!("_up_/_up_/BE/arfni/bin/{plugin}"), BaseDirectory::Resource)
+    .resolve(&format!("resources/bin/{plugin}"), BaseDirectory::Resource)
     .ok();
 
   let res_flat_plugin_exe = app
     .path()
-    .resolve(&format!("_up_/_up_/BE/arfni/bin/{plugin}.exe"), BaseDirectory::Resource)
+    .resolve(&format!("resources/bin/{plugin}.exe"), BaseDirectory::Resource)
     .ok();
 
   let res_plugin_exe_in_dir = res_plugin_dir
@@ -99,10 +99,7 @@ fn resolve_plugin_exe(app: &AppHandle, plugin: &str) -> Result<PathBuf, String> 
   // CARGO_MANIFEST_DIR = <project>/src-tauri
   // 원하는 경로: <project>/../BE/arfni/bin
   let mut dev_bin = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-  dev_bin.push("..");
-  dev_bin.push("..");
-  dev_bin.push("BE");
-  dev_bin.push("arfni");
+  dev_bin.push("resources");
   dev_bin.push("bin");
 
   let dev_plugin_dir = dev_bin.join(plugin);
