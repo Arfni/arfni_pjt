@@ -33,6 +33,10 @@ export default function LogPage() {
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [cmd, setCmd] = useState('');
 
+  // Tunnel 상태
+  const [tunnelId, setTunnelId] = useState<string | null>(null);
+  const [tunnelOpen, setTunnelOpen] = useState(false);
+
   // Container 상태
   interface Container {
     id: string;
@@ -65,8 +69,6 @@ export default function LogPage() {
 
   // SSH 이벤트 리스너
   useEffect(() => {
-    if (!connected) return;
-
     const unlistenData = listen('ssh:data', (e) => {
       const payload = e.payload as { id: string; chunk: string };
       setTerminalLogs((prev) => [...prev, payload.chunk]);
@@ -84,12 +86,32 @@ export default function LogPage() {
       setSessionId(null);
     });
 
+    const unlistenTunnelOpen = listen('tunnel:opened', (e) => {
+      const payload = e.payload as { id: string; chunk: string };
+      setTerminalLogs((prev) => [...prev, `🚇 ${payload.chunk}`]);
+    });
+
+    const unlistenTunnelErr = listen('tunnel:stderr', (e) => {
+      const payload = e.payload as { id: string; chunk: string };
+      setTerminalLogs((prev) => [...prev, `[tunnel error] ${payload.chunk}`]);
+    });
+
+    const unlistenTunnelClose = listen('tunnel:closed', (e) => {
+      const payload = e.payload as { id: string; chunk: string };
+      setTerminalLogs((prev) => [...prev, `🚇 ${payload.chunk}`]);
+      setTunnelOpen(false);
+      setTunnelId(null);
+    });
+
     return () => {
       unlistenData.then((f) => f());
       unlistenErr.then((f) => f());
       unlistenClose.then((f) => f());
+      unlistenTunnelOpen.then((f) => f());
+      unlistenTunnelErr.then((f) => f());
+      unlistenTunnelClose.then((f) => f());
     };
-  }, [connected]);
+  }, []);
 
   // EC2 서버 정보 로드
   useEffect(() => {
@@ -152,6 +174,42 @@ export default function LogPage() {
     } finally {
       setConnected(false);
       setSessionId(null);
+    }
+  };
+
+  // 터널 열기 (Prometheus: localhost:9091 -> remote:9090)
+  const openTunnel = async () => {
+    if (!ec2Server) {
+      setTerminalLogs((prev) => [...prev, '❌ EC2 서버 정보가 없습니다.']);
+      return;
+    }
+
+    try {
+      const id = await invoke<string>('tunnel_open', {
+        params: {
+          host: ec2Server.host,
+          user: ec2Server.user,
+          pem_path: ec2Server.pem_path,
+        },
+        localPort: 9091,
+        remotePort: 9090,
+      });
+      setTunnelId(id);
+      setTunnelOpen(true);
+      setTerminalLogs((prev) => [...prev, `✅ Tunnel opened [${id}] - Use http://localhost:9091 for Prometheus`]);
+    } catch (err: any) {
+      setTerminalLogs((prev) => [...prev, `❌ Tunnel failed: ${String(err)}`]);
+    }
+  };
+
+  // 터널 닫기
+  const closeTunnel = async () => {
+    if (!tunnelId) return;
+    try {
+      await invoke('tunnel_close', { id: tunnelId });
+    } finally {
+      setTunnelOpen(false);
+      setTunnelId(null);
     }
   };
 
@@ -370,34 +428,30 @@ export default function LogPage() {
   }, [isResizing]);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-gray-50 overflow-hidden" style={{ margin: 0, padding: 0, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/projects')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <Terminal className="w-6 h-6 text-gray-600" />
-          <h1 className="text-xl font-semibold">Project Logs</h1>
-        </div>
-      </header>
-
-      <main className="flex-1 flex overflow-hidden" style={{ margin: 0, padding: 0 }}>
+    <div className="h-full flex flex-col bg-white overflow-hidden">
+      <main className="flex-1 flex overflow-hidden">
 
         {/* Main Content - SSH Terminal */}
         {project?.environment === 'ec2' ? (
           <div className="flex-1 bg-white overflow-hidden flex flex-col">
             {/* Terminal Header */}
             <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
-              <div className="flex flex-col gap-1">
-                <span className="font-semibold text-sm">{project.name}</span>
-                {ec2Server && (
-                  <span className="font-mono text-xs text-gray-400">
-                    {ec2Server.user}@{ec2Server.host}
-                  </span>
-                )}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => navigate('/projects')}
+                  className="p-1.5 hover:bg-gray-800 rounded transition-colors"
+                  title="Back to Projects"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="flex flex-col gap-1">
+                  <span className="font-semibold text-sm">{project.name}</span>
+                  {ec2Server && (
+                    <span className="font-mono text-xs text-gray-400">
+                      {ec2Server.user}@{ec2Server.host}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2">
                 {!connected ? (
@@ -414,6 +468,24 @@ export default function LogPage() {
                     className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs"
                   >
                     Disconnect
+                  </button>
+                )}
+                {!tunnelOpen ? (
+                  <button
+                    onClick={openTunnel}
+                    disabled={!ec2Server}
+                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Open SSH tunnel for Prometheus (9091:9090)"
+                  >
+                    Open Tunnel
+                  </button>
+                ) : (
+                  <button
+                    onClick={closeTunnel}
+                    className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs"
+                    title="Close Prometheus tunnel"
+                  >
+                    Close Tunnel
                   </button>
                 )}
                 <button
@@ -716,6 +788,7 @@ export default function LogPage() {
       <OptimizeDialog
         show={showOptimizeDialog}
         onClose={() => setShowOptimizeDialog(false)}
+        prometheusUrl={tunnelOpen ? 'http://localhost:9091' : 'http://localhost:9090'}
       />
     </div>
   );

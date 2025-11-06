@@ -21,6 +21,10 @@ export default function SshTerminal() {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [connected, setConnected] = useState(false);
 
+    // 터널 상태
+    const [tunnelId, setTunnelId] = useState<string | null>(null);
+    const [tunnelOpen, setTunnelOpen] = useState(false);
+
     // 로그 & 입력
     const [logs, setLogs] = useState<string[]>([]);
     const [cmd, setCmd] = useState("");
@@ -35,8 +39,6 @@ export default function SshTerminal() {
 
     // 이벤트 리스너
     useEffect(() => {
-        if (!connected) return;
-
         const unlistenData = listen("ssh:data", (e) => {
         const payload = e.payload as { id: string; chunk: string };
         setLogs((prev) => [...prev, payload.chunk]);
@@ -54,12 +56,32 @@ export default function SshTerminal() {
         setSessionId(null);
         });
 
+        const unlistenTunnelOpen = listen("tunnel:opened", (e) => {
+        const payload = e.payload as { id: string; chunk: string };
+        setLogs((prev) => [...prev, `🚇 ${payload.chunk}`]);
+        });
+
+        const unlistenTunnelErr = listen("tunnel:stderr", (e) => {
+        const payload = e.payload as { id: string; chunk: string };
+        setLogs((prev) => [...prev, `[tunnel error] ${payload.chunk}`]);
+        });
+
+        const unlistenTunnelClose = listen("tunnel:closed", (e) => {
+        const payload = e.payload as { id: string; chunk: string };
+        setLogs((prev) => [...prev, `🚇 ${payload.chunk}`]);
+        setTunnelOpen(false);
+        setTunnelId(null);
+        });
+
         return () => {
         unlistenData.then((f) => f());
         unlistenErr.then((f) => f());
         unlistenClose.then((f) => f());
+        unlistenTunnelOpen.then((f) => f());
+        unlistenTunnelErr.then((f) => f());
+        unlistenTunnelClose.then((f) => f());
         };
-    }, [connected]);
+    }, []);
 
     // 연결
     const startSession = async () => {
@@ -97,6 +119,34 @@ export default function SshTerminal() {
         }
     };
 
+    // 터널 열기 (Prometheus: localhost:9091 -> remote:9090)
+    const openTunnel = async () => {
+        const params: SshParams = { host, user, pem_path: pemPath };
+        try {
+        const id = await invoke<string>("tunnel_open", {
+            params,
+            localPort: 9091,
+            remotePort: 9090,
+        });
+        setTunnelId(id);
+        setTunnelOpen(true);
+        setLogs((prev) => [...prev, `✅ Tunnel opened [${id}] - Use http://localhost:9091 for Prometheus`]);
+        } catch (err: any) {
+        setLogs((prev) => [...prev, `❌ Tunnel failed: ${String(err)}`]);
+        }
+    };
+
+    // 터널 닫기
+    const closeTunnel = async () => {
+        if (!tunnelId) return;
+        try {
+        await invoke("tunnel_close", { id: tunnelId });
+        } finally {
+        setTunnelOpen(false);
+        setTunnelId(null);
+        }
+    };
+
   return (
     <div className="flex flex-col w-full h-full bg-black text-white rounded-lg border border-gray-700">
       {/* 헤더 */}
@@ -116,6 +166,26 @@ export default function SshTerminal() {
               onClick={closeSession}
             >
               Disconnect
+            </button>
+          )}
+
+          {/* 터널 버튼 */}
+          {!tunnelOpen ? (
+            <button
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={openTunnel}
+              disabled={!host || !user || !pemPath}
+              title="Open SSH tunnel for Prometheus (9091:9090)"
+            >
+              Open Tunnel
+            </button>
+          ) : (
+            <button
+              className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded"
+              onClick={closeTunnel}
+              title="Close Prometheus tunnel"
+            >
+              Close Tunnel
             </button>
           )}
         </div>
