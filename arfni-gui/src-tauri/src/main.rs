@@ -74,6 +74,8 @@ fn main() {
       commands::ssh_it::ssh_start,
       commands::ssh_it::ssh_send,
       commands::ssh_it::ssh_close,
+      commands::ssh_it::tunnel_open,
+      commands::ssh_it::tunnel_close,
 
       // 플러그인 명령어
       commands::plugin::run_plugin,
