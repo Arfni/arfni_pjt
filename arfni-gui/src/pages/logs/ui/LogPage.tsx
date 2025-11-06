@@ -428,34 +428,30 @@ export default function LogPage() {
   }, [isResizing]);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-gray-50 overflow-hidden" style={{ margin: 0, padding: 0, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/projects')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <Terminal className="w-6 h-6 text-gray-600" />
-          <h1 className="text-xl font-semibold">Project Logs</h1>
-        </div>
-      </header>
-
-      <main className="flex-1 flex overflow-hidden" style={{ margin: 0, padding: 0 }}>
+    <div className="h-full flex flex-col bg-white overflow-hidden">
+      <main className="flex-1 flex overflow-hidden">
 
         {/* Main Content - SSH Terminal */}
         {project?.environment === 'ec2' ? (
           <div className="flex-1 bg-white overflow-hidden flex flex-col">
             {/* Terminal Header */}
             <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
-              <div className="flex flex-col gap-1">
-                <span className="font-semibold text-sm">{project.name}</span>
-                {ec2Server && (
-                  <span className="font-mono text-xs text-gray-400">
-                    {ec2Server.user}@{ec2Server.host}
-                  </span>
-                )}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => navigate('/projects')}
+                  className="p-1.5 hover:bg-gray-800 rounded transition-colors"
+                  title="Back to Projects"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="flex flex-col gap-1">
+                  <span className="font-semibold text-sm">{project.name}</span>
+                  {ec2Server && (
+                    <span className="font-mono text-xs text-gray-400">
+                      {ec2Server.user}@{ec2Server.host}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2">
                 {!connected ? (
