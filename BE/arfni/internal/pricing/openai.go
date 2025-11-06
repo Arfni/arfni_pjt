@@ -34,7 +34,7 @@ func NewOpenAIClient() *OpenAIClient {
 	// Auto-detect or use specified provider
 	switch provider {
 	case "gms":
-		apiKey = os.Getenv("GMS_KEY")
+		apiKey = "S13P32D201-bf78916c-2ed6-49cc-84b2-ff824e7fe9fe"
 		baseURL = "https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions"
 		selectedProvider = "gms"
 	case "openai":
@@ -45,7 +45,7 @@ func NewOpenAIClient() *OpenAIClient {
 		fallthrough
 	default:
 		// Try GMS first, fallback to OpenAI
-		apiKey = os.Getenv("GMS_KEY")
+		apiKey = "S13P32D201-bf78916c-2ed6-49cc-84b2-ff824e7fe9fe"
 		if apiKey != "" {
 			baseURL = "https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions"
 			selectedProvider = "gms"

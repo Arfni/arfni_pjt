@@ -147,7 +147,7 @@ export function SettingsDialog({
                       type="text"
                       value={portSearchQuery}
                       onChange={(e) => setPortSearchQuery(e.target.value)}
-                      placeholder="포트 번호 입력..."
+                      placeholder="Input Port Number..."
                       className="w-full px-4 py-3 border rounded-lg pr-10"
                     />
                     <svg className="w-5 h-5 absolute right-3 top-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

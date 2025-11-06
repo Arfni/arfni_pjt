@@ -6,14 +6,37 @@ import { useAppDispatch } from '@app/hooks';
 import { openProject, clearError } from '@features/project';
 import { confirm } from '@tauri-apps/plugin-dialog';
 
+// Star Icon Component
+const StarIcon = ({ filled, onClick, className }: { filled: boolean; onClick?: (e: React.MouseEvent) => void; className?: string }) => (
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    className={className}
+    onClick={onClick}
+    style={{ cursor: 'pointer' }}
+  >
+    <path
+      d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"
+      fill={filled ? '#FFD700' : 'none'}
+      stroke="#D1D5DB"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 interface ProjectCardProps {
   project: Project;
   canvasPreview?: { nodes: CanvasNode[], edges: CanvasEdge[] };
   isDeleting: boolean;
+  isPinned: boolean;
   onDelete: (project: Project, e: React.MouseEvent) => Promise<void>;
+  onTogglePin: (projectId: string, e: React.MouseEvent) => void;
 }
 
-export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDelete, onTogglePin }: ProjectCardProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
@@ -98,6 +121,17 @@ export function ProjectCard({ project, canvasPreview, isDeleting, onDelete }: Pr
             <p className="text-gray-400 text-sm">Empty Canvas</p>
           </div>
         )}
+        {/* Star Pin Icon - 왼쪽 위 */}
+        <div className="absolute top-2 left-2">
+          <button
+            onClick={(e) => onTogglePin(project.id, e)}
+            className="p-1 transition-all hover:scale-110"
+            title={isPinned ? "Unpin project" : "Pin project"}
+          >
+            <StarIcon filled={isPinned} />
+          </button>
+        </div>
+        {/* Delete Button - 오른쪽 위 */}
         <div className="absolute top-2 right-2">
           <button
             onClick={handleDeleteClick}
