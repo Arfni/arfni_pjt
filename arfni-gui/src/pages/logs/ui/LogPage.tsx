@@ -33,6 +33,10 @@ export default function LogPage() {
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [cmd, setCmd] = useState('');
 
+  // Tunnel 상태
+  const [tunnelId, setTunnelId] = useState<string | null>(null);
+  const [tunnelOpen, setTunnelOpen] = useState(false);
+
   // Container 상태
   interface Container {
     id: string;
@@ -65,8 +69,6 @@ export default function LogPage() {
 
   // SSH 이벤트 리스너
   useEffect(() => {
-    if (!connected) return;
-
     const unlistenData = listen('ssh:data', (e) => {
       const payload = e.payload as { id: string; chunk: string };
       setTerminalLogs((prev) => [...prev, payload.chunk]);
@@ -84,12 +86,32 @@ export default function LogPage() {
       setSessionId(null);
     });
 
+    const unlistenTunnelOpen = listen('tunnel:opened', (e) => {
+      const payload = e.payload as { id: string; chunk: string };
+      setTerminalLogs((prev) => [...prev, `🚇 ${payload.chunk}`]);
+    });
+
+    const unlistenTunnelErr = listen('tunnel:stderr', (e) => {
+      const payload = e.payload as { id: string; chunk: string };
+      setTerminalLogs((prev) => [...prev, `[tunnel error] ${payload.chunk}`]);
+    });
+
+    const unlistenTunnelClose = listen('tunnel:closed', (e) => {
+      const payload = e.payload as { id: string; chunk: string };
+      setTerminalLogs((prev) => [...prev, `🚇 ${payload.chunk}`]);
+      setTunnelOpen(false);
+      setTunnelId(null);
+    });
+
     return () => {
       unlistenData.then((f) => f());
       unlistenErr.then((f) => f());
       unlistenClose.then((f) => f());
+      unlistenTunnelOpen.then((f) => f());
+      unlistenTunnelErr.then((f) => f());
+      unlistenTunnelClose.then((f) => f());
     };
-  }, [connected]);
+  }, []);
 
   // EC2 서버 정보 로드
   useEffect(() => {
@@ -152,6 +174,42 @@ export default function LogPage() {
     } finally {
       setConnected(false);
       setSessionId(null);
+    }
+  };
+
+  // 터널 열기 (Prometheus: localhost:9091 -> remote:9090)
+  const openTunnel = async () => {
+    if (!ec2Server) {
+      setTerminalLogs((prev) => [...prev, '❌ EC2 서버 정보가 없습니다.']);
+      return;
+    }
+
+    try {
+      const id = await invoke<string>('tunnel_open', {
+        params: {
+          host: ec2Server.host,
+          user: ec2Server.user,
+          pem_path: ec2Server.pem_path,
+        },
+        localPort: 9091,
+        remotePort: 9090,
+      });
+      setTunnelId(id);
+      setTunnelOpen(true);
+      setTerminalLogs((prev) => [...prev, `✅ Tunnel opened [${id}] - Use http://localhost:9091 for Prometheus`]);
+    } catch (err: any) {
+      setTerminalLogs((prev) => [...prev, `❌ Tunnel failed: ${String(err)}`]);
+    }
+  };
+
+  // 터널 닫기
+  const closeTunnel = async () => {
+    if (!tunnelId) return;
+    try {
+      await invoke('tunnel_close', { id: tunnelId });
+    } finally {
+      setTunnelOpen(false);
+      setTunnelId(null);
     }
   };
 
@@ -414,6 +472,24 @@ export default function LogPage() {
                     className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs"
                   >
                     Disconnect
+                  </button>
+                )}
+                {!tunnelOpen ? (
+                  <button
+                    onClick={openTunnel}
+                    disabled={!ec2Server}
+                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Open SSH tunnel for Prometheus (9091:9090)"
+                  >
+                    Open Tunnel
+                  </button>
+                ) : (
+                  <button
+                    onClick={closeTunnel}
+                    className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs"
+                    title="Close Prometheus tunnel"
+                  >
+                    Close Tunnel
                   </button>
                 )}
                 <button
@@ -716,6 +792,7 @@ export default function LogPage() {
       <OptimizeDialog
         show={showOptimizeDialog}
         onClose={() => setShowOptimizeDialog(false)}
+        prometheusUrl={tunnelOpen ? 'http://localhost:9091' : 'http://localhost:9090'}
       />
     </div>
   );
