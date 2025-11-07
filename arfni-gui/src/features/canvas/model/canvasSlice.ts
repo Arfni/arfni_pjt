@@ -100,6 +100,40 @@ const canvasSlice = createSlice({
       state.selectedTemplate = null;
       state.isDirty = false;
     },
+
+    // 자동 정렬 (겹치는 노드 정리)
+    autoAlignNodes: (state) => {
+      const NODE_WIDTH = 280;
+      const NODE_HEIGHT = 200;
+      const HORIZONTAL_GAP = 80;
+      const VERTICAL_GAP = 100;
+      const GRID_COLS = 4; // 한 줄에 최대 4개 노드
+
+      // 노드들을 위치별로 정렬
+      const sortedNodes = [...state.nodes].sort((a, b) => {
+        if (Math.abs(a.position.y - b.position.y) < VERTICAL_GAP) {
+          return a.position.x - b.position.x;
+        }
+        return a.position.y - b.position.y;
+      });
+
+      // 그리드 기반으로 재배치
+      sortedNodes.forEach((node, index) => {
+        const row = Math.floor(index / GRID_COLS);
+        const col = index % GRID_COLS;
+
+        const newX = 50 + col * (NODE_WIDTH + HORIZONTAL_GAP);
+        const newY = 50 + row * (NODE_HEIGHT + VERTICAL_GAP);
+
+        // 원본 노드 업데이트
+        const originalNode = state.nodes.find(n => n.id === node.id);
+        if (originalNode) {
+          originalNode.position = { x: newX, y: newY };
+        }
+      });
+
+      state.isDirty = true;
+    },
   },
 });
 
@@ -118,6 +152,7 @@ export const {
   clearCanvas,
   setDirty,
   loadCanvasState,
+  autoAlignNodes,
 } = canvasSlice.actions;
 
 export const canvasReducer = canvasSlice.reducer;

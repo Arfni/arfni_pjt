@@ -78,7 +78,7 @@ export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-[600px] max-h-[80vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-[900px] max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-2xl font-bold text-gray-800">AI</h2>
@@ -94,13 +94,14 @@ export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
 
         {/* Content - 스크롤 가능 */}
         <div className="p-10 overflow-y-auto">
-          <h3 className="text-lg font-medium text-gray-800 mb-8">
-            Which server should I use for this project structure?
-          </h3>
+          {/* Top section: Title, Button, and Rabbit */}
+          <div className="flex gap-6 mb-8">
+            {/* Left side - Title and Form */}
+            <div className="flex-1 space-y-6">
+              <h3 className="text-lg font-medium text-gray-800">
+                Which server should I use for this project structure?
+              </h3>
 
-          <div className="flex gap-6">
-            {/* Left side - Form */}
-            <div className="flex-1 space-y-8">
               {/* Ask the Rabbit button */}
               <button
                 onClick={handleAskRabbit}
@@ -110,27 +111,38 @@ export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
                 {loading ? 'Analyzing your project...' : 'Analyze Project & Recommend Server'}
               </button>
 
-              <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <p className="font-semibold mb-2">AI가 분석하는 내용:</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>stack.yaml의 서비스 구성 분석</li>
-                  <li>최소 메모리 요구사항 추정</li>
-                  <li>벤치마크 데이터 기반 운영 안정성 평가</li>
-                  <li>Budget/Recommended/Performance 3단계 추천</li>
-                  <li>서울 리전 기반 월간 비용 계산</li>
-                </ul>
-              </div>
-
-              {/* Error message */}
-              {error && (
-                <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
-                  <p className="text-red-700 text-sm">{error}</p>
+              <div className="text-sm text-gray-600 p-4 rounded-lg border border-gray-300 flex gap-4 items-center">
+                <div className="flex-1">
+                  <p className="font-semibold mb-2">AI가 분석하는 내용:</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>stack.yaml의 서비스 구성 분석</li>
+                    <li>최소 메모리 요구사항 추정</li>
+                    <li>벤치마크 데이터 기반 운영 안정성 평가</li>
+                    <li>Budget/Recommended/Performance 3단계 추천</li>
+                    <li>서울 리전 기반 월간 비용 계산</li>
+                  </ul>
                 </div>
-              )}
+                <div className="flex-shrink-0">
+                  <img
+                    src={rabbitImg}
+                    alt="Rabbit"
+                    className="w-40 h-40 object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
 
-              {/* AI Response */}
-              {result && (
-                <div className="mt-4 space-y-4 max-h-96 overflow-y-auto">
+          {/* Error message */}
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 rounded-lg border border-red-200">
+              <p className="text-red-700 text-sm">{error}</p>
+            </div>
+          )}
+
+          {/* AI Response - Full width below */}
+          {result && (
+            <div className="space-y-4">
                   {/* Recommended Tier */}
                   <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <h4 className="font-semibold text-blue-900 mb-2">
@@ -271,17 +283,6 @@ export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
                   )}
                 </div>
               )}
-            </div>
-
-            {/* Right side - Rabbit image */}
-            <div className="flex items-center justify-center flex-shrink-0">
-              <img
-                src={rabbitImg}
-                alt="Rabbit"
-                className="w-40 h-40 object-contain"
-              />
-            </div>
-          </div>
         </div>
       </div>
     </div>
