@@ -175,6 +175,9 @@ fn main() {
       commands::keys::delete_api_key,
       commands::keys::set_active_api_key,
       commands::keys::get_active_api_key,
+
+      //github 
+      commands::github_command::git_clone_full,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
