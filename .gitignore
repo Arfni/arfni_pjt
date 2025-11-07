@@ -240,7 +240,19 @@ dist/
 downloads/
 eggs/
 .eggs/
+<<<<<<< HEAD
+# Python lib directories (but NOT TypeScript/React lib folders)
+/lib/
+/lib64/
+**/python/lib/
+**/venv/lib/
+
+# Keep TypeScript/React lib source folders
+!arfni-gui/src/**/lib/
+!FE/src/**/lib/
+=======
 # Python lib directories are handled in venv section above
+>>>>>>> develop
 parts/
 sdist/
 var/
