@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arfni/arfni/internal/core/monitoring"
 	"github.com/arfni/arfni/internal/core/stack"
 	"github.com/arfni/arfni/internal/events"
 )
@@ -206,8 +207,21 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 		stream.Success(fmt.Sprintf("Generated %d Dockerfile(s)", dockerfileCount))
 	}
 
-	// Note: Grafana provisioning is now handled by arfni-monitoring.exe at runtime
-	// This provides better support for hybrid deployments and OS-specific Docker networking
+	// Check if Grafana service exists and prepare monitoring stack
+	if _, hasGrafana := r.stack.Services["grafana"]; hasGrafana {
+		stream.Info("Preparing monitoring stack (Grafana provisioning)...")
+
+		// Detect monitoring mode based on targets
+		mode := r.detectMonitoringMode()
+		stream.Info(fmt.Sprintf("Detected monitoring mode: %s", mode))
+
+		// Use the same logic as arfni-monitoring.exe
+		if err := monitoring.PrepareMonitoringStack(r.bundledPluginsDir, mode, r.projectDir); err != nil {
+			stream.Info(fmt.Sprintf("Warning: Failed to prepare monitoring stack: %v", err))
+		} else {
+			stream.Success("Monitoring stack prepared (provisioning files generated)")
+		}
+	}
 
 	return nil
 }
@@ -781,4 +795,46 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 	stream.Success(fmt.Sprintf("Found running containers on EC2"))
 
 	return nil
+}
+
+// detectMonitoringMode determines the monitoring deployment mode based on service targets
+func (r *Runner) detectMonitoringMode() monitoring.MonitoringMode {
+	// Check if Prometheus and Grafana services exist
+	prometheusService, hasPrometheus := r.stack.Services["prometheus"]
+	grafanaService, hasGrafana := r.stack.Services["grafana"]
+
+	if !hasPrometheus || !hasGrafana {
+		return monitoring.ModeLocal // Default
+	}
+
+	// Get targets
+	prometheusTarget, prometheusTargetExists := r.stack.Targets[prometheusService.Target]
+	grafanaTarget, grafanaTargetExists := r.stack.Targets[grafanaService.Target]
+
+	if !prometheusTargetExists || !grafanaTargetExists {
+		return monitoring.ModeLocal // Default
+	}
+
+	// Detect deployment mode
+	prometheusIsEC2 := prometheusTarget.Type == "ec2.ssh"
+	grafanaIsLocal := grafanaTarget.Type == "local"
+	grafanaIsEC2 := grafanaTarget.Type == "ec2.ssh"
+	prometheusIsLocal := prometheusTarget.Type == "local"
+
+	// Hybrid mode: Grafana local, Prometheus on EC2
+	if grafanaIsLocal && prometheusIsEC2 {
+		return monitoring.ModeHybrid
+	}
+
+	// All-in-one mode: Both on EC2
+	if grafanaIsEC2 && prometheusIsEC2 {
+		return monitoring.ModeAllInOne
+	}
+
+	// Local mode: Both local
+	if grafanaIsLocal && prometheusIsLocal {
+		return monitoring.ModeLocal
+	}
+
+	return monitoring.ModeLocal // Default fallback
 }
