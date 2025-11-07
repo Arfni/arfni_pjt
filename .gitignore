@@ -246,6 +246,7 @@ eggs/
 
 # Keep TypeScript/React lib source folders
 !arfni-gui/src/**/lib/
+!FE/src/**/lib/
 parts/
 sdist/
 var/
