@@ -1,22 +1,22 @@
 ﻿import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Terminal, Play, Square, Trash2, RotateCw, MoreVertical, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowLeft, Terminal, Play, Square, Trash2, RotateCw, MoreVertical, RefreshCw, Sparkles, Activity, BarChart3, Package } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
 import { ec2ServerCommands, EC2Server, Project } from '@shared/api/tauri/commands';
-import { OptimizeDialog } from '@widgets/toolbar/ui/dialogs/OptimizeDialog';
+import { OptimizeView } from './OptimizeView';
 
 // 로그 라인에 색상 적용하는 헬퍼 함수
 function getLogLineStyle(line: string): string {
-  if (line.startsWith('✅')) return 'text-green-400';
-  if (line.startsWith('❌')) return 'text-red-400';
-  if (line.startsWith('>')) return 'text-blue-400 font-semibold';
-  if (line.includes('[stderr]')) return 'text-red-300';
-  if (line.includes('[Session closed')) return 'text-yellow-400';
-  if (line.includes('SSH connected')) return 'text-green-300';
-  return 'text-gray-300';
+  if (line.startsWith('✅')) return 'text-green-600';
+  if (line.startsWith('❌')) return 'text-red-600';
+  if (line.startsWith('>')) return 'text-blue-600 font-semibold';
+  if (line.includes('[stderr]')) return 'text-red-500';
+  if (line.includes('[Session closed')) return 'text-yellow-600';
+  if (line.includes('SSH connected')) return 'text-green-500';
+  return 'text-gray-700';
 }
 
 export default function LogPage() {
@@ -51,7 +51,9 @@ export default function LogPage() {
   const [expandedContainerIds, setExpandedContainerIds] = useState<Set<string>>(new Set());
   const [loadingContainers, setLoadingContainers] = useState(false);
   const [openHeaderDropdown, setOpenHeaderDropdown] = useState(false);
-  const [showOptimizeDialog, setShowOptimizeDialog] = useState(false);
+
+  // 좌측 사이드바 뷰 상태
+  const [selectedView, setSelectedView] = useState<'containers' | 'terminal' | 'monitor' | 'optimize'>('terminal');
 
   // 사이드바 리사이저 상태
   const [sidebarWidth, setSidebarWidth] = useState(400); // 기본 400px
@@ -429,30 +431,126 @@ export default function LogPage() {
 
   return (
     <div className="h-full flex flex-col bg-white overflow-hidden">
+      {/* Top Header */}
+      <header className="bg-gray-50 text-gray-900 px-6 py-4 flex items-center gap-4 border-b border-gray-200 flex-shrink-0">
+        <button
+          onClick={() => navigate('/projects')}
+          className="p-1.5 hover:bg-gray-200 rounded transition-colors"
+          title="Back to Projects"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h1 className="text-xl font-semibold">Project Status</h1>
+      </header>
+
+      {/* Main Layout - Sidebar + Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Navigation */}
+        <aside className="w-24 bg-[#F9FAFE] flex flex-col items-center py-6 gap-4 border-r border-gray-200">
+        {/* Containers */}
+        <button
+          onClick={() => {
+            setSelectedView('containers');
+            // Auto-refresh containers when switching to this view
+            if (ec2Server) {
+              fetchContainers();
+            }
+          }}
+          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+            selectedView === 'containers' ? 'bg-blue-50' : 'hover:bg-gray-100'
+          }`}
+          title="Containers"
+        >
+          <div className={`w-8 h-8 flex items-center justify-center rounded ${
+            selectedView === 'containers' ? 'bg-green-500' : 'bg-gray-400'
+          }`}>
+            <Package className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-xs font-medium text-gray-700">Containers</span>
+        </button>
+
+        {/* Terminal */}
+        <button
+          onClick={() => setSelectedView('terminal')}
+          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+            selectedView === 'terminal' ? 'bg-blue-50' : 'hover:bg-gray-100'
+          }`}
+          title="Terminal"
+        >
+          <div className={`w-8 h-8 flex items-center justify-center rounded ${
+            selectedView === 'terminal' ? 'bg-blue-500' : 'bg-gray-400'
+          }`}>
+            <Terminal className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-xs font-medium text-gray-700">Terminal</span>
+        </button>
+
+        {/* Monitor */}
+        <button
+          onClick={() => {
+            setSelectedView('monitor');
+            navigate('/monitoring', { state: { project, ec2Server } });
+          }}
+          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+            selectedView === 'monitor' ? 'bg-blue-50' : 'hover:bg-gray-100'
+          }`}
+          title="Monitor"
+        >
+          <div className="w-8 h-8 flex items-center justify-center rounded" style={{ backgroundColor: '#4C65E2' }}>
+            <BarChart3 className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-xs font-medium text-gray-700">Monitor</span>
+        </button>
+
+        {/* Optimize */}
+        <button
+          onClick={async () => {
+            setSelectedView('optimize');
+
+            // Auto-open tunnel if EC2 and not already open
+            if (project?.environment === 'ec2' && !tunnelOpen) {
+              try {
+                await openTunnel();
+                // Wait briefly for tunnel to establish
+                await new Promise(resolve => setTimeout(resolve, 500));
+              } catch (error) {
+                console.error('Failed to open tunnel:', error);
+              }
+            }
+          }}
+          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+            selectedView === 'optimize' ? 'bg-blue-50' : 'hover:bg-gray-100'
+          }`}
+          title="Optimize"
+        >
+          <div className="w-8 h-8 flex items-center justify-center rounded bg-gradient-to-br from-purple-500 to-pink-500">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-xs font-medium text-gray-700">Optimize</span>
+        </button>
+      </aside>
+
+      {/* Content Area */}
       <main className="flex-1 flex overflow-hidden">
 
-        {/* Main Content - SSH Terminal */}
-        {project?.environment === 'ec2' ? (
+        {/* Terminal View - Only show when terminal is selected */}
+        {selectedView === 'terminal' && project?.environment === 'ec2' ? (
           <div className="flex-1 bg-white overflow-hidden flex flex-col">
-            {/* Terminal Header */}
-            <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
+            {/* Terminal Controls */}
+            <div className="bg-gray-50 text-gray-900 px-4 py-3 flex items-center justify-between flex-shrink-0 border-b border-gray-200">
+              {/* Left: Project Info */}
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => navigate('/projects')}
-                  className="p-1.5 hover:bg-gray-800 rounded transition-colors"
-                  title="Back to Projects"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
                 <div className="flex flex-col gap-1">
                   <span className="font-semibold text-sm">{project.name}</span>
                   {ec2Server && (
-                    <span className="font-mono text-xs text-gray-400">
+                    <span className="font-mono text-xs text-gray-600">
                       {ec2Server.user}@{ec2Server.host}
                     </span>
                   )}
                 </div>
               </div>
+
+              {/* Right: Control Buttons */}
               <div className="flex gap-2">
                 {!connected ? (
                   <button
@@ -490,7 +588,7 @@ export default function LogPage() {
                 )}
                 <button
                   onClick={() => setTerminalLogs([])}
-                  className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs"
+                  className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded text-xs"
                 >
                   Clear
                 </button>
@@ -500,14 +598,14 @@ export default function LogPage() {
             {/* Terminal Output */}
             <div
               ref={terminalLogRef}
-              className="flex-1 bg-gray-950 font-mono text-sm p-4 overflow-y-auto"
+              className="flex-1 bg-white font-mono text-sm p-4 overflow-y-auto"
               style={{
                 scrollbarWidth: 'thin',
-                scrollbarColor: '#374151 #1f2937'
+                scrollbarColor: '#d1d5db #f3f4f6'
               }}
             >
               {terminalLogs.length === 0 ? (
-                <div className="text-gray-400">No output yet. Connect and run commands.</div>
+                <div className="text-gray-500">No output yet. Connect and run commands.</div>
               ) : (
                 terminalLogs.map((line, i) => (
                   <div key={i} className={getLogLineStyle(line)}>
@@ -515,15 +613,15 @@ export default function LogPage() {
                   </div>
                 ))
               )}
-              <div className="mt-2 text-gray-500">
+              <div className="mt-2 text-gray-400">
                 <span className="animate-pulse">_</span>
               </div>
             </div>
 
             {/* Command Input */}
-            <div className="bg-gray-900 p-3 flex gap-2 flex-shrink-0">
+            <div className="bg-gray-50 p-3 flex gap-2 flex-shrink-0 border-t border-gray-200">
               <input
-                className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white font-mono text-sm"
+                className="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-gray-900 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter Command ..."
                 value={cmd}
                 onChange={(e) => setCmd(e.target.value)}
@@ -538,7 +636,7 @@ export default function LogPage() {
               </button>
             </div>
           </div>
-        ) : (
+        ) : selectedView === 'terminal' && project?.environment !== 'ec2' ? (
           <div className="flex-1 flex items-center justify-center bg-white">
             <div className="text-center text-gray-500">
               <Terminal className="w-12 h-12 mx-auto mb-4 text-gray-400" />
@@ -546,22 +644,11 @@ export default function LogPage() {
               <p className="text-sm">EC2 프로젝트를 선택하면 SSH 터미널을 사용할 수 있습니다.</p>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {/* Right Sidebar */}
-        {project && (
-          <>
-            {/* Resizer Handle */}
-            <div
-              className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors flex-shrink-0"
-              onMouseDown={() => setIsResizing(true)}
-              style={{ cursor: 'col-resize' }}
-            />
-
-            <aside
-              className="bg-gray-50 flex-shrink-0 overflow-y-auto flex flex-col"
-              style={{ width: `${sidebarWidth}px` }}
-            >
+        {/* Containers View - Only show when containers is selected */}
+        {selectedView === 'containers' && project && (
+          <div className="flex-1 bg-gray-50 overflow-y-auto flex flex-col">
             {/* Container Information */}
             <div className="bg-white p-5 border-b border-gray-200 flex-1 overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
@@ -758,38 +845,17 @@ export default function LogPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
 
-
-            {/* Monitoring Button */}
-            <div className="bg-white p-5 border-t border-gray-200 space-y-3">
-              <button
-                onClick={() => navigate('/monitoring', { state: { project, ec2Server } })}
-                disabled={!project || !ec2Server}
-                className="w-full px-4 py-3 text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: '#4C65E2' }}
-              >
-                Monitoring Logs
-              </button>
-              <button
-                onClick={() => setShowOptimizeDialog(true)}
-                disabled={!project || !ec2Server}
-                className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                <Sparkles className="w-4 h-4" />
-                Optimize
-              </button>
-            </div>
-          </aside>
-          </>
+        {/* Optimize View - Only show when optimize is selected */}
+        {selectedView === 'optimize' && (
+          <OptimizeView
+            prometheusUrl={tunnelOpen ? 'http://localhost:9091' : 'http://localhost:9090'}
+          />
         )}
       </main>
-
-      {/* Optimize Dialog */}
-      <OptimizeDialog
-        show={showOptimizeDialog}
-        onClose={() => setShowOptimizeDialog(false)}
-        prometheusUrl={tunnelOpen ? 'http://localhost:9091' : 'http://localhost:9090'}
-      />
+      </div>
     </div>
   );
 }
