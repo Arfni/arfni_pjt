@@ -384,4 +384,30 @@
       - Open Tunnel: 녹색 버튼, EC2 서버 정보 필요
       - Close Tunnel: 주황색 버튼, 터널 열린 상태에서 활성화
 
+# 2025.11.07
+  1. 배포 시스템 개선 - Docker 캐시 최적화
+
+  1.1 Docker Compose 강제 재업로드
+  - BE/arfni/internal/core/workflow/runner.go (lines 377-388):
+    - buildImagesEC2 함수 수정
+    - docker-compose.yml 업로드 전 기존 파일 삭제 (rm -f)
+    - 이유: EC2에 남아있던 예전 버전 파일로 인한 서비스 불일치 문제 해결
+
+  1.2 Docker 빌드 캐시 플래그 제거
+  - BE/arfni/internal/core/workflow/runner.go:
+    - buildImagesLocal (line 300): --no-cache 플래그 제거
+    - buildImagesEC2 (line 495): --no-cache 플래그 제거
+    - 이유: 매 배포마다 전체 레이어 재빌드로 인한 배포 시간 증가 방지
+    - 필요 시 수동으로 --no-cache 사용 가능
+
+  2. React 플러그인 템플릿 수정 - devDependencies 설치 활성화
+
+  2.1 Dockerfile 템플릿 수정
+  - arfni-gui/src-tauri/resources/plugins/bundled/framework/react/templates/Dockerfile.tmpl (line 10):
+    - 기존: RUN npm install --production
+    - 수정: RUN npm install
+    - 이유: Vite 빌드 시 devDependencies 필요 (vite, @vitejs/plugin-react 등)
+
+
+
 
