@@ -1,0 +1,19 @@
+{
+  "appName": "ARFNI",
+  "navigation": {
+    "download": "ダウンロード",
+    "features": "機能",
+    "roadmap": "ロードマップ",
+    "docs": "ドキュメント"
+  },
+  "footer": {
+    "copyright": "© {{year}} {{appName}}. All rights reserved.",
+    "madeWith": "ARFNIチームが作りました",
+    "quickLinks": "クイックリンク",
+    "resources": "リソース",
+    "documentation": "ドキュメント",
+    "apiReference": "APIリファレンス",
+    "blog": "ブログ",
+    "support": "サポート"
+  }
+}

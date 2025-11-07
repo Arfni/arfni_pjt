@@ -1,0 +1,31 @@
+{
+  "eyebrow": "기능",
+  "heading": "AI가 쉬워지는 인프라 모델링",
+  "description": "복잡한 인프라 구성을 직관적인 비주얼 인터페이스로 간단하게 관리하세요",
+  "cards": {
+    "guiDesign": {
+      "title": "GUI 기반 인프라 설계",
+      "description": "웹, 백엔드, DB, 캐시 등 다양한 서비스를 블록 형태로 드래그&드롭하여 시각적으로 인프라 구조 설계"
+    },
+    "autoGeneration": {
+      "title": "선언 파일 생성 및 배포 자동화",
+      "description": "설계된 인프라를 stack.yaml로 실시간 동기화하고, Generate → Build → Up → Monitoring 단계로 원클릭 배포"
+    },
+    "visualFeedback": {
+      "title": "배포 과정 요약 및 시각적 피드백",
+      "description": "단계별 로그, 실행 결과, 리소스 상태를 통합 화면에서 시각적 타임라인 형태로 요약 표시"
+    },
+    "aiSupport": {
+      "title": "AI 서포트",
+      "description": "AI가 설계한 아키텍처를 분석하여 현재 리소스 적합성 검증, 예상 비용 산출 및 최적화 방안 자동 추천"
+    },
+    "monitoring": {
+      "title": "시각적 모니터링 시스템",
+      "description": "Prometheus, Grafana, Node Exporter를 연동하여 배포된 서비스의 리소스 사용량을 시각적으로 모니터링"
+    },
+    "pluginSystem": {
+      "title": "플러그인 시스템",
+      "description": "오픈소스 컨트리뷰터가 새로운 프레임워크와 서비스를 플러그인 형식으로 쉽게 추가 가능"
+    }
+  }
+}

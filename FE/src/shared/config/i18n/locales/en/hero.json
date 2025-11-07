@@ -1,0 +1,16 @@
+{
+  "title": {
+    "line1": "Bridge AI and",
+    "line2": "Infrastructure",
+    "line3": "With Just One Click!"
+  },
+  "description": "Model on canvas and automatically generate <strong>stack.yaml</strong> and pipelines for local and EC2 deployment.",
+  "buttons": {
+    "download": "Download Windows .exe",
+    "github": "GitHub"
+  },
+  "platformNote": "macOS/Linux support coming soon",
+  "illustration": {
+    "alt": "AI Infrastructure Modeling"
+  }
+}

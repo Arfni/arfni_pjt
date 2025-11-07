@@ -180,6 +180,27 @@ export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhos
 
           {result && (
             <div className="space-y-6">
+              {/* Glossary Section */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                  📖 용어 설명
+                </h4>
+                <div className="grid md:grid-cols-3 gap-3 text-sm text-blue-700">
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <div className="font-semibold text-blue-900 mb-1">P50 (중앙값)</div>
+                    <div className="text-xs">절반의 시간 동안 이 값 이하로 사용합니다. 일반적인 사용량을 나타냅니다.</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <div className="font-semibold text-blue-900 mb-1">P95</div>
+                    <div className="text-xs">95%의 시간 동안 이 값 이하로 유지됩니다. 일반적인 피크 수준을 나타냅니다.</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <div className="font-semibold text-blue-900 mb-1">P99</div>
+                    <div className="text-xs">99%의 시간 동안 이 값 이하입니다. 극단적인 피크 상황을 제외한 최대치입니다.</div>
+                  </div>
+                </div>
+              </div>
+
               {/* Actual Usage Section */}
               <div className="bg-gray-50 rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
