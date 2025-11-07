@@ -42,10 +42,26 @@ struct SshHandle {
   _stderr_join: thread::JoinHandle<()>,
 }
 
+// ============ Tunnel Handle ============
+
+struct TunnelHandle {
+  #[allow(dead_code)]
+  id: Uuid,
+  child: Child,
+  local_port: u16,
+  remote_port: u16,
+}
+
 // 글로벌 세션 맵
 static SESSIONS: OnceCell<Mutex<HashMap<Uuid, SshHandle>>> = OnceCell::new();
 fn sessions() -> &'static Mutex<HashMap<Uuid, SshHandle>> {
   SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+// 글로벌 터널 맵
+static TUNNELS: OnceCell<Mutex<HashMap<Uuid, TunnelHandle>>> = OnceCell::new();
+fn tunnels() -> &'static Mutex<HashMap<Uuid, TunnelHandle>> {
+  TUNNELS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 // ============ Low-level Connect ============
@@ -187,5 +203,112 @@ pub fn close_all_sessions(app: &AppHandle) {
   let ids: Vec<Uuid> = sessions().lock().keys().cloned().collect();
   for id in ids {
     let _ = close_session(app, id);
+  }
+}
+
+// ============ Tunnel API ============
+
+/// SSH 터널 생성 (포트 포워딩만, 명령 실행 없음)
+pub fn open_tunnel(
+  app: AppHandle,
+  params: SshParams,
+  local_port: u16,
+  remote_port: u16,
+) -> Result<Uuid> {
+  let target = format!("{}@{}", params.user, params.host);
+  let port_forward = format!("{}:localhost:{}", local_port, remote_port);
+
+  println!("[DEBUG] Creating SSH tunnel: -L {}", port_forward);
+
+  let mut cmd = Command::new("ssh");
+  cmd.args([
+      "-i", &params.pem_path,
+      "-L", &port_forward,
+      "-N", // 명령 실행 안함, 터널만 유지
+      "-o", "StrictHostKeyChecking=accept-new",
+      "-o", "BatchMode=yes",
+      "-o", "LogLevel=ERROR",
+      "-o", "ExitOnForwardFailure=yes", // 포트 포워딩 실패 시 즉시 종료
+      &target,
+    ])
+    .stdin(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
+
+  // Windows에서 콘솔 창 숨김
+  #[cfg(target_os = "windows")]
+  {
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+    cmd.creation_flags(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
+  }
+
+  let mut child = cmd.spawn()
+    .context("failed to spawn ssh tunnel")?;
+
+  let id = Uuid::new_v4();
+
+  // stderr 모니터링 (에러 발생 시 이벤트 전송)
+  let app_stderr = app.clone();
+  let tunnel_id = id;
+  if let Some(stderr) = child.stderr.take() {
+    thread::spawn(move || {
+      let reader = BufReader::new(stderr);
+      for line in reader.lines() {
+        if let Ok(s) = line {
+          let _ = app_stderr.emit(
+            "tunnel:stderr",
+            SshDataEvent { id: tunnel_id.to_string(), chunk: s },
+          );
+        }
+      }
+    });
+  }
+
+  // 터널 핸들 등록
+  let handle = TunnelHandle {
+    id,
+    child,
+    local_port,
+    remote_port,
+  };
+  tunnels().lock().insert(id, handle);
+
+  let _ = app.emit(
+    "tunnel:opened",
+    SshDataEvent {
+      id: id.to_string(),
+      chunk: format!("Tunnel opened: localhost:{} -> remote:{}", local_port, remote_port),
+    },
+  );
+
+  println!("[DEBUG] SSH tunnel {id} opened: localhost:{} -> remote:{}", local_port, remote_port);
+  Ok(id)
+}
+
+/// 터널 종료
+pub fn close_tunnel(app: &AppHandle, id: Uuid) -> Result<()> {
+  if let Some(mut h) = tunnels().lock().remove(&id) {
+    let _ = h.child.kill();
+    let _ = app.emit(
+      "tunnel:closed",
+      SshDataEvent {
+        id: id.to_string(),
+        chunk: format!("Tunnel closed: localhost:{} -> remote:{}", h.local_port, h.remote_port),
+      },
+    );
+    println!("[DEBUG] Tunnel {id} closed");
+    Ok(())
+  } else {
+    anyhow::bail!("tunnel not found");
+  }
+}
+
+/// 모든 터널 종료
+#[allow(dead_code)]
+pub fn close_all_tunnels(app: &AppHandle) {
+  let ids: Vec<Uuid> = tunnels().lock().keys().cloned().collect();
+  for id in ids {
+    let _ = close_tunnel(app, id);
   }
 }

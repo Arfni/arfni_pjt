@@ -15,6 +15,8 @@ import HealthWatcher from "@pages/test/ui/HealthWatcher";
 import YmlHome from "./pages/test/ui/YmlHome";
 import CreateYml from "./pages/test/ui/CreateYml";
 import PortTest from "@pages/test/ui/PortTest";
+import ApiKeysPage from "@pages/test/ui/ApiKeysPage";
+import { Titlebar } from "./widgets/titlebar/ui/Titlebar";
 
 
 const queryClient = new QueryClient({
@@ -30,25 +32,31 @@ function App() {
   return (
     <ReduxProvider store={store}>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<ProjectsPage />} />
-            <Route path="/canvas" element={<CanvasPage />} />
-            <Route path="/test" element={<TestPage />} />
-            <Route path="/logs" element={<LogPage />} />
-            <Route path="/monitoring" element={<MonitoringPage />} />
-            <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/test2" element={<TestPage2 />} />
-            <Route path="/deployment" element={<DeploymentPage />} />
-            <Route path="/test2" element={<TestPage2 />} />
-            <Route path="/test3" element={<SshTerminal />} />
-            <Route path="/health" element={<HealthWatcher />} />
-            <Route path="/yml" element={<YmlHome />} />
-            <Route path="/yml/create" element={<CreateYml />} />
-            <Route path="/port" element={<PortTest />} />
-          </Routes>
-        </BrowserRouter>
+        <div className="flex flex-col h-screen">
+          <Titlebar />
+          <div className="flex-1 overflow-hidden">
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<ProjectsPage />} />
+                <Route path="/canvas" element={<CanvasPage />} />
+                <Route path="/test" element={<TestPage />} />
+                <Route path="/logs" element={<LogPage />} />
+                <Route path="/monitoring" element={<MonitoringPage />} />
+                <Route path="/projects" element={<ProjectsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/test2" element={<TestPage2 />} />
+                <Route path="/deployment" element={<DeploymentPage />} />
+                <Route path="/test2" element={<TestPage2 />} />
+                <Route path="/test3" element={<SshTerminal />} />
+                <Route path="/health" element={<HealthWatcher />} />
+                <Route path="/yml" element={<YmlHome />} />
+                <Route path="/yml/create" element={<CreateYml />} />
+                <Route path="/port" element={<PortTest />} />
+                <Route path="/apikey" element={<ApiKeysPage />} />
+              </Routes>
+            </BrowserRouter>
+          </div>
+        </div>
       </QueryClientProvider>
     </ReduxProvider>
   );

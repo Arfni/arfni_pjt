@@ -61,6 +61,10 @@ func printUsage() {
 	fmt.Println("        Path to stack.yaml (default: stack.yaml)")
 	fmt.Println("  -project-dir string")
 	fmt.Println("        Project root directory (default: stack.yaml directory)")
+	fmt.Println("  -plugins-dir string")
+	fmt.Println("        Plugins directory path for user-installed plugins")
+	fmt.Println("  -bundled-plugins-dir string")
+	fmt.Println("        Bundled plugins directory path for built-in plugins")
 	fmt.Println()
 	fmt.Println("Monitor Options:")
 	fmt.Println("  -f string")
@@ -99,10 +103,14 @@ func runDeploy(args []string) {
 	fs := flag.NewFlagSet("deploy", flag.ExitOnError)
 	stackFileFlag := fs.String("f", "stack.yaml", "path to stack.yaml")
 	projectDirFlag := fs.String("project-dir", "", "project root directory")
+	pluginsDirFlag := fs.String("plugins-dir", "", "plugins directory path")
+	bundledPluginsDirFlag := fs.String("bundled-plugins-dir", "", "bundled plugins directory path")
 	fs.Parse(args)
 
 	stackFile := *stackFileFlag
 	projectDir := *projectDirFlag
+	pluginsDir := *pluginsDirFlag
+	bundledPluginsDir := *bundledPluginsDirFlag
 
 	// 현재 실행 파일의 위치 찾기
 	exePath, err := os.Executable()
@@ -147,13 +155,25 @@ func runDeploy(args []string) {
 	if projectDir != "" {
 		fmt.Printf("Project Dir:   %s\n", projectDir)
 	}
+	if pluginsDir != "" {
+		fmt.Printf("Plugins Dir:   %s\n", pluginsDir)
+	}
+	if bundledPluginsDir != "" {
+		fmt.Printf("Bundled Plugins Dir: %s\n", bundledPluginsDir)
+	}
 	fmt.Printf("IC Engine:     %s\n", icExe)
 	fmt.Println()
 
-	// ic.exe run -f 직접 실행 (project-dir 포함)
+	// ic.exe run -f 직접 실행 (project-dir, plugins-dir, bundled-plugins-dir 포함)
 	cmdArgs := []string{"run", "-f", stackFile}
 	if projectDir != "" {
 		cmdArgs = append(cmdArgs, "-project-dir", projectDir)
+	}
+	if pluginsDir != "" {
+		cmdArgs = append(cmdArgs, "-plugins-dir", pluginsDir)
+	}
+	if bundledPluginsDir != "" {
+		cmdArgs = append(cmdArgs, "-bundled-plugins-dir", bundledPluginsDir)
 	}
 
 	deployCmd := exec.Command(icExe, cmdArgs...)
@@ -334,21 +354,11 @@ type StackConfig struct {
 func runCostEstimation(args []string) {
 	fs := flag.NewFlagSet("estimate-cost", flag.ExitOnError)
 	stackFileFlag := fs.String("f", "stack.yaml", "path to stack.yaml")
-	usersFlag := fs.Int("users", 100, "expected number of users")
-	trafficFlag := fs.String("traffic", "medium", "expected traffic level (low, medium, high)")
 	deploymentFlag := fs.String("deployment", "simple", "deployment type (simple, production)")
 	fs.Parse(args)
 
 	stackFile := *stackFileFlag
-	expectedUsers := *usersFlag
-	expectedTraffic := *trafficFlag
 	deploymentType := *deploymentFlag
-
-	// Validate traffic level
-	if expectedTraffic != "low" && expectedTraffic != "medium" && expectedTraffic != "high" {
-		fmt.Printf("[ERROR] Invalid traffic level: %s (must be low, medium, or high)\n", expectedTraffic)
-		os.Exit(1)
-	}
 
 	// Validate deployment type
 	if deploymentType != "simple" && deploymentType != "production" {
@@ -377,8 +387,6 @@ func runCostEstimation(args []string) {
 	fmt.Println("================================================")
 	fmt.Println()
 	fmt.Printf("Stack File:        %s\n", stackFile)
-	fmt.Printf("Expected Users:    %d\n", expectedUsers)
-	fmt.Printf("Expected Traffic:  %s\n", expectedTraffic)
 	fmt.Printf("Deployment Type:   %s\n", deploymentType)
 	if deploymentType == "simple" {
 		fmt.Println("                   (Docker containers on single EC2)")
@@ -425,11 +433,9 @@ func runCostEstimation(args []string) {
 
 	// Create cost estimation request
 	req := pricing.CostEstimationRequest{
-		Services:        services,
-		ExpectedUsers:   expectedUsers,
-		ExpectedTraffic: expectedTraffic,
-		Region:          "ap-northeast-2",
-		DeploymentType:  deploymentType,
+		Services:       services,
+		Region:         "ap-northeast-2",
+		DeploymentType: deploymentType,
 	}
 
 	// Initialize cost estimator

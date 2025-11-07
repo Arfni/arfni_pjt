@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::fs::File;
 use std::path::{Path, PathBuf};
-use tauri::State;
+use tauri::{State, Manager};
 use rusqlite::params;
 use crate::db::Database;
+use std::sync::Mutex;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Project {
@@ -49,6 +51,21 @@ pub struct CanvasEdge {
     pub target: String,
 }
 
+/// 프로젝트 잠금 파일을 관리하는 구조체
+pub struct ProjectLock {
+    pub file: Option<File>,
+    pub path: Option<String>,
+}
+
+impl ProjectLock {
+    pub fn new() -> Self {
+        ProjectLock {
+            file: None,
+            path: None,
+        }
+    }
+}
+
 /// 프로젝트 생성 - 프로젝트 폴더와 .arfni 디렉토리 생성 + DB 저장
 #[tauri::command]
 pub fn create_project(
@@ -71,6 +88,23 @@ pub fn create_project(
 
     let project_path = Path::new(&path).join(&name);
     let arfni_path = project_path.join(".arfni");
+
+    // 프로젝트 경로가 이미 존재하는지 확인
+    if project_path.exists() {
+        return Err(format!("해당 경로에 프로젝트 폴더가 이미 존재합니다: {}", project_path.display()));
+    }
+
+    // DB에서 같은 경로의 프로젝트가 있는지 확인하고 있으면 삭제
+    let conn = db.get_conn();
+    let conn_lock = conn.lock().unwrap();
+    let project_path_str = project_path.to_string_lossy().to_string();
+
+    conn_lock.execute(
+        "DELETE FROM projects WHERE path = ?1",
+        params![&project_path_str],
+    ).map_err(|e| format!("기존 프로젝트 DB 정리 실패: {}", e))?;
+
+    drop(conn_lock);
 
     // 프로젝트 디렉토리 생성
     fs::create_dir_all(&project_path)
@@ -164,7 +198,11 @@ services:
 
 /// 프로젝트 열기 (DB에서 조회)
 #[tauri::command]
-pub fn open_project(db: State<Database>, project_id: String) -> Result<Project, String> {
+pub fn open_project(
+    db: State<Database>,
+    project_id: String,
+    app_handle: tauri::AppHandle,
+) -> Result<Project, String> {
     let conn = db.get_conn();
     let conn = conn.lock().unwrap();
 
@@ -189,6 +227,18 @@ pub fn open_project(db: State<Database>, project_id: String) -> Result<Project, 
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
+    // 프로젝트 폴더 존재 여부 확인
+    let project_path = Path::new(&project.path);
+    if !project_path.exists() {
+        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+    }
+
+    // .arfni 디렉토리 존재 여부 확인 (ARFNI 프로젝트인지 검증)
+    let arfni_path = project_path.join(".arfni");
+    if !arfni_path.exists() {
+        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+    }
+
     // 업데이트 시간 갱신
     let updated_at = chrono::Utc::now().to_rfc3339();
     conn.execute(
@@ -196,12 +246,74 @@ pub fn open_project(db: State<Database>, project_id: String) -> Result<Project, 
         params![&updated_at, &project_id],
     ).map_err(|e| format!("업데이트 시간 갱신 실패: {}", e))?;
 
+    // 기존 잠금 파일 해제
+    if let Some(lock) = app_handle.try_state::<Mutex<ProjectLock>>() {
+        let mut lock_guard = lock.lock().unwrap();
+        lock_guard.file = None;
+        lock_guard.path = None;
+    }
+
+    // 프로젝트 폴더에 잠금 파일 생성
+    let lock_file_path = project_path.join(".arfni").join(".lock");
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        match fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .share_mode(0) // Windows에서 배타적 접근 - 다른 프로세스가 파일에 접근하지 못하도록 함
+            .open(&lock_file_path)
+        {
+            Ok(file) => {
+                // 잠금 파일을 전역 상태로 저장
+                if let Some(lock) = app_handle.try_state::<Mutex<ProjectLock>>() {
+                    let mut lock_guard = lock.lock().unwrap();
+                    lock_guard.file = Some(file);
+                    lock_guard.path = Some(project.path.clone());
+                }
+            }
+            Err(e) => {
+                eprintln!("잠금 파일 생성 경고: {}", e);
+                // 잠금 파일 생성 실패는 치명적이지 않으므로 계속 진행
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        match fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&lock_file_path)
+        {
+            Ok(file) => {
+                // 잠금 파일을 전역 상태로 저장
+                if let Some(lock) = app_handle.try_state::<Mutex<ProjectLock>>() {
+                    let mut lock_guard = lock.lock().unwrap();
+                    lock_guard.file = Some(file);
+                    lock_guard.path = Some(project.path.clone());
+                }
+            }
+            Err(e) => {
+                eprintln!("잠금 파일 생성 경고: {}", e);
+                // 잠금 파일 생성 실패는 치명적이지 않으므로 계속 진행
+            }
+        }
+    }
+
     Ok(project)
 }
 
 /// 프로젝트 경로로 열기 (기존 호환성)
 #[tauri::command]
-pub fn open_project_by_path(db: State<Database>, path: String) -> Result<Project, String> {
+pub fn open_project_by_path(
+    db: State<Database>,
+    path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<Project, String> {
     let conn = db.get_conn();
     let conn = conn.lock().unwrap();
 
@@ -225,6 +337,76 @@ pub fn open_project_by_path(db: State<Database>, path: String) -> Result<Project
             stack_yaml_path: row.get(10)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
+
+    // 프로젝트 폴더 존재 여부 확인
+    let project_path = Path::new(&project.path);
+    if !project_path.exists() {
+        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+    }
+
+    // .arfni 디렉토리 존재 여부 확인 (ARFNI 프로젝트인지 검증)
+    let arfni_path = project_path.join(".arfni");
+    if !arfni_path.exists() {
+        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+    }
+
+    // 기존 잠금 파일 해제
+    if let Some(lock) = app_handle.try_state::<Mutex<ProjectLock>>() {
+        let mut lock_guard = lock.lock().unwrap();
+        lock_guard.file = None;
+        lock_guard.path = None;
+    }
+
+    // 프로젝트 폴더에 잠금 파일 생성
+    let lock_file_path = project_path.join(".arfni").join(".lock");
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        match fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .share_mode(0) // Windows에서 배타적 접근 - 다른 프로세스가 파일에 접근하지 못하도록 함
+            .open(&lock_file_path)
+        {
+            Ok(file) => {
+                // 잠금 파일을 전역 상태로 저장
+                if let Some(lock) = app_handle.try_state::<Mutex<ProjectLock>>() {
+                    let mut lock_guard = lock.lock().unwrap();
+                    lock_guard.file = Some(file);
+                    lock_guard.path = Some(project.path.clone());
+                }
+            }
+            Err(e) => {
+                eprintln!("잠금 파일 생성 경고: {}", e);
+                // 잠금 파일 생성 실패는 치명적이지 않으므로 계속 진행
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        match fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&lock_file_path)
+        {
+            Ok(file) => {
+                // 잠금 파일을 전역 상태로 저장
+                if let Some(lock) = app_handle.try_state::<Mutex<ProjectLock>>() {
+                    let mut lock_guard = lock.lock().unwrap();
+                    lock_guard.file = Some(file);
+                    lock_guard.path = Some(project.path.clone());
+                }
+            }
+            Err(e) => {
+                eprintln!("잠금 파일 생성 경고: {}", e);
+                // 잠금 파일 생성 실패는 치명적이지 않으므로 계속 진행
+            }
+        }
+    }
 
     Ok(project)
 }
@@ -448,6 +630,52 @@ pub fn add_to_recent_projects(db: State<Database>, project_id: String) -> Result
     Ok(())
 }
 
+/// 프로젝트 닫기 (잠금 파일 해제)
+#[tauri::command]
+pub fn close_project(app_handle: tauri::AppHandle) -> Result<(), String> {
+    if let Some(lock) = app_handle.try_state::<Mutex<ProjectLock>>() {
+        let mut lock_guard = lock.lock().unwrap();
+
+        // 잠금 파일 경로 저장
+        if let Some(ref path) = lock_guard.path {
+            let lock_file_path = Path::new(path).join(".arfni").join(".lock");
+
+            // 파일 핸들 먼저 해제
+            lock_guard.file = None;
+            lock_guard.path = None;
+
+            // 잠금 파일 삭제 시도
+            if lock_file_path.exists() {
+                if let Err(e) = fs::remove_file(&lock_file_path) {
+                    eprintln!("잠금 파일 삭제 경고: {}", e);
+                }
+            }
+        } else {
+            lock_guard.file = None;
+            lock_guard.path = None;
+        }
+    }
+
+    Ok(())
+}
+
+/// 프로젝트 DB에서만 삭제 (파일 시스템은 유지)
+#[tauri::command]
+pub fn delete_project_from_db_only(db: State<Database>, project_id: String) -> Result<(), String> {
+    // DB에서 삭제 (CASCADE로 recent_projects도 자동 삭제됨)
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    conn.execute(
+        "DELETE FROM projects WHERE id = ?1",
+        params![&project_id],
+    ).map_err(|e| format!("DB에서 프로젝트 삭제 실패: {}", e))?;
+
+    println!("✅ 프로젝트 DB에서 제거 완료 (파일은 유지): {}", project_id);
+
+    Ok(())
+}
+
 /// 최근 프로젝트 목록에서 제거
 #[tauri::command]
 pub fn remove_from_recent_projects(db: State<Database>, project_id: String) -> Result<(), String> {
@@ -469,6 +697,7 @@ pub fn update_project(
     project_id: String,
     mode: Option<String>,
     workdir: Option<String>,
+    app_handle: tauri::AppHandle,
 ) -> Result<Project, String> {
     let conn = db.get_conn();
     let conn = conn.lock().unwrap();
@@ -494,14 +723,18 @@ pub fn update_project(
 
     // 업데이트된 프로젝트 반환
     drop(conn);
-    open_project(db, project_id)
+    open_project(db, project_id, app_handle)
 }
 
 /// 프로젝트 완전 삭제 (파일 시스템에서 삭제 + DB에서 제거)
 #[tauri::command]
-pub fn delete_project(db: State<Database>, project_id: String) -> Result<(), String> {
+pub fn delete_project(
+    db: State<Database>,
+    project_id: String,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
     // DB에서 프로젝트 조회
-    let project = open_project(db.clone(), project_id.clone())?;
+    let project = open_project(db.clone(), project_id.clone(), app_handle)?;
 
     let project_path_buf = PathBuf::from(&project.path);
 
@@ -530,6 +763,24 @@ pub fn delete_project(db: State<Database>, project_id: String) -> Result<(), Str
         "DELETE FROM projects WHERE id = ?1",
         params![&project_id],
     ).map_err(|e| format!("DB에서 프로젝트 삭제 실패: {}", e))?;
+
+    Ok(())
+}
+
+/// Write content to a file, creating parent directories if needed
+#[tauri::command]
+pub fn write_file(path: String, content: String) -> Result<(), String> {
+    let file_path = Path::new(&path);
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directories: {}", e))?;
+    }
+
+    // Write the file
+    fs::write(file_path, content)
+        .map_err(|e| format!("Failed to write file: {}", e))?;
 
     Ok(())
 }

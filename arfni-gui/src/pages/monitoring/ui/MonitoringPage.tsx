@@ -26,23 +26,6 @@ export default function MonitoringPage() {
   const [isStarting, setIsStarting] = useState(false);
   const [startupMessage, setStartupMessage] = useState<string>('');
 
-  // 페이지를 벗어나거나 GUI를 닫을 때 cleanup
-  useEffect(() => {
-    const cleanup = async () => {
-      try {
-        await invoke('stop_monitoring_stack');
-        console.log('Monitoring stack stopped');
-      } catch (err) {
-        console.error('Failed to stop monitoring stack:', err);
-      }
-    };
-
-    // 컴포넌트 언마운트 시 cleanup
-    return () => {
-      cleanup();
-    };
-  }, []);
-
   // 모니터링 설정 로드 및 자동 시작
   useEffect(() => {
     const loadConfig = async () => {
@@ -214,7 +197,11 @@ export default function MonitoringPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/logs', { state: { project } })}
+              onClick={async () => {
+                // Cleanup 후 navigate
+                await invoke('stop_monitoring_stack').catch(console.error);
+                navigate('/logs', { state: { project } });
+              }}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />

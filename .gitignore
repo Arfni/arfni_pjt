@@ -7,6 +7,8 @@
 #
 # Binaries for programs and plugins
 *.exe
+!BE/arfni/bin/*.exe
+!arfni-gui/src-tauri/resources/bin/*.exe
 *.exe~
 *.dll
 *.so
@@ -238,6 +240,7 @@ dist/
 downloads/
 eggs/
 .eggs/
+<<<<<<< HEAD
 # Python lib directories (but NOT TypeScript/React lib folders)
 /lib/
 /lib64/
@@ -247,6 +250,9 @@ eggs/
 # Keep TypeScript/React lib source folders
 !arfni-gui/src/**/lib/
 !FE/src/**/lib/
+=======
+# Python lib directories are handled in venv section above
+>>>>>>> develop
 parts/
 sdist/
 var/
@@ -428,10 +434,15 @@ Cargo.lock
 ### venv ###
 # Virtualenv
 # http://iamzed.com/2009/05/07/a-primer-on-virtualenv/
-[Bb]in
-[Ii]nclude
-[Ll]ib
-[Ll]ib64
+# Note: Only ignore Python venv directories, not project bin/lib folders
+**/venv/[Bb]in
+**/venv/[Ii]nclude
+**/venv/[Ll]ib
+**/venv/[Ll]ib64
+**/env/[Bb]in
+**/env/[Ii]nclude
+**/env/[Ll]ib
+**/env/[Ll]ib64
 [Ll]ocal
 [Ss]cripts
 pyvenv.cfg

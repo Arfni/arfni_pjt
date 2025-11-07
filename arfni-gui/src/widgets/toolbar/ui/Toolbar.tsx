@@ -4,14 +4,15 @@ import {
   Save,
   PlayCircle,
   StopCircle,
-  CheckCircle,
   Loader2,
   ArrowLeft,
   Camera,
   Settings,
-  FileText
+  FileText,
+  AlignJustify
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import aiLogo from '../../../assets/ai.png';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
   selectNodes,
@@ -19,6 +20,7 @@ import {
   selectIsDirty,
   setDirty,
   selectTargetNodes,
+  autoAlignNodes,
 } from '@features/canvas';
 import {
   selectCurrentProject,
@@ -29,7 +31,7 @@ import {
   setCurrentProject,
 } from '@features/project';
 import { startDeployment } from '@features/deployment/model/deploymentSlice';
-import { stackYamlGenerator, stackToYamlString } from '@features/canvas/lib/stackYamlGenerator';
+import { PluginStackGenerator } from '@features/canvas/lib/pluginStackGenerator';
 import {
   deploymentCommands,
   projectCommands,
@@ -37,6 +39,10 @@ import {
   CanvasEdge,
   ec2ServerCommands,
 } from '@shared/api/tauri/commands';
+import { SettingsDialog } from './dialogs/SettingsDialog';
+import { ExportDialog } from './dialogs/ExportDialog';
+import { ExportSuccessNotification } from './dialogs/ExportSuccessNotification';
+import { AIDialog } from './dialogs/AIDialog';
 
 export function Toolbar() {
   const navigate = useNavigate();
@@ -49,12 +55,13 @@ export function Toolbar() {
   const isSaving = useAppSelector(selectIsSaving);
   const targetNodes = useAppSelector(selectTargetNodes);
 
+
   const [isDeploying, setIsDeploying] = useState(false);
-  const [isValidating, setIsValidating] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<'png' | 'svg' | 'pdf'>('png');
   const [showExportSuccess, setShowExportSuccess] = useState(false);
-  const [exportedFilePath, setExportedFilePath] = useState('');
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showAIDialog, setShowAIDialog] = useState(false);
 
   const isEC2Project = currentProject?.environment === 'ec2';
   const ec2TargetNode = isEC2Project && targetNodes.length > 0 ? targetNodes[0] : null;
@@ -73,16 +80,18 @@ export function Toolbar() {
       if (updatedProject.ec2_server_id) {
         ec2Server = await ec2ServerCommands.getServerById(updatedProject.ec2_server_id);
       }
-      const stackYaml = stackYamlGenerator(nodes, edges, {
+
+      // 4. stack.yaml 생성 - updatedProject 사용
+      const yamlContent = await PluginStackGenerator.generateStack({
+        nodes,
+        edges,
         projectName: updatedProject.name,
-        environment: updatedProject.environment,
+        environment: updatedProject.environment as 'local' | 'ec2',
         ec2Server: ec2Server || undefined,
         mode: updatedProject.mode,
         workdir: updatedProject.workdir,
         secrets: [],
-        outputs: {},
       });
-      const yamlContent = stackToYamlString(stackYaml);
       const canvasData = {
         nodes: nodes.map(node => ({
           id: node.id,
@@ -116,14 +125,20 @@ export function Toolbar() {
       if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
         ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
       }
-      const stackYaml = stackYamlGenerator(nodes, edges, {
+
+      // Canvas 노드를 stack.yaml로 변환
+      const yamlContent = await PluginStackGenerator.generateStack({
+        nodes,
+        edges,
         projectName: currentProject.name,
-        environment: currentProject.environment,
+        environment: currentProject.environment as 'local' | 'ec2',
         ec2Server: ec2Server || undefined,
+        mode: currentProject.mode,
+        workdir: currentProject.workdir,
         secrets: [],
-        outputs: {},
       });
-      const yamlContent = stackToYamlString(stackYaml);
+
+      // Canvas 노드를 Tauri 형식으로 변환
       const canvasNodes: CanvasNode[] = nodes.map(node => ({
         id: node.id,
         node_type: node.type,
@@ -158,8 +173,50 @@ export function Toolbar() {
       return;
     }
     if (isDirty) {
-      const shouldSave = confirm('변경사항을 먼저 저장하시겠습니까?');
-      if (shouldSave) await handleSave();
+      try {
+        let ec2Server = null;
+        if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
+          ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
+        }
+
+        // Generate stack.yaml using PluginStackGenerator
+        const yamlContent = await PluginStackGenerator.generateStack({
+          nodes,
+          edges,
+          projectName: currentProject.name,
+          environment: currentProject.environment as 'local' | 'ec2',
+          ec2Server: ec2Server || undefined,
+          mode: currentProject.mode,
+          workdir: currentProject.workdir,
+          secrets: [],
+        });
+
+        const canvasNodes: CanvasNode[] = nodes.map(node => ({
+          id: node.id,
+          node_type: node.type,
+          data: node.data,
+          position: node.position,
+        }));
+        const canvasEdges: CanvasEdge[] = edges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+        }));
+        await dispatch(saveStackYaml({
+          projectPath: currentProject.path,
+          yamlContent,
+          canvasData: {
+            nodes: canvasNodes,
+            edges: canvasEdges,
+            project_name: currentProject.name,
+            secrets: [],
+          },
+        })).unwrap();
+        dispatch(setDirty(false));
+      } catch (error) {
+        alert(`저장 실패: ${error}`);
+        return;
+      }
     }
     if (currentProject.environment === 'local') {
       try {
@@ -188,7 +245,7 @@ export function Toolbar() {
       alert(`배포 실패: ${error}`);
       setIsDeploying(false);
     }
-  }, [currentProject, isDirty, handleSave, dispatch, navigate]);
+  }, [currentProject, isDirty, nodes, edges, dispatch, navigate]);
 
   const handleStopDeployment = useCallback(async () => {
     try {
@@ -200,12 +257,6 @@ export function Toolbar() {
     }
   }, []);
 
-  // Export 다이얼로그 열기
-  const handleOpenExportDialog = useCallback(() => {
-    setShowExportDialog(true);
-  }, []);
-
-  // Export 실행
   const handleConfirmExport = useCallback(async () => {
     setShowExportDialog(false);
     const reactFlowElement = document.querySelector('.react-flow') as HTMLElement;
@@ -249,7 +300,6 @@ export function Toolbar() {
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          setExportedFilePath(fileName);
           setShowExportSuccess(true);
         } catch (error) {
           elementsToHide.forEach((el, index) => el.style.display = originalDisplays[index]);
@@ -268,6 +318,24 @@ export function Toolbar() {
       alert('폴더를 열 수 없습니다.');
     }
   }, []);
+
+  const handleOpenProjectFolder = useCallback(async () => {
+    if (!currentProject?.path) {
+      alert('프로젝트 경로가 없습니다.');
+      return;
+    }
+    try {
+      await invoke('open_folder_in_explorer', { path: currentProject.path });
+    } catch (error) {
+      console.error('폴더 열기 실패:', error);
+      alert('폴더를 열 수 없습니다.');
+    }
+  }, [currentProject]);
+
+  const handleAutoAlign = useCallback(() => {
+    dispatch(autoAlignNodes());
+  }, [dispatch]);
+
 
   return (
     <>
@@ -306,7 +374,7 @@ export function Toolbar() {
               <button
                 onClick={() => { }}
                 disabled={!currentProject}
-                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+                className="px-2.5 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50"
               >
                 CI/CD
               </button>
@@ -316,7 +384,11 @@ export function Toolbar() {
 
         {/* Right section */}
         <div className="flex items-center space-x-2">
-          <button onClick={() => { }} className="p-2 hover:bg-gray-700 rounded transition-colors" title="설정">
+          <button onClick={() => setShowAIDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="AI">
+            <img src={aiLogo} alt="AI" className="w-4 h-4" />
+          </button>
+
+          <button onClick={() => setShowSettingsDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="설정">
             <Settings className="w-4 h-4" />
           </button>
 
@@ -336,19 +408,29 @@ export function Toolbar() {
 
           <button
             onClick={() => navigate('/yml')}
-            className="flex items-center gap-2 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
             title="GitHub Actions YML 생성"
           >
-            <FileText className="w-4 h-4" />
+            <FileText className="w-3.5 h-3.5" />
             Github YML
           </button>
 
           <button
-            onClick={handleOpenExportDialog}
-            className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+            onClick={handleAutoAlign}
+            disabled={nodes.length === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="노드 자동 정렬"
+          >
+            <AlignJustify className="w-3.5 h-3.5" />
+            Auto Alignment
+          </button>
+
+          <button
+            onClick={() => setShowExportDialog(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors"
             title="캔버스 내보내기"
           >
-            <Camera className="w-4 h-4" />
+            <Camera className="w-3.5 h-3.5" />
             Export
           </button>
 
@@ -356,17 +438,17 @@ export function Toolbar() {
             <button
               onClick={handleDeploy}
               disabled={!currentProject}
-              className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+              className="px-2.5 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
-              <PlayCircle className="w-4 h-4" />
+              <PlayCircle className="w-3.5 h-3.5" />
               Deploy
             </button>
           ) : (
             <button
               onClick={handleStopDeployment}
-              className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex items-center gap-1"
+              className="px-2.5 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors flex items-center gap-1.5"
             >
-              <StopCircle className="w-4 h-4" />
+              <StopCircle className="w-3.5 h-3.5" />
               Stop
             </button>
           )}
@@ -374,91 +456,32 @@ export function Toolbar() {
       </div>
 
 
-      {/* Export Format Selection Dialog */}
-      {showExportDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-8 w-[500px]">
-            <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Export Image</h2>
+      <ExportDialog
+        show={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        selectedFormat={selectedFormat}
+        onFormatChange={setSelectedFormat}
+        onConfirm={handleConfirmExport}
+      />
 
-            <div className="mb-6">
-              <h3 className="text-xl font-semibold text-gray-700 mb-4">File Format</h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSelectedFormat('png')}
-                  className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all ${
-                    selectedFormat === 'png'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  }`}
-                >
-                  PNG
-                </button>
-                <button
-                  onClick={() => setSelectedFormat('svg')}
-                  className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all ${
-                    selectedFormat === 'svg'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  }`}
-                >
-                  SVG
-                </button>
-                <button
-                  onClick={() => setSelectedFormat('pdf')}
-                  className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all ${
-                    selectedFormat === 'pdf'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  }`}
-                >
-                  PDF
-                </button>
-              </div>
-            </div>
+      <ExportSuccessNotification
+        show={showExportSuccess}
+        onClose={() => setShowExportSuccess(false)}
+        onOpenFolder={handleOpenFolder}
+      />
 
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowExportDialog(false)}
-                className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleConfirmExport}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SettingsDialog
+        show={showSettingsDialog}
+        onClose={() => setShowSettingsDialog(false)}
+        currentProject={currentProject}
+        onOpenProjectFolder={handleOpenProjectFolder}
+      />
 
-      {/* Export Success */}
-      {showExportSuccess && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl">
-          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-6 h-6" />
-              <span className="font-medium text-lg">Success Export!</span>
-              <button
-                onClick={handleOpenFolder}
-                className="ml-4 underline hover:text-green-100 transition-colors font-medium"
-              >
-                Click here to show save folder.
-              </button>
-            </div>
-            <button
-              onClick={() => setShowExportSuccess(false)}
-              className="text-white hover:text-green-100 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
+      <AIDialog
+        show={showAIDialog}
+        onClose={() => setShowAIDialog(false)}
+        currentProject={currentProject}
+      />
     </>
   );
 }

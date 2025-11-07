@@ -1,40 +1,70 @@
 import { Handle, Position, NodeProps } from 'reactflow';
 import { X } from 'lucide-react';
-import { ServiceNodeData } from '@shared/config/nodeTypes';
+import { ServiceNodeData, DatabaseNodeData } from '@shared/config/nodeTypes';
 import { useAppDispatch } from '@app/hooks';
 import { deleteNode } from '@features/canvas';
+import { useState, useEffect } from 'react';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { appDataDir, join } from '@tauri-apps/api/path';
+import { pluginService } from '@services/pluginLoader';
 
-import reactImg from '../../../assets/react.png';
-import springbootImg from '../../../assets/springboot.png';
-import nodejsImg from '../../../assets/nodejs.png';
-import nextjsImg from '../../../assets/nextjs.png';
-import pythonImg from '../../../assets/python.png';
+type NodeData = ServiceNodeData | DatabaseNodeData;
 
-export function ServiceNode({ data, selected, id }: NodeProps<ServiceNodeData>) {
+export function ServiceNode({ data, selected, id }: NodeProps<NodeData>) {
   const dispatch = useAppDispatch();
+  const [iconUrl, setIconUrl] = useState<string | null>(null);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     dispatch(deleteNode(id));
   };
-  const getIcon = () => {
-    const serviceType = data.serviceType || 'custom';
-    switch (serviceType) {
-      case 'react':
-        return reactImg;
-      case 'nextjs':
-        return nextjsImg;
-      case 'spring':
-        return springbootImg;
-      case 'nodejs':
-        return nodejsImg;
-      case 'python':
-      case 'fastapi':
-        return pythonImg;
-      default:
-        return reactImg;
+
+  // Get node type - handles both serviceType (ServiceNode) and type (DatabaseNode)
+  const getNodeType = (): string => {
+    if ('serviceType' in data && data.serviceType) {
+      return data.serviceType;
     }
+    if ('type' in data && data.type) {
+      return data.type;
+    }
+    return 'custom';
   };
+
+  const nodeType = getNodeType();
+
+  // Load icon from plugin dynamically
+  useEffect(() => {
+    const loadIcon = async () => {
+      try {
+        // Ensure plugins are loaded first
+        await pluginService.loadPlugins();
+
+        // Try to get plugin by node type
+        const plugin = pluginService.getPluginByNodeType(nodeType);
+
+        if (plugin) {
+          const pluginIconPath = plugin.iconPath;
+
+          // Check if it's a bundled plugin or installed plugin
+          if (plugin.isBundled) {
+            // Bundled plugin - use relative URL
+            setIconUrl(`/${pluginIconPath}`);
+          } else {
+            // Installed plugin - convert to asset URL using plugin.iconPath
+            const dataDir = await appDataDir();
+            const relativePath = plugin.iconPath.replace(/^plugins\//, '');
+            const iconPath = await join(dataDir, relativePath);
+            const assetUrl = convertFileSrc(iconPath);
+            setIconUrl(assetUrl);
+          }
+        }
+      } catch (error) {
+        setIconUrl(null);
+      }
+    };
+
+    loadIcon();
+  }, [nodeType]);
 
   return (
     <div
@@ -42,13 +72,33 @@ export function ServiceNode({ data, selected, id }: NodeProps<ServiceNodeData>) 
         ${selected ? 'bg-[#2563EB]' : 'bg-white border border-gray-200'}
       `}
     >
+      {/* 상하좌우 핸들 - 각 방향마다 source와 target 모두 */}
       <Handle
         type="target"
         position={Position.Left}
+        id="target-left"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
+        type="source"
+        position={Position.Left}
+        id="source-left"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="target-top"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
+        type="source"
+        position={Position.Top}
+        id="source-top"
         className="w-3 h-3 !bg-gray-400 border-2 border-white"
       />
 
-      {/* 닫기 버튼 */}
+      {/* Delete button */}
       <button
         onClick={handleDelete}
         className={`absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center transition-all hover:bg-red-500/20
@@ -64,13 +114,22 @@ export function ServiceNode({ data, selected, id }: NodeProps<ServiceNodeData>) 
           selected ? 'text-white' : 'text-gray-800'
         }`}
       >
+        {/* Icon */}
         <div className="bg-white rounded-lg p-2 mb-3 shadow-sm">
-          <img
-            src={getIcon()}
-            alt={data.serviceType}
-            className="w-12 h-12"
-          />
+          {iconUrl ? (
+            <img
+              src={iconUrl}
+              alt={nodeType}
+              className="w-12 h-12"
+            />
+          ) : (
+            <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center text-gray-500 text-xs">
+              {nodeType.slice(0, 2).toUpperCase()}
+            </div>
+          )}
         </div>
+
+        {/* Content */}
         <div className="w-full">
           <div
             className={`text-lg font-bold mb-1 ${
@@ -84,7 +143,7 @@ export function ServiceNode({ data, selected, id }: NodeProps<ServiceNodeData>) 
               selected ? 'text-white/90' : 'text-gray-500'
             }`}
           >
-            {data.serviceType || 'custom'}-main
+            {nodeType}-main
           </div>
           {data.ports && data.ports.length > 0 && (
             <div
@@ -100,8 +159,27 @@ export function ServiceNode({ data, selected, id }: NodeProps<ServiceNodeData>) 
       </div>
 
       <Handle
+        type="target"
+        position={Position.Right}
+        id="target-right"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
         type="source"
         position={Position.Right}
+        id="source-right"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="target-bottom"
+        className="w-3 h-3 !bg-gray-400 border-2 border-white"
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="source-bottom"
         className="w-3 h-3 !bg-gray-400 border-2 border-white"
       />
     </div>

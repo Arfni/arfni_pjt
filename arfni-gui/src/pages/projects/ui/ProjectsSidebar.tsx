@@ -1,16 +1,16 @@
-import { Laptop, Server, Settings } from 'lucide-react';
+import { Laptop, Server, Package, Settings, FlaskConical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ProjectsSidebarProps {
-  selectedTab: 'local' | 'ec2';
-  onTabChange: (tab: 'local' | 'ec2') => void;
+  selectedTab: 'local' | 'ec2' | 'plugins';
+  onTabChange: (tab: 'local' | 'ec2' | 'plugins') => void;
 }
 
 export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarProps) {
   const navigate = useNavigate();
 
   return (
-    <aside className="w-24 bg-white border-r border-gray-200 flex flex-col">
+    <aside className="w-24 border-r border-gray-200 flex flex-col" style={{ backgroundColor: '#F9FAFE' }}>
       <div className="p-3 flex-1 flex flex-col items-center gap-3">
         {/* Local Button */}
         <button
@@ -41,10 +41,32 @@ export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarPro
           </div>
           <span className={`text-xs font-medium ${selectedTab === 'ec2' ? 'text-blue-700' : 'text-gray-700'}`}>EC2</span>
         </button>
+
+        {/* Plugins Button */}
+        <button
+          onClick={() => onTabChange('plugins')}
+          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+            selectedTab === 'plugins'
+              ? 'bg-blue-50'
+              : 'hover:bg-gray-100'
+          }`}
+        >
+          <div className="w-8 h-8 flex items-center justify-center rounded" style={{ backgroundColor: '#4C65E2' }}>
+            <Package className="w-5 h-5 text-white" />
+          </div>
+          <span className={`text-xs font-medium ${selectedTab === 'plugins' ? 'text-blue-700' : 'text-gray-700'}`}>Plugins</span>
+        </button>
       </div>
 
-      {/* Settings Button at Bottom */}
-      <div className="p-3 border-t border-gray-200">
+      {/* Test and Settings Buttons at Bottom */}
+      <div className="p-3 border-t border-gray-200 flex flex-col gap-3">
+        <button
+          onClick={() => navigate('/test')}
+          className="w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-gray-100"
+        >
+          <FlaskConical className="w-5 h-5 text-gray-600" />
+          <span className="text-xs font-medium text-gray-700">Test Page</span>
+        </button>
         <button
           onClick={() => navigate('/settings')}
           className="w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-gray-100"

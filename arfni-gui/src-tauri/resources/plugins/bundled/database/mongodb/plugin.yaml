@@ -1,0 +1,72 @@
+apiVersion: v0.1
+name: mongodb
+displayName: MongoDB
+version: 1.0.0
+category: database
+description: "NoSQL document database"
+author: ARFNI Team
+license: MIT
+icon: icon.png
+
+provides:
+  service_kinds:
+    - db.mongodb
+
+inputs:
+  mongodb_root_username:
+    description: "MongoDB root username"
+    type: text
+    required: true
+    env_var: MONGO_INITDB_ROOT_USERNAME
+    default: "admin"
+
+  mongodb_root_password:
+    description: "MongoDB root password"
+    type: password
+    required: true
+    env_var: MONGO_INITDB_ROOT_PASSWORD
+    default: "mongo123"
+
+  mongodb_database:
+    description: "Initial database name"
+    type: text
+    required: false
+    env_var: MONGO_INITDB_DATABASE
+    default: "myapp"
+
+contributes:
+  services:
+    mongodb:
+      kind: db.mongodb
+      type: docker.container
+      spec:
+        image: "mongo:6.0"
+        ports:
+          - "27017:27017"
+        environment:
+          MONGO_INITDB_ROOT_USERNAME: "admin"
+          MONGO_INITDB_ROOT_PASSWORD: "adminpassword"
+          MONGO_INITDB_DATABASE: "myapp"
+        volumes:
+          - "mongodb_data:/data/db"
+        healthcheck:
+          test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+  canvas:
+    nodeType: mongodb
+    label: MongoDB
+    description: "Document NoSQL"
+    category: database
+    ports:
+      - name: mongodb
+        port: 27017
+        protocol: tcp
+    connections:
+      outputs:
+        - type: database
+          name: mongodb
+          protocol: mongodb
+          env_prefix: MONGO

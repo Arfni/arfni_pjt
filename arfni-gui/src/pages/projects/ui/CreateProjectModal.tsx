@@ -3,7 +3,7 @@ import { EC2Server } from '@shared/api/tauri/commands';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
-  selectedTab: 'local' | 'ec2';
+  selectedTab: 'local' | 'ec2' | 'plugins';
   newProjectName: string;
   newProjectPath: string;
   creating: boolean;
@@ -31,6 +31,9 @@ export function CreateProjectModal({
   onCreate,
 }: CreateProjectModalProps) {
   if (!isOpen) return null;
+
+  // 프로젝트 이름에 특수문자가 있는지 검증 (영문, 숫자, 언더스코어, 하이픈만 허용)
+  const hasSpecialCharacters = newProjectName && !/^[a-zA-Z0-9_-]*$/.test(newProjectName);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -67,6 +70,11 @@ export function CreateProjectModal({
               disabled={creating}
               autoFocus
             />
+            {hasSpecialCharacters && (
+              <p className="mt-1 text-sm text-red-600">
+                Project name cannot contain special characters
+              </p>
+            )}
           </div>
 
           <div>
@@ -104,11 +112,11 @@ export function CreateProjectModal({
           </button>
           <button
             onClick={onCreate}
-            disabled={creating}
+            disabled={creating || !!hasSpecialCharacters}
             className="flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 transition-colors"
             style={{ backgroundColor: '#4C65E2' }}
-            onMouseEnter={(e) => !creating && (e.currentTarget.style.backgroundColor = '#3B52C9')}
-            onMouseLeave={(e) => !creating && (e.currentTarget.style.backgroundColor = '#4C65E2')}
+            onMouseEnter={(e) => !creating && !hasSpecialCharacters && (e.currentTarget.style.backgroundColor = '#3B52C9')}
+            onMouseLeave={(e) => !creating && !hasSpecialCharacters && (e.currentTarget.style.backgroundColor = '#4C65E2')}
           >
             {creating ? 'Creating...' : 'Create'}
           </button>

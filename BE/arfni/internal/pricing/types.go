@@ -82,11 +82,9 @@ type ALBPricing struct {
 
 // CostEstimationRequest from user
 type CostEstimationRequest struct {
-	Services        []ServiceInfo `json:"services"`
-	ExpectedUsers   int           `json:"expected_users"`
-	ExpectedTraffic string        `json:"expected_traffic"` // "low", "medium", "high"
-	Region          string        `json:"region"`
-	DeploymentType  string        `json:"deployment_type"` // "simple" (Docker on EC2) or "production" (AWS managed services)
+	Services       []ServiceInfo `json:"services"`
+	Region         string        `json:"region"`
+	DeploymentType string        `json:"deployment_type"` // "simple" (Docker on EC2) or "production" (AWS managed services)
 }
 
 // ServiceInfo from canvas
@@ -138,6 +136,7 @@ type StorageRecommendation struct {
 type TierCostBreakdown struct {
 	TierName          string      `json:"tier_name"`
 	Description       string      `json:"description"`
+	InstanceType      string      `json:"instance_type"`
 	Warnings          []string    `json:"warnings,omitempty"`
 	TotalMonthlyUSD   float64     `json:"total_monthly_usd"`
 	EC2Cost           float64     `json:"ec2_cost"`

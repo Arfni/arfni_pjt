@@ -170,6 +170,11 @@ export const projectCommands = {
   deleteProject: async (projectId: string): Promise<void> => {
     return await invoke('delete_project', { projectId });
   },
+
+  // 프로젝트 DB에서만 삭제 (파일은 유지)
+  deleteProjectFromDbOnly: async (projectId: string): Promise<void> => {
+    return await invoke('delete_project_from_db_only', { projectId });
+  },
 };
 
 // ============= EC2 서버 명령어 (신규) =============

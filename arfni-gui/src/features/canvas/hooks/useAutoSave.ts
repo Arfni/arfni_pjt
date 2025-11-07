@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { selectNodes, selectEdges, selectIsDirty, setDirty } from '../model/canvasSlice';
 import { selectCurrentProject, selectProjectLoading } from '@features/project';
-import { stackYamlGenerator, stackToYamlString } from '../lib/stackYamlGenerator';
+import { PluginStackGenerator } from '../lib/pluginStackGenerator';
 import { projectCommands, CanvasNode, ec2ServerCommands } from '@shared/api/tauri/commands';
 
 export function useAutoSave(debounceMs: number = 2000) {
@@ -92,16 +92,16 @@ export function useAutoSave(debounceMs: number = 2000) {
         }
 
         // 2. YAML 생성 (mode/workdir는 currentProject에서)
-        const stackYaml = stackYamlGenerator(nodes, edges, {
+        const yamlContent = await PluginStackGenerator.generateStack({
+          nodes,
+          edges,
           projectName: currentProject.name,
-          environment: currentProject.environment,
+          environment: currentProject.environment as 'local' | 'ec2',
           ec2Server: ec2Server || undefined,
           mode: currentProject.mode,
           workdir: currentProject.workdir,
           secrets: [],
-          outputs: {},
         });
-        const yamlContent = stackToYamlString(stackYaml);
 
         // 2. Canvas 데이터 변환
         const canvasNodes: CanvasNode[] = nodes.map(node => ({

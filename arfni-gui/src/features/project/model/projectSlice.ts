@@ -50,33 +50,46 @@ export const createProject = createAsyncThunk(
 
 export const openProject = createAsyncThunk(
   'project/open',
-  async (path: string, { dispatch }) => {
-    // 1. 먼저 캔버스 초기화 (이전 프로젝트 상태 제거)
-    dispatch(clearCanvas());
+  async (path: string, { dispatch, rejectWithValue }) => {
+    try {
+      // 1. 먼저 캔버스 초기화 (이전 프로젝트 상태 제거)
+      dispatch(clearCanvas());
 
-    const project = await projectCommands.openProjectByPath(path);
+      const project = await projectCommands.openProjectByPath(path);
 
-    // 2. Canvas 상태 복원 (빈 캔버스라도 항상 로드해서 상태 초기화)
-    const canvasState = await projectCommands.loadCanvasState(path);
+      // 2. Canvas 상태 복원 (빈 캔버스라도 항상 로드해서 상태 초기화)
+      const canvasState = await projectCommands.loadCanvasState(path);
 
-    // Canvas store에 상태 로드
-    const nodes = canvasState.nodes.map(n => ({
-      ...n,
-      type: n.node_type as 'service' | 'target' | 'database',
-    }));
+      // Canvas store에 상태 로드
+      const nodes = canvasState.nodes.map(n => ({
+        ...n,
+        type: n.node_type as 'service' | 'target' | 'database',
+      }));
 
-    dispatch(loadCanvasState({
-      nodes: nodes.length > 0 ? (nodes as any) : [],
-      edges: canvasState.edges || [],
-    }));
+      dispatch(loadCanvasState({
+        nodes: nodes.length > 0 ? (nodes as any) : [],
+        edges: canvasState.edges || [],
+      }));
 
-    // 3. 최근 프로젝트에 추가
-    await projectCommands.addToRecentProjects(project.id);
+      // 3. 최근 프로젝트에 추가
+      await projectCommands.addToRecentProjects(project.id);
 
-    // 4. 파일 감시 시작
-    await fileWatcherCommands.watchStackYaml(project.path);
+      // 4. 파일 감시 시작
+      await fileWatcherCommands.watchStackYaml(project.path);
 
-    return project;
+      return project;
+    } catch (error: any) {
+      // 프로젝트 폴더를 찾을 수 없는 에러인지 확인
+      const errorMsg = error?.toString() || String(error);
+      if (errorMsg.includes('PROJECT_FOLDER_NOT_FOUND:')) {
+        return rejectWithValue({
+          type: 'PROJECT_FOLDER_NOT_FOUND',
+          message: errorMsg,
+          path: path
+        });
+      }
+      throw error;
+    }
   }
 );
 
@@ -156,7 +169,12 @@ const projectSlice = createSlice({
       })
       .addCase(openProject.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message || '프로젝트 열기 실패';
+        // 프로젝트 폴더를 찾을 수 없는 에러인지 확인
+        if (action.payload && (action.payload as any).type === 'PROJECT_FOLDER_NOT_FOUND') {
+          state.error = 'PROJECT_FOLDER_NOT_FOUND';
+        } else {
+          state.error = action.error.message || '프로젝트 열기 실패';
+        }
       });
 
     // Save Stack YAML

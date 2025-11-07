@@ -1,8 +1,6 @@
 use tauri::command;
 use std::process::Command;
-
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
+use std::path::Path;
 
 #[command]
 pub async fn open_downloads_folder() -> Result<(), String> {
@@ -29,6 +27,41 @@ pub async fn open_downloads_folder() -> Result<(), String> {
     {
         Command::new("xdg-open")
             .arg(downloads_dir)
+            .spawn()
+            .map_err(|e| format!("폴더 열기 실패: {}", e))?;
+    }
+
+    Ok(())
+}
+
+#[command]
+pub async fn open_folder_in_explorer(path: String) -> Result<(), String> {
+    let folder_path = Path::new(&path);
+
+    if !folder_path.exists() {
+        return Err(format!("폴더를 찾을 수 없습니다: {}", path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(folder_path)
+            .spawn()
+            .map_err(|e| format!("폴더 열기 실패: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(folder_path)
+            .spawn()
+            .map_err(|e| format!("폴더 열기 실패: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(folder_path)
             .spawn()
             .map_err(|e| format!("폴더 열기 실패: {}", e))?;
     }

@@ -9,6 +9,8 @@ use crate::features::ssh_rt::{
   start_interactive_session,
   send_command,
   close_session,
+  open_tunnel,
+  close_tunnel,
 };
 
 #[tauri::command]
@@ -30,8 +32,26 @@ pub async fn ssh_close(app: AppHandle, id: String) -> Result<(), String> {
   close_session(&app, id).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn tunnel_open(
+  app: AppHandle,
+  params: SshParams,
+  local_port: u16,
+  remote_port: u16,
+) -> Result<String, String> {
+  open_tunnel(app, params, local_port, remote_port)
+    .map(|id| id.to_string())
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn tunnel_close(app: AppHandle, id: String) -> Result<(), String> {
+  let id = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
+  close_tunnel(&app, id).map_err(|e| e.to_string())
+}
+
 /// ✅ Tauri v2에서 동작하는 정식 버전
 #[allow(dead_code)]
 pub fn register() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
-  tauri::generate_handler![ssh_start, ssh_send, ssh_close]
+  tauri::generate_handler![ssh_start, ssh_send, ssh_close, tunnel_open, tunnel_close]
 }
