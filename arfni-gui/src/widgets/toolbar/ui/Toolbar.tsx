@@ -12,6 +12,7 @@ import {
   AlignJustify
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import aiLogo from '../../../assets/ai.png';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
   selectNodes,
@@ -384,7 +385,7 @@ export function Toolbar() {
         {/* Right section */}
         <div className="flex items-center space-x-2">
           <button onClick={() => setShowAIDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="AI">
-            <img src="/src/assets/ai.png" alt="AI" className="w-4 h-4" />
+            <img src={aiLogo} alt="AI" className="w-4 h-4" />
           </button>
 
           <button onClick={() => setShowSettingsDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="설정">
