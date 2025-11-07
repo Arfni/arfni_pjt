@@ -1,0 +1,31 @@
+{
+  "eyebrow": "機能",
+  "heading": "AIインフラモデリングを簡単に",
+  "description": "複雑なインフラ構成を直感的なビジュアルインターフェースで簡単に管理",
+  "cards": {
+    "guiDesign": {
+      "title": "GUIベースのインフラ設計",
+      "description": "Web、バックエンド、DB、キャッシュなど様々なサービスをドラッグ&ドロップで視覚的にインフラ構造を設計"
+    },
+    "autoGeneration": {
+      "title": "宣言ファイル生成とデプロイ自動化",
+      "description": "設計されたインフラをstack.yamlにリアルタイム同期し、Generate → Build → Up → Monitoringでワンクリックデプロイ"
+    },
+    "visualFeedback": {
+      "title": "デプロイプロセスの要約と視覚的フィードバック",
+      "description": "ステップ別ログ、実行結果、リソース状態を統合画面で視覚的なタイムライン形式で要約表示"
+    },
+    "aiSupport": {
+      "title": "AIサポート",
+      "description": "AIが設計したアーキテクチャを分析し、現在のリソース適合性を検証、コスト見積もり、最適化案を自動推奨"
+    },
+    "monitoring": {
+      "title": "視覚的モニタリングシステム",
+      "description": "Prometheus、Grafana、Node Exporterを連携してデプロイされたサービスのリソース使用量を視覚的にモニタリング"
+    },
+    "pluginSystem": {
+      "title": "プラグインシステム",
+      "description": "オープンソースコントリビューターが新しいフレームワークとサービスをプラグイン形式で簡単に追加可能"
+    }
+  }
+}

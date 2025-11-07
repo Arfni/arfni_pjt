@@ -1,0 +1,31 @@
+{
+  "eyebrow": "Features",
+  "heading": "Simplify AI Infrastructure Modeling",
+  "description": "Manage complex infrastructure with an intuitive visual interface",
+  "cards": {
+    "guiDesign": {
+      "title": "GUI-Based Infrastructure Design",
+      "description": "Drag & drop various services like web, backend, DB, and cache to visually design your infrastructure"
+    },
+    "autoGeneration": {
+      "title": "Declaration File Generation & Deployment Automation",
+      "description": "Sync designed infrastructure to stack.yaml in real-time and deploy with one click: Generate → Build → Up → Monitoring"
+    },
+    "visualFeedback": {
+      "title": "Deployment Summary & Visual Feedback",
+      "description": "View step-by-step logs, execution results, and resource status in a visual timeline on an integrated screen"
+    },
+    "aiSupport": {
+      "title": "AI Support",
+      "description": "AI analyzes your designed architecture to verify resource suitability, estimate costs, and automatically recommend optimization strategies"
+    },
+    "monitoring": {
+      "title": "Visual Monitoring System",
+      "description": "Monitor deployed service resource usage visually with Prometheus, Grafana, and Node Exporter integration"
+    },
+    "pluginSystem": {
+      "title": "Plugin System",
+      "description": "Open-source contributors can easily add new frameworks and services in plugin format"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "appName": "ARFNI",
+  "navigation": {
+    "download": "다운로드",
+    "features": "기능",
+    "roadmap": "로드맵",
+    "docs": "문서"
+  },
+  "footer": {
+    "copyright": "© {{year}} {{appName}}. All rights reserved.",
+    "madeWith": "ARFNI 팀이 만들었습니다",
+    "quickLinks": "빠른 링크",
+    "resources": "리소스",
+    "documentation": "문서",
+    "apiReference": "API 참조",
+    "blog": "블로그",
+    "support": "지원"
+  }
+}

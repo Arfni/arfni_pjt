@@ -1,0 +1,16 @@
+{
+  "title": {
+    "line1": "AI와 우리의",
+    "line2": "인프라 사이",
+    "line3": "클릭 한 번으로 가깝게!"
+  },
+  "description": "캔버스에서 모델링하면 <strong>stack.yaml</strong>과 파이프라인이 자동 생성되어 로컬·EC2에 배포됩니다.",
+  "buttons": {
+    "download": "Windows용 .exe 다운로드",
+    "github": "GitHub"
+  },
+  "platformNote": "macOS/Linux는 순차 지원 예정",
+  "illustration": {
+    "alt": "AI Infrastructure Modeling"
+  }
+}

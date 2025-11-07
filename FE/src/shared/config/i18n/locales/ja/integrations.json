@@ -1,0 +1,11 @@
+{
+  "eyebrow": "連携",
+  "heading": "様々なフレームワークと技術スタックをサポート",
+  "description": "プラグインシステムを通じて継続的に拡張するフレームワークエコシステム",
+  "categories": {
+    "frontend": "Frontend",
+    "backend": "Backend",
+    "database": "Database",
+    "infrastructure": "Infrastructure"
+  }
+}
