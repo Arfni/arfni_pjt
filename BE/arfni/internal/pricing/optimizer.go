@@ -497,27 +497,32 @@ JSON 형식으로 응답:
 CRITICAL REQUIREMENTS:
 1. ALWAYS cite specific numbers from the time series data:
    - Quote min, avg, max, P50, P95, P99 values explicitly
+   - When first mentioning percentile terms, ALWAYS explain them in parentheses:
+     * P50 (중앙값, 50%의 시간 동안 이 값 이하)
+     * P95 (95%의 시간 동안 이 값 이하로 유지)
+     * P99 (99%의 시간 동안 이 값 이하, 극단적 피크 제외)
    - Reference standard deviation to explain variability
    - Mention specific peak hours
 
 2. Base analysis on 24-hour patterns, NOT just current usage:
-   - Example: "CPU 사용률이 24시간 동안 최소 0.5%, 평균 1.3%, 최대 4.2%로 매우 낮게 유지되었으며, P95도 1.9%에 불과합니다."
-   - Example: "메모리는 평균 36.1%, P95는 42.3%로 여유가 충분합니다."
+   - Example: "CPU 사용률이 24시간 동안 최소 0.5%, 평균 1.3%, 최대 4.2%로 매우 낮게 유지되었으며, P95(95%의 시간 동안 이 값 이하)도 1.9%에 불과합니다."
+   - Example: "메모리는 평균 36.1%, P95(95%의 시간)는 42.3%로 여유가 충분합니다."
    - Example: "변동성(표준편차 0.8)이 낮아 일정한 부하 패턴을 보입니다."
 
 3. Connect data to recommendations:
    - If P95 < 20% AND low variability → SAFE to downsize
    - If P95 > 70% OR high variability → Keep or upgrade
-   - Always explain WHY using the actual numbers
+   - Always explain WHY using the actual numbers in user-friendly language
 
 4. Format requirements:
-   - Korean language only
-   - Include ALL relevant statistics in description
+   - Korean language only, use user-friendly explanations
+   - Include ALL relevant statistics in description WITH explanations
+   - Explain technical terms when first mentioned
    - Provide specific instance type recommendations
    - Return ONLY JSON array (no markdown, no code blocks)
 
 EXAMPLE GOOD DESCRIPTION:
-"지난 24시간 동안 CPU 사용률은 최소 0.5%, 평균 1.3%, 최대 4.2%, P95 1.9%, P99 3.5%로 매우 낮은 수준을 유지했습니다. 변동성(표준편차 0.8)도 낮아 안정적인 패턴을 보이며, 피크 시간대(14시, 15시)에도 5% 미만입니다. 메모리는 평균 36.1%, P95 42.3%로 여유가 충분합니다. 이러한 데이터를 종합하면..."
+"지난 24시간 동안 CPU 사용률은 최소 0.5%, 평균 1.3%, 최대 4.2%, P95(95%의 시간 동안 이 값 이하) 1.9%, P99(99%의 시간 동안 이 값 이하) 3.5%로 매우 낮은 수준을 유지했습니다. 즉, 대부분의 시간 동안 CPU가 거의 유휴 상태였다는 의미입니다. 변동성(표준편차 0.8)도 낮아 안정적인 패턴을 보이며, 피크 시간대(14시, 15시)에도 5% 미만입니다. 메모리는 평균 36.1%, P95는 42.3%로 여유가 충분합니다. 이러한 데이터를 종합하면..."
 
 EXAMPLE BAD DESCRIPTION (DO NOT DO THIS):
 "CPU 사용률이 낮습니다. 다운사이징을 고려하세요."`
