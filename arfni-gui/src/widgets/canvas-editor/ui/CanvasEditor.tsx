@@ -13,6 +13,7 @@ import {
   ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import html2canvas from 'html2canvas';
 
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
@@ -47,7 +48,12 @@ const nodeTypes = {
   database: ServiceNode,
 };
 
-function CanvasEditorInner() {
+// Export handle 타입 정의
+export interface CanvasEditorHandle {
+  captureScreenshot: () => Promise<string | null>;
+}
+
+const CanvasEditorInner = () => {
   const dispatch = useAppDispatch();
   const nodes = useAppSelector(selectNodes);
   const edges = useAppSelector(selectEdges);
@@ -59,8 +65,117 @@ function CanvasEditorInner() {
   const { project } = reactFlowInstance;
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
-  // Auto-save: Canvas 변경 후 2초 뒤 자동 저장
-  const { isSaving, lastSaved } = useAutoSave(2000);
+  // 캔버스 스크린샷 캡처 함수
+  const captureScreenshot = useCallback(async (): Promise<string | null> => {
+    try {
+      if (!reactFlowWrapper.current) {
+        console.error('ReactFlow wrapper ref is not available');
+        return null;
+      }
+
+      const reactFlowContainer = reactFlowWrapper.current;
+      const viewport = reactFlowContainer.querySelector('.react-flow__viewport') as HTMLElement;
+
+      if (!viewport) {
+        console.error('ReactFlow viewport not found');
+        return null;
+      }
+
+      // 모든 노드의 바운딩 박스 계산
+      const allNodes = reactFlowInstance.getNodes();
+      if (allNodes.length === 0) {
+        console.warn('No nodes to capture');
+        return null;
+      }
+
+      // 현재 뷰포트 상태 저장
+      const currentViewport = reactFlowInstance.getViewport();
+
+      // 모든 노드의 바운딩 박스 계산
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      allNodes.forEach(node => {
+        const x = node.position.x;
+        const y = node.position.y;
+        const width = node.width || 280;
+        const height = node.height || 120;
+
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x + width);
+        maxY = Math.max(maxY, y + height);
+      });
+
+      const nodesBoundsWidth = maxX - minX;
+      const nodesBoundsHeight = maxY - minY;
+      const padding = 100;
+
+      // 캔버스 크기 계산 (고정 크기 사용)
+      const canvasWidth = 800;
+      const canvasHeight = 600;
+
+      // 스케일 계산: 모든 노드가 들어가도록
+      const scaleX = (canvasWidth - padding * 2) / nodesBoundsWidth;
+      const scaleY = (canvasHeight - padding * 2) / nodesBoundsHeight;
+      const scale = Math.min(scaleX, scaleY, 1);
+
+      // 중심점 계산
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      console.log('📸 Screenshot capture:', {
+        nodesCount: allNodes.length,
+        bounds: { minX, minY, maxX, maxY },
+        size: { width: nodesBoundsWidth, height: nodesBoundsHeight },
+        canvasSize: { width: canvasWidth, height: canvasHeight },
+        scale,
+        center: { x: centerX, y: centerY }
+      });
+
+      // 1단계: 화면 숨기고 뷰포트 조정
+      reactFlowContainer.style.opacity = '0';
+      reactFlowContainer.style.pointerEvents = 'none';
+
+      // 뷰포트를 모든 노드가 보이도록 설정
+      reactFlowInstance.setViewport({
+        x: canvasWidth / 2 - centerX * scale,
+        y: canvasHeight / 2 - centerY * scale,
+        zoom: scale
+      }, { duration: 0 });
+
+      // 프레임 대기 후 캡처
+      const dataUrl = await new Promise<string>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(async () => {
+            // html2canvas로 전체 reactFlow 컨테이너 캡처
+            const canvas = await html2canvas(reactFlowContainer, {
+              backgroundColor: '#f9fafb',
+              scale: 2,
+              logging: false,
+              useCORS: true,
+              allowTaint: true,
+              width: canvasWidth,
+              height: canvasHeight,
+            });
+
+            // 원래 상태로 복원
+            reactFlowInstance.setViewport(currentViewport, { duration: 0 });
+            reactFlowContainer.style.opacity = '1';
+            reactFlowContainer.style.pointerEvents = 'auto';
+
+            resolve(canvas.toDataURL('image/png'));
+          });
+        });
+      });
+
+      return dataUrl;
+    } catch (error) {
+      console.error('Failed to capture canvas screenshot:', error);
+      return null;
+    }
+  }, [reactFlowInstance]);
+
+  // Auto-save: Canvas 변경 후 2초 뒤 자동 저장 (스크린샷 포함)
+  const { isSaving, lastSaved } = useAutoSave(2000, captureScreenshot);
 
   // 초기 노드 설정 (첫 렌더링시만)
   useEffect(() => {
@@ -374,7 +489,9 @@ function CanvasEditorInner() {
       )}
     </div>
   );
-}
+};
+
+CanvasEditorInner.displayName = 'CanvasEditorInner';
 
 export function CanvasEditor() {
   return (

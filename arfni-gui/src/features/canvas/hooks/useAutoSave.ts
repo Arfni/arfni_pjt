@@ -5,7 +5,10 @@ import { selectCurrentProject, selectProjectLoading } from '@features/project';
 import { PluginStackGenerator } from '../lib/pluginStackGenerator';
 import { projectCommands, CanvasNode, ec2ServerCommands } from '@shared/api/tauri/commands';
 
-export function useAutoSave(debounceMs: number = 2000) {
+export function useAutoSave(
+  debounceMs: number = 2000,
+  captureScreenshot?: () => Promise<string | null>
+) {
   const dispatch = useAppDispatch();
   const nodes = useAppSelector(selectNodes);
   const edges = useAppSelector(selectEdges);
@@ -19,6 +22,12 @@ export function useAutoSave(debounceMs: number = 2000) {
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const projectPathRef = useRef<string | null>(null);
+  const captureScreenshotRef = useRef(captureScreenshot);
+
+  // captureScreenshot ref 업데이트
+  useEffect(() => {
+    captureScreenshotRef.current = captureScreenshot;
+  }, [captureScreenshot]);
 
   // 저장 후 인디케이터 숨기기 (별도 useEffect)
   useEffect(() => {
@@ -81,7 +90,21 @@ export function useAutoSave(debounceMs: number = 2000) {
       setSaveError(null);
 
       try {
-        // 1. EC2 프로젝트일 경우 서버 정보 가져오기
+        // 1. 스크린샷 캡처 (있으면)
+        let thumbnail: string | null = null;
+        if (captureScreenshotRef.current) {
+          try {
+            thumbnail = await captureScreenshotRef.current();
+            if (thumbnail) {
+              console.log('✓ Canvas screenshot captured');
+            }
+          } catch (err) {
+            console.error('Failed to capture screenshot:', err);
+            // 스크린샷 실패해도 저장은 계속 진행
+          }
+        }
+
+        // 2. EC2 프로젝트일 경우 서버 정보 가져오기
         let ec2Server = null;
         if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
           try {
@@ -91,7 +114,7 @@ export function useAutoSave(debounceMs: number = 2000) {
           }
         }
 
-        // 2. YAML 생성 (mode/workdir는 currentProject에서)
+        // 3. YAML 생성 (mode/workdir는 currentProject에서)
         const yamlContent = await PluginStackGenerator.generateStack({
           nodes,
           edges,
@@ -103,7 +126,7 @@ export function useAutoSave(debounceMs: number = 2000) {
           secrets: [],
         });
 
-        // 2. Canvas 데이터 변환
+        // 4. Canvas 데이터 변환
         const canvasNodes: CanvasNode[] = nodes.map(node => ({
           id: node.id,
           node_type: node.type,
@@ -120,6 +143,7 @@ export function useAutoSave(debounceMs: number = 2000) {
           })),
           project_name: currentProject.name,
           secrets: [],
+          thumbnail: thumbnail || undefined, // 스크린샷 추가
         };
 
         // 3. Rust 호출하여 파일 저장 (최종 검증)

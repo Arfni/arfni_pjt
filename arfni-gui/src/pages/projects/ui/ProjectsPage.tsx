@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import { Server, Loader2, AlertCircle, FolderOpen } from 'lucide-react';
-import { projectCommands, Project, ec2ServerCommands, EC2Server, CanvasNode, CanvasEdge } from '@shared/api/tauri/commands';
+import { projectCommands, Project, ec2ServerCommands, EC2Server } from '@shared/api/tauri/commands';
 import { confirm, open } from '@tauri-apps/plugin-dialog';
 import { ServerSelectionModal } from './ServerSelectionModal';
 import { AddServerModal } from './AddServerModal';
@@ -10,7 +10,6 @@ import { ProjectCard } from './ProjectCard';
 import { CreateProjectModal } from './CreateProjectModal';
 import { PluginManager } from './PluginManager';
 import { useAppDispatch } from '@app/hooks';
-import { addNode } from '@features/canvas/model/canvasSlice';
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -67,9 +66,6 @@ export default function ProjectsPage() {
   const [showAddServerModal, setShowAddServerModal] = useState(false);
   const [editingServer, setEditingServer] = useState<EC2Server | null>(null);
 
-  // Canvas 미리보기 데이터
-  const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
-
   // 환경별 프로젝트 목록 로드 함수
   const loadProjects = useCallback(async (environment: 'local' | 'ec2', serverId?: string) => {
     setLoading(true);
@@ -93,22 +89,6 @@ export default function ProjectsPage() {
       }
 
       setProjects(projectList);
-
-      // 각 프로젝트의 canvas 데이터 로드
-      const previews: Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }> = {};
-      for (const project of projectList) {
-        try {
-          const canvasData = await projectCommands.loadCanvasState(project.path);
-          previews[project.id] = {
-            nodes: canvasData.nodes,
-            edges: canvasData.edges,
-          };
-        } catch (err) {
-          console.log(`Canvas 데이터 로드 실패 (${project.name}):`, err);
-          // 실패해도 계속 진행
-        }
-      }
-      setCanvasPreviews(previews);
     } catch (err) {
       console.error('프로젝트 목록 불러오기 실패:', err);
       setError('프로젝트 목록을 불러오는데 실패했습니다.');
@@ -427,7 +407,6 @@ export default function ProjectsPage() {
                   <ProjectCard
                     key={project.id}
                     project={project}
-                    canvasPreview={canvasPreviews[project.id]}
                     isDeleting={deletingProjectPath === project.path}
                     isPinned={pinnedProjects.has(project.id)}
                     onDelete={handleDeleteProject}

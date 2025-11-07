@@ -3,9 +3,24 @@ import { CanvasNode, CanvasEdge } from '@shared/api/tauri/commands';
 interface CanvasPreviewProps {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
+  thumbnail?: string; // base64 encoded PNG screenshot
 }
 
-export function CanvasPreview({ nodes, edges }: CanvasPreviewProps) {
+export function CanvasPreview({ nodes, edges, thumbnail }: CanvasPreviewProps) {
+  // thumbnail이 있으면 이미지로 표시
+  if (thumbnail) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-50">
+        <img
+          src={thumbnail}
+          alt="Canvas preview"
+          className="w-full h-full object-contain"
+        />
+      </div>
+    );
+  }
+
+  // thumbnail이 없으면 기존 SVG fallback 사용
   if (!nodes || nodes.length === 0) {
     return null;
   }

@@ -20,6 +20,8 @@ pub struct Project {
     pub updated_at: String,
     pub stack_yaml_path: Option<String>,
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail: Option<String>, // base64 encoded PNG screenshot
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,6 +30,8 @@ pub struct StackYamlData {
     pub edges: Vec<CanvasEdge>,
     pub project_name: String,
     pub secrets: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail: Option<String>, // base64 encoded PNG screenshot
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -139,6 +143,7 @@ pub fn create_project(
         updated_at: created_at.clone(),
         stack_yaml_path: Some(stack_yaml_path),
         description: description.clone(),
+        thumbnail: None,
     };
 
     // 데이터베이스에 프로젝트 저장
@@ -211,7 +216,7 @@ pub fn open_project(
          FROM projects WHERE id = ?1"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
-    let project = stmt.query_row(params![&project_id], |row| {
+    let mut project = stmt.query_row(params![&project_id], |row| {
         Ok(Project {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -224,8 +229,19 @@ pub fn open_project(
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            thumbnail: None,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
+
+    // Load thumbnail from canvas-state.json
+    let canvas_state_path = Path::new(&project.path).join(".arfni").join("canvas-state.json");
+    if canvas_state_path.exists() {
+        if let Ok(canvas_json) = fs::read_to_string(&canvas_state_path) {
+            if let Ok(canvas_data) = serde_json::from_str::<StackYamlData>(&canvas_json) {
+                project.thumbnail = canvas_data.thumbnail;
+            }
+        }
+    }
 
     // 프로젝트 폴더 존재 여부 확인
     let project_path = Path::new(&project.path);
@@ -322,7 +338,7 @@ pub fn open_project_by_path(
          FROM projects WHERE path = ?1"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
-    let project = stmt.query_row(params![&path], |row| {
+    let mut project = stmt.query_row(params![&path], |row| {
         Ok(Project {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -335,8 +351,19 @@ pub fn open_project_by_path(
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            thumbnail: None,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
+
+    // Load thumbnail from canvas-state.json
+    let canvas_state_path = Path::new(&project.path).join(".arfni").join("canvas-state.json");
+    if canvas_state_path.exists() {
+        if let Ok(canvas_json) = fs::read_to_string(&canvas_state_path) {
+            if let Ok(canvas_data) = serde_json::from_str::<StackYamlData>(&canvas_json) {
+                project.thumbnail = canvas_data.thumbnail;
+            }
+        }
+    }
 
     // 프로젝트 폴더 존재 여부 확인
     let project_path = Path::new(&project.path);
@@ -472,6 +499,7 @@ pub fn load_canvas_state(project_path: String) -> Result<StackYamlData, String> 
             edges: vec![],
             project_name: String::new(),
             secrets: vec![],
+            thumbnail: None,
         });
     }
 
@@ -493,7 +521,7 @@ pub fn get_all_projects(db: State<Database>) -> Result<Vec<Project>, String> {
          FROM projects ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
-    let projects = stmt.query_map([], |row| {
+    let mut projects = stmt.query_map([], |row| {
         Ok(Project {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -506,10 +534,23 @@ pub fn get_all_projects(db: State<Database>) -> Result<Vec<Project>, String> {
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            thumbnail: None, // Will be loaded from canvas-state.json below
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
     .map_err(|e| format!("프로젝트 목록 변환 실패: {}", e))?;
+
+    // Load thumbnail from canvas-state.json for each project
+    for project in &mut projects {
+        let canvas_state_path = Path::new(&project.path).join(".arfni").join("canvas-state.json");
+        if canvas_state_path.exists() {
+            if let Ok(canvas_json) = fs::read_to_string(&canvas_state_path) {
+                if let Ok(canvas_data) = serde_json::from_str::<StackYamlData>(&canvas_json) {
+                    project.thumbnail = canvas_data.thumbnail;
+                }
+            }
+        }
+    }
 
     Ok(projects)
 }
@@ -525,7 +566,7 @@ pub fn get_projects_by_environment(db: State<Database>, environment: String) -> 
          FROM projects WHERE environment = ?1 ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
-    let projects = stmt.query_map(params![&environment], |row| {
+    let mut projects = stmt.query_map(params![&environment], |row| {
         Ok(Project {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -538,10 +579,23 @@ pub fn get_projects_by_environment(db: State<Database>, environment: String) -> 
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            thumbnail: None,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
     .map_err(|e| format!("프로젝트 목록 변환 실패: {}", e))?;
+
+    // Load thumbnail from canvas-state.json for each project
+    for project in &mut projects {
+        let canvas_state_path = Path::new(&project.path).join(".arfni").join("canvas-state.json");
+        if canvas_state_path.exists() {
+            if let Ok(canvas_json) = fs::read_to_string(&canvas_state_path) {
+                if let Ok(canvas_data) = serde_json::from_str::<StackYamlData>(&canvas_json) {
+                    project.thumbnail = canvas_data.thumbnail;
+                }
+            }
+        }
+    }
 
     Ok(projects)
 }
@@ -557,7 +611,7 @@ pub fn get_projects_by_server(db: State<Database>, server_id: String) -> Result<
          FROM projects WHERE ec2_server_id = ?1 ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
-    let projects = stmt.query_map(params![&server_id], |row| {
+    let mut projects = stmt.query_map(params![&server_id], |row| {
         Ok(Project {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -570,10 +624,23 @@ pub fn get_projects_by_server(db: State<Database>, server_id: String) -> Result<
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            thumbnail: None,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
     .map_err(|e| format!("프로젝트 목록 변환 실패: {}", e))?;
+
+    // Load thumbnail from canvas-state.json for each project
+    for project in &mut projects {
+        let canvas_state_path = Path::new(&project.path).join(".arfni").join("canvas-state.json");
+        if canvas_state_path.exists() {
+            if let Ok(canvas_json) = fs::read_to_string(&canvas_state_path) {
+                if let Ok(canvas_data) = serde_json::from_str::<StackYamlData>(&canvas_json) {
+                    project.thumbnail = canvas_data.thumbnail;
+                }
+            }
+        }
+    }
 
     Ok(projects)
 }
@@ -592,7 +659,7 @@ pub fn get_recent_projects(db: State<Database>) -> Result<Vec<Project>, String> 
          LIMIT 10"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
-    let projects = stmt.query_map([], |row| {
+    let mut projects = stmt.query_map([], |row| {
         Ok(Project {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -605,10 +672,23 @@ pub fn get_recent_projects(db: State<Database>) -> Result<Vec<Project>, String> 
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            thumbnail: None,
         })
     }).map_err(|e| format!("최근 프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
     .map_err(|e| format!("프로젝트 목록 변환 실패: {}", e))?;
+
+    // Load thumbnail from canvas-state.json for each project
+    for project in &mut projects {
+        let canvas_state_path = Path::new(&project.path).join(".arfni").join("canvas-state.json");
+        if canvas_state_path.exists() {
+            if let Ok(canvas_json) = fs::read_to_string(&canvas_state_path) {
+                if let Ok(canvas_data) = serde_json::from_str::<StackYamlData>(&canvas_json) {
+                    project.thumbnail = canvas_data.thumbnail;
+                }
+            }
+        }
+    }
 
     Ok(projects)
 }

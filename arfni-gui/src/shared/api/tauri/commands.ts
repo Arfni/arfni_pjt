@@ -14,6 +14,7 @@ export interface Project {
   updated_at: string;
   stack_yaml_path?: string;
   description?: string;
+  thumbnail?: string; // base64 encoded PNG screenshot
 }
 
 // ============= EC2 서버 타입 (신규) =============
@@ -33,6 +34,7 @@ export interface StackYamlData {
   edges: CanvasEdge[];
   project_name: string;
   secrets: string[];
+  thumbnail?: string; // base64 encoded PNG screenshot
 }
 
 export interface CanvasNode {

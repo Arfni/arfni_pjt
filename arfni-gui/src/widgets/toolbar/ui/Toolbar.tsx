@@ -12,6 +12,7 @@ import {
   AlignJustify
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import html2canvas from 'html2canvas';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
   selectNodes,
@@ -66,6 +67,115 @@ export function Toolbar() {
   const ec2TargetNode = isEC2Project && targetNodes.length > 0 ? targetNodes[0] : null;
   const currentMonitoringMode = currentProject?.mode || 'all-in-one';
 
+  // 공통 스크린샷 캡처 함수
+  const captureCanvasScreenshot = useCallback(async (): Promise<string | null> => {
+    try {
+      const reactFlowWrapper = document.querySelector('.react-flow') as HTMLElement;
+      if (!reactFlowWrapper) return null;
+
+      const viewport = reactFlowWrapper.querySelector('.react-flow__viewport') as HTMLElement;
+      if (!viewport) return null;
+
+      // 현재 상태 저장
+      const currentTransform = viewport.style.transform;
+      const currentTransition = viewport.style.transition;
+      const currentOpacity = reactFlowWrapper.style.opacity;
+      const currentPointerEvents = reactFlowWrapper.style.pointerEvents;
+
+      // 모든 노드의 바운딩 박스 계산 (DOM에서)
+      const nodeElements = viewport.querySelectorAll('.react-flow__node');
+      if (nodeElements.length === 0) {
+        console.warn('No nodes to capture');
+        return null;
+      }
+
+      // 현재 transform을 파싱하여 실제 노드 위치 계산
+      const transformMatch = currentTransform.match(/translate\((.+?)px,\s*(.+?)px\)\s*scale\((.+?)\)/);
+      let currentTranslateX = 0, currentTranslateY = 0, currentScale = 1;
+      if (transformMatch) {
+        currentTranslateX = parseFloat(transformMatch[1]);
+        currentTranslateY = parseFloat(transformMatch[2]);
+        currentScale = parseFloat(transformMatch[3]);
+      }
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      const viewportRect = viewport.getBoundingClientRect();
+
+      nodeElements.forEach((nodeEl) => {
+        const rect = nodeEl.getBoundingClientRect();
+        // viewport 기준 상대 좌표로 변환
+        const x = (rect.left - viewportRect.left - currentTranslateX) / currentScale;
+        const y = (rect.top - viewportRect.top - currentTranslateY) / currentScale;
+        const width = rect.width / currentScale;
+        const height = rect.height / currentScale;
+
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x + width);
+        maxY = Math.max(maxY, y + height);
+      });
+
+      const nodesBoundsWidth = maxX - minX;
+      const nodesBoundsHeight = maxY - minY;
+
+      // padding 증가하여 여유 공간 확보
+      const padding = 80; // 50 -> 80으로 증가
+      const scaleX = (viewportRect.width - padding * 2) / nodesBoundsWidth;
+      const scaleY = (viewportRect.height - padding * 2) / nodesBoundsHeight;
+      const scale = Math.min(scaleX, scaleY, 1);
+
+      console.log('📸 Toolbar screenshot capture:', {
+        nodesCount: nodeElements.length,
+        bounds: { minX, minY, maxX, maxY },
+        size: { width: nodesBoundsWidth, height: nodesBoundsHeight },
+        viewport: { width: viewportRect.width, height: viewportRect.height },
+        scale
+      });
+
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const translateX = viewportRect.width / 2 - centerX * scale;
+      const translateY = viewportRect.height / 2 - centerY * scale;
+
+      // 1단계: 화면에서 완전히 숨김 (사용자에게 안 보이게)
+      reactFlowWrapper.style.opacity = '0';
+      reactFlowWrapper.style.pointerEvents = 'none';
+
+      // 다음 프레임에서 transform 적용 및 캡처 (opacity 변경이 먼저 렌더링되도록)
+      const dataUrl = await new Promise<string>((resolve) => {
+        requestAnimationFrame(() => {
+          // 2단계: transition 비활성화 및 transform 적용
+          viewport.style.transition = 'none';
+          viewport.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+
+          // 3단계: 또 다른 프레임에서 캡처 (transform이 완전히 적용된 후)
+          requestAnimationFrame(async () => {
+            const canvas = await html2canvas(viewport, {
+              backgroundColor: '#f9fafb',
+              scale: 2,
+              logging: false,
+              useCORS: true,
+              allowTaint: true,
+            });
+
+            // 4단계: 즉시 원래 상태로 복원
+            viewport.style.transition = currentTransition;
+            viewport.style.transform = currentTransform;
+            reactFlowWrapper.style.opacity = currentOpacity;
+            reactFlowWrapper.style.pointerEvents = currentPointerEvents;
+
+            resolve(canvas.toDataURL('image/png'));
+          });
+        });
+      });
+
+      return dataUrl;
+    } catch (err) {
+      console.error('Failed to capture screenshot:', err);
+      return null;
+    }
+  }, []);
+
   const handleMonitoringModeChange = useCallback(async (newMode: string) => {
     if (!currentProject?.id) return;
     try {
@@ -75,12 +185,20 @@ export function Toolbar() {
         undefined
       );
       dispatch(setCurrentProject(updatedProject));
+
+      // 1. 스크린샷 캡처
+      const thumbnail = await captureCanvasScreenshot();
+      if (thumbnail) {
+        console.log('✓ Canvas screenshot captured from Monitoring mode change');
+      }
+
+      // 2. EC2 서버 정보 가져오기
       let ec2Server = null;
       if (updatedProject.ec2_server_id) {
         ec2Server = await ec2ServerCommands.getServerById(updatedProject.ec2_server_id);
       }
 
-      // 4. stack.yaml 생성 - updatedProject 사용
+      // 3. stack.yaml 생성 - updatedProject 사용
       const yamlContent = await PluginStackGenerator.generateStack({
         nodes,
         edges,
@@ -105,6 +223,7 @@ export function Toolbar() {
         })),
         project_name: updatedProject.name,
         secrets: [],
+        thumbnail: thumbnail || undefined,
       };
       await projectCommands.saveStackYaml(updatedProject.path, yamlContent, canvasData);
       dispatch(setDirty(false));
@@ -112,7 +231,7 @@ export function Toolbar() {
       console.error('모니터링 모드 업데이트 실패:', error);
       alert(`모니터링 모드 변경 실패: ${error}`);
     }
-  }, [currentProject, dispatch, nodes, edges]);
+  }, [currentProject, dispatch, nodes, edges, captureCanvasScreenshot]);
 
   const handleSave = useCallback(async () => {
     if (!currentProject) {
@@ -120,12 +239,19 @@ export function Toolbar() {
       return;
     }
     try {
+      // 1. 스크린샷 캡처
+      const thumbnail = await captureCanvasScreenshot();
+      if (thumbnail) {
+        console.log('✓ Canvas screenshot captured from Save button');
+      }
+
+      // 2. EC2 서버 정보 가져오기
       let ec2Server = null;
       if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
         ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
       }
 
-      // Canvas 노드를 stack.yaml로 변환
+      // 3. Canvas 노드를 stack.yaml로 변환
       const yamlContent = await PluginStackGenerator.generateStack({
         nodes,
         edges,
@@ -137,7 +263,7 @@ export function Toolbar() {
         secrets: [],
       });
 
-      // Canvas 노드를 Tauri 형식으로 변환
+      // 4. Canvas 노드를 Tauri 형식으로 변환 (thumbnail 포함)
       const canvasNodes: CanvasNode[] = nodes.map(node => ({
         id: node.id,
         node_type: node.type,
@@ -157,6 +283,7 @@ export function Toolbar() {
           edges: canvasEdges,
           project_name: currentProject.name,
           secrets: [],
+          thumbnail: thumbnail || undefined,
         },
       })).unwrap();
       dispatch(setDirty(false));
@@ -164,7 +291,7 @@ export function Toolbar() {
     } catch (error) {
       alert(`저장 실패: ${error}`);
     }
-  }, [currentProject, nodes, edges, dispatch]);
+  }, [currentProject, nodes, edges, dispatch, captureCanvasScreenshot]);
 
   const handleDeploy = useCallback(async () => {
     if (!currentProject) {
@@ -173,12 +300,19 @@ export function Toolbar() {
     }
     if (isDirty) {
       try {
+        // 1. 스크린샷 캡처
+        const thumbnail = await captureCanvasScreenshot();
+        if (thumbnail) {
+          console.log('✓ Canvas screenshot captured from Deploy button');
+        }
+
+        // 2. EC2 서버 정보 가져오기
         let ec2Server = null;
         if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
           ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
         }
 
-        // Generate stack.yaml using PluginStackGenerator
+        // 3. Generate stack.yaml using PluginStackGenerator
         const yamlContent = await PluginStackGenerator.generateStack({
           nodes,
           edges,
@@ -209,6 +343,7 @@ export function Toolbar() {
             edges: canvasEdges,
             project_name: currentProject.name,
             secrets: [],
+            thumbnail: thumbnail || undefined,
           },
         })).unwrap();
         dispatch(setDirty(false));
@@ -244,7 +379,7 @@ export function Toolbar() {
       alert(`배포 실패: ${error}`);
       setIsDeploying(false);
     }
-  }, [currentProject, isDirty, nodes, edges, dispatch, navigate]);
+  }, [currentProject, isDirty, nodes, edges, dispatch, navigate, captureCanvasScreenshot]);
 
   const handleStopDeployment = useCallback(async () => {
     try {

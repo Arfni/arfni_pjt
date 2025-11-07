@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Server, Loader2, Trash2, Laptop } from 'lucide-react';
-import { Project, CanvasNode, CanvasEdge, projectCommands } from '@shared/api/tauri/commands';
+import { Project, projectCommands } from '@shared/api/tauri/commands';
 import { CanvasPreview } from './CanvasPreview';
 import { useAppDispatch } from '@app/hooks';
 import { openProject, clearError } from '@features/project';
@@ -29,14 +29,13 @@ const StarIcon = ({ filled, onClick, className }: { filled: boolean; onClick?: (
 
 interface ProjectCardProps {
   project: Project;
-  canvasPreview?: { nodes: CanvasNode[], edges: CanvasEdge[] };
   isDeleting: boolean;
   isPinned: boolean;
   onDelete: (project: Project, e: React.MouseEvent) => Promise<void>;
   onTogglePin: (projectId: string, e: React.MouseEvent) => void;
 }
 
-export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDelete, onTogglePin }: ProjectCardProps) {
+export function ProjectCard({ project, isDeleting, isPinned, onDelete, onTogglePin }: ProjectCardProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
@@ -114,8 +113,12 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
     >
       {/* Canvas Thumbnail Preview */}
       <div className="h-32 bg-gray-100 relative overflow-hidden">
-        {canvasPreview && canvasPreview.nodes.length > 0 ? (
-          <CanvasPreview nodes={canvasPreview.nodes} edges={canvasPreview.edges} />
+        {project.thumbnail ? (
+          <CanvasPreview
+            nodes={[]}
+            edges={[]}
+            thumbnail={project.thumbnail}
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <p className="text-gray-400 text-sm">Empty Canvas</p>
