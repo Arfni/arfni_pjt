@@ -197,19 +197,29 @@ if command -v yum &> /dev/null; then
 	echo "Detected Amazon Linux/CentOS"
 	sudo yum update -y
 	sudo yum install -y docker
+	sudo yum update docker -y
 	sudo systemctl start docker
 	sudo systemctl enable docker
 	sudo usermod -aG docker $USER
 	sudo mkdir -p /usr/local/lib/docker/cli-plugins
+	# Install Docker Compose
 	sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
 	sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+	# Install Docker Buildx (v0.17.1+)
+	sudo curl -SL https://github.com/docker/buildx/releases/download/v0.17.1/buildx-v0.17.1.linux-amd64 -o /usr/local/lib/docker/cli-plugins/docker-buildx
+	sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
 elif command -v apt-get &> /dev/null; then
 	echo "Detected Ubuntu/Debian"
 	sudo apt-get update
 	sudo apt-get install -y docker.io docker-compose-v2
+	sudo apt-get upgrade -y docker.io
 	sudo systemctl start docker
 	sudo systemctl enable docker
 	sudo usermod -aG docker $USER
+	sudo mkdir -p /usr/local/lib/docker/cli-plugins
+	# Install Docker Buildx (v0.17.1+)
+	sudo curl -SL https://github.com/docker/buildx/releases/download/v0.17.1/buildx-v0.17.1.linux-amd64 -o /usr/local/lib/docker/cli-plugins/docker-buildx
+	sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
 else
 	echo "Unsupported OS"
 	exit 1

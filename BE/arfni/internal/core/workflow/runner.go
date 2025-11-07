@@ -374,9 +374,15 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 	// 3. 프로젝트 파일들 전송
 	stream.Info("Uploading project files to EC2...")
 
-	// docker-compose.yml 전송
+	// docker-compose.yml 전송 (기존 파일이 있으면 먼저 삭제)
 	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
 	remoteComposeFile := workdir + "/docker-compose.yml"
+
+	// Remove existing docker-compose.yml if it exists
+	if err := sshClient.RunCommand(stream, fmt.Sprintf("rm -f %s", remoteComposeFile)); err != nil {
+		stream.Info(fmt.Sprintf("Warning: failed to remove existing docker-compose.yml: %v", err))
+	}
+
 	if err := sshClient.UploadFile(stream, composeFile, remoteComposeFile); err != nil {
 		return fmt.Errorf("failed to upload docker-compose.yml: %w", err)
 	}
