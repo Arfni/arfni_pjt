@@ -420,3 +420,44 @@ API Key 저장, 삭제, 활성화 전환, 목록 조회, 복사 기능 모두 �
 Tauri <-> React 간 통신 정상 (invoke 기반)
 
 데이터는 SQLite에 영구 저장, Provider별 단일 활성화 정책 정상 작동
+
+🧾 개발일지 — 2025.11.07
+
+🛠️ 오늘의 개발 내용
+1. Git 클론 로직 정리 및 Rust 코드화
+
+Git 저장소를 특정 폴더에 클론하거나, 일부 하위 폴더만 희소 체크아웃(sparse checkout)으로 받는 로직을 Rust 코드로 직접 구현했다.
+
+std::process::Command를 사용해 로컬 Git CLI를 호출하는 형태로 구성했으며, 별도 라이브러리 없이 동작하도록 최소 의존성 설계를 유지했다.
+
+2. 핵심 함수 구현
+
+run_git(): Git 명령 실행 유틸리티 함수. 실행 로그를 콘솔에 출력하고 실패 시 오류 메시지를 반환.
+
+clone_full(): 저장소 전체를 지정한 경로로 클론하는 함수.
+
+clone_sparse(): Git 2.25+의 Sparse Checkout 기능을 활용해 특정 하위 폴더만 받는 함수.
+
+--filter=blob:none, --sparse, --depth 1 등으로 빠른 얕은 클론 구현.
+
+여러 디렉터리(docs, tools 등)를 동시에 지정 가능하도록 설계.
+
+update_sparse_paths(): 이미 클론된 저장소에서 희소 체크아웃 경로를 변경하거나 추가할 수 있는 함수.
+
+⚙️ Tauri 명령(github_commands.rs) 개선
+문제점
+
+git_clone_full 함수가 에러를 무시하고 항상 Ok(()) 반환하는 문제.
+
+git clone 실행이 메인 스레드에서 동작해, UI 프리징(UI 정지) 가능성 존재.
+
+개선사항
+
+비동기 처리 적용:
+tauri::async_runtime::spawn_blocking을 사용해 클론 작업을 백그라운드 스레드로 이관.
+UI 응답성을 유지하며, 긴 작업(대형 저장소 클론 등) 중에도 앱이 멈추지 않도록 함.
+
+에러 전파 개선:
+io::Error를 String으로 변환하여 프론트엔드에 명확한 오류 메시지 전달.
+
+예: Git 미설치, 네트워크 끊김 등 실제 문제를 사용자에게 보여줌.
