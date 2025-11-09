@@ -1,23 +1,15 @@
 ﻿import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Terminal, Play, Square, Trash2, RotateCw, MoreVertical, RefreshCw, Sparkles, Activity, BarChart3, Package } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
 import { ec2ServerCommands, EC2Server, Project } from '@shared/api/tauri/commands';
 import { OptimizeView } from './OptimizeView';
-
-// 로그 라인에 색상 적용하는 헬퍼 함수
-function getLogLineStyle(line: string): string {
-  if (line.startsWith('✅')) return 'text-green-600';
-  if (line.startsWith('❌')) return 'text-red-600';
-  if (line.startsWith('>')) return 'text-blue-600 font-semibold';
-  if (line.includes('[stderr]')) return 'text-red-500';
-  if (line.includes('[Session closed')) return 'text-yellow-600';
-  if (line.includes('SSH connected')) return 'text-green-500';
-  return 'text-gray-700';
-}
+import { Sidebar } from './Sidebar';
+import { TerminalView } from './TerminalView';
+import { ContainersView } from './ContainersView';
 
 export default function LogPage() {
   const navigate = useNavigate();
@@ -48,26 +40,10 @@ export default function LogPage() {
     ports?: string;
   }
   const [containers, setContainers] = useState<Container[]>([]);
-  const [expandedContainerIds, setExpandedContainerIds] = useState<Set<string>>(new Set());
   const [loadingContainers, setLoadingContainers] = useState(false);
-  const [openHeaderDropdown, setOpenHeaderDropdown] = useState(false);
 
   // 좌측 사이드바 뷰 상태
   const [selectedView, setSelectedView] = useState<'containers' | 'terminal' | 'monitor' | 'optimize'>('terminal');
-
-  // 사이드바 리사이저 상태
-  const [sidebarWidth, setSidebarWidth] = useState(400); // 기본 400px
-  const [isResizing, setIsResizing] = useState(false);
-
-  // 자동 스크롤을 위한 ref
-  const terminalLogRef = useRef<HTMLDivElement>(null);
-
-  // 터미널 로그 자동 스크롤
-  useEffect(() => {
-    if (terminalLogRef.current) {
-      terminalLogRef.current.scrollTop = terminalLogRef.current.scrollHeight;
-    }
-  }, [terminalLogs]);
 
   // SSH 이벤트 리스너
   useEffect(() => {
@@ -379,55 +355,9 @@ export default function LogPage() {
       fetchContainers();
     } else {
       setContainers([]);
-      setExpandedContainerIds(new Set());
     }
   }, [connected, ec2Server]);
 
-  // 드롭다운 외부 클릭 시 닫기
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (openHeaderDropdown) {
-        setOpenHeaderDropdown(false);
-      }
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [openHeaderDropdown]);
-
-  // 사이드바 리사이저 핸들러
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-
-      // 우측에서부터의 거리를 계산
-      const newWidth = window.innerWidth - e.clientX;
-
-      // 최소 250px, 최대 600px로 제한
-      const clampedWidth = Math.min(Math.max(newWidth, 250), 600);
-      setSidebarWidth(clampedWidth);
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    if (isResizing) {
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing]);
 
   return (
     <div className="h-full flex flex-col bg-white overflow-hidden">
@@ -446,406 +376,54 @@ export default function LogPage() {
       {/* Main Layout - Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Navigation */}
-        <aside className="w-24 bg-[#F9FAFE] flex flex-col items-center py-6 gap-4 border-r border-gray-200">
-        {/* Containers */}
-        <button
-          onClick={() => {
-            setSelectedView('containers');
-            // Auto-refresh containers when switching to this view
-            if (ec2Server) {
-              fetchContainers();
-            }
-          }}
-          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
-            selectedView === 'containers' ? 'bg-blue-50' : 'hover:bg-gray-100'
-          }`}
-          title="Containers"
-        >
-          <div className={`w-8 h-8 flex items-center justify-center rounded ${
-            selectedView === 'containers' ? 'bg-green-500' : 'bg-gray-400'
-          }`}>
-            <Package className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xs font-medium text-gray-700">Containers</span>
-        </button>
-
-        {/* Terminal */}
-        <button
-          onClick={() => setSelectedView('terminal')}
-          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
-            selectedView === 'terminal' ? 'bg-blue-50' : 'hover:bg-gray-100'
-          }`}
-          title="Terminal"
-        >
-          <div className={`w-8 h-8 flex items-center justify-center rounded ${
-            selectedView === 'terminal' ? 'bg-blue-500' : 'bg-gray-400'
-          }`}>
-            <Terminal className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xs font-medium text-gray-700">Terminal</span>
-        </button>
-
-        {/* Monitor */}
-        <button
-          onClick={() => {
-            setSelectedView('monitor');
-            navigate('/monitoring', { state: { project, ec2Server } });
-          }}
-          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
-            selectedView === 'monitor' ? 'bg-blue-50' : 'hover:bg-gray-100'
-          }`}
-          title="Monitor"
-        >
-          <div className="w-8 h-8 flex items-center justify-center rounded" style={{ backgroundColor: '#4C65E2' }}>
-            <BarChart3 className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xs font-medium text-gray-700">Monitor</span>
-        </button>
-
-        {/* Optimize */}
-        <button
-          onClick={async () => {
-            setSelectedView('optimize');
-
-            // Auto-open tunnel if EC2 and not already open
-            if (project?.environment === 'ec2' && !tunnelOpen) {
-              try {
-                await openTunnel();
-                // Wait briefly for tunnel to establish
-                await new Promise(resolve => setTimeout(resolve, 500));
-              } catch (error) {
-                console.error('Failed to open tunnel:', error);
-              }
-            }
-          }}
-          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
-            selectedView === 'optimize' ? 'bg-blue-50' : 'hover:bg-gray-100'
-          }`}
-          title="Optimize"
-        >
-          <div className="w-8 h-8 flex items-center justify-center rounded bg-gradient-to-br from-purple-500 to-pink-500">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xs font-medium text-gray-700">Optimize</span>
-        </button>
-      </aside>
+        <Sidebar
+          selectedView={selectedView}
+          onViewChange={setSelectedView}
+          onContainersRefresh={fetchContainers}
+          onTunnelOpen={openTunnel}
+          onNavigateToMonitoring={() => navigate('/monitoring', { state: { project, ec2Server } })}
+          project={project}
+          ec2Server={ec2Server}
+          tunnelOpen={tunnelOpen}
+        />
 
       {/* Content Area */}
       <main className="flex-1 flex overflow-hidden">
 
         {/* Terminal View - Only show when terminal is selected */}
-        {selectedView === 'terminal' && project?.environment === 'ec2' ? (
-          <div className="flex-1 bg-white overflow-hidden flex flex-col">
-            {/* Terminal Controls */}
-            <div className="bg-gray-50 text-gray-900 px-4 py-3 flex items-center justify-between flex-shrink-0 border-b border-gray-200">
-              {/* Left: Project Info */}
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="font-semibold text-sm">{project.name}</span>
-                  {ec2Server && (
-                    <span className="font-mono text-xs text-gray-600">
-                      {ec2Server.user}@{ec2Server.host}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Right: Control Buttons */}
-              <div className="flex gap-2">
-                {!connected ? (
-                  <button
-                    onClick={startSshSession}
-                    disabled={!ec2Server}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Connect
-                  </button>
-                ) : (
-                  <button
-                    onClick={closeSshSession}
-                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs"
-                  >
-                    Disconnect
-                  </button>
-                )}
-                {!tunnelOpen ? (
-                  <button
-                    onClick={openTunnel}
-                    disabled={!ec2Server}
-                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Open SSH tunnel for Prometheus (9091:9090)"
-                  >
-                    Open Tunnel
-                  </button>
-                ) : (
-                  <button
-                    onClick={closeTunnel}
-                    className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs"
-                    title="Close Prometheus tunnel"
-                  >
-                    Close Tunnel
-                  </button>
-                )}
-                <button
-                  onClick={() => setTerminalLogs([])}
-                  className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded text-xs"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-
-            {/* Terminal Output */}
-            <div
-              ref={terminalLogRef}
-              className="flex-1 bg-white font-mono text-sm p-4 overflow-y-auto"
-              style={{
-                scrollbarWidth: 'thin',
-                scrollbarColor: '#d1d5db #f3f4f6'
-              }}
-            >
-              {terminalLogs.length === 0 ? (
-                <div className="text-gray-500">No output yet. Connect and run commands.</div>
-              ) : (
-                terminalLogs.map((line, i) => (
-                  <div key={i} className={getLogLineStyle(line)}>
-                    {line}
-                  </div>
-                ))
-              )}
-              <div className="mt-2 text-gray-400">
-                <span className="animate-pulse">_</span>
-              </div>
-            </div>
-
-            {/* Command Input */}
-            <div className="bg-gray-50 p-3 flex gap-2 flex-shrink-0 border-t border-gray-200">
-              <input
-                className="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-gray-900 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter Command ..."
-                value={cmd}
-                onChange={(e) => setCmd(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && sendSshCmd()}
-                disabled={!connected}
-              />
-              <button
-                onClick={sendSshCmd}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Enter
-              </button>
-            </div>
-          </div>
-        ) : selectedView === 'terminal' && project?.environment !== 'ec2' ? (
-          <div className="flex-1 flex items-center justify-center bg-white">
-            <div className="text-center text-gray-500">
-              <Terminal className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-lg font-semibold mb-2">SSH Terminal</p>
-              <p className="text-sm">EC2 프로젝트를 선택하면 SSH 터미널을 사용할 수 있습니다.</p>
-            </div>
-          </div>
-        ) : null}
+        {selectedView === 'terminal' && (
+          <TerminalView
+            project={project}
+            ec2Server={ec2Server}
+            connected={connected}
+            terminalLogs={terminalLogs}
+            cmd={cmd}
+            tunnelOpen={tunnelOpen}
+            onConnect={startSshSession}
+            onDisconnect={closeSshSession}
+            onTunnelOpen={openTunnel}
+            onTunnelClose={closeTunnel}
+            onClearLogs={() => setTerminalLogs([])}
+            onCmdChange={setCmd}
+            onSendCmd={sendSshCmd}
+          />
+        )}
 
         {/* Containers View - Only show when containers is selected */}
         {selectedView === 'containers' && project && (
-          <div className="flex-1 bg-gray-50 overflow-y-auto flex flex-col">
-            {/* Container Information */}
-            <div className="bg-white p-5 border-b border-gray-200 flex-1 overflow-y-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Containers</h3>
-                <div className="flex gap-1">
-                  <button
-                    onClick={fetchContainers}
-                    disabled={!ec2Server || loadingContainers}
-                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Refresh"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${loadingContainers ? 'animate-spin' : ''}`} />
-                  </button>
-
-                  {/* 헤더 삼점 메뉴 */}
-                  <div className="relative">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenHeaderDropdown(!openHeaderDropdown);
-                      }}
-                      className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                      title="More"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-
-                    {/* 헤더 드롭다운 메뉴 */}
-                    {openHeaderDropdown && (
-                      <div
-                        className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          onClick={() => {
-                            startAllContainers();
-                            setOpenHeaderDropdown(false);
-                          }}
-                          disabled={!ec2Server || containers.length === 0}
-                          className="w-full px-3 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <Play className="w-4 h-4" fill="currentColor" />
-                          Start All
-                        </button>
-                        <button
-                          onClick={() => {
-                            stopAllContainers();
-                            setOpenHeaderDropdown(false);
-                          }}
-                          disabled={!ec2Server || containers.length === 0}
-                          className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <Square className="w-4 h-4" fill="currentColor" />
-                          Stop All
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {loadingContainers ? (
-                <div className="text-sm text-gray-500">Loading containers...</div>
-              ) : containers.length === 0 ? (
-                <div className="text-sm text-gray-500">No containers found</div>
-              ) : (
-                <div className="space-y-2">
-                  {containers.map((container) => {
-                    const isRunning = container.status.toLowerCase().includes('up');
-                    const isExpanded = expandedContainerIds.has(container.id);
-
-                    const toggleExpand = () => {
-                      setExpandedContainerIds(prev => {
-                        const newSet = new Set(prev);
-                        if (newSet.has(container.id)) {
-                          newSet.delete(container.id);
-                        } else {
-                          newSet.add(container.id);
-                        }
-                        return newSet;
-                      });
-                    };
-
-                    return (
-                      <div
-                        key={container.id}
-                        className="p-3 rounded-lg border border-gray-200 bg-white transition-all cursor-pointer hover:border-gray-300"
-                        onClick={toggleExpand}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-2 flex-1 min-w-0">
-                            {/* Status indicator circle */}
-                            <div className="mt-0.5">
-                              {isRunning ? (
-                                <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-                              ) : (
-                                <div className="w-4 h-4 border-2 border-gray-400 rounded-full"></div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold text-gray-900 truncate">
-                                {container.name}
-                              </div>
-                              <div className="text-xs text-gray-500 mt-1 truncate">
-                                {container.image}
-                              </div>
-                              <div className={`text-xs mt-1 ${isRunning ? 'text-green-600' : 'text-gray-400'}`}>
-                                {container.status}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex gap-1 items-start" onClick={(e) => e.stopPropagation()}>
-                            {/* Start/Stop button */}
-                            {isRunning ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  stopContainer(container.id, container.name);
-                                }}
-                                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                title="Stop"
-                              >
-                                <Square className="w-4 h-4" fill="currentColor" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  startContainer(container.id, container.name);
-                                }}
-                                className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
-                                title="Start"
-                              >
-                                <Play className="w-4 h-4" fill="currentColor" />
-                              </button>
-                            )}
-
-                            {/* Restart button */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                restartContainer(container.id, container.name);
-                              }}
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                              title="Restart"
-                            >
-                              <RotateCw className="w-4 h-4" />
-                            </button>
-
-                            {/* Delete button */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeContainer(container.id, container.name);
-                              }}
-                              className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* 상세 정보 (펼쳤을 때만 표시) */}
-                        {isExpanded && (
-                          <div className="mt-3 ml-6 pt-3 border-t border-gray-100 space-y-1.5">
-                            <div className="text-xs">
-                              <span className="text-gray-500 font-medium">Container ID:</span>{' '}
-                              <span className="text-gray-700 font-mono">{container.id}</span>
-                            </div>
-                            {container.command && (
-                              <div className="text-xs">
-                                <span className="text-gray-500 font-medium">Command:</span>{' '}
-                                <span className="text-gray-700 font-mono break-all">{container.command}</span>
-                              </div>
-                            )}
-                            {container.created && (
-                              <div className="text-xs">
-                                <span className="text-gray-500 font-medium">Created:</span>{' '}
-                                <span className="text-gray-700">{container.created}</span>
-                              </div>
-                            )}
-                            {container.ports && (
-                              <div className="text-xs">
-                                <span className="text-gray-500 font-medium">Ports:</span>{' '}
-                                <span className="text-gray-700 font-mono">{container.ports || 'None'}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+          <ContainersView
+            project={project}
+            ec2Server={ec2Server}
+            containers={containers}
+            loadingContainers={loadingContainers}
+            onRefresh={fetchContainers}
+            onStartContainer={startContainer}
+            onStopContainer={stopContainer}
+            onRestartContainer={restartContainer}
+            onRemoveContainer={removeContainer}
+            onStartAll={startAllContainers}
+            onStopAll={stopAllContainers}
+          />
         )}
 
         {/* Optimize View - Only show when optimize is selected */}

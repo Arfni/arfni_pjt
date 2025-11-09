@@ -5,7 +5,7 @@ import { store } from './app/store';
 import { CanvasPage } from "./pages/canvas/ui/CanvasPage";
 import TestPage from "./pages/test/ui/TestPage";
 import LogPage from "./pages/logs/ui/LogPage";
-import MonitoringPage from "./pages/monitoring/ui/MonitoringPage";
+import MonitoringPage from "./pages/logs/ui/MonitoringPage";
 import ProjectsPage from "./pages/projects/ui/ProjectsPage";
 import SettingsPage from "./pages/settings/ui/SettingsPage";
 import TestPage2 from "./pages/test/ui/TestPage2";
