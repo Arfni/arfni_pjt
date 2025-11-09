@@ -13,6 +13,8 @@ export interface DeploymentEndpoint {
   name: string;
   url: string;
   type: 'service' | 'health-check' | 'monitoring';
+  status?: 'ready' | 'pending';
+  note?: string;
 }
 
 export interface DeploymentState {
