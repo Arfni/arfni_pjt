@@ -68,7 +68,16 @@ export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
       setResult(estimateResult);
     } catch (err) {
       console.error('Estimate error:', err);
-      setError(err as string);
+      const errorMessage = err as string;
+
+      // 빈 캔버스 또는 서비스 없음 에러 처리
+      if (errorMessage.includes('no services defined') ||
+          errorMessage.includes('services not found') ||
+          errorMessage.includes('empty stack')) {
+        setError('캔버스가 비어있습니다. 비용 예측을 사용하려면 먼저 서비스를 추가해주세요.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
