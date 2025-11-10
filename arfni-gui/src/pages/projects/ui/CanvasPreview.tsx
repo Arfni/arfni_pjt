@@ -36,9 +36,9 @@ export function CanvasPreview({ nodes, edges }: CanvasPreviewProps) {
     return null;
   }
 
-  // 노드 크기 설정 (세로가 더 길게)
-  const nodeWidth = 150;
-  const nodeHeight = 180;
+  // 노드 크기 설정 - ServiceNode와 동일한 크기
+  const nodeWidth = 140;
+  const nodeHeight = 140;
 
   // 노드 위치의 바운딩 박스 계산
   const positions = nodes.map(n => n.position);
@@ -59,7 +59,7 @@ export function CanvasPreview({ nodes, edges }: CanvasPreviewProps) {
         const targetNode = nodes.find(n => n.id === edge.target);
         if (!sourceNode || !targetNode) return null;
 
-        const x1 = sourceNode.position.x + nodeWidth / 2; // 노드 중심
+        const x1 = sourceNode.position.x + nodeWidth / 2;
         const y1 = sourceNode.position.y + nodeHeight / 2;
         const x2 = targetNode.position.x + nodeWidth / 2;
         const y2 = targetNode.position.y + nodeHeight / 2;
@@ -77,12 +77,9 @@ export function CanvasPreview({ nodes, edges }: CanvasPreviewProps) {
         );
       })}
 
-      {/* 노드 렌더링 - 모두 연하늘색으로 통일 */}
+      {/* 노드 렌더링 - ServiceNode/DatabaseNode 디자인 적용 */}
       {nodes.map((node) => {
-        // 더 연한 하늘색
-        const skyBlue = '#FFFFFF'; // Tailwind의 sky-100 (더 연한 하늘색)
-
-        // 기술 스택 추출 (serviceType 또는 type 또는 database type)
+        // 기술 스택 추출
         let techStack = '';
         if (node.node_type === 'service' && node.data?.serviceType) {
           techStack = node.data.serviceType;
@@ -94,27 +91,66 @@ export function CanvasPreview({ nodes, edges }: CanvasPreviewProps) {
 
         return (
           <g key={node.id}>
-            {/* 블록 배경 - 더 연한 하늘색, 세로가 더 길게 */}
+            {/* 메인 노드 배경 - 흰색 배경에 그림자 효과 */}
+            <defs>
+              <filter id={`shadow-${node.id}`} x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
+                <feOffset dx="0" dy="3" result="offsetblur" />
+                <feComponentTransfer>
+                  <feFuncA type="linear" slope="0.15" />
+                </feComponentTransfer>
+                <feMerge>
+                  <feMergeNode />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            {/* 노드 배경 - 흰색, 테두리, 그림자 */}
             <rect
               x={node.position.x}
               y={node.position.y}
               width={nodeWidth}
               height={nodeHeight}
-              fill={skyBlue}
-              rx="8"
-              opacity="0.95"
+              fill="white"
+              stroke="#E5E7EB"
+              strokeWidth="1"
+              rx="12"
+              filter={`url(#shadow-${node.id})`}
             />
 
-            {/* 아이콘 이미지 렌더링 (중앙에 배치) */}
+            {/* 아이콘 배경 (흰색 원형) - 중앙 정렬 */}
+            <rect
+              x={node.position.x + (nodeWidth - 56) / 2}
+              y={node.position.y + (nodeHeight - 56 - 30) / 2}
+              width="56"
+              height="56"
+              fill="white"
+              rx="8"
+            />
+
+            {/* 아이콘 이미지 - 중앙 정렬 */}
             {iconPath && (
               <image
                 href={iconPath}
-                x={node.position.x + (nodeWidth - 60) / 2}
-                y={node.position.y + (nodeHeight - 60) / 2}
-                width="60"
-                height="60"
+                x={node.position.x + (nodeWidth - 48) / 2}
+                y={node.position.y + (nodeHeight - 48 - 30) / 2 + 4}
+                width="48"
+                height="48"
               />
             )}
+
+            {/* 노드 이름 - 중앙 정렬 */}
+            <text
+              x={node.position.x + nodeWidth / 2}
+              y={node.position.y + nodeHeight / 2 + 40}
+              textAnchor="middle"
+              fill="#1E3A8A"
+              fontSize="18"
+              fontWeight="700"
+            >
+              {node.data?.name || 'Node'}
+            </text>
           </g>
         );
       })}
