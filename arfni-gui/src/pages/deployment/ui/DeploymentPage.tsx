@@ -13,19 +13,25 @@ import {
   addLog,
   deploymentSuccess,
   deploymentFailed,
+  deploymentStopped,
   DeploymentStage,
+  startDeployment,
+  resetDeployment,
 } from '@features/deployment/model/deploymentSlice';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
-import { eventListeners, deploymentCommands } from '@shared/api/tauri/commands';
-import { Check, Loader2, AlertCircle, Clock, ExternalLink } from 'lucide-react';
+import { eventListeners, deploymentCommands, ec2ServerCommands, EC2Server } from '@shared/api/tauri/commands';
+import { SuccessModal } from './SuccessModal';
+import { FailedModal } from './FailedModal';
+import { LogsView } from './LogsView';
+import { ContainersView } from './ContainersView';
+import { ProgressBar } from './ProgressBar';
 
 const STAGES: { id: DeploymentStage; label: string; description: string }[] = [
-  { id: 'prepare', label: '준비', description: '배포 환경을 준비하고 있습니다...' },
-  { id: 'generate', label: '생성', description: 'Docker 파일을 생성하고 있습니다...' },
-  { id: 'build', label: '빌드', description: '서비스 이미지를 빌드하고 있습니다...' },
-  { id: 'start', label: '시작', description: '컨테이너를 시작하고 있습니다...' },
-  { id: 'post-process', label: '후처리', description: '후처리 작업을 수행하고 있습니다...' },
-  { id: 'health-check', label: '상태확인', description: '서비스 상태를 확인하고 있습니다...' },
+  { id: 'prepare', label: 'Preflight', description: 'Preflight checks...' },
+  { id: 'generate', label: 'Generate', description: 'Generating Docker files...' },
+  { id: 'build', label: 'Build', description: 'Building images...' },
+  { id: 'start', label: 'Deploy', description: 'Deploying containers...' },
+  { id: 'post-process', label: 'Health', description: 'Health checks...' },
 ];
 
 export function DeploymentPage() {
@@ -41,8 +47,13 @@ export function DeploymentPage() {
   const endpoints = useSelector(selectDeploymentEndpoints);
   const stats = useSelector(selectDeploymentStats);
 
-  const [activeTab, setActiveTab] = useState<'log' | 'canvas'>('log');
+  const [activeTab] = useState<'log' | 'canvas'>('log');
+  const [activeLogTab, setActiveLogTab] = useState<'containers' | 'logs'>('logs');
   const logEndRef = useRef<HTMLDivElement>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showFailedModal, setShowFailedModal] = useState(false);
+  const [ec2Server, setEc2Server] = useState<EC2Server | null>(null);
+  const [isStopping, setIsStopping] = useState(false);
 
   // 배포 이벤트 구독
   useEffect(() => {
@@ -77,25 +88,90 @@ export function DeploymentPage() {
       dispatch(deploymentFailed(errorMsg));
     });
 
+    const unsubscribeStopped = eventListeners.onDeploymentStopped(() => {
+      // Add delay to show "Stopping..." state for better UX
+      setTimeout(() => {
+        setIsStopping(false); // Reset flag
+        dispatch(deploymentStopped());
+      }, 3000); // 3 second delay
+    });
+
     return () => {
       unsubscribeLog.then((unsub) => unsub());
       unsubscribeSuccess.then((unsub) => unsub());
       unsubscribeFailed.then((unsub) => unsub());
+      unsubscribeStopped.then((unsub) => unsub());
     };
   }, [dispatch]);
 
   // 로그 자동 스크롤
   useEffect(() => {
     if (activeTab === 'log') {
-      logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      logEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [logs, activeTab]);
 
+  // 배포 성공 시 모달 열기
+  useEffect(() => {
+    if (status === 'success') {
+      setShowSuccessModal(true);
+    }
+  }, [status]);
+
+  // 배포 실패 시 모달 열기
+  useEffect(() => {
+    if (status === 'failed') {
+      setShowFailedModal(true);
+    }
+  }, [status]);
+
+  // EC2 서버 정보 로드
+  useEffect(() => {
+    const loadEc2Server = async () => {
+      if (currentProject?.environment === 'ec2' && currentProject?.ec2_server_id) {
+        try {
+          const server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
+          setEc2Server(server);
+        } catch (error) {
+          console.error('EC2 서버 정보 로드 실패:', error);
+          setEc2Server(null);
+        }
+      } else {
+        setEc2Server(null);
+      }
+    };
+    loadEc2Server();
+  }, [currentProject]);
+
   const handleStopDeployment = async () => {
+    setIsStopping(true); // Immediate UI feedback
     try {
       await deploymentCommands.stopDeployment();
     } catch (err) {
       console.error('Failed to stop deployment:', err);
+      setIsStopping(false); // Reset on error
+    }
+  };
+
+  const handleRestartDeployment = async () => {
+    if (!currentProject) {
+      console.error('No current project');
+      return;
+    }
+
+    try {
+      // Reset deployment state
+      dispatch(resetDeployment());
+
+      // Start new deployment
+      dispatch(startDeployment());
+
+      // Call backend to start deployment
+      const stackYamlPath = `${currentProject.path}/stack.yaml`;
+      await deploymentCommands.deployStack(currentProject.path, stackYamlPath);
+    } catch (err) {
+      console.error('Failed to restart deployment:', err);
+      dispatch(deploymentFailed(String(err)));
     }
   };
 
@@ -103,28 +179,20 @@ export function DeploymentPage() {
     navigate('/canvas');
   };
 
-  const handleConfirm = () => {
-    if (currentProject?.environment === 'local') {
-      navigate('/projects', { replace: true });
+  const handleNavigateToStatus = () => {
+    if (currentProject?.environment === 'ec2') {
+      navigate('/logs', { state: { project: currentProject, ec2Server } });
     } else {
-      // EC2는 다른 동작 (향후 정의)
-      navigate('/canvas', { replace: true });
+      navigate('/projects');
     }
   };
 
-  const getLogColor = (level: string) => {
-    switch (level) {
-      case 'info':
-        return 'text-blue-400';
-      case 'warning':
-        return 'text-yellow-400';
-      case 'error':
-        return 'text-red-400';
-      case 'success':
-        return 'text-green-400';
-      default:
-        return 'text-gray-400';
-    }
+  const handleConfirm = () => {
+    setShowSuccessModal(false);
+  };
+
+  const handleConfirmFailed = () => {
+    setShowFailedModal(false);
   };
 
   const getCurrentStageMessage = () => {
@@ -133,281 +201,154 @@ export function DeploymentPage() {
     return stage?.description || '';
   };
 
-  const formatDuration = (seconds: number | null) => {
-    if (seconds === null) return '--';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}분 ${secs}초`;
+  const getDeploymentTitle = () => {
+    switch (status) {
+      case 'deploying':
+        return 'Deployment in Progress...';
+      case 'success':
+        return 'Deployment Complete';
+      case 'failed':
+        return 'Deployment Failed';
+      case 'stopped':
+        return 'Deployment Stopped';
+      default:
+        return 'Deployment';
+    }
   };
 
   // 배포 진행 중 UI
-  if (status === 'deploying') {
+  if (status === 'deploying' || status === 'success' || status === 'failed' || status === 'stopped') {
     return (
-      <div className="h-screen flex flex-col bg-gray-900">
-        {/* 헤더 */}
-        <div className="bg-gray-800 border-b border-gray-700 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-white">ARFNI</h1>
-              <span className="text-gray-400">/ 배포 진행 중</span>
-            </div>
-            <button
-              onClick={handleStopDeployment}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
-            >
-              중지
-            </button>
-          </div>
-        </div>
-
-        {/* 탭 */}
-        <div className="bg-gray-800 border-b border-gray-700">
-          <div className="flex">
-            <button
-              onClick={() => setActiveTab('log')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'log'
-                  ? 'text-blue-500 border-b-2 border-blue-500'
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              Log
-            </button>
-            <button
-              onClick={() => setActiveTab('canvas')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'canvas'
-                  ? 'text-blue-500 border-b-2 border-blue-500'
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              Canvas
-            </button>
-          </div>
-        </div>
-
+      <div className="h-screen flex flex-col bg-white relative">
         {/* 컨텐츠 */}
         <div className="flex-1 p-6 overflow-auto">
           {activeTab === 'log' ? (
             <div className="max-w-6xl mx-auto">
+              {/* 제목 */}
+              <h1 className="text-3xl font-bold text-gray-900 mt-4 mb-8">{getDeploymentTitle()}</h1>
+
               {/* 진행 단계 표시 */}
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  {STAGES.map((stage, index) => {
-                    const isCompleted = completedStages.includes(stage.id);
-                    const isCurrent = currentStage === stage.id;
+              <ProgressBar
+                status={status}
+                currentStage={currentStage}
+                completedStages={completedStages}
+                isStopping={isStopping}
+                getCurrentStageMessage={getCurrentStageMessage}
+                stages={STAGES}
+              />
 
-                    return (
-                      <div key={stage.id} className="flex items-center flex-1">
-                        {/* 단계 원 */}
-                        <div className="flex flex-col items-center">
-                          <div
-                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-                              isCompleted
-                                ? 'bg-blue-600 text-white'
-                                : isCurrent
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-700 text-gray-400'
-                            }`}
-                          >
-                            {isCompleted ? (
-                              <Check className="w-6 h-6" />
-                            ) : isCurrent ? (
-                              <Loader2 className="w-6 h-6 animate-spin" />
-                            ) : (
-                              <div className="w-3 h-3 rounded-full bg-gray-500" />
-                            )}
-                          </div>
-                          <span
-                            className={`mt-2 text-sm font-medium ${
-                              isCompleted || isCurrent ? 'text-white' : 'text-gray-500'
-                            }`}
-                          >
-                            {stage.label}
-                          </span>
-                        </div>
-
-                        {/* 연결선 */}
-                        {index < STAGES.length - 1 && (
-                          <div
-                            className={`flex-1 h-1 mx-2 transition-colors ${
-                              completedStages.includes(STAGES[index + 1].id)
-                                ? 'bg-blue-600'
-                                : 'bg-gray-700'
-                            }`}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
+              {/* Containers/Logs 탭 */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between border-b border-gray-200 bg-white">
+                  <div className="flex">
+                    <button
+                      onClick={() => setActiveLogTab('containers')}
+                      className={`px-6 py-3 font-semibold transition-colors ${
+                        activeLogTab === 'containers'
+                          ? 'text-blue-600 border-b-2 border-blue-600'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      Containers
+                    </button>
+                    <button
+                      onClick={() => setActiveLogTab('logs')}
+                      className={`px-6 py-3 font-semibold transition-colors ${
+                        activeLogTab === 'logs'
+                          ? 'text-blue-600 border-b-2 border-blue-600'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      Logs
+                    </button>
+                  </div>
+                  {status === 'deploying' ? (
+                    <button
+                      onClick={handleStopDeployment}
+                      disabled={isStopping}
+                      className={`px-4 py-2 rounded transition-colors mr-2 ${
+                        isStopping
+                          ? 'bg-red-300 text-white cursor-default'
+                          : 'bg-red-600 hover:bg-red-700 text-white'
+                      }`}
+                    >
+                      Stop Deployment
+                    </button>
+                  ) : (status === 'success' || status === 'failed' || status === 'stopped') ? (
+                    <button
+                      onClick={handleRestartDeployment}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors mr-2"
+                    >
+                      Restart Deployment
+                    </button>
+                  ) : null}
                 </div>
 
-                {/* 현재 단계 메시지 */}
-                {currentStage && (
-                  <div className="flex items-center gap-2 text-blue-400 bg-blue-950 bg-opacity-30 p-3 rounded">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>{getCurrentStageMessage()}</span>
-                  </div>
+                {/* 탭 컨텐츠 */}
+                {activeLogTab === 'containers' ? (
+                  <ContainersView
+                    currentStage={currentStage}
+                    serviceCount={stats.serviceCount}
+                    containerCount={stats.containerCount}
+                    endpoints={endpoints}
+                  />
+                ) : (
+                  <LogsView logs={logs} logEndRef={logEndRef} />
                 )}
               </div>
 
-              {/* 로그 표시 */}
-              <div className="bg-black rounded-lg p-4 font-mono text-sm h-96 overflow-y-auto">
-                {logs.length === 0 ? (
-                  <div className="text-gray-500 text-center mt-4">로그를 기다리는 중...</div>
-                ) : (
-                  <div className="space-y-1">
-                    {logs.map((log, index) => (
-                      <div key={index} className={getLogColor(log.level)}>
-                        <span className="text-gray-500">[{log.timestamp}]</span>{' '}
-                        <span className="font-bold">[{log.level.toUpperCase()}]</span>{' '}
-                        {log.message}
-                      </div>
-                    ))}
-                    <div ref={logEndRef} />
-                  </div>
-                )}
+              {/* 하단 네비게이션 버튼 */}
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={handleBackToCanvas}
+                  className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 rounded-lg font-semibold shadow-lg transition-colors"
+                >
+                  Back to Canvas
+                </button>
+                <button
+                  onClick={handleNavigateToStatus}
+                  disabled={currentProject?.environment === 'ec2' && status !== 'success'}
+                  className={`px-6 py-3 rounded-lg font-semibold shadow-lg transition-colors ${
+                    currentProject?.environment === 'ec2' && status !== 'success'
+                      ? 'bg-gray-300 text-gray-500'
+                      : 'bg-blue-600 enabled:hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {currentProject?.environment === 'ec2' ? 'Server Status' : 'Project Home'}
+                </button>
               </div>
             </div>
           ) : (
-            <div className="text-gray-400 text-center mt-20">
+            <div className="text-gray-600 text-center mt-20">
               Canvas 뷰는 개발 예정입니다.
             </div>
           )}
         </div>
-      </div>
-    );
-  }
 
-  // 배포 성공 UI
-  if (status === 'success') {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-gray-900">
-        <div className="max-w-2xl w-full bg-gray-800 rounded-lg p-8 shadow-xl">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
-              <Check className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white">배포 완료</h2>
-              <p className="text-gray-400">배포가 성공적으로 완료되었습니다.</p>
-            </div>
-          </div>
+        {/* 배포 성공 모달 */}
+        <SuccessModal
+          isOpen={showSuccessModal}
+          onClose={handleConfirm}
+          duration={duration}
+          stats={stats}
+          endpoints={endpoints}
+        />
 
-          {/* 배포 통계 */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="bg-gray-700 rounded p-4">
-              <div className="flex items-center gap-2 text-gray-400 mb-1">
-                <Clock className="w-4 h-4" />
-                <span className="text-sm">소요 시간</span>
-              </div>
-              <div className="text-2xl font-bold text-white">{formatDuration(duration)}</div>
-            </div>
-            <div className="bg-gray-700 rounded p-4">
-              <div className="text-gray-400 text-sm mb-1">서비스 개수</div>
-              <div className="text-2xl font-bold text-white">{stats.serviceCount}개</div>
-            </div>
-          </div>
-
-          {/* 엔드포인트 */}
-          {endpoints.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-white mb-3">서비스 엔드포인트</h3>
-              <div className="space-y-2">
-                {endpoints.map((endpoint, index) => (
-                  <div key={index} className="bg-gray-700 rounded p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-white font-medium">{endpoint.name}</div>
-                        <div className="text-gray-400 text-sm">{endpoint.type}</div>
-                      </div>
-                      {endpoint.status === 'pending' ? (
-                        <div className="text-gray-500 flex items-center gap-1">
-                          {endpoint.url}
-                        </div>
-                      ) : (
-                        <a
-                          href={endpoint.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                        >
-                          {endpoint.url}
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      )}
-                    </div>
-                    {endpoint.note && (
-                      <div className="mt-2 text-yellow-400 text-sm">
-                        ℹ️ {endpoint.note}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 확인 버튼 */}
-          <button
-            onClick={handleConfirm}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
-          >
-            확인
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // 배포 실패 UI
-  if (status === 'failed') {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-gray-900">
-        <div className="max-w-2xl w-full bg-gray-800 rounded-lg p-8 shadow-xl">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center">
-              <AlertCircle className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white">배포 실패</h2>
-              <p className="text-gray-400">배포 중 오류가 발생했습니다.</p>
-            </div>
-          </div>
-
-          {/* 에러 메시지 */}
-          <div className="bg-red-950 bg-opacity-30 border border-red-800 rounded p-4 mb-6">
-            <div className="text-red-400 font-mono text-sm whitespace-pre-wrap">{error}</div>
-          </div>
-
-          {/* 로그 표시 (마지막 20줄) */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-white mb-3">최근 로그</h3>
-            <div className="bg-black rounded p-3 font-mono text-xs h-48 overflow-y-auto">
-              {logs.slice(-20).map((log, index) => (
-                <div key={index} className={getLogColor(log.level)}>
-                  <span className="text-gray-500">[{log.timestamp}]</span> {log.message}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 버튼 */}
-          <button
-            onClick={handleBackToCanvas}
-            className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white rounded font-semibold transition-colors"
-          >
-            Canvas로 돌아가기
-          </button>
-        </div>
+        {/* 배포 실패 모달 */}
+        <FailedModal
+          isOpen={showFailedModal}
+          onClose={handleConfirmFailed}
+          error={error}
+          logs={logs}
+        />
       </div>
     );
   }
 
   // idle 상태 (배포 전)
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-900">
-      <div className="text-gray-400 text-center">
+    <div className="h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-gray-600 text-center">
         <p>배포를 시작하려면 Canvas에서 Deploy 버튼을 클릭하세요.</p>
         <button
           onClick={() => navigate('/canvas')}
