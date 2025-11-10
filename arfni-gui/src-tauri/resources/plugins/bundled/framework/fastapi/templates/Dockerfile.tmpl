@@ -1,0 +1,55 @@
+# Multi-stage build for FastAPI
+FROM python:{{default "3.12" .python_version}}-slim AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install dependencies
+COPY {{default "requirements.txt" .requirements_file}} .
+RUN pip install --no-cache-dir --user -r {{default "requirements.txt" .requirements_file}}
+
+# Runtime stage
+FROM python:{{default "3.12" .python_version}}-slim
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /root/.local
+
+# Copy application code
+COPY . .
+
+# Make sure scripts in .local are usable
+ENV PATH=/root/.local/bin:$PATH
+
+# Expose port
+EXPOSE {{default 8000 .port}}
+
+# Set environment variables
+{{if .database_url}}ENV DATABASE_URL={{.database_url}}{{end}}
+ENV PORT={{default 8000 .port}}
+ENV WORKERS={{default 4 .workers}}
+ENV LOG_LEVEL={{default "info" .log_level}}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD python -c "import requests; requests.get('http://localhost:{{default 8000 .port}}/health')" || exit 1
+
+# Run with Gunicorn + Uvicorn workers
+{{if eq .reload "true"}}
+# Development mode with auto-reload
+CMD ["uvicorn", "{{default "main:app" .app_module}}", "--host", "0.0.0.0", "--port", "{{default 8000 .port}}", "--reload", "--log-level", "{{default "info" .log_level}}"]
+{{else}}
+# Production mode with Gunicorn
+CMD ["gunicorn", "{{default "main:app" .app_module}}", \
+     "-k", "uvicorn.workers.UvicornWorker", \
+     "-w", "{{default 4 .workers}}", \
+     "-b", "0.0.0.0:{{default 8000 .port}}", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--log-level", "{{default "info" .log_level}}"]
+{{end}}

@@ -43,20 +43,23 @@ export function ServiceNode({ data, selected, id }: NodeProps<NodeData>) {
         const plugin = pluginService.getPluginByNodeType(nodeType);
 
         if (plugin) {
-          const pluginIconPath = plugin.iconPath;
+          const { invoke } = await import('@tauri-apps/api/core');
+          const pathParts = plugin.iconPath.split('/');
 
-          // Check if it's a bundled plugin or installed plugin
-          if (plugin.isBundled) {
-            // Bundled plugin - use relative URL
-            setIconUrl(`/${pluginIconPath}`);
-          } else {
-            // Installed plugin - convert to asset URL using plugin.iconPath
-            const dataDir = await appDataDir();
-            const relativePath = plugin.iconPath.replace(/^plugins\//, '');
-            const iconPath = await join(dataDir, relativePath);
-            const assetUrl = convertFileSrc(iconPath);
-            setIconUrl(assetUrl);
-          }
+          // Extract category and plugin name from path
+          // Bundled: plugins/bundled/framework/springboot -> framework/springboot
+          // Installed: plugins/installed/framework/django -> framework/django
+          const category = pathParts[2];
+          const pluginName = pathParts[3];
+          const pluginPath = `${category}/${pluginName}`;
+
+          const iconBytes = await invoke<number[]>('read_plugin_icon', {
+            pluginPath,
+            isBundled: plugin.isBundled
+          });
+
+          const blob = new Blob([new Uint8Array(iconBytes)], { type: 'image/png' });
+          setIconUrl(URL.createObjectURL(blob));
         }
       } catch (error) {
         setIconUrl(null);

@@ -112,11 +112,9 @@ pub async fn deploy_stack(
 
         // Bundled 플러그인 디렉토리 경로 가져오기
         let bundled_plugin_dir = if cfg!(debug_assertions) {
-            // 개발 모드: CARGO_MANIFEST_DIR 기준으로 public/plugins/bundled 찾기
+            // 개발 모드: CARGO_MANIFEST_DIR 기준으로 resources/plugins/bundled 찾기
             let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            // src-tauri -> arfni-gui
-            let arfni_gui_dir = manifest_dir.parent().unwrap_or(&manifest_dir);
-            let bundled_path = arfni_gui_dir.join("public").join("plugins").join("bundled");
+            let bundled_path = manifest_dir.join("resources").join("plugins").join("bundled");
 
             if bundled_path.exists() {
                 app_clone.emit("deployment-log", DeploymentLog {
