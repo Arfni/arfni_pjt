@@ -206,9 +206,6 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 		stream.Success(fmt.Sprintf("Generated %d Dockerfile(s)", dockerfileCount))
 	}
 
-	// Note: Grafana provisioning is now handled by arfni-monitoring.exe at runtime
-	// This provides better support for hybrid deployments and OS-specific Docker networking
-
 	return nil
 }
 
@@ -374,9 +371,15 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 	// 3. 프로젝트 파일들 전송
 	stream.Info("Uploading project files to EC2...")
 
-	// docker-compose.yml 전송
+	// docker-compose.yml 전송 (기존 파일이 있으면 먼저 삭제)
 	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
 	remoteComposeFile := workdir + "/docker-compose.yml"
+
+	// Remove existing docker-compose.yml if it exists
+	if err := sshClient.RunCommand(stream, fmt.Sprintf("rm -f %s", remoteComposeFile)); err != nil {
+		stream.Info(fmt.Sprintf("Warning: failed to remove existing docker-compose.yml: %v", err))
+	}
+
 	if err := sshClient.UploadFile(stream, composeFile, remoteComposeFile); err != nil {
 		return fmt.Errorf("failed to upload docker-compose.yml: %w", err)
 	}
@@ -538,11 +541,23 @@ func (r *Runner) deployContainers(stream *events.Stream) error {
 func (r *Runner) deployContainersLocal(stream *events.Stream) error {
 	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
 
+	// Detect deployment mode
+	mode := r.detectDeploymentMode()
+	stream.Info(fmt.Sprintf("Detected deployment mode: %s", mode))
+
 	// Collect service names with local target
 	localServices := []string{}
 	for name, service := range r.stack.Services {
 		if targetObj, exists := r.stack.Targets[service.Target]; exists {
 			if targetObj.Type == "local" {
+				// Skip monitoring services in Hybrid and Local modes
+				// They will be started by Monitoring Logs feature
+				if mode == "hybrid" || mode == "local" {
+					if name == "prometheus" || name == "grafana" {
+						stream.Info(fmt.Sprintf("Skipping '%s' in %s mode (use Monitoring Logs to start)", name, mode))
+						continue
+					}
+				}
 				localServices = append(localServices, name)
 			}
 		}
@@ -552,6 +567,13 @@ func (r *Runner) deployContainersLocal(stream *events.Stream) error {
 		stream.Info("No local services to deploy")
 		return nil
 	}
+
+	// Ensure Docker Desktop is running only if there are local services to deploy
+	stream.Info("Checking Docker Desktop status...")
+	if err := ensureDockerRunning(stream); err != nil {
+		return fmt.Errorf("failed to start Docker Desktop: %w", err)
+	}
+	stream.Success("Docker Desktop is running")
 
 	stream.Info(fmt.Sprintf("Running docker compose up -d for local services: %v", localServices))
 
@@ -652,12 +674,22 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 
 // healthChecks는 컨테이너 상태를 확인합니다
 func (r *Runner) healthChecks(stream *events.Stream) error {
-	// Check which targets are used by services
+	// Detect deployment mode
+	mode := r.detectDeploymentMode()
+
+	// Check which targets are used by services (excluding monitoring in Hybrid/Local modes)
 	hasLocal := false
 	hasEC2 := false
 
-	for _, service := range r.stack.Services {
+	for name, service := range r.stack.Services {
 		if targetObj, exists := r.stack.Targets[service.Target]; exists {
+			// Skip monitoring services in Hybrid/Local modes (they weren't deployed)
+			if mode == "hybrid" || mode == "local" {
+				if name == "prometheus" || name == "grafana" {
+					continue
+				}
+			}
+
 			if targetObj.Type == "local" {
 				hasLocal = true
 			} else if targetObj.Type == "ec2.ssh" {
@@ -775,4 +807,128 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 	stream.Success(fmt.Sprintf("Found running containers on EC2"))
 
 	return nil
+}
+
+// ensureDockerRunning checks if Docker is running and starts Docker Desktop if needed
+func ensureDockerRunning(stream *events.Stream) error {
+	// Check if Docker is running
+	cmd := exec.Command("docker", "info")
+
+	// Hide console window on Windows
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		}
+	}
+
+	if err := cmd.Run(); err == nil {
+		// Docker is already running
+		return nil
+	}
+
+	// Docker is not running, try to start Docker Desktop
+	stream.Info("Docker Desktop is not running, attempting to start...")
+
+	if runtime.GOOS == "windows" {
+		// Try common Docker Desktop paths
+		dockerPaths := []string{
+			"C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
+			"C:\\Program Files (x86)\\Docker\\Docker\\Docker Desktop.exe",
+		}
+
+		var dockerPath string
+		for _, path := range dockerPaths {
+			if _, err := os.Stat(path); err == nil {
+				dockerPath = path
+				break
+			}
+		}
+
+		if dockerPath == "" {
+			return fmt.Errorf("Docker Desktop executable not found")
+		}
+
+		// Start Docker Desktop
+		cmd := exec.Command(dockerPath)
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		}
+
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("failed to start Docker Desktop: %w", err)
+		}
+
+		stream.Info("Waiting for Docker Desktop to start (max 60 seconds)...")
+
+		// Wait for Docker to be ready (max 60 seconds)
+		for i := 0; i < 60; i++ {
+			time.Sleep(1 * time.Second)
+
+			checkCmd := exec.Command("docker", "info")
+			checkCmd.SysProcAttr = &syscall.SysProcAttr{
+				HideWindow:    true,
+				CreationFlags: 0x08000000,
+			}
+
+			if err := checkCmd.Run(); err == nil {
+				stream.Success("Docker Desktop started successfully")
+				return nil
+			}
+
+			if i%5 == 0 {
+				stream.Info(fmt.Sprintf("Still waiting... (%d seconds)", i))
+			}
+		}
+
+		return fmt.Errorf("Docker Desktop did not start within 60 seconds")
+	}
+
+	return fmt.Errorf("Docker is not running and auto-start is only supported on Windows")
+}
+
+// detectDeploymentMode determines the deployment mode for monitoring services
+func (r *Runner) detectDeploymentMode() string {
+	// Check if Prometheus and Grafana services exist
+	prometheusService, hasPrometheus := r.stack.Services["prometheus"]
+	grafanaService, hasGrafana := r.stack.Services["grafana"]
+
+	if !hasPrometheus && !hasGrafana {
+		return "none" // No monitoring services
+	}
+
+	// Get targets
+	var prometheusTarget, grafanaTarget stack.Target
+	var prometheusTargetExists, grafanaTargetExists bool
+
+	if hasPrometheus {
+		prometheusTarget, prometheusTargetExists = r.stack.Targets[prometheusService.Target]
+	}
+	if hasGrafana {
+		grafanaTarget, grafanaTargetExists = r.stack.Targets[grafanaService.Target]
+	}
+
+	// Detect deployment mode
+	prometheusIsEC2 := prometheusTargetExists && prometheusTarget.Type == "ec2.ssh"
+	grafanaIsLocal := grafanaTargetExists && grafanaTarget.Type == "local"
+	grafanaIsEC2 := grafanaTargetExists && grafanaTarget.Type == "ec2.ssh"
+	prometheusIsLocal := prometheusTargetExists && prometheusTarget.Type == "local"
+
+	// Hybrid mode: Grafana local, Prometheus on EC2
+	if grafanaIsLocal && prometheusIsEC2 {
+		return "hybrid"
+	}
+
+	// All-in-one mode: Both on EC2
+	if grafanaIsEC2 && prometheusIsEC2 {
+		return "all-in-one"
+	}
+
+	// Local mode: Both local or only one exists locally
+	if (grafanaIsLocal && prometheusIsLocal) || (grafanaIsLocal && !hasPrometheus) || (prometheusIsLocal && !hasGrafana) {
+		return "local"
+	}
+
+	return "none"
 }

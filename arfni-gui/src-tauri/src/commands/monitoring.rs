@@ -526,7 +526,28 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
         }
     }
 
-    // 3. SSH 터널 프로세스 종료 (Windows)
+    // 3. Docker 네트워크 정리
+    println!("[stop_monitoring_stack] Cleaning up Docker networks...");
+    let mut prune_cmd = Command::new("docker");
+    prune_cmd.args(&["network", "prune", "-f"]);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        prune_cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    match prune_cmd.output() {
+        Ok(output) => {
+            println!("[stop_monitoring_stack] Network prune output: {}",
+                String::from_utf8_lossy(&output.stdout));
+        }
+        Err(e) => {
+            println!("[stop_monitoring_stack] Failed to prune networks: {}", e);
+        }
+    }
+
+    // 4. SSH 터널 프로세스 종료 (Windows)
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;

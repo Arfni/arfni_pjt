@@ -60,6 +60,8 @@ export function DeploymentPage() {
         name: ep.name || '',
         url: ep.url || '',
         type: (ep.type || 'service') as 'service' | 'health-check' | 'monitoring',
+        status: ep.status as 'ready' | 'pending' | undefined,
+        note: ep.note as string | undefined,
       }));
 
       dispatch(deploymentSuccess({
@@ -313,20 +315,33 @@ export function DeploymentPage() {
               <h3 className="text-lg font-semibold text-white mb-3">서비스 엔드포인트</h3>
               <div className="space-y-2">
                 {endpoints.map((endpoint, index) => (
-                  <div key={index} className="bg-gray-700 rounded p-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-medium">{endpoint.name}</div>
-                      <div className="text-gray-400 text-sm">{endpoint.type}</div>
+                  <div key={index} className="bg-gray-700 rounded p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-white font-medium">{endpoint.name}</div>
+                        <div className="text-gray-400 text-sm">{endpoint.type}</div>
+                      </div>
+                      {endpoint.status === 'pending' ? (
+                        <div className="text-gray-500 flex items-center gap-1">
+                          {endpoint.url}
+                        </div>
+                      ) : (
+                        <a
+                          href={endpoint.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                        >
+                          {endpoint.url}
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
                     </div>
-                    <a
-                      href={endpoint.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                    >
-                      {endpoint.url}
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
+                    {endpoint.note && (
+                      <div className="mt-2 text-yellow-400 text-sm">
+                        ℹ️ {endpoint.note}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
