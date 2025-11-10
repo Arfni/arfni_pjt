@@ -113,7 +113,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
       onClick={() => !isDeleting && handleOpenProject('canvas')}
     >
       {/* Canvas Thumbnail Preview */}
-      <div className="h-80 bg-gray-100 relative overflow-hidden">
+      <div className="h-64 bg-gray-100 relative overflow-hidden">
         {canvasPreview && canvasPreview.nodes.length > 0 ? (
           <CanvasPreview nodes={canvasPreview.nodes} projectPath={project.path} />
         ) : (
