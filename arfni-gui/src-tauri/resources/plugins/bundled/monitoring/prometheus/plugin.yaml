@@ -22,9 +22,13 @@ contributes:
         volumes:
           - host: "./prometheus.yml"
             mount: "/etc/prometheus/prometheus.yml"
+          - host: "prometheus-data"
+            mount: "/prometheus"
         command:
           - "--config.file=/etc/prometheus/prometheus.yml"
           - "--storage.tsdb.path=/prometheus"
+          - "--storage.tsdb.retention.time=30d"
+          - "--storage.tsdb.retention.size=5GB"
           - "--web.console.libraries=/usr/share/prometheus/console_libraries"
           - "--web.console.templates=/usr/share/prometheus/consoles"
 
