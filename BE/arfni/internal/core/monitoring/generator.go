@@ -254,10 +254,12 @@ func PrepareMonitoringStack(pluginsDir string, mode MonitoringMode, outputDir st
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	// Generate docker-compose.yml
-	composePath := filepath.Join(outputDir, "docker-compose.yml")
-	if err := GenerateDockerComposeFromPlugins(pluginsDir, mode, composePath); err != nil {
-		return fmt.Errorf("failed to generate docker-compose.yml: %w", err)
+	// Generate docker-compose.yml (skip for All-in-one mode)
+	if mode != ModeAllInOne {
+		composePath := filepath.Join(outputDir, "docker-compose.yml")
+		if err := GenerateDockerComposeFromPlugins(pluginsDir, mode, composePath); err != nil {
+			return fmt.Errorf("failed to generate docker-compose.yml: %w", err)
+		}
 	}
 
 	// Copy and update provisioning files

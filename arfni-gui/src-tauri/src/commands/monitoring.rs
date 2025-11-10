@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
+use serde_yaml;
 use tauri::command;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
+use std::collections::HashMap;
 use tauri::AppHandle;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,6 +30,122 @@ pub struct MonitoringConfig {
     pub grafana_url: String,
     pub prometheus_port: u16,
     pub grafana_port: u16,
+}
+
+#[derive(Debug, Deserialize)]
+struct StackYaml {
+    targets: HashMap<String, Target>,
+    services: HashMap<String, Service>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Target {
+    #[serde(rename = "type")]
+    target_type: String,
+    #[serde(default)]
+    host: String,
+    #[serde(default)]
+    user: String,
+    #[serde(rename = "sshKey", default)]
+    ssh_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Service {
+    target: String,
+}
+
+/// All-in-one 모드에서 SSH 터널을 통한 모니터링 시작
+async fn start_monitoring_with_tunnel(
+    app: AppHandle,
+    target: Target,
+) -> Result<String, String> {
+    use crate::features::ssh_rt::{SshParams, open_tunnel};
+
+    let ssh_params = SshParams {
+        host: target.host.clone(),
+        user: target.user.clone(),
+        pem_path: target.ssh_key.clone(),
+    };
+
+    println!("[start_monitoring_with_tunnel] Opening SSH tunnels...");
+    println!("  Host: {}", target.host);
+    println!("  User: {}", target.user);
+
+    // Prometheus 터널: EC2:9090 -> localhost:9091
+    let prometheus_tunnel_id = open_tunnel(app.clone(), ssh_params.clone(), 9091, 9090)
+        .map_err(|e| format!("Failed to create Prometheus tunnel: {}", e))?;
+
+    println!("[start_monitoring_with_tunnel] Prometheus tunnel created: {}", prometheus_tunnel_id);
+
+    // Grafana 터널: EC2:3000 -> localhost:3000
+    let grafana_tunnel_id = open_tunnel(app.clone(), ssh_params, 3000, 3000)
+        .map_err(|e| format!("Failed to create Grafana tunnel: {}", e))?;
+
+    println!("[start_monitoring_with_tunnel] Grafana tunnel created: {}", grafana_tunnel_id);
+
+    // 터널이 준비될 때까지 대기
+    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+    println!("[start_monitoring_with_tunnel] SSH tunnels are ready. Access Grafana at http://localhost:3000");
+
+    Ok(format!(
+        "All-in-one monitoring started via SSH tunnels\n\
+        Prometheus: http://localhost:9091\n\
+        Grafana: http://localhost:3000\n\
+        Tunnel IDs: prometheus={}, grafana={}",
+        prometheus_tunnel_id, grafana_tunnel_id
+    ))
+}
+
+/// stack.yaml 파싱 및 배포 모드 감지
+fn detect_deployment_mode(stack_yaml_path: &PathBuf) -> Result<(String, Option<Target>), String> {
+    let content = std::fs::read_to_string(stack_yaml_path)
+        .map_err(|e| format!("Failed to read stack.yaml: {}", e))?;
+
+    let stack: StackYaml = serde_yaml::from_str(&content)
+        .map_err(|e| format!("Failed to parse stack.yaml: {}", e))?;
+
+    // Prometheus와 Grafana 서비스 찾기
+    let prometheus_service = stack.services.get("prometheus");
+    let grafana_service = stack.services.get("grafana");
+
+    if prometheus_service.is_none() && grafana_service.is_none() {
+        return Ok(("none".to_string(), None));
+    }
+
+    // Target 정보 가져오기
+    let prometheus_target = prometheus_service
+        .and_then(|s| stack.targets.get(&s.target));
+    let grafana_target = grafana_service
+        .and_then(|s| stack.targets.get(&s.target));
+
+    let prometheus_is_ec2 = prometheus_target
+        .map(|t| t.target_type == "ec2.ssh" || t.target_type == "ec2")
+        .unwrap_or(false);
+    let grafana_is_ec2 = grafana_target
+        .map(|t| t.target_type == "ec2.ssh" || t.target_type == "ec2")
+        .unwrap_or(false);
+    let grafana_is_local = grafana_target
+        .map(|t| t.target_type == "local" || t.target_type == "docker-desktop")
+        .unwrap_or(false);
+    let prometheus_is_local = prometheus_target
+        .map(|t| t.target_type == "local" || t.target_type == "docker-desktop")
+        .unwrap_or(false);
+
+    // 모드 감지
+    if grafana_is_local && prometheus_is_ec2 {
+        // Hybrid: Grafana local, Prometheus EC2
+        Ok(("hybrid".to_string(), prometheus_target.cloned()))
+    } else if grafana_is_ec2 && prometheus_is_ec2 {
+        // All-in-one: 둘 다 EC2
+        Ok(("all-in-one".to_string(), grafana_target.cloned()))
+    } else if grafana_is_local && prometheus_is_local {
+        // Local: 둘 다 local
+        Ok(("local".to_string(), None))
+    } else {
+        Ok(("none".to_string(), None))
+    }
 }
 
 /// Prometheus API에서 PromQL 쿼리 실행
@@ -318,17 +436,33 @@ async fn ensure_docker_running() -> Result<(), String> {
 /// 모니터링 스택 자동 시작
 #[command]
 pub async fn start_monitoring_stack(
-    _app: AppHandle,
+    app: AppHandle,
     project_path: String,
 ) -> Result<String, String> {
-    // Docker Desktop 확인 및 자동 시작
-    ensure_docker_running().await?;
     // project_path는 디렉토리이므로 stack.yaml 경로를 구성
     let stack_yaml_path = PathBuf::from(&project_path).join("stack.yaml");
 
     if !stack_yaml_path.exists() {
         return Err(format!("stack.yaml not found at {:?}", stack_yaml_path));
     }
+
+    // 배포 모드 감지
+    let (mode, ec2_target) = detect_deployment_mode(&stack_yaml_path)?;
+
+    println!("[start_monitoring_stack] Detected mode: {}", mode);
+
+    // All-in-one 모드: SSH 터널 생성
+    if mode == "all-in-one" {
+        if let Some(target) = ec2_target {
+            return start_monitoring_with_tunnel(app, target).await;
+        } else {
+            return Err("All-in-one mode detected but EC2 target not found".to_string());
+        }
+    }
+
+    // Hybrid/Local 모드: 로컬 Docker 사용
+    // Docker Desktop 확인 및 자동 시작
+    ensure_docker_running().await?;
 
     // BE 폴더의 모니터링 실행 파일 경로 찾기
     let mut possible_paths = vec![];

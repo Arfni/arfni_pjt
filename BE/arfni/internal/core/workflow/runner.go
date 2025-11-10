@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arfni/arfni/internal/core/monitoring"
 	"github.com/arfni/arfni/internal/core/stack"
 	"github.com/arfni/arfni/internal/events"
 )
@@ -204,6 +205,18 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 
 	if dockerfileCount > 0 {
 		stream.Success(fmt.Sprintf("Generated %d Dockerfile(s)", dockerfileCount))
+	}
+
+	// Generate Grafana provisioning files for All-in-one mode
+	mode := r.detectDeploymentMode()
+	if mode == "all-in-one" {
+		stream.Info("Detected All-in-one mode: Preparing Grafana provisioning...")
+		if err := r.prepareGrafanaProvisioning(stream); err != nil {
+			stream.Info(fmt.Sprintf("Warning: Failed to prepare Grafana provisioning: %v", err))
+			// Don't fail the deployment, just warn
+		} else {
+			stream.Success("Grafana provisioning files prepared")
+		}
 	}
 
 	return nil
@@ -575,7 +588,50 @@ func (r *Runner) deployContainersLocal(stream *events.Stream) error {
 	}
 	stream.Success("Docker Desktop is running")
 
-	stream.Info(fmt.Sprintf("Running docker compose up -d for local services: %v", localServices))
+	// Step 1: Stop existing containers and remove orphans
+	stream.Info("Stopping existing containers and removing orphans...")
+	downArgs := []string{"compose", "--project-directory", r.projectDir, "-f", composeFile, "down", "--remove-orphans"}
+	downCmd := exec.Command("docker", downArgs...)
+	downCmd.Dir = r.projectDir
+
+	// Hide console window on Windows
+	if runtime.GOOS == "windows" {
+		downCmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200,
+		}
+	}
+
+	if output, err := downCmd.CombinedOutput(); err != nil {
+		stream.Info(fmt.Sprintf("Warning: Failed to stop containers: %v", err))
+		stream.Info(fmt.Sprintf("Output: %s", string(output)))
+		// Continue anyway - might be first deployment
+	}
+
+	// Step 2: Rebuild images to ensure code changes are included
+	stream.Info("Rebuilding images...")
+	buildArgs := []string{"compose", "--project-directory", r.projectDir, "-f", composeFile, "build"}
+	buildArgs = append(buildArgs, localServices...)
+	buildCmd := exec.Command("docker", buildArgs...)
+	buildCmd.Dir = r.projectDir
+
+	// Hide console window on Windows
+	if runtime.GOOS == "windows" {
+		buildCmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: 0x08000000 | 0x00000200,
+		}
+	}
+
+	if output, err := buildCmd.CombinedOutput(); err != nil {
+		stream.Info(fmt.Sprintf("Warning: Image build completed with warnings"))
+		if len(output) > 0 {
+			stream.Info(fmt.Sprintf("Build output: %s", string(output)))
+		}
+	}
+
+	// Step 3: Start containers (volumes are preserved)
+	stream.Info(fmt.Sprintf("Starting containers for local services: %v", localServices))
 
 	// Run docker compose up -d with specific service names
 	cmdArgs := []string{"compose", "--project-directory", r.projectDir, "-f", composeFile, "up", "-d"}
@@ -658,11 +714,26 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 
 	stream.Info(fmt.Sprintf("Deploying containers on EC2: %v", ec2Services))
 
-	// docker compose up -d with specific service names
+	// Step 1: Stop existing containers and remove orphans
+	stream.Info("Stopping existing containers and removing orphans...")
+	downCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml down --remove-orphans", workdir)
+	if err := sshClient.RunCommand(stream, downCmd); err != nil {
+		stream.Info(fmt.Sprintf("Warning: Failed to stop containers: %v", err))
+		// Continue anyway - might be first deployment
+	}
+
+	// Step 2: Rebuild images to ensure code changes are included
+	stream.Info("Rebuilding images...")
 	serviceList := ""
 	for _, svc := range ec2Services {
 		serviceList += " " + svc
 	}
+	buildCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml build%s", workdir, serviceList)
+	if err := sshClient.RunCommand(stream, buildCmd); err != nil {
+		stream.Info(fmt.Sprintf("Warning: Image build completed with warnings (this is normal for pre-built images)"))
+	}
+
+	// Step 3: Start containers (volumes are preserved)
 	deployCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml up -d%s", workdir, serviceList)
 	if err := sshClient.RunCommand(stream, deployCmd); err != nil {
 		return fmt.Errorf("failed to deploy on EC2: %w", err)
@@ -886,6 +957,84 @@ func ensureDockerRunning(stream *events.Stream) error {
 	}
 
 	return fmt.Errorf("Docker is not running and auto-start is only supported on Windows")
+}
+
+// prepareGrafanaProvisioning generates Grafana provisioning files for All-in-one mode
+func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
+	// Use monitoring package's PrepareMonitoringStack
+	outputDir := filepath.Join(r.projectDir, "grafana")
+
+	// AllInOne mode: Prometheus is in the same Docker network
+	mode := monitoring.ModeAllInOne
+
+	stream.Info("Generating Grafana provisioning files...")
+	if err := monitoring.PrepareMonitoringStack(r.bundledPluginsDir, mode, outputDir); err != nil {
+		return fmt.Errorf("failed to prepare monitoring stack: %w", err)
+	}
+
+	// Find EC2 target for upload
+	var ec2Target stack.Target
+	var found bool
+	for _, svc := range r.stack.Services {
+		if target, exists := r.stack.Targets[svc.Target]; exists {
+			if target.Type == "ec2.ssh" || target.Type == "ec2" {
+				ec2Target = target
+				found = true
+				break
+			}
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("no EC2 target found for file upload")
+	}
+
+	// Create SSH client and upload
+	sshClient := NewSSHClient(ec2Target, r.projectDir)
+
+	// Ensure grafana directory exists with correct ownership before upload
+	stream.Info("Preparing grafana directory on EC2...")
+	remoteGrafanaDir := filepath.Join(ec2Target.Workdir, "grafana")
+	createDirCmd := fmt.Sprintf("mkdir -p %s/provisioning/datasources %s/provisioning/dashboards", remoteGrafanaDir, remoteGrafanaDir)
+	if err := sshClient.RunCommand(stream, createDirCmd); err != nil {
+		stream.Info(fmt.Sprintf("Warning: Failed to create grafana directories: %v", err))
+	}
+
+	// Fix ownership if needed (in case it was created by Docker as root)
+	chownCmd := fmt.Sprintf("sudo chown -R %s:%s %s", ec2Target.User, ec2Target.User, remoteGrafanaDir)
+	if err := sshClient.RunCommand(stream, chownCmd); err != nil {
+		stream.Info(fmt.Sprintf("Warning: Failed to fix grafana ownership: %v", err))
+	}
+
+	stream.Info("Uploading Grafana provisioning files to EC2...")
+	// Upload provisioning directory (outputDir/provisioning -> remoteGrafanaDir/provisioning)
+	localProvisioningDir := filepath.Join(outputDir, "provisioning")
+	remoteProvisioningDir := filepath.Join(remoteGrafanaDir, "provisioning")
+	if err := sshClient.UploadDirectory(stream, localProvisioningDir, remoteProvisioningDir); err != nil {
+		return fmt.Errorf("failed to upload grafana provisioning: %w", err)
+	}
+
+	// Fix permissions so Grafana container can read the files
+	stream.Info("Setting permissions for Grafana provisioning files...")
+	// Set permissions on all files and directories
+	chmodCmd := fmt.Sprintf("chmod -R 755 %s && chmod 755 %s/dashboards %s/datasources",
+		remoteProvisioningDir, remoteProvisioningDir, remoteProvisioningDir)
+	if err := sshClient.RunCommand(stream, chmodCmd); err != nil {
+		stream.Info(fmt.Sprintf("Warning: Failed to set permissions: %v", err))
+	}
+
+	// Restart Grafana container to reload provisioning files
+	stream.Info("Restarting Grafana to apply provisioning changes...")
+	restartCmd := fmt.Sprintf("cd %s && docker compose restart grafana", ec2Target.Workdir)
+	if err := sshClient.RunCommand(stream, restartCmd); err != nil {
+		stream.Info(fmt.Sprintf("Warning: Failed to restart Grafana: %v", err))
+		stream.Info("Note: You may need to restart Grafana manually for changes to take effect")
+	} else {
+		stream.Success("Grafana restarted successfully")
+	}
+
+	stream.Success("Grafana provisioning files uploaded to EC2")
+	return nil
 }
 
 // detectDeploymentMode determines the deployment mode for monitoring services
