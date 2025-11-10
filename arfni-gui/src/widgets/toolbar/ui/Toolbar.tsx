@@ -346,9 +346,8 @@ export function Toolbar() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-lg font-semibold">
-            ARFNI Canvas
             {currentProject && (
-              <span className="ml-2 text-sm text-gray-400">- {currentProject.name}</span>
+              <span className="ml-2 text-sm text-gray-400">{currentProject.name}</span>
             )}
           </h1>
         </div>
@@ -384,9 +383,11 @@ export function Toolbar() {
 
         {/* Right section */}
         <div className="flex items-center space-x-2">
-          <button onClick={() => setShowAIDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="AI">
-            <img src={aiLogo} alt="AI" className="w-4 h-4" />
-          </button>
+          {isEC2Project && (
+            <button onClick={() => setShowAIDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="AI">
+              <img src={aiLogo} alt="AI" className="w-4 h-4" />
+            </button>
+          )}
 
           <button onClick={() => setShowSettingsDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="설정">
             <Settings className="w-4 h-4" />

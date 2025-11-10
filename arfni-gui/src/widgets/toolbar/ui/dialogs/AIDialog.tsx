@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import rabbitImg from '../../../../assets/rabbit.png';
+import { BeatLoader } from 'react-spinners';
 
 interface AIDialogProps {
   show: boolean;
@@ -90,7 +91,7 @@ export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
       <div className="bg-white rounded-lg shadow-xl w-[900px] max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-2xl font-bold text-gray-800">AI</h2>
+          <h2 className="text-2xl font-bold text-gray-800">AI-powered server cost prediction</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -107,18 +108,10 @@ export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
           <div className="flex gap-6 mb-8">
             {/* Left side - Title and Form */}
             <div className="flex-1 space-y-6">
-              <h3 className="text-lg font-medium text-gray-800">
-                Which server should I use for this project structure?
-              </h3>
+              
 
               {/* Ask the Rabbit button */}
-              <button
-                onClick={handleAskRabbit}
-                disabled={loading}
-                className="w-full px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-lg font-semibold"
-              >
-                {loading ? 'Analyzing your project...' : 'Analyze Project & Recommend Server'}
-              </button>
+              
 
               <div className="text-sm text-gray-600 p-4 rounded-lg border border-gray-300 flex gap-4 items-center">
                 <div className="flex-1">
@@ -139,6 +132,21 @@ export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
                   />
                 </div>
               </div>
+
+              <button
+                onClick={handleAskRabbit}
+                disabled={loading}
+                className="w-full px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-lg font-semibold"
+              >
+                {loading ? 'Analyzing your project...' : 'Analyze Project & Recommend Server'}
+              </button>
+
+              {/* Loading spinner */}
+              {loading && (
+                <div className="flex justify-center py-4">
+                  <BeatLoader color="#3b82f6" size={15} />
+                </div>
+              )}
             </div>
           </div>
 

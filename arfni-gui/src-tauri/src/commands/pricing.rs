@@ -151,7 +151,7 @@ pub async fn estimate_cost(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Estimate command failed: {}", stderr));
+        return Err(format!("There are no blocks. Please drag and drop blocks. {}", stderr));
     }
 
     // Parse output

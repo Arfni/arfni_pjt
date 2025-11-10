@@ -101,6 +101,9 @@ fn main() {
       commands::plugin::clear_registry_cache,
       commands::plugin::get_cache_info,
       commands::plugin::read_plugin_template,
+      commands::plugin::list_bundled_plugins,
+      commands::plugin::read_bundled_plugin_manifest,
+      commands::plugin::read_plugin_icon,
       commands::plugin_check::list_targets,
       commands::plugin_check::read_plugins,
 

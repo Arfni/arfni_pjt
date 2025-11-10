@@ -194,7 +194,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
   };
 
   const handleUninstallPlugin = async (plugin: LoadedPlugin) => {
-    if (!confirm(`Are you sure you want to uninstall ${plugin.manifest.displayName}?`)) {
+    if (!confirm(`Are you sure you want to uninstall ${plugin.manifest.displayName || plugin.manifest.name}?`)) {
       return;
     }
 
@@ -424,26 +424,27 @@ function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
 
   useEffect(() => {
     const loadIconUrl = async () => {
-      if (isBundled) {
-        // Bundled plugins - use relative URL (works in both dev and production)
-        // Dev: Vite serves public folder at root
-        // Prod: Tauri serves bundled resources
-        setIconUrl(`/${plugin.iconPath}`);
-      } else {
-        // Installed plugins - use plugin.iconPath from pluginLoader
-        // iconPath format: "plugins/installed/framework/django/icon.png"
-        try {
-          const dataDir = await appDataDir();
-          // Remove 'plugins/' prefix and join with appDataDir
-          const relativePath = plugin.iconPath.replace(/^plugins\//, '');
-          const iconPath = await join(dataDir, relativePath);
-          const assetUrl = convertFileSrc(iconPath);
-          console.log(`Installed Plugin Icon: ${plugin.manifest.name}, Path: ${iconPath}, URL: ${assetUrl}`);
-          setIconUrl(assetUrl);
-        } catch (error) {
-          console.error(`Failed to load icon for ${plugin.manifest.name}:`, error);
-          setIconUrl(null);
-        }
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const pathParts = plugin.iconPath.split('/');
+
+        // Extract category and plugin name from path
+        // Bundled: plugins/bundled/framework/springboot -> framework/springboot
+        // Installed: plugins/installed/framework/django -> framework/django
+        const category = pathParts[2];
+        const pluginName = pathParts[3];
+        const pluginPath = `${category}/${pluginName}`;
+
+        const iconBytes = await invoke<number[]>('read_plugin_icon', {
+          pluginPath,
+          isBundled
+        });
+
+        const blob = new Blob([new Uint8Array(iconBytes)], { type: 'image/png' });
+        setIconUrl(URL.createObjectURL(blob));
+      } catch (error) {
+        console.error(`Failed to load plugin icon for ${plugin.manifest.name}:`, error);
+        setIconUrl(null);
       }
     };
 
@@ -462,7 +463,7 @@ function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
             )}
           </div>
           <div>
-            <h4 className="font-semibold text-gray-900">{plugin.manifest.displayName}</h4>
+            <h4 className="font-semibold text-gray-900">{plugin.manifest.displayName || plugin.manifest.name}</h4>
             <p className="text-xs text-gray-500">v{plugin.manifest.version}</p>
           </div>
         </div>

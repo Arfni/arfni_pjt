@@ -48,15 +48,30 @@ export function NodePalette() {
         try {
           let iconUrl: string;
 
+          // Load all plugins via Tauri command and create blob URL
+          const { invoke } = await import('@tauri-apps/api/core');
+          const pathParts = template.plugin.iconPath.split('/');
+
+          let pluginPath: string;
           if (template.plugin.isBundled) {
-            // Bundled plugins: use relative URL
-            iconUrl = `/${template.plugin.iconPath}`;
+            // Bundled: plugins/bundled/framework/springboot -> framework/springboot
+            const category = pathParts[2];
+            const pluginName = pathParts[3];
+            pluginPath = `${category}/${pluginName}`;
           } else {
-            // Installed plugins: load from app data directory using plugin.iconPath
-            const relativePath = template.plugin.iconPath.replace(/^plugins\//, '');
-            const iconPath = await join(dataDir, relativePath);
-            iconUrl = convertFileSrc(iconPath);
+            // Installed: plugins/installed/framework/django -> framework/django
+            const category = pathParts[2];
+            const pluginName = pathParts[3];
+            pluginPath = `${category}/${pluginName}`;
           }
+
+          const iconBytes = await invoke<number[]>('read_plugin_icon', {
+            pluginPath,
+            isBundled: template.plugin.isBundled
+          });
+
+          const blob = new Blob([new Uint8Array(iconBytes)], { type: 'image/png' });
+          iconUrl = URL.createObjectURL(blob);
 
           return { ...template, icon: iconUrl };
         } catch (error) {

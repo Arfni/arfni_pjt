@@ -140,22 +140,27 @@ class PluginService {
 
   private async loadBundledPlugin(pluginPath: string): Promise<void> {
     try {
-      const manifestPath = `${pluginPath}/plugin.yaml`;
+      const { invoke } = await import('@tauri-apps/api/core');
 
-      // Read plugin.yaml from public folder
-      const response = await fetch(`/${manifestPath}`);
-      if (!response.ok) {
-        console.warn(`Plugin manifest not found: ${manifestPath}`);
-        return;
-      }
+      // Extract category and plugin name from path
+      // pluginPath format: "plugins/bundled/framework/springboot"
+      const pathParts = pluginPath.split('/');
+      const category = pathParts[2]; // "framework"
+      const pluginName = pathParts[3]; // "springboot"
+      const relativePluginPath = `${category}/${pluginName}`;
 
-      const manifestContent = await response.text();
+      // Read plugin.yaml using Tauri command
+      const manifestContent = await invoke<string>('read_bundled_plugin_manifest', {
+        pluginPath: relativePluginPath
+      });
+
       const manifest = yaml.load(manifestContent) as PluginManifest;
 
       if (!manifest.name || !manifest.contributes?.canvas) {
         return;
       }
 
+      // Icon path - will be loaded separately using Tauri command in UI components
       const iconPath = `${pluginPath}/icon.png`;
 
       const plugin: LoadedPlugin = {
@@ -172,33 +177,20 @@ class PluginService {
   }
 
   private async listBundledPlugins(categoryPath: string): Promise<string[]> {
-    // Try to discover plugins by attempting to fetch common plugin names
-    // This approach tries to load plugins and returns those that exist
-    const category = categoryPath.split('/').pop();
-    const commonPluginNames: Record<string, string[]> = {
-      'database': ['postgresql', 'mysql', 'mongodb', 'mariadb', 'sqlite'],
-      'framework': ['react', 'nextjs', 'springboot', 'nodejs', 'fastapi', 'flask', 'django', 'vue', 'angular'],
-      'cache': ['redis', 'memcached'],
-      'monitoring': ['prometheus', 'grafana', 'node-exporter', 'loki']
-    };
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const category = categoryPath.split('/').pop();
 
-    const candidateNames = commonPluginNames[category || ''] || [];
-    const existingPlugins: string[] = [];
+      // Use Tauri command to list bundled plugins
+      const plugins = await invoke<string[]>('list_bundled_plugins', {
+        category: category || ''
+      });
 
-    // Test each candidate to see if it exists
-    for (const name of candidateNames) {
-      try {
-        const testPath = `/${categoryPath}/${name}/plugin.yaml`;
-        const response = await fetch(testPath);
-        if (response.ok) {
-          existingPlugins.push(name);
-        }
-      } catch {
-        // Plugin doesn't exist, skip
-      }
+      return plugins;
+    } catch (error) {
+      console.error(`Error listing bundled plugins for ${categoryPath}:`, error);
+      return [];
     }
-
-    return existingPlugins;
   }
 
   private async loadUserPlugins(): Promise<void> {
@@ -306,7 +298,7 @@ class PluginService {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         frameworkYaml = await invoke<string>('read_plugin_template', {
-          pluginPath: `${category}/${pluginName}`,
+          pluginPath: `bundled/${category}/${pluginName}`,
           templatePath: frameworkPath
         });
       } catch (localError) {
@@ -376,8 +368,19 @@ class PluginService {
    * Get property form definition for a specific service type from plugins
    */
   getPropertyForm(serviceType: string): any[] | null {
-    const plugin = this.plugins.get(serviceType);
-    if (!plugin) return null;
+    // Try direct lookup by service type (plugin name)
+    let plugin = this.plugins.get(serviceType);
+
+    // Fallback: lookup by nodeType (handles spring/springboot mismatch)
+    if (!plugin) {
+      const template = this.nodeTemplates.find(t => t.type === serviceType);
+      plugin = template?.plugin;
+    }
+
+    if (!plugin) {
+      console.warn(`No plugin found for service type: ${serviceType}`);
+      return null;
+    }
 
     // Convert plugin.manifest.inputs to propertyForm format
     if (plugin.manifest.inputs) {

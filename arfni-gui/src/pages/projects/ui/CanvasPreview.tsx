@@ -1,37 +1,71 @@
+import { useState, useEffect } from 'react';
 import { CanvasNode, CanvasEdge } from '@shared/api/tauri/commands';
+import { pluginService } from '@services/pluginLoader';
 
 interface CanvasPreviewProps {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
 }
 
-// 기술 스택별 아이콘 경로를 반환하는 함수
-const getIconPath = (tech: string): string | null => {
-  const iconMap: Record<string, string> = {
-    // Frameworks
-    react: '/plugins/bundled/framework/react/icon.png',
-    spring: '/plugins/bundled/framework/springboot/icon.png',
-    springboot: '/plugins/bundled/framework/springboot/icon.png',
-    fastapi: '/plugins/bundled/framework/fastapi/icon.png',
-    flask: '/plugins/bundled/framework/flask/icon.png',
-    nodejs: '/plugins/bundled/framework/nodejs/icon.png',
-    nextjs: '/plugins/bundled/framework/nextjs/icon.png',
-
-    // Databases
-    postgres: '/plugins/bundled/database/postgresql/icon.png',
-    postgresql: '/plugins/bundled/database/postgresql/icon.png',
-    mysql: '/plugins/bundled/database/mysql/icon.png',
-    mongodb: '/plugins/bundled/database/mongodb/icon.png',
-
-    // Cache
-    redis: '/plugins/bundled/cache/redis/icon.png',
-  };
-
-  const normalizedTech = tech?.toLowerCase();
-  return iconMap[normalizedTech] || null;
-};
-
 export function CanvasPreview({ nodes, edges }: CanvasPreviewProps) {
+  const [iconUrls, setIconUrls] = useState<Record<string, string>>({});
+
+  // Load icons for all nodes using pluginService
+  useEffect(() => {
+    const loadIcons = async () => {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const urls: Record<string, string> = {};
+
+      // Load plugins first
+      await pluginService.loadPlugins();
+
+      for (const node of nodes) {
+        let techStack = '';
+        if (node.node_type === 'service' && node.data?.serviceType) {
+          techStack = node.data.serviceType;
+        } else if (node.node_type === 'database' && node.data?.type) {
+          techStack = node.data.type;
+        }
+
+        if (techStack) {
+          // Get plugin from pluginService by nodeType
+          const plugin = pluginService.getPluginByNodeType(techStack);
+
+          if (plugin && plugin.iconPath) {
+            try {
+              // Extract category and plugin name from iconPath
+              // e.g., "plugins/bundled/framework/springboot/icon.png" -> framework/springboot
+              // e.g., "plugins/installed/framework/django/icon.png" -> framework/django
+              const pathParts = plugin.iconPath.split('/');
+              const category = pathParts[2];
+              const pluginName = pathParts[3];
+
+              const iconBytes = await invoke<number[]>('read_plugin_icon', {
+                pluginPath: `${category}/${pluginName}`,
+                isBundled: plugin.isBundled
+              });
+              const blob = new Blob([new Uint8Array(iconBytes)], { type: 'image/png' });
+              urls[techStack] = URL.createObjectURL(blob);
+            } catch (error) {
+              console.error(`Failed to load icon for ${techStack}:`, error);
+            }
+          }
+        }
+      }
+
+      setIconUrls(urls);
+    };
+
+    if (nodes && nodes.length > 0) {
+      loadIcons();
+    }
+
+    // Cleanup blob URLs on unmount
+    return () => {
+      Object.values(iconUrls).forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [nodes]);
+
   if (!nodes || nodes.length === 0) {
     return null;
   }
@@ -87,7 +121,7 @@ export function CanvasPreview({ nodes, edges }: CanvasPreviewProps) {
           techStack = node.data.type;
         }
 
-        const iconPath = techStack ? getIconPath(techStack) : null;
+        const iconUrl = techStack ? iconUrls[techStack] : null;
 
         return (
           <g key={node.id}>
@@ -130,9 +164,9 @@ export function CanvasPreview({ nodes, edges }: CanvasPreviewProps) {
             />
 
             {/* 아이콘 이미지 - 중앙 정렬 */}
-            {iconPath && (
+            {iconUrl && (
               <image
-                href={iconPath}
+                href={iconUrl}
                 x={node.position.x + (nodeWidth - 48) / 2}
                 y={node.position.y + (nodeHeight - 48 - 30) / 2 + 4}
                 width="48"
