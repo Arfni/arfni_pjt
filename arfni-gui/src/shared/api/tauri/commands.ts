@@ -310,6 +310,13 @@ export const eventListeners = {
     });
   },
 
+  // 배포 초기화 이벤트 (컨테이너 목록)
+  onDeploymentInit: (callback: (payload: { services: string[] }) => void) => {
+    return listen<{ services: string[] }>('deployment-init', (event) => {
+      callback(event.payload);
+    });
+  },
+
   // 배포 완료 이벤트
   onDeploymentCompleted: (callback: (payload: DeploymentStatus) => void) => {
     return listen<DeploymentStatus>('deployment-completed', (event) => {
@@ -320,6 +327,13 @@ export const eventListeners = {
   // 배포 실패 이벤트
   onDeploymentFailed: (callback: (payload: DeploymentStatus) => void) => {
     return listen<DeploymentStatus>('deployment-failed', (event) => {
+      callback(event.payload);
+    });
+  },
+
+  // 배포 중단 이벤트
+  onDeploymentStopped: (callback: (payload: DeploymentStatus) => void) => {
+    return listen<DeploymentStatus>('deployment-stopped', (event) => {
       callback(event.payload);
     });
   },

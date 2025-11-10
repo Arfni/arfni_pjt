@@ -3,8 +3,9 @@ use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
 use tauri::{AppHandle, Manager, Emitter};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::collections::HashMap;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -24,8 +25,25 @@ pub struct DeploymentStatus {
     pub outputs: Option<serde_json::Value>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct DeploymentInit {
+    pub services: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StackYaml {
+    services: Option<HashMap<String, serde_json::Value>>,
+}
+
 // 배포 프로세스 관리를 위한 전역 상태
 static DEPLOYMENT_RUNNING: AtomicBool = AtomicBool::new(false);
+
+// 배포 프로세스 PID 저장
+static DEPLOYMENT_PROCESS_PID: OnceLock<Arc<Mutex<Option<u32>>>> = OnceLock::new();
+
+fn get_deployment_pid() -> &'static Arc<Mutex<Option<u32>>> {
+    DEPLOYMENT_PROCESS_PID.get_or_init(|| Arc::new(Mutex::new(None)))
+}
 
 /// stack.yaml 검증
 #[tauri::command]
@@ -82,6 +100,53 @@ pub async fn deploy_stack(
         message: Some("배포를 시작합니다...".to_string()),
         outputs: None,
     }).unwrap_or(());
+
+    // stack.yaml 파싱하여 서비스 목록 추출
+    let services = match std::fs::read_to_string(&stack_yaml_path) {
+        Ok(yaml_content) => {
+            match serde_yaml::from_str::<StackYaml>(&yaml_content) {
+                Ok(stack) => {
+                    if let Some(services_map) = stack.services {
+                        services_map.keys().cloned().collect::<Vec<String>>()
+                    } else {
+                        Vec::new()
+                    }
+                }
+                Err(e) => {
+                    app.emit("deployment-log", DeploymentLog {
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        level: "warning".to_string(),
+                        message: format!("⚠️ YAML 파싱 실패: {}", e),
+                        data: None,
+                    }).unwrap_or(());
+                    Vec::new()
+                }
+            }
+        }
+        Err(e) => {
+            app.emit("deployment-log", DeploymentLog {
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                level: "warning".to_string(),
+                message: format!("⚠️ YAML 파일 읽기 실패: {}", e),
+                data: None,
+            }).unwrap_or(());
+            Vec::new()
+        }
+    };
+
+    // 서비스 목록 전송
+    if !services.is_empty() {
+        app.emit("deployment-init", DeploymentInit {
+            services: services.clone(),
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: format!("🔨 Found {} service(s): {}", services.len(), services.join(", ")),
+            data: None,
+        }).unwrap_or(());
+    }
 
     // 새 스레드에서 배포 실행
     let app_clone = app.clone();
@@ -273,6 +338,12 @@ pub async fn deploy_stack(
 
         match cmd {
             Ok(mut child) => {
+                // 프로세스 PID 저장 (stop_deployment에서 사용)
+                let pid = child.id();
+                if let Ok(mut pid_guard) = get_deployment_pid().lock() {
+                    *pid_guard = Some(pid);
+                }
+
                 // stdout과 stderr를 동시에 읽기 위해 스레드 사용
                 let stdout = child.stdout.take();
                 let stderr = child.stderr.take();
@@ -287,6 +358,11 @@ pub async fn deploy_stack(
                     std::thread::spawn(move || {
                         let reader = BufReader::new(stdout);
                         for line in reader.lines() {
+                            // 배포 중단 플래그 확인
+                            if !DEPLOYMENT_RUNNING.load(Ordering::SeqCst) {
+                                break;
+                            }
+
                             if let Ok(line) = line {
                                 // __OUTPUTS__ 파싱
                                 if line.contains("__OUTPUTS__") {
@@ -323,6 +399,11 @@ pub async fn deploy_stack(
                     std::thread::spawn(move || {
                         let reader = BufReader::new(stderr);
                         for line in reader.lines() {
+                            // 배포 중단 플래그 확인
+                            if !DEPLOYMENT_RUNNING.load(Ordering::SeqCst) {
+                                break;
+                            }
+
                             if let Ok(line) = line {
                                 // stderr는 에러 레벨로 처리
                                 app_clone_stderr.emit("deployment-log", DeploymentLog {
@@ -361,19 +442,27 @@ pub async fn deploy_stack(
                                 outputs: final_outputs,
                             }).unwrap_or(());
                         } else {
-                            app_clone.emit("deployment-failed", DeploymentStatus {
-                                status: "failed".to_string(),
-                                message: Some(format!("배포 실패: 종료 코드 {}", status.code().unwrap_or(-1))),
-                                outputs: None,
-                            }).unwrap_or(());
+                            // 플래그 확인: false면 사용자가 중지한 것이므로 failed 이벤트 발신하지 않음
+                            if DEPLOYMENT_RUNNING.load(Ordering::SeqCst) {
+                                // 실제 배포 실패
+                                app_clone.emit("deployment-failed", DeploymentStatus {
+                                    status: "failed".to_string(),
+                                    message: Some(format!("배포 실패: 종료 코드 {}", status.code().unwrap_or(-1))),
+                                    outputs: None,
+                                }).unwrap_or(());
+                            }
+                            // 플래그가 false면 이미 deployment-stopped 이벤트가 발신되었으므로 아무것도 하지 않음
                         }
                     }
                     Err(e) => {
-                        app_clone.emit("deployment-failed", DeploymentStatus {
-                            status: "failed".to_string(),
-                            message: Some(format!("배포 프로세스 오류: {}", e)),
-                            outputs: None,
-                        }).unwrap_or(());
+                        // 플래그 확인: false면 사용자가 중지한 것이므로 failed 이벤트 발신하지 않음
+                        if DEPLOYMENT_RUNNING.load(Ordering::SeqCst) {
+                            app_clone.emit("deployment-failed", DeploymentStatus {
+                                status: "failed".to_string(),
+                                message: Some(format!("배포 프로세스 오류: {}", e)),
+                                outputs: None,
+                            }).unwrap_or(());
+                        }
                     }
                 }
             }
@@ -386,8 +475,11 @@ pub async fn deploy_stack(
             }
         }
 
-        // 배포 종료 플래그 해제
+        // 배포 종료 플래그 및 PID 클리어
         DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+        if let Ok(mut pid_guard) = get_deployment_pid().lock() {
+            *pid_guard = None;
+        }
     });
 
     Ok(DeploymentStatus {
@@ -399,9 +491,82 @@ pub async fn deploy_stack(
 
 /// 배포 중단
 #[tauri::command]
-pub fn stop_deployment() -> Result<(), String> {
-    // TODO: 실제 프로세스 종료 구현
+pub fn stop_deployment(app: AppHandle) -> Result<(), String> {
+    // 플래그 설정 (배포 스레드가 이를 확인하고 중단할 수 있도록)
     DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+
+    let mut process_killed = false;
+    let mut kill_error: Option<String> = None;
+
+    // 저장된 PID로 프로세스 종료 시도
+    if let Ok(mut pid_guard) = get_deployment_pid().lock() {
+        if let Some(pid) = pid_guard.take() {
+            // 플랫폼별 프로세스 종료
+            #[cfg(target_os = "windows")]
+            {
+                use std::process::Command;
+                // Windows에서는 taskkill 사용
+                let result = Command::new("taskkill")
+                    .args(&["/F", "/PID", &pid.to_string()])
+                    .output();
+
+                match result {
+                    Ok(output) => {
+                        if output.status.success() {
+                            process_killed = true;
+                        } else {
+                            kill_error = Some(format!("taskkill 실패: {}",
+                                String::from_utf8_lossy(&output.stderr)));
+                        }
+                    }
+                    Err(e) => {
+                        kill_error = Some(format!("프로세스 종료 명령 실패: {}", e));
+                    }
+                }
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            {
+                // Unix 계열에서는 kill 시스템 콜 사용
+                use nix::sys::signal::{self, Signal};
+                use nix::unistd::Pid;
+
+                match signal::kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
+                    Ok(_) => {
+                        process_killed = true;
+                    }
+                    Err(e) => {
+                        kill_error = Some(format!("프로세스 종료 실패: {}", e));
+                    }
+                }
+            }
+        }
+    }
+
+    // 중지 로그 메시지 발신
+    app.emit("deployment-log", DeploymentLog {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: "warning".to_string(),
+        message: "🛑 Deployment stopped by user".to_string(),
+        data: None,
+    }).unwrap_or(());
+
+    // 프로세스 종료 성공 여부와 상관없이 항상 중단 이벤트 발생
+    // (플래그가 false로 설정되었으므로 배포 스레드가 중단될 것임)
+    let message = if process_killed {
+        "사용자가 배포를 중단했습니다".to_string()
+    } else if let Some(err) = kill_error {
+        format!("배포 중단 요청됨 (프로세스 종료 시도 중 오류: {})", err)
+    } else {
+        "배포 중단 요청됨 (프로세스 정보 없음, 플래그로 중단 시도)".to_string()
+    };
+
+    app.emit("deployment-stopped", DeploymentStatus {
+        status: "stopped".to_string(),
+        message: Some(message),
+        outputs: None,
+    }).unwrap_or(());
+
     Ok(())
 }
 

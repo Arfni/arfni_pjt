@@ -15,13 +15,16 @@ export function ExportSuccessNotification({
   if (!show) return null;
 
   return (
-    <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl">
+    <div className="fixed top-28 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl">
       <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center justify-between">
         <div className="flex items-center gap-3">
           <CheckCircle className="w-6 h-6" />
           <span className="font-medium text-lg">Success Export!</span>
           <button
-            onClick={onOpenFolder}
+            onClick={() => {
+              onOpenFolder();
+              onClose();
+            }}
             className="ml-4 underline hover:text-green-100 transition-colors font-medium"
           >
             Click here to show save folder.

@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-export type DeploymentStatus = 'idle' | 'deploying' | 'success' | 'failed';
-export type DeploymentStage = 'prepare' | 'generate' | 'build' | 'start' | 'post-process' | 'health-check';
+export type DeploymentStatus = 'idle' | 'deploying' | 'success' | 'failed' | 'stopped';
+export type DeploymentStage = 'prepare' | 'generate' | 'build' | 'start' | 'post-process';
 
 export interface DeploymentLog {
   timestamp: string;
@@ -17,6 +17,11 @@ export interface DeploymentEndpoint {
   note?: string;
 }
 
+export interface DeploymentContainer {
+  name: string;
+  status: 'pending' | 'success' | 'failed';
+}
+
 export interface DeploymentState {
   status: DeploymentStatus;
   currentStage: DeploymentStage | null;
@@ -25,6 +30,9 @@ export interface DeploymentState {
   startTime: string | null;
   endTime: string | null;
   error: string | null;
+
+  // 배포 컨테이너 정보
+  containers: DeploymentContainer[];
 
   // 배포 결과 정보
   endpoints: DeploymentEndpoint[];
@@ -41,6 +49,7 @@ const initialState: DeploymentState = {
   startTime: null,
   endTime: null,
   error: null,
+  containers: [],
   endpoints: [],
   serviceCount: 0,
   containerCount: 0,
@@ -60,10 +69,19 @@ const deploymentSlice = createSlice({
       state.startTime = new Date().toISOString();
       state.endTime = null;
       state.error = null;
+      state.containers = [];
       state.endpoints = [];
       state.serviceCount = 0;
       state.containerCount = 0;
       state.composeDir = null;
+    },
+
+    // 컨테이너 목록 설정
+    setContainers: (state, action: PayloadAction<string[]>) => {
+      state.containers = action.payload.map(name => ({
+        name,
+        status: 'pending' as const,
+      }));
     },
 
     // 로그 추가
@@ -95,7 +113,7 @@ const deploymentSlice = createSlice({
         if (!state.completedStages.includes('start')) {
           state.completedStages.push('start');
         }
-        state.currentStage = 'health-check';
+        state.currentStage = 'post-process';
       }
     },
 
@@ -123,12 +141,19 @@ const deploymentSlice = createSlice({
       state.endTime = new Date().toISOString();
 
       // 모든 단계 완료 표시
-      const allStages: DeploymentStage[] = ['prepare', 'generate', 'build', 'start', 'post-process', 'health-check'];
+      const allStages: DeploymentStage[] = ['prepare', 'generate', 'build', 'start', 'post-process'];
       state.completedStages = allStages;
 
       // 결과 정보 저장
       if (action.payload.endpoints) {
         state.endpoints = action.payload.endpoints;
+
+        // 컨테이너 상태 업데이트: endpoints에 있으면 success, 없으면 failed
+        const endpointNames = new Set(action.payload.endpoints.map(e => e.name));
+        state.containers = state.containers.map(container => ({
+          ...container,
+          status: endpointNames.has(container.name) ? 'success' as const : 'failed' as const,
+        }));
       }
       if (action.payload.serviceCount !== undefined) {
         state.serviceCount = action.payload.serviceCount;
@@ -144,9 +169,22 @@ const deploymentSlice = createSlice({
     // 배포 실패
     deploymentFailed: (state, action: PayloadAction<string>) => {
       state.status = 'failed';
-      state.currentStage = null;
+      // currentStage는 유지하여 어느 단계에서 실패했는지 표시
       state.endTime = new Date().toISOString();
       state.error = action.payload;
+      // 모든 컨테이너를 실패 상태로 표시
+      state.containers = state.containers.map(container => ({
+        ...container,
+        status: 'failed' as const,
+      }));
+    },
+
+    // 배포 중단
+    deploymentStopped: (state) => {
+      state.status = 'stopped';
+      // currentStage는 유지하여 어느 단계에서 중지되었는지 표시
+      state.endTime = new Date().toISOString();
+      state.error = null; // 중지는 에러가 아니므로 null
     },
 
     // 배포 초기화
@@ -163,11 +201,13 @@ const deploymentSlice = createSlice({
 
 export const {
   startDeployment,
+  setContainers,
   addLog,
   setCurrentStage,
   completeStage,
   deploymentSuccess,
   deploymentFailed,
+  deploymentStopped,
   resetDeployment,
   clearLogs,
 } = deploymentSlice.actions;
@@ -199,3 +239,5 @@ export const selectDeploymentStats = (state: { deployment: DeploymentState }) =>
   containerCount: state.deployment.containerCount,
   composeDir: state.deployment.composeDir,
 });
+export const selectDeploymentContainers = (state: { deployment: DeploymentState }) =>
+  state.deployment.containers;

@@ -21,7 +21,6 @@ export function ExportDialog({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl p-8 w-[500px]">
         <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Export Image</h2>
-
         <div className="mb-6">
           <h3 className="text-xl font-semibold text-gray-700 mb-4">File Format</h3>
           <div className="flex gap-2">
@@ -57,6 +56,8 @@ export function ExportDialog({
             </button>
           </div>
         </div>
+
+        <div className="text-sm font-bold text-red-600 mb-6">* It will be captured according to the minimap. Please check that all blocks are included in the minimap before exporting.</div>
 
         <div className="flex gap-3 justify-end">
           <button
