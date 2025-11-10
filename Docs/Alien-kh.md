@@ -408,6 +408,204 @@
     - 수정: RUN npm install
     - 이유: Vite 빌드 시 devDependencies 필요 (vite, @vitejs/plugin-react 등)
 
+## 2025-11-09
+
+### 1. Docker 네트워크 자동 정리
+**파일**: `arfni-gui/src-tauri/src/commands/monitoring.rs:529-548`
+
+**수정 내용**:
+- `stop_monitoring_stack` 함수에 `docker network prune -f` 추가
+- 모니터링 중지 시 사용하지 않는 Docker 네트워크 자동 정리
+
+**이유**:
+- 반복적인 모니터링 시작/중지로 Docker 네트워크가 누적되어 발생하는 "all predefined address pools have been fully subnetted" 에러 방지
+
+**코드**:
+```rust
+// 3. Docker 네트워크 정리
+let mut prune_cmd = Command::new("docker");
+prune_cmd.args(&["network", "prune", "-f"]);
+match prune_cmd.output() {
+    Ok(output) => println!("Network prune output: ..."),
+    Err(e) => println!("Failed to prune networks: {}", e),
+}
+```
+
+---
+
+### 2. 배포 모드별 모니터링 서비스 필터링
+**파일**: `BE/arfni/internal/core/workflow/runner.go`
+
+**수정 내용**:
+- `detectDeploymentMode()` 함수 추가 (lines 891-934)
+  - Hybrid: Grafana local, Prometheus EC2
+  - All-in-one: 둘 다 EC2
+  - Local: 둘 다 local
+- `deployContainersLocal()`: Hybrid/Local 모드에서 Prometheus, Grafana 배포 스킵 (lines 553-560)
+- `healthChecks()`: 배포되지 않은 모니터링 서비스는 헬스체크에서 제외 (lines 686-691)
+
+**이유**:
+- Hybrid/Local 모드에서는 Deploy 시 애플리케이션만 배포하고, 모니터링은 "Monitoring Logs" 기능을 통해 별도 시작
+- Deploy와 Monitoring 관심사 분리
+
+**Hybrid 모드에서 Grafana를 Deploy에서 안 여는 이유**:
+사용자가 필요시 "Monitoring Logs"에서 수동으로 모니터링을 켜도록 하여, 배포와 모니터링 기능을 분리했습니다.
+
+---
+
+### 3. Docker Desktop 시작 로직 최적화
+**파일**: `BE/arfni/internal/core/workflow/runner.go:571-576`
+
+**수정 내용**:
+- Docker Desktop 시작 로직을 local 서비스 존재 여부 확인 **이후**로 이동
+- 배포할 local 서비스가 실제로 있을 때만 Docker Desktop 시작
+
+**변경 전**:
+```go
+// 무조건 Docker Desktop 시작 시도
+if err := ensureDockerRunning(stream); err != nil {
+    return err
+}
+// 그 다음에 local 서비스 체크
+if len(localServices) == 0 {
+    return nil
+}
+```
+
+**변경 후**:
+```go
+// 먼저 local 서비스 체크
+if len(localServices) == 0 {
+    return nil
+}
+// local 서비스가 있을 때만 Docker Desktop 시작
+if err := ensureDockerRunning(stream); err != nil {
+    return err
+}
+```
+
+**효과**:
+- Hybrid 모드에서 모든 앱 서비스가 EC2에 있고 Grafana만 local인 경우 → Docker Desktop 불필요 (Deploy에서 Grafana 스킵)
+- All-in-one 모드 → Docker Desktop 불필요
+- Local 서비스가 실제로 있을 때만 Docker Desktop 시작
+
+---
+
+### 4. 배포 완료 시 모니터링 엔드포인트 상태 표시
+**파일**:
+- `BE/arfni/internal/core/workflow/outputs.go`
+- `arfni-gui/src/features/deployment/model/deploymentSlice.ts`
+- `arfni-gui/src/pages/deployment/ui/DeploymentPage.tsx`
+
+**수정 내용**:
+
+**백엔드 (outputs.go)**:
+- `OutputEndpoint` 구조체에 `Status`, `Note` 필드 추가
+- `detectDeploymentModeForOutputs()` 함수로 배포 모드 감지
+- Hybrid/Local 모드에서 Grafana/Prometheus는 `status: "pending"`, `note: "Start monitoring via 'Monitoring Logs' to use this endpoint"` 설정
+
+**프론트엔드**:
+- TypeScript 인터페이스에 `status?`, `note?` 필드 추가
+- JSON 파싱 시 `status`, `note` 필드 읽기
+- UI에서 `pending` 상태는 회색으로 표시하고 클릭 비활성화
+- `note`가 있으면 노란색 경고 메시지로 표시
+
+**코드 (outputs.go)**:
+```go
+// Check if this is a monitoring service in Hybrid/Local mode
+status := "ready"
+note := ""
+if endpointType == "monitoring" && (deploymentMode == "hybrid" || deploymentMode == "local") {
+    if name == "prometheus" || name == "grafana" {
+        status = "pending"
+        note = "Start monitoring via 'Monitoring Logs' to use this endpoint"
+    }
+}
+```
+
+**효과**:
+- 배포 완료 시 Grafana/Prometheus URL은 표시되지만, Hybrid/Local 모드에서는 "모니터링 시작 후 사용 가능" 안내 메시지와 함께 비활성 상태로 표시
+- 사용자가 아직 실행되지 않은 모니터링 서비스에 접속하려다 실패하는 상황 방지
+
+---
+
+## 요약
+1. 모니터링 중지 시 Docker 네트워크 자동 정리로 네트워크 고갈 문제 해결
+2. 배포 모드에 따라 모니터링 서비스 배포 여부 결정 (관심사 분리)
+3. 불필요한 Docker Desktop 시작 방지 (리소스 최적화)
+4. 배포 완료 화면에서 모니터링 엔드포인트 상태를 명확히 표시하여 사용자 혼란 방지
 
 
+# 2025.11.10
+  1. All-in-one 모드 모니터링 시스템 구현
+
+  1.1 Grafana Provisioning 자동화
+  - BE/arfni/internal/core/workflow/runner.go (lines 904-978):
+    - prepareGrafanaProvisioning 함수 구현
+    - All-in-one 모드 감지 시 자동 실행
+    - Grafana provisioning 파일 생성 (datasource.yml, dashboard.yml, dashboard.json)
+    - EC2로 파일 업로드 및 권한 설정 (chmod -R 755)
+    - Grafana 컨테이너 자동 재시작
+  - BE/arfni/internal/core/monitoring/generator.go (lines 250-271):
+    - PrepareMonitoringStack 함수 수정
+    - All-in-one 모드에서 docker-compose.yml 생성 스킵
+    - Provisioning 파일만 생성하도록 로직 분리
+
+  1.2 SSH 파일 업로드 로직 개선
+  - BE/arfni/internal/core/workflow/ssh.go (lines 62-109):
+    - UploadDirectory 함수 재구현
+    - 디렉토리 내 파일 개별 업로드 방식으로 변경
+    - 중첩 디렉토리 구조 유지
+    - 권한 문제 해결 (scp 기본 권한 700 → 명시적 755 설정)
+
+  1.3 SSH 터널 기능 (All-in-one 모드)
+  - arfni-gui/src-tauri/src/commands/monitoring.rs (lines 150-250):
+    - start_monitoring_with_tunnel 함수 구현
+    - stack.yaml 파싱하여 배포 모드 자동 감지
+    - All-in-one 모드: SSH 터널 생성 (EC2:9090→localhost:9091, EC2:3000→localhost:3000)
+    - Hybrid/Local 모드: 기존 로직 유지
+
+  2. 재배포 로직 최적화
+
+  2.1 배포 전략 개선
+  - BE/arfni/internal/core/workflow/runner.go:
+    - deployContainersEC2 (lines 672-722): EC2 배포 로직
+    - deployContainersLocal (lines 591-665): 로컬 배포 로직
+    - 3단계 배포: down --remove-orphans → build → up -d
+    - 기존 방식 대비 장점:
+      - Orphan 컨테이너 자동 정리 (포트 충돌 방지)
+      - 이미지 자동 재빌드 (코드 변경 감지)
+      - Named Volume 보존 (DB 데이터 유지)
+
+  2.2 Docker 빌드 단계 추가
+  - deployContainersEC2 (lines 703-712):
+    - docker compose build 명령 추가
+    - 사전 빌드된 이미지(MySQL, Prometheus) 경고 무시 처리
+  - deployContainersLocal (lines 611-631):
+    - 로컬 환경 동일 로직 적용
+
+  3. Prometheus 데이터 영구 보존
+
+  3.1 플러그인 설정 개선
+  - arfni-gui/public/plugins/bundled/monitoring/prometheus/plugin.yaml (lines 22-33):
+    - Named Volume 추가: prometheus-data → /prometheus
+    - Retention 정책 설정:
+      - --storage.tsdb.retention.time=30d (30일)
+      - --storage.tsdb.retention.size=5GB (최대 5GB)
+    - 효과:
+      - 재배포 시 메트릭 데이터 유지
+      - 디스크 무한정 증가 방지
+      - 자동 데이터 정리
+
+  4. 트러블슈팅
+
+  4.1 Grafana Provisioning 권한 문제
+  - 증상: "permission denied" 에러로 datasource/dashboard 로드 실패
+  - 원인: scp가 디렉토리를 700 권한으로 생성
+  - 해결: 업로드 후 chmod 755 명령 추가 (runner.go lines 960-966)
+
+  4.2 SSH 터널 포트 충돌
+  - 증상: "Bind for 0.0.0.0:3000 failed: port is already allocated"
+  - 원인: 이전 배포의 컨테이너가 실행 중
+  - 해결: down --remove-orphans 플래그로 기존 컨테이너 정리
 
