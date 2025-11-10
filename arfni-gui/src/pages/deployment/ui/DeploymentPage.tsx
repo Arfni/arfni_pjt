@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import * as yaml from 'js-yaml';
 import {
   selectDeploymentStatus,
   selectCurrentStage,
@@ -10,6 +11,7 @@ import {
   selectDeploymentDuration,
   selectDeploymentEndpoints,
   selectDeploymentStats,
+  selectDeploymentContainers,
   addLog,
   deploymentSuccess,
   deploymentFailed,
@@ -17,14 +19,32 @@ import {
   DeploymentStage,
   startDeployment,
   resetDeployment,
+  setContainers,
+  DeploymentContainer,
 } from '@features/deployment/model/deploymentSlice';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
-import { eventListeners, deploymentCommands, ec2ServerCommands, EC2Server } from '@shared/api/tauri/commands';
+import { eventListeners, deploymentCommands, ec2ServerCommands, EC2Server, projectCommands } from '@shared/api/tauri/commands';
 import { SuccessModal } from './SuccessModal';
 import { FailedModal } from './FailedModal';
 import { LogsView } from './LogsView';
 import { ContainersView } from './ContainersView';
 import { ProgressBar } from './ProgressBar';
+
+interface StackYaml {
+  apiVersion: string;
+  name: string;
+  targets?: Record<string, any>;
+  services: Record<string, {
+    kind: string;
+    target?: string;
+    spec: {
+      image?: string;
+      build?: string;
+      ports?: string[];
+      [key: string]: any;
+    };
+  }>;
+}
 
 const STAGES: { id: DeploymentStage; label: string; description: string }[] = [
   { id: 'prepare', label: 'Preflight', description: 'Preflight checks...' },
@@ -46,6 +66,7 @@ export function DeploymentPage() {
   const duration = useSelector(selectDeploymentDuration);
   const endpoints = useSelector(selectDeploymentEndpoints);
   const stats = useSelector(selectDeploymentStats);
+  const containers = useSelector(selectDeploymentContainers);
 
   const [activeTab] = useState<'log' | 'canvas'>('log');
   const [activeLogTab, setActiveLogTab] = useState<'containers' | 'logs'>('logs');
@@ -54,6 +75,46 @@ export function DeploymentPage() {
   const [showFailedModal, setShowFailedModal] = useState(false);
   const [ec2Server, setEc2Server] = useState<EC2Server | null>(null);
   const [isStopping, setIsStopping] = useState(false);
+
+  // Load containers from stack.yaml
+  const loadContainersFromStack = async () => {
+    if (!currentProject?.path) {
+      console.log('No current project path');
+      return;
+    }
+
+    try {
+      console.log('Loading containers from:', currentProject.path);
+      const yamlContent = await projectCommands.readStackYaml(currentProject.path);
+      console.log('YAML content loaded:', yamlContent);
+
+      const parsed = yaml.load(yamlContent) as StackYaml;
+      console.log('Parsed YAML:', parsed);
+
+      if (!parsed.services) {
+        console.error('No services found in stack.yaml');
+        return;
+      }
+
+      const containerList: DeploymentContainer[] = Object.entries(parsed.services).map(([name, service]) => ({
+        name,
+        image: service.spec?.image,
+        build: service.spec?.build,
+        ports: service.spec?.ports,
+        status: 'pending' as const,
+      }));
+
+      console.log('Container list:', containerList);
+      dispatch(setContainers(containerList));
+    } catch (err) {
+      console.error('Failed to load containers from stack.yaml:', err);
+    }
+  };
+
+  // Load containers on component mount and when project changes
+  useEffect(() => {
+    loadContainersFromStack();
+  }, [currentProject?.path]);
 
   // 배포 이벤트 구독
   useEffect(() => {
@@ -162,6 +223,9 @@ export function DeploymentPage() {
     try {
       // Reset deployment state
       dispatch(resetDeployment());
+
+      // Load containers from stack.yaml first
+      await loadContainersFromStack();
 
       // Start new deployment
       dispatch(startDeployment());
@@ -291,6 +355,8 @@ export function DeploymentPage() {
                     serviceCount={stats.serviceCount}
                     containerCount={stats.containerCount}
                     endpoints={endpoints}
+                    containers={containers}
+                    deploymentStatus={status}
                   />
                 ) : (
                   <LogsView logs={logs} logEndRef={logEndRef} />

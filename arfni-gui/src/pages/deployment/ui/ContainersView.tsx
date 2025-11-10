@@ -1,5 +1,5 @@
-import { ExternalLink } from 'lucide-react';
-import { DeploymentStage } from '@features/deployment/model/deploymentSlice';
+import { ExternalLink, Package, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
+import { DeploymentStage, DeploymentContainer, DeploymentStatus } from '@features/deployment/model/deploymentSlice';
 
 interface Endpoint {
   name: string;
@@ -14,13 +14,17 @@ interface ContainersViewProps {
   serviceCount: number;
   containerCount: number;
   endpoints: Endpoint[];
+  containers: DeploymentContainer[];
+  deploymentStatus: DeploymentStatus;
 }
 
 export function ContainersView({
   currentStage,
   serviceCount,
   containerCount,
-  endpoints
+  endpoints,
+  containers,
+  deploymentStatus
 }: ContainersViewProps) {
   const getStageLabel = (stage: DeploymentStage | null) => {
     if (!stage) return '-';
@@ -34,23 +38,97 @@ export function ContainersView({
     return labels[stage];
   };
 
+  const getStatusIcon = (status: DeploymentContainer['status']) => {
+    switch (status) {
+      case 'success':
+      case 'running':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'failed':
+        return <XCircle className="w-5 h-5 text-red-500" />;
+      case 'building':
+        return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
+      case 'pending':
+      default:
+        return <Clock className="w-5 h-5 text-gray-400" />;
+    }
+  };
+
+  const getStatusLabel = (status: DeploymentContainer['status']) => {
+    switch (status) {
+      case 'success': return 'Success';
+      case 'running': return 'Running';
+      case 'failed': return 'Failed';
+      case 'building': return 'Building';
+      case 'pending': return 'Pending';
+      default: return 'Unknown';
+    }
+  };
+
+  const getStatusColor = (status: DeploymentContainer['status']) => {
+    switch (status) {
+      case 'success':
+      case 'running':
+        return 'bg-green-50 text-green-700 border-green-200';
+      case 'failed':
+        return 'bg-red-50 text-red-700 border-red-200';
+      case 'building':
+        return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'pending':
+      default:
+        return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  };
+
   return (
     <div className="bg-gray-50 p-6 h-[24rem] overflow-y-auto">
-      {/* 배포 통계 */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded p-4 border border-gray-200">
-          <div className="text-gray-600 text-sm mb-1">Current Stage</div>
-          <div className="text-2xl font-bold text-gray-900">{getStageLabel(currentStage)}</div>
+      {/* 컨테이너 목록 */}
+      {containers.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Containers</h3>
+          <div className="space-y-2">
+            {containers.map((container, index) => (
+              <div key={index} className={`bg-white rounded-lg p-4 border-2 transition-all ${getStatusColor(container.status)}`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3 flex-1">
+                    <Package className="w-5 h-5 text-gray-600 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-gray-900">{container.name}</span>
+                        {getStatusIcon(container.status)}
+                      </div>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        {container.image && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Image:</span>
+                            <span className="font-mono text-xs">{container.image}</span>
+                          </div>
+                        )}
+                        {container.build && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Build:</span>
+                            <span className="font-mono text-xs">{container.build}</span>
+                          </div>
+                        )}
+                        {container.ports && container.ports.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Ports:</span>
+                            <span className="font-mono text-xs">{container.ports.join(', ')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ml-3">
+                    <span className="px-2 py-1 text-xs font-medium rounded">
+                      {getStatusLabel(container.status)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="bg-white rounded p-4 border border-gray-200">
-          <div className="text-gray-600 text-sm mb-1">Services</div>
-          <div className="text-2xl font-bold text-gray-900">{serviceCount}</div>
-        </div>
-        <div className="bg-white rounded p-4 border border-gray-200">
-          <div className="text-gray-600 text-sm mb-1">Containers</div>
-          <div className="text-2xl font-bold text-gray-900">{containerCount}</div>
-        </div>
-      </div>
+      )}
 
       {/* 엔드포인트 목록 */}
       {endpoints.length > 0 && (
