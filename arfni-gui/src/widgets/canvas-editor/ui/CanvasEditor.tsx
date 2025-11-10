@@ -65,7 +65,7 @@ const CanvasEditorInner = () => {
   const { project } = reactFlowInstance;
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
-  // 캔버스 스크린샷 캡처 함수
+  // 캔버스 스크린샷 캡처 함수 (Toolbar의 방식 + 크기 조정)
   const captureScreenshot = useCallback(async (): Promise<string | null> => {
     try {
       if (!reactFlowWrapper.current) {
@@ -73,31 +73,46 @@ const CanvasEditorInner = () => {
         return null;
       }
 
-      const reactFlowContainer = reactFlowWrapper.current;
-      const viewport = reactFlowContainer.querySelector('.react-flow__viewport') as HTMLElement;
-
+      const viewport = reactFlowWrapper.current.querySelector('.react-flow__viewport') as HTMLElement;
       if (!viewport) {
         console.error('ReactFlow viewport not found');
         return null;
       }
 
-      // 모든 노드의 바운딩 박스 계산
-      const allNodes = reactFlowInstance.getNodes();
-      if (allNodes.length === 0) {
+      // 현재 상태 저장
+      const currentTransform = viewport.style.transform;
+      const currentTransition = viewport.style.transition;
+      const currentOpacity = reactFlowWrapper.current.style.opacity;
+      const currentPointerEvents = reactFlowWrapper.current.style.pointerEvents;
+      const currentWrapperWidth = reactFlowWrapper.current.style.width;
+      const currentWrapperHeight = reactFlowWrapper.current.style.height;
+
+      // 모든 노드의 바운딩 박스 계산 (DOM에서)
+      const nodeElements = viewport.querySelectorAll('.react-flow__node');
+      if (nodeElements.length === 0) {
         console.warn('No nodes to capture');
         return null;
       }
 
-      // 현재 뷰포트 상태 저장
-      const currentViewport = reactFlowInstance.getViewport();
+      // 현재 transform을 파싱하여 실제 노드 위치 계산
+      const transformMatch = currentTransform.match(/translate\((.+?)px,\s*(.+?)px\)\s*scale\((.+?)\)/);
+      let currentTranslateX = 0, currentTranslateY = 0, currentScale = 1;
+      if (transformMatch) {
+        currentTranslateX = parseFloat(transformMatch[1]);
+        currentTranslateY = parseFloat(transformMatch[2]);
+        currentScale = parseFloat(transformMatch[3]);
+      }
 
-      // 모든 노드의 바운딩 박스 계산
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      allNodes.forEach(node => {
-        const x = node.position.x;
-        const y = node.position.y;
-        const width = node.width || 280;
-        const height = node.height || 120;
+      const viewportRect = viewport.getBoundingClientRect();
+
+      nodeElements.forEach((nodeEl) => {
+        const rect = nodeEl.getBoundingClientRect();
+        // viewport 기준 상대 좌표로 변환
+        const x = (rect.left - viewportRect.left - currentTranslateX) / currentScale;
+        const y = (rect.top - viewportRect.top - currentTranslateY) / currentScale;
+        const width = rect.width / currentScale;
+        const height = rect.height / currentScale;
 
         minX = Math.min(minX, x);
         minY = Math.min(minY, y);
@@ -107,60 +122,60 @@ const CanvasEditorInner = () => {
 
       const nodesBoundsWidth = maxX - minX;
       const nodesBoundsHeight = maxY - minY;
-      const padding = 100;
 
-      // 캔버스 크기 계산 (고정 크기 사용)
-      const canvasWidth = 800;
-      const canvasHeight = 600;
+      // padding 증가하여 여유 공간 확보
+      const padding = 80;
 
-      // 스케일 계산: 모든 노드가 들어가도록
-      const scaleX = (canvasWidth - padding * 2) / nodesBoundsWidth;
-      const scaleY = (canvasHeight - padding * 2) / nodesBoundsHeight;
-      const scale = Math.min(scaleX, scaleY, 1);
+      // 캡처할 캔버스 크기 계산 (노드 범위 + padding)
+      const captureWidth = nodesBoundsWidth + padding * 2;
+      const captureHeight = nodesBoundsHeight + padding * 2;
 
-      // 중심점 계산
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
+      // 스케일은 1.0으로 고정
+      const scale = 1.0;
 
-      console.log('📸 Screenshot capture:', {
-        nodesCount: allNodes.length,
+      console.log('📸 Auto-save screenshot capture:', {
+        nodesCount: nodeElements.length,
         bounds: { minX, minY, maxX, maxY },
-        size: { width: nodesBoundsWidth, height: nodesBoundsHeight },
-        canvasSize: { width: canvasWidth, height: canvasHeight },
-        scale,
-        center: { x: centerX, y: centerY }
+        nodesBounds: { width: nodesBoundsWidth, height: nodesBoundsHeight },
+        captureSize: { width: captureWidth, height: captureHeight },
+        scale
       });
 
-      // 1단계: 화면 숨기고 뷰포트 조정
-      reactFlowContainer.style.opacity = '0';
-      reactFlowContainer.style.pointerEvents = 'none';
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const translateX = captureWidth / 2 - centerX * scale;
+      const translateY = captureHeight / 2 - centerY * scale;
 
-      // 뷰포트를 모든 노드가 보이도록 설정
-      reactFlowInstance.setViewport({
-        x: canvasWidth / 2 - centerX * scale,
-        y: canvasHeight / 2 - centerY * scale,
-        zoom: scale
-      }, { duration: 0 });
+      // 1단계: 화면에서 완전히 숨기고 크기 조정
+      reactFlowWrapper.current.style.opacity = '0';
+      reactFlowWrapper.current.style.pointerEvents = 'none';
+      reactFlowWrapper.current.style.width = `${captureWidth}px`;
+      reactFlowWrapper.current.style.height = `${captureHeight}px`;
 
-      // 프레임 대기 후 캡처
+      // 다음 프레임에서 transform 적용 및 캡처
       const dataUrl = await new Promise<string>((resolve) => {
         requestAnimationFrame(() => {
+          // 2단계: transition 비활성화 및 transform 적용
+          viewport.style.transition = 'none';
+          viewport.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+
+          // 3단계: 또 다른 프레임에서 캡처 (transform이 완전히 적용된 후)
           requestAnimationFrame(async () => {
-            // html2canvas로 전체 reactFlow 컨테이너 캡처
-            const canvas = await html2canvas(reactFlowContainer, {
+            const canvas = await html2canvas(viewport, {
               backgroundColor: '#f9fafb',
               scale: 2,
               logging: false,
               useCORS: true,
               allowTaint: true,
-              width: canvasWidth,
-              height: canvasHeight,
             });
 
-            // 원래 상태로 복원
-            reactFlowInstance.setViewport(currentViewport, { duration: 0 });
-            reactFlowContainer.style.opacity = '1';
-            reactFlowContainer.style.pointerEvents = 'auto';
+            // 4단계: 즉시 원래 상태로 복원
+            viewport.style.transition = currentTransition;
+            viewport.style.transform = currentTransform;
+            reactFlowWrapper.current!.style.opacity = currentOpacity;
+            reactFlowWrapper.current!.style.pointerEvents = currentPointerEvents;
+            reactFlowWrapper.current!.style.width = currentWrapperWidth;
+            reactFlowWrapper.current!.style.height = currentWrapperHeight;
 
             resolve(canvas.toDataURL('image/png'));
           });
@@ -172,7 +187,7 @@ const CanvasEditorInner = () => {
       console.error('Failed to capture canvas screenshot:', error);
       return null;
     }
-  }, [reactFlowInstance]);
+  }, []);
 
   // Auto-save: Canvas 변경 후 2초 뒤 자동 저장 (스크린샷 포함)
   const { isSaving, lastSaved } = useAutoSave(2000, captureScreenshot);
