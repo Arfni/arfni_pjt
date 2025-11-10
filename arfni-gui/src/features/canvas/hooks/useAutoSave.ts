@@ -4,6 +4,7 @@ import { selectNodes, selectEdges, selectIsDirty, setDirty } from '../model/canv
 import { selectCurrentProject, selectProjectLoading } from '@features/project';
 import { PluginStackGenerator } from '../lib/pluginStackGenerator';
 import { projectCommands, CanvasNode, ec2ServerCommands } from '@shared/api/tauri/commands';
+import { generateAndSaveCanvasPreview } from '../lib/canvasPreviewGenerator';
 
 export function useAutoSave(debounceMs: number = 2000) {
   const dispatch = useAppDispatch();
@@ -134,7 +135,14 @@ export function useAutoSave(debounceMs: number = 2000) {
           canvasData
         );
 
-        // 4. 성공 처리
+        // 4. PNG 미리보기 생성 및 저장 (백그라운드에서 실행)
+        setTimeout(() => {
+          generateAndSaveCanvasPreview(projectPathAtStart).catch(err => {
+            console.warn('[Auto-save] PNG 미리보기 생성 실패 (무시됨):', err);
+          });
+        }, 100);
+
+        // 5. 성공 처리
         dispatch(setDirty(false));
         setLastSaved(new Date());
       } catch (error) {

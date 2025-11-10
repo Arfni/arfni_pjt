@@ -784,3 +784,58 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
 
     Ok(())
 }
+
+/// 프로젝트 미리보기 PNG 저장
+#[tauri::command]
+pub fn save_project_preview(project_path: String, png_data_url: String) -> Result<(), String> {
+    let project_path_buf = Path::new(&project_path);
+    let arfni_path = project_path_buf.join(".arfni");
+    let preview_path = arfni_path.join("preview.png");
+
+    // .arfni 디렉토리가 없으면 생성
+    if !arfni_path.exists() {
+        fs::create_dir_all(&arfni_path)
+            .map_err(|e| format!("arfni 폴더 생성 실패: {}", e))?;
+    }
+
+    // data:image/png;base64, 접두사 제거
+    let base64_data = png_data_url
+        .strip_prefix("data:image/png;base64,")
+        .unwrap_or(&png_data_url);
+
+    // Base64 디코딩
+    let png_bytes = base64::decode(base64_data)
+        .map_err(|e| format!("Base64 디코딩 실패: {}", e))?;
+
+    // 기존 preview.png 파일이 있으면 삭제
+    if preview_path.exists() {
+        fs::remove_file(&preview_path)
+            .map_err(|e| format!("기존 미리보기 파일 삭제 실패: {}", e))?;
+    }
+
+    // 새 PNG 파일 저장
+    fs::write(&preview_path, png_bytes)
+        .map_err(|e| format!("미리보기 PNG 저장 실패: {}", e))?;
+
+    Ok(())
+}
+
+/// 프로젝트 미리보기 PNG 로드 (Base64로 반환)
+#[tauri::command]
+pub fn get_project_preview(project_path: String) -> Result<String, String> {
+    let preview_path = Path::new(&project_path).join(".arfni").join("preview.png");
+
+    if !preview_path.exists() {
+        return Err("미리보기 이미지가 존재하지 않습니다".to_string());
+    }
+
+    // PNG 파일 읽기
+    let png_bytes = fs::read(&preview_path)
+        .map_err(|e| format!("미리보기 PNG 읽기 실패: {}", e))?;
+
+    // Base64 인코딩
+    let base64_data = base64::encode(&png_bytes);
+
+    // data URL 형식으로 반환
+    Ok(format!("data:image/png;base64,{}", base64_data))
+}

@@ -122,6 +122,8 @@ fn main() {
       commands::project::write_file,
       commands::project::delete_project_from_db_only,
       commands::project::close_project,
+      commands::project::save_project_preview,
+      commands::project::get_project_preview,
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,

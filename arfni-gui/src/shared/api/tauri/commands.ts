@@ -175,6 +175,16 @@ export const projectCommands = {
   deleteProjectFromDbOnly: async (projectId: string): Promise<void> => {
     return await invoke('delete_project_from_db_only', { projectId });
   },
+
+  // 프로젝트 미리보기 PNG 저장
+  saveProjectPreview: async (projectPath: string, pngDataUrl: string): Promise<void> => {
+    return await invoke('save_project_preview', { projectPath, pngDataUrl });
+  },
+
+  // 프로젝트 미리보기 PNG 로드
+  getProjectPreview: async (projectPath: string): Promise<string> => {
+    return await invoke('get_project_preview', { projectPath });
+  },
 };
 
 // ============= EC2 서버 명령어 (신규) =============

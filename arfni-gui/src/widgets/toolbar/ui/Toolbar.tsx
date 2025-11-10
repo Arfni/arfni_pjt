@@ -39,6 +39,7 @@ import {
   CanvasEdge,
   ec2ServerCommands,
 } from '@shared/api/tauri/commands';
+import { generateAndSaveCanvasPreview } from '@features/canvas/lib/canvasPreviewGenerator';
 import { SettingsDialog } from './dialogs/SettingsDialog';
 import { ExportDialog } from './dialogs/ExportDialog';
 import { ExportSuccessNotification } from './dialogs/ExportSuccessNotification';
@@ -160,6 +161,14 @@ export function Toolbar() {
           secrets: [],
         },
       })).unwrap();
+
+      // PNG 미리보기 생성 및 저장 (백그라운드에서 실행)
+      setTimeout(() => {
+        generateAndSaveCanvasPreview(currentProject.path).catch(err => {
+          console.warn('[Save] PNG 미리보기 생성 실패 (무시됨):', err);
+        });
+      }, 100);
+
       dispatch(setDirty(false));
       alert('stack.yaml이 저장되었습니다!');
     } catch (error) {

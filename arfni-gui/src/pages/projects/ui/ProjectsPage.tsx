@@ -68,7 +68,7 @@ export default function ProjectsPage() {
   const [editingServer, setEditingServer] = useState<EC2Server | null>(null);
 
   // Canvas 미리보기 데이터
-  const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
+  const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[] }>>({});
 
   // 환경별 프로젝트 목록 로드 함수
   const loadProjects = useCallback(async (environment: 'local' | 'ec2', serverId?: string) => {
@@ -95,13 +95,12 @@ export default function ProjectsPage() {
       setProjects(projectList);
 
       // 각 프로젝트의 canvas 데이터 로드
-      const previews: Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }> = {};
+      const previews: Record<string, { nodes: CanvasNode[] }> = {};
       for (const project of projectList) {
         try {
           const canvasData = await projectCommands.loadCanvasState(project.path);
           previews[project.id] = {
             nodes: canvasData.nodes,
-            edges: canvasData.edges,
           };
         } catch (err) {
           console.log(`Canvas 데이터 로드 실패 (${project.name}):`, err);
