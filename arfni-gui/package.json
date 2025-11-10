@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "build:go": "cd ../BE/arfni && go build -o ./bin/ic.exe ./cmd/ic && go build -o ./bin/arfni-go.exe ./cmd/arfni-go && go build -o ./bin/arfni-monitoring.exe ./cmd/arfni-monitoring",
     "copy:binaries": "powershell -Command \"New-Item -ItemType Directory -Force -Path src-tauri/resources/bin | Out-Null; Copy-Item -Path ../BE/arfni/bin/*.exe -Destination src-tauri/resources/bin/\"",
-    "copy:plugins": "powershell -Command \"New-Item -ItemType Directory -Force -Path src-tauri/resources/plugins | Out-Null; Copy-Item -Path public/plugins/bundled -Destination src-tauri/resources/plugins/ -Recurse -Force\"",
+    "copy:plugins": "echo Plugins are already in src-tauri/resources/plugins/bundled",
     "build:all": "npm run build:go && npm run copy:binaries && npm run copy:plugins && npm run build",
     "preview": "vite preview",
     "tauri": "tauri"

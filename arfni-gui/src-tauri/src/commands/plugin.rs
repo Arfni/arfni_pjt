@@ -846,7 +846,7 @@ pub async fn read_plugin_template(
       let resource_dir = app.path()
         .resource_dir()
         .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-      resource_dir.join("plugins").join(&plugin_path[8..]).join(&template_path)
+      resource_dir.join("resources").join("plugins").join(&plugin_path[8..]).join(&template_path)
     }
   } else {
     // User-installed plugin
@@ -876,7 +876,7 @@ pub async fn list_bundled_plugins(
     let resource_dir = app.path()
       .resource_dir()
       .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-    resource_dir.join("plugins").join("bundled").join(&category)
+    resource_dir.join("resources").join("plugins").join("bundled").join(&category)
   };
 
   if !bundled_dir.exists() {
@@ -919,7 +919,7 @@ pub async fn read_bundled_plugin_manifest(
     let resource_dir = app.path()
       .resource_dir()
       .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-    resource_dir.join("plugins").join("bundled").join(&plugin_path).join("plugin.yaml")
+    resource_dir.join("resources").join("plugins").join("bundled").join(&plugin_path).join("plugin.yaml")
   };
 
   fs::read_to_string(&manifest_path)
@@ -943,7 +943,7 @@ pub async fn read_plugin_icon(
       let resource_dir = app.path()
         .resource_dir()
         .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-      resource_dir.join("plugins").join("bundled").join(&plugin_path).join("icon.png")
+      resource_dir.join("resources").join("plugins").join("bundled").join(&plugin_path).join("icon.png")
     }
   } else {
     // User-installed plugin
