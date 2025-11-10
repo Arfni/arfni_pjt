@@ -100,24 +100,6 @@ export function TerminalView({
               Disconnect
             </button>
           )}
-          {!tunnelOpen ? (
-            <button
-              onClick={onTunnelOpen}
-              disabled={!ec2Server}
-              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Open SSH tunnel for Prometheus (9091:9090)"
-            >
-              Open Tunnel
-            </button>
-          ) : (
-            <button
-              onClick={onTunnelClose}
-              className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs"
-              title="Close Prometheus tunnel"
-            >
-              Close Tunnel
-            </button>
-          )}
           <button
             onClick={onClearLogs}
             className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded text-xs"

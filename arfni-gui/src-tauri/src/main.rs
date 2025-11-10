@@ -13,6 +13,7 @@ mod db;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // 데이터베이스 초기화

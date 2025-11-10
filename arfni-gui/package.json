@@ -19,6 +19,7 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-shell": "^2.3.3",
     "@types/js-yaml": "^4.0.9",
     "@xyflow/react": "^12.8.6",
     "clsx": "^2.1.1",
