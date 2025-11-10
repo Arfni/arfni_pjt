@@ -421,7 +421,7 @@ func runCostEstimation(args []string) {
 	}
 
 	if len(services) == 0 {
-		fmt.Println("[ERROR] No services found in stack.yaml")
+		fmt.Println("[ERROR] no services defined - Canvas is empty. Please add services to the canvas before using cost estimation.")
 		os.Exit(1)
 	}
 
