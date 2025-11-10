@@ -313,10 +313,10 @@ func (a *OptimizationAnalyzer) generateRecommendations(
 			recommendations = append(recommendations, Recommendation{
 				Priority:    "low",
 				Category:    "cost",
-				Title:       "Downsize Instance to Save Costs",
-				Description: fmt.Sprintf("Current usage (%.1f%% CPU, %.1f%% memory) suggests %s is sufficient. Switch from %s to %s.",
+				Title:       "인스턴스 다운사이징으로 비용 절감",
+				Description: fmt.Sprintf("현재 사용량(CPU %.1f%%, 메모리 %.1f%%)을 고려하면 %s로도 충분합니다. %s에서 %s로 변경을 권장합니다.",
 					metrics.CPUUsagePercent, metrics.MemoryUsagePercent, optimalInstance, metrics.InstanceType, optimalInstance),
-				Impact:   fmt.Sprintf("Save $%.2f/month (%.1f%% reduction)", costAnalysis.PotentialSavings, costAnalysis.SavingsPercent),
+				Impact:   fmt.Sprintf("월 $%.2f 절감 가능 (%.1f%% 절감)", costAnalysis.PotentialSavings, costAnalysis.SavingsPercent),
 				Savings:  costAnalysis.PotentialSavings,
 			})
 		} else if metrics.CPUUsagePercent < 20 && metrics.MemoryUsagePercent < 50 {
