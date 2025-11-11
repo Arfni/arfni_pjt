@@ -1,7 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Activity, ExternalLink } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-shell';
 import { useState, useEffect } from 'react';
 import { Project, EC2Server } from '@shared/api/tauri/commands';
 
