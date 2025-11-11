@@ -67,8 +67,8 @@ function MiniMapNode({ x, y, width, height }: any) {
         width={width}
         height={height}
         rx={6}
-        fill="#F3F4F6"
-        stroke="#D1D5DB"
+        fill="white"
+        stroke="#E5E7EB"
         strokeWidth={0.5}
       />
     </g>

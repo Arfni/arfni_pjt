@@ -424,7 +424,7 @@ export function Toolbar() {
                         onClick={() => setShowMonitoringHelp(false)}
                       />
                       {/* Tooltip */}
-                      <div className="absolute top-full left-0 mt-4 w-96 bg-white border border-gray-300 rounded-lg shadow-lg p-4 z-50">
+                      <div className="absolute top-full right-0 mt-4 w-96 bg-white border border-gray-300 rounded-lg shadow-lg p-4 z-50">
                         <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
                           <li>
                             <strong>All-in-One:</strong> All monitoring tools (Prometheus, Grafana, etc.) run on a single server. Simple and cost-effective.
@@ -435,20 +435,13 @@ export function Toolbar() {
                           <li>
                             <strong>No Monitoring:</strong> No monitoring tools deployed. For development or when monitoring isn't needed.
                           </li>
-                        </ol> 
+                        </ol>
                       </div>
                     </>
                   )}
                 </div>
               </div>              
-{/* 선샌님 우테코코 언제 해요???? 코코코코 저도 답변 잔뜩 달아놨어요 히히히히히히히히히히 */}
-              {/* <button
-                onClick={() => { }}
-                disabled={!currentProject}
-                className="text-sm text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50"
-              >
-                CI/CD
-              </button> */}
+              
             </>
           )}
 
