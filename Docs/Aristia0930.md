@@ -461,3 +461,61 @@ UI 응답성을 유지하며, 긴 작업(대형 저장소 클론 등) 중에도 
 io::Error를 String으로 변환하여 프론트엔드에 명확한 오류 메시지 전달.
 
 예: Git 미설치, 네트워크 끊김 등 실제 문제를 사용자에게 보여줌.
+
+📅 개발일지 – 2025.11.11 (화)
+🔧 작업 개요
+
+오늘은 EC2 환경에서 Nginx Reverse Proxy + HTTPS 설정을 완성하고,
+기존에 배포되어 있던 landingpage-react 컨테이너를 HTTPS로 서비스하도록 구성했습니다.
+DuckDNS 도메인(arfni.duckdns.org)을 이용하여 인증서를 발급받고,
+리버스 프록시 및 SSL 구성을 마무리했습니다.
+
+🧩 주요 진행 내용
+1. 디렉토리 및 환경 구성
+
+/home/ubuntu/afrninginx 디렉토리 생성
+→ nginx/conf.d, nginx/logs, certbot-www, letsencrypt 구조 정리
+
+docker-compose.yml 구성 후 Nginx 컨테이너 기동
+
+공통 네트워크(web) 생성하여 Nginx와 React 컨테이너 간 내부 통신 연결
+
+2. 도메인 연결 및 인증서 발급
+
+DuckDNS에서 arfni.duckdns.org 도메인을 EC2 공인 IP로 매핑
+
+임시 Nginx 설정(arfni.duckdns.org.temp.conf)을 이용해 HTTP-01 검증 경로 개방
+
+certbot/certbot 컨테이너를 통한 Let’s Encrypt 인증서 발급 성공
+
+/home/ubuntu/afrninginx/letsencrypt/live/arfni.duckdns.org/에 인증서 생성
+
+fullchain.pem, privkey.pem 확보
+
+3. Nginx HTTPS 설정
+
+임시 conf 제거 후 최종 설정(arfni.duckdns.org.conf) 작성
+
+React 앱(landingpage-react-1:3000)으로 요청을 프록시하도록 설정
+
+HTTP → HTTPS 리다이렉트 및 WebSocket(HMR) 대응 헤더 추가
+
+최신 문법(http2 on;)으로 수정하여 경고 제거
+
+docker exec nginxAfrnin nginx -t && docker restart nginxAfrnin 명령으로 설정 반영
+
+4. 내부 네트워크 연결
+
+nginxAfrnin, landingpage-react-1 두 컨테이너를 web 네트워크에 연결
+
+Nginx 컨테이너 내에서 wget http://landingpage-react-1:3000 테스트로 내부 통신 확인 완료
+
+✅ 성과
+
+https://arfni.duckdns.org 접속 시 React 프론트엔드 정상 노출
+
+인증서 및 자동 리다이렉트, WebSocket 통신 모두 정상 동작
+
+보안 프로토콜(TLS 1.2/1.3) 적용 완료
+
+이후 자동 갱신(crontab)까지 설정 완료로 운영 안정성 확보
