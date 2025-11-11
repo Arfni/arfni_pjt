@@ -2,12 +2,14 @@ import { configureStore } from '@reduxjs/toolkit';
 import { canvasReducer } from '@features/canvas/model/canvasSlice';
 import { projectReducer } from '@features/project/model/projectSlice';
 import { deploymentReducer } from '@features/deployment/model/deploymentSlice';
+import cicdReducer from '@features/cicd/model/cicdSlice';
 
 export const store = configureStore({
   reducer: {
     canvas: canvasReducer,
     project: projectReducer,
     deployment: deploymentReducer,
+    cicd: cicdReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

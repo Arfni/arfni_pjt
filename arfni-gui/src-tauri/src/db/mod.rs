@@ -126,6 +126,16 @@ impl Database {
                 println!("✅ Migration 004 completed");
             }
 
+        // Migration 005: GitHub 레포지토리 정보 추가
+        if current_version < 5 {
+            println!("⬆️ Running migration 005...");
+            let migration_sql = include_str!("../../migrations/005_add_github_info.sql");
+            conn.execute_batch(migration_sql)
+                .context("Failed to run migration 005")?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (5)", [])?;
+            println!("✅ Migration 005 completed");
+        }
+
         println!("✅ All database migrations completed successfully");
         Ok(())
     }

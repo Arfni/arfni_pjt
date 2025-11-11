@@ -239,7 +239,7 @@ export function Toolbar() {
     setIsDeploying(true);
     try {
       const stackYamlPath = `${currentProject.path}/stack.yaml`;
-      const result = await deploymentCommands.deployStack(currentProject.path, stackYamlPath);
+      const result = await deploymentCommands.deployStack(currentProject.path, stackYamlPath, currentProject.id);
       if (result.status === 'deploying') navigate('/deployment', { replace: true });
     } catch (error) {
       alert(`배포 실패: ${error}`);

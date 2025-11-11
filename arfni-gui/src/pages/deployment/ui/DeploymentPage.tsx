@@ -168,7 +168,7 @@ export function DeploymentPage() {
 
       // Call backend to start deployment
       const stackYamlPath = `${currentProject.path}/stack.yaml`;
-      await deploymentCommands.deployStack(currentProject.path, stackYamlPath);
+      await deploymentCommands.deployStack(currentProject.path, stackYamlPath, currentProject.id);
     } catch (err) {
       console.error('Failed to restart deployment:', err);
       dispatch(deploymentFailed(String(err)));
@@ -332,6 +332,9 @@ export function DeploymentPage() {
           duration={duration}
           stats={stats}
           endpoints={endpoints}
+          isEC2Deployment={currentProject?.environment === 'ec2'}
+          ec2Server={ec2Server || undefined}
+          projectName={currentProject?.name}
         />
 
         {/* 배포 실패 모달 */}

@@ -61,7 +61,7 @@ export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarPro
       {/* Test and Settings Buttons at Bottom */}
       <div className="p-3 border-t border-gray-200 flex flex-col gap-3">
         <button
-          onClick={() => navigate('/test')}
+          onClick={() => navigate('/plugin-test')}
           className="w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-gray-100"
         >
           <FlaskConical className="w-5 h-5 text-gray-600" />

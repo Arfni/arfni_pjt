@@ -71,10 +71,97 @@ pub async fn deploy_stack(
     app: AppHandle,
     project_path: String,
     stack_yaml_path: String,
+    project_id: Option<String>,
 ) -> Result<DeploymentStatus, String> {
     // 이미 배포가 진행 중인지 확인
     if DEPLOYMENT_RUNNING.load(Ordering::SeqCst) {
         return Err("이미 배포가 진행 중입니다".to_string());
+    }
+
+    // GitHub 프로젝트인 경우 EC2에서 pull
+    if let Some(proj_id) = project_id {
+        use crate::db::Database;
+        use rusqlite::params;
+
+        if let Some(db) = app.try_state::<Database>() {
+            let conn = db.get_conn();
+            let conn_lock = conn.lock().unwrap();
+
+            let mut stmt = conn_lock.prepare(
+                "SELECT github_repo_url, github_branch, name, workdir, ec2_server_id
+                 FROM projects WHERE id = ?1"
+            ).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
+
+            let (repo_url, branch, project_name, workdir, ec2_server_id):
+                (Option<String>, Option<String>, String, Option<String>, Option<String>) = stmt
+                .query_row(params![&proj_id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+                })
+                .map_err(|e| format!("프로젝트 정보 조회 실패: {}", e))?;
+
+            drop(stmt);
+
+            // GitHub 프로젝트인 경우 pull 실행
+            if repo_url.is_some() {
+                app.emit("deployment-log", DeploymentLog {
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                    level: "info".to_string(),
+                    message: "🔄 Pulling latest changes from GitHub...".to_string(),
+                    data: None,
+                }).unwrap_or(());
+
+                let branch = branch.unwrap_or("main".to_string());
+                let workdir = workdir.unwrap_or("arfni-deploy".to_string());
+                let ec2_server_id = ec2_server_id.ok_or("EC2 server ID not found")?;
+
+                // EC2 서버 정보 조회
+                let mut stmt = conn_lock.prepare(
+                    "SELECT host, user, pem_path FROM ec2_servers WHERE id = ?1"
+                ).map_err(|e| format!("EC2 서버 조회 실패: {}", e))?;
+
+                let (host, user, pem_path): (String, String, String) = stmt
+                    .query_row(params![&ec2_server_id], |row| {
+                        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                    })
+                    .map_err(|e| format!("EC2 서버 정보 조회 실패: {}", e))?;
+
+                drop(stmt);
+                drop(conn_lock);
+
+                let remote_path = format!("~/{}/{}", workdir, project_name);
+
+                // Git pull 실행
+                let pull_cmd = format!("cd {} && git pull origin {}", remote_path, branch);
+
+                let output = std::process::Command::new("ssh")
+                    .args(&[
+                        "-i", &pem_path,
+                        "-o", "StrictHostKeyChecking=no",
+                        "-o", "UserKnownHostsFile=/dev/null",
+                        &format!("{}@{}", user, host),
+                        &pull_cmd,
+                    ])
+                    .output()
+                    .map_err(|e| format!("Git pull 실행 실패: {}", e))?;
+
+                if output.status.success() {
+                    app.emit("deployment-log", DeploymentLog {
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        level: "success".to_string(),
+                        message: "✅ Successfully pulled latest changes from GitHub".to_string(),
+                        data: None,
+                    }).unwrap_or(());
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    app.emit("deployment-log", DeploymentLog {
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        level: "warning".to_string(),
+                        message: format!("⚠️ Git pull warning: {}", stderr),
+                        data: None,
+                    }).unwrap_or(());
+                }
+            }
+        }
     }
 
     // Go 백엔드 실행 파일 경로 찾기 (플래그 설정 전에 먼저 확인)

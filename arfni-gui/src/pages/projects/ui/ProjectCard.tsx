@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Server, Loader2, Trash2, Laptop } from 'lucide-react';
+import { Calendar, Server, Loader2, Trash2, Laptop, Github } from 'lucide-react';
 import { Project, CanvasNode, CanvasEdge, projectCommands } from '@shared/api/tauri/commands';
 import { CanvasPreview } from './CanvasPreview';
 import { useAppDispatch } from '@app/hooks';
@@ -169,6 +169,14 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
             <Calendar className="w-3 h-3" />
             <span>Created: {new Date(project.created_at).toLocaleDateString()}</span>
           </div>
+          {project.github_repo_url && (
+            <div className="flex items-center gap-2 text-gray-700">
+              <Github className="w-3 h-3" />
+              <span className="truncate" title={project.github_repo_url}>
+                {project.github_repo_url.replace('https://github.com/', '')}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">

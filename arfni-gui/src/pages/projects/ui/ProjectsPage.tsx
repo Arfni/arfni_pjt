@@ -281,6 +281,61 @@ export default function ProjectsPage() {
     }
   }, [newProjectName, newProjectPath, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch]);
 
+  // GitHub 레포지토리에서 프로젝트 생성
+  const handleCreateFromGitHub = useCallback(async (repoUrl: string, repoName: string, branch: string, accessToken: string) => {
+    if (!selectedEC2ServerId) {
+      setCreateError('Please select EC2 Server');
+      return;
+    }
+
+    setCreating(true);
+    setCreateError(null);
+
+    try {
+      console.log('Creating project from GitHub:', { repoUrl, repoName, branch, selectedEC2ServerId });
+
+      // GitHub 프로젝트 생성 (GitHub 정보와 함께 저장)
+      const project = await projectCommands.createProject(
+        repoName,
+        `/tmp/${repoName}`, // 임시 경로 (실제로는 EC2에만 클론됨)
+        'ec2',
+        selectedEC2ServerId,
+        `GitHub repository: ${repoUrl}`,
+        repoUrl,
+        branch,
+        accessToken
+      );
+
+      console.log('✅ GitHub 프로젝트 생성 완료:', project);
+
+      // EC2에 GitHub 레포지토리 클론
+      console.log('🔄 Cloning GitHub repository to EC2...');
+      try {
+        await projectCommands.cloneGithubRepoOnEc2(project.id, selectedEC2ServerId);
+        console.log('✅ Repository cloned successfully to EC2');
+      } catch (cloneErr) {
+        console.error('GitHub 클론 실패 (계속 진행):', cloneErr);
+        // 클론 실패해도 프로젝트는 생성되었으므로 계속 진행
+      }
+
+      // 모달 닫기
+      setShowCreateModal(false);
+      setNewProjectName('');
+      setNewProjectPath('');
+
+      // 프로젝트 목록 새로고침
+      loadProjects('ec2', selectedEC2ServerId);
+
+      // 캔버스로 이동
+      navigate('/canvas', { state: { project } });
+    } catch (err) {
+      console.error('GitHub 프로젝트 생성 실패:', err);
+      setCreateError(`Failed to create project from GitHub: ${err}`);
+    } finally {
+      setCreating(false);
+    }
+  }, [selectedEC2ServerId, navigate, loadProjects]);
+
   // 탭 상태를 sessionStorage에 저장
   useEffect(() => {
     sessionStorage.setItem('projectsSelectedTab', selectedTab);
@@ -459,6 +514,7 @@ export default function ProjectsPage() {
         onNameChange={setNewProjectName}
         onSelectFolder={handleSelectFolder}
         onCreate={handleCreateProject}
+        onCreateFromGitHub={handleCreateFromGitHub}
       />
 
       {/* Server Selection Modal */}

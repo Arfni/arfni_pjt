@@ -1,4 +1,6 @@
-import { Check, Clock, ExternalLink } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Clock, ExternalLink, Rocket } from 'lucide-react';
+import { CICDSetupModal } from './CICDSetupModal';
 
 interface SuccessModalProps {
   isOpen: boolean;
@@ -15,6 +17,13 @@ interface SuccessModalProps {
     status?: 'ready' | 'pending';
     note?: string;
   }>;
+  isEC2Deployment?: boolean;
+  ec2Server?: {
+    host: string;
+    user: string;
+    pemPath: string;
+  };
+  projectName?: string;
 }
 
 const formatDuration = (seconds: number | null) => {
@@ -24,21 +33,33 @@ const formatDuration = (seconds: number | null) => {
   return `${mins}m ${secs}s`;
 };
 
-export function SuccessModal({ isOpen, onClose, duration, stats, endpoints }: SuccessModalProps) {
+export function SuccessModal({
+  isOpen,
+  onClose,
+  duration,
+  stats,
+  endpoints,
+  isEC2Deployment = false,
+  ec2Server,
+  projectName,
+}: SuccessModalProps) {
+  const [showCICDSetup, setShowCICDSetup] = useState(false);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="max-w-2xl w-full bg-white rounded-lg p-8 shadow-xl border border-gray-200 mx-4">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
-            <Check className="w-7 h-7 text-white" />
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="max-w-2xl w-full bg-white rounded-lg p-8 shadow-xl border border-gray-200 mx-4">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
+              <Check className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Deployment Completed</h2>
+              <p className="text-gray-600">Deployment completed successfully.</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Deployment Completed</h2>
-            <p className="text-gray-600">Deployment completed successfully.</p>
-          </div>
-        </div>
 
         {/* 배포 통계 */}
         <div className="grid grid-cols-2 gap-4 mb-6">
@@ -54,6 +75,30 @@ export function SuccessModal({ isOpen, onClose, duration, stats, endpoints }: Su
             <div className="text-2xl font-bold text-gray-900">{stats.serviceCount}</div>
           </div>
         </div>
+
+        {/* CI/CD Setup Prompt */}
+        {isEC2Deployment && ec2Server && (
+          <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <Rocket className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-blue-900 mb-2">Setup Continuous Deployment</h3>
+                <p className="text-sm text-blue-800 mb-3">
+                  Automate future deployments by setting up CI/CD. Every push to your repository
+                  will automatically deploy to your EC2 instance.
+                </p>
+                <button
+                  onClick={() => setShowCICDSetup(true)}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+                >
+                  Setup CI/CD Pipeline
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 엔드포인트 */}
         {endpoints.length > 0 && (
@@ -94,14 +139,27 @@ export function SuccessModal({ isOpen, onClose, duration, stats, endpoints }: Su
           </div>
         )}
 
-        {/* 확인 버튼 */}
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
-        >
-          OK
-        </button>
+          {/* 확인 버튼 */}
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
+          >
+            OK
+          </button>
+        </div>
       </div>
-    </div>
+
+      {/* CI/CD Setup Modal */}
+      {ec2Server && (
+        <CICDSetupModal
+          isOpen={showCICDSetup}
+          onClose={() => setShowCICDSetup(false)}
+          ec2Host={ec2Server.host}
+          ec2User={ec2Server.user}
+          ec2SshKey={ec2Server.pemPath}
+          projectName={projectName}
+        />
+      )}
+    </>
   );
 }

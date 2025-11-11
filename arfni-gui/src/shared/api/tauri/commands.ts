@@ -14,6 +14,9 @@ export interface Project {
   updated_at: string;
   stack_yaml_path?: string;
   description?: string;
+  github_repo_url?: string;
+  github_branch?: string;
+  github_access_token?: string;
 }
 
 // ============= EC2 서버 타입 (신규) =============
@@ -79,7 +82,10 @@ export const projectCommands = {
     path: string,
     environment: 'local' | 'ec2',
     ec2ServerId?: string,
-    description?: string
+    description?: string,
+    githubRepoUrl?: string,
+    githubBranch?: string,
+    githubAccessToken?: string
   ): Promise<Project> => {
     return await invoke('create_project', {
       name,
@@ -87,6 +93,9 @@ export const projectCommands = {
       environment,
       ec2ServerId,
       description,
+      githubRepoUrl,
+      githubBranch,
+      githubAccessToken,
     });
   },
 
@@ -175,6 +184,16 @@ export const projectCommands = {
   deleteProjectFromDbOnly: async (projectId: string): Promise<void> => {
     return await invoke('delete_project_from_db_only', { projectId });
   },
+
+  // GitHub 레포지토리 EC2에 클론
+  cloneGithubRepoOnEc2: async (projectId: string, ec2ServerId: string): Promise<string> => {
+    return await invoke('clone_github_repo_on_ec2', { projectId, ec2ServerId });
+  },
+
+  // stack.yaml을 GitHub에 커밋
+  commitStackYamlToGithub: async (projectId: string, yamlContent: string): Promise<string> => {
+    return await invoke('commit_stack_yaml_to_github', { projectId, yamlContent });
+  },
 };
 
 // ============= EC2 서버 명령어 (신규) =============
@@ -244,8 +263,8 @@ export const deploymentCommands = {
   },
 
   // 배포 실행
-  deployStack: async (projectPath: string, stackYamlPath: string): Promise<DeploymentStatus> => {
-    return await invoke('deploy_stack', { projectPath, stackYamlPath });
+  deployStack: async (projectPath: string, stackYamlPath: string, projectId?: string): Promise<DeploymentStatus> => {
+    return await invoke('deploy_stack', { projectPath, stackYamlPath, projectId });
   },
 
   // 배포 중단

@@ -125,6 +125,8 @@ fn main() {
       commands::project::write_file,
       commands::project::delete_project_from_db_only,
       commands::project::close_project,
+      commands::project::clone_github_repo_on_ec2,
+      commands::project::commit_stack_yaml_to_github,
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,
@@ -178,6 +180,11 @@ fn main() {
       commands::keys::delete_api_key,
       commands::keys::set_active_api_key,
       commands::keys::get_active_api_key,
+
+      // CI/CD 명령어
+      commands::cicd::authenticate_github,
+      commands::cicd::fetch_github_repositories,
+      commands::cicd::setup_cicd,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

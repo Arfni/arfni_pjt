@@ -20,6 +20,9 @@ pub struct Project {
     pub updated_at: String,
     pub stack_yaml_path: Option<String>,
     pub description: Option<String>,
+    pub github_repo_url: Option<String>,
+    pub github_branch: Option<String>,
+    pub github_access_token: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -75,6 +78,9 @@ pub fn create_project(
     environment: String, // "local" | "ec2"
     ec2_server_id: Option<String>,
     description: Option<String>,
+    github_repo_url: Option<String>,
+    github_branch: Option<String>,
+    github_access_token: Option<String>,
 ) -> Result<Project, String> {
     // 환경 검증
     if environment != "local" && environment != "ec2" {
@@ -86,13 +92,11 @@ pub fn create_project(
         return Err("EC2 환경에서는 서버 ID가 필요합니다".to_string());
     }
 
+    // GitHub 프로젝트인지 확인
+    let is_github_project = github_repo_url.is_some();
+
     let project_path = Path::new(&path).join(&name);
     let arfni_path = project_path.join(".arfni");
-
-    // 프로젝트 경로가 이미 존재하는지 확인
-    if project_path.exists() {
-        return Err(format!("해당 경로에 프로젝트 폴더가 이미 존재합니다: {}", project_path.display()));
-    }
 
     // DB에서 같은 경로의 프로젝트가 있는지 확인하고 있으면 삭제
     let conn = db.get_conn();
@@ -106,21 +110,29 @@ pub fn create_project(
 
     drop(conn_lock);
 
-    // 프로젝트 디렉토리 생성
-    fs::create_dir_all(&project_path)
-        .map_err(|e| format!("프로젝트 폴더 생성 실패: {}", e))?;
+    // GitHub 프로젝트가 아닌 경우에만 로컬 디렉토리 생성
+    if !is_github_project {
+        // 프로젝트 경로가 이미 존재하는지 확인
+        if project_path.exists() {
+            return Err(format!("해당 경로에 프로젝트 폴더가 이미 존재합니다: {}", project_path.display()));
+        }
 
-    // .arfni 디렉토리 생성
-    fs::create_dir_all(&arfni_path)
-        .map_err(|e| format!(".arfni 폴더 생성 실패: {}", e))?;
+        // 프로젝트 디렉토리 생성
+        fs::create_dir_all(&project_path)
+            .map_err(|e| format!("프로젝트 폴더 생성 실패: {}", e))?;
 
-    // .arfni/data 디렉토리 생성 (Docker 볼륨용)
-    fs::create_dir_all(arfni_path.join("data"))
-        .map_err(|e| format!("data 폴더 생성 실패: {}", e))?;
+        // .arfni 디렉토리 생성
+        fs::create_dir_all(&arfni_path)
+            .map_err(|e| format!(".arfni 폴더 생성 실패: {}", e))?;
 
-    // .arfni/compose 디렉토리 생성 (생성된 docker-compose.yaml 저장용)
-    fs::create_dir_all(arfni_path.join("compose"))
-        .map_err(|e| format!("compose 폴더 생성 실패: {}", e))?;
+        // .arfni/data 디렉토리 생성 (Docker 볼륨용)
+        fs::create_dir_all(arfni_path.join("data"))
+            .map_err(|e| format!("data 폴더 생성 실패: {}", e))?;
+
+        // .arfni/compose 디렉토리 생성 (생성된 docker-compose.yaml 저장용)
+        fs::create_dir_all(arfni_path.join("compose"))
+            .map_err(|e| format!("compose 폴더 생성 실패: {}", e))?;
+    }
 
     // 프로젝트 메타데이터 생성
     let project_id = uuid::Uuid::new_v4().to_string();
@@ -139,6 +151,9 @@ pub fn create_project(
         updated_at: created_at.clone(),
         stack_yaml_path: Some(stack_yaml_path),
         description: description.clone(),
+        github_repo_url: github_repo_url.clone(),
+        github_branch: github_branch.clone(),
+        github_access_token: github_access_token.clone(),
     };
 
     // 데이터베이스에 프로젝트 저장
@@ -146,8 +161,8 @@ pub fn create_project(
     let conn = conn.lock().unwrap();
 
     conn.execute(
-        "INSERT INTO projects (id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO projects (id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
             &project.id,
             &project.name,
@@ -160,12 +175,16 @@ pub fn create_project(
             &project.updated_at,
             &project.description,
             &project.stack_yaml_path,
+            &project.github_repo_url,
+            &project.github_branch,
+            &project.github_access_token,
         ],
     ).map_err(|e| format!("프로젝트 DB 저장 실패: {}", e))?;
 
-    // 초기 stack.yaml 생성 (환경에 따라 다르게)
-    let initial_stack = if environment == "local" {
-        format!(r#"apiVersion: v0.1
+    // GitHub 프로젝트가 아닌 경우에만 초기 stack.yaml 생성
+    if !is_github_project {
+        let initial_stack = if environment == "local" {
+            format!(r#"apiVersion: v0.1
 name: {}
 
 targets:
@@ -175,9 +194,9 @@ targets:
 services:
   # 서비스를 여기에 추가하세요
 "#, name)
-    } else {
-        // EC2는 TypeScript에서 서버 정보를 포함하여 생성할 것임
-        format!(r#"apiVersion: v0.1
+        } else {
+            // EC2는 TypeScript에서 서버 정보를 포함하여 생성할 것임
+            format!(r#"apiVersion: v0.1
 name: {}
 
 targets:
@@ -188,11 +207,13 @@ targets:
 services:
   # 서비스를 여기에 추가하세요
 "#, name)
-    };
+        };
 
-    fs::write(project_path.join("stack.yaml"), initial_stack)
-        .map_err(|e| format!("초기 stack.yaml 생성 실패: {}", e))?;
+        fs::write(project_path.join("stack.yaml"), initial_stack)
+            .map_err(|e| format!("초기 stack.yaml 생성 실패: {}", e))?;
+    }
 
+    println!("✅ 프로젝트 생성 완료: {} (GitHub: {})", name, is_github_project);
     Ok(project)
 }
 
@@ -207,7 +228,7 @@ pub fn open_project(
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token
          FROM projects WHERE id = ?1"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -224,19 +245,25 @@ pub fn open_project(
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
-    // 프로젝트 폴더 존재 여부 확인
-    let project_path = Path::new(&project.path);
-    if !project_path.exists() {
-        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
-    }
+    // GitHub 프로젝트가 아닌 경우에만 폴더 존재 확인
+    if project.github_repo_url.is_none() {
+        // 프로젝트 폴더 존재 여부 확인
+        let project_path = Path::new(&project.path);
+        if !project_path.exists() {
+            return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+        }
 
-    // .arfni 디렉토리 존재 여부 확인 (ARFNI 프로젝트인지 검증)
-    let arfni_path = project_path.join(".arfni");
-    if !arfni_path.exists() {
-        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+        // .arfni 디렉토리 존재 여부 확인 (ARFNI 프로젝트인지 검증)
+        let arfni_path = project_path.join(".arfni");
+        if !arfni_path.exists() {
+            return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+        }
     }
 
     // 업데이트 시간 갱신
@@ -253,8 +280,10 @@ pub fn open_project(
         lock_guard.path = None;
     }
 
-    // 프로젝트 폴더에 잠금 파일 생성
-    let lock_file_path = project_path.join(".arfni").join(".lock");
+    // GitHub 프로젝트가 아닌 경우에만 잠금 파일 생성
+    if project.github_repo_url.is_none() {
+        let project_path = Path::new(&project.path);
+        let lock_file_path = project_path.join(".arfni").join(".lock");
 
     #[cfg(target_os = "windows")]
     {
@@ -302,6 +331,7 @@ pub fn open_project(
                 // 잠금 파일 생성 실패는 치명적이지 않으므로 계속 진행
             }
         }
+    }
     }
 
     Ok(project)
@@ -318,7 +348,7 @@ pub fn open_project_by_path(
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token
          FROM projects WHERE path = ?1"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -335,19 +365,25 @@ pub fn open_project_by_path(
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
-    // 프로젝트 폴더 존재 여부 확인
-    let project_path = Path::new(&project.path);
-    if !project_path.exists() {
-        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
-    }
+    // GitHub 프로젝트가 아닌 경우에만 폴더 존재 확인
+    if project.github_repo_url.is_none() {
+        // 프로젝트 폴더 존재 여부 확인
+        let project_path = Path::new(&project.path);
+        if !project_path.exists() {
+            return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+        }
 
-    // .arfni 디렉토리 존재 여부 확인 (ARFNI 프로젝트인지 검증)
-    let arfni_path = project_path.join(".arfni");
-    if !arfni_path.exists() {
-        return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+        // .arfni 디렉토리 존재 여부 확인 (ARFNI 프로젝트인지 검증)
+        let arfni_path = project_path.join(".arfni");
+        if !arfni_path.exists() {
+            return Err(format!("PROJECT_FOLDER_NOT_FOUND:{}", project.path));
+        }
     }
 
     // 기존 잠금 파일 해제
@@ -357,8 +393,10 @@ pub fn open_project_by_path(
         lock_guard.path = None;
     }
 
-    // 프로젝트 폴더에 잠금 파일 생성
-    let lock_file_path = project_path.join(".arfni").join(".lock");
+    // GitHub 프로젝트가 아닌 경우에만 잠금 파일 생성
+    if project.github_repo_url.is_none() {
+        let project_path = Path::new(&project.path);
+        let lock_file_path = project_path.join(".arfni").join(".lock");
 
     #[cfg(target_os = "windows")]
     {
@@ -407,6 +445,7 @@ pub fn open_project_by_path(
             }
         }
     }
+    }
 
     Ok(project)
 }
@@ -419,25 +458,39 @@ pub fn save_stack_yaml(
     yaml_content: String,
     canvas_data: StackYamlData,
 ) -> Result<(), String> {
-    let project_path_buf = Path::new(&project_path);
-    let stack_yaml_path = project_path_buf.join("stack.yaml");
-    let arfni_path = project_path_buf.join(".arfni");
-
-    // stack.yaml 파일 저장
-    fs::write(&stack_yaml_path, yaml_content)
-        .map_err(|e| format!("stack.yaml 저장 실패: {}", e))?;
-
-    // Canvas 상태를 .arfni/canvas-state.json에 저장
-    let canvas_json = serde_json::to_string_pretty(&canvas_data)
-        .map_err(|e| format!("Canvas 데이터 직렬화 실패: {}", e))?;
-
-    fs::write(arfni_path.join("canvas-state.json"), canvas_json)
-        .map_err(|e| format!("Canvas 상태 저장 실패: {}", e))?;
-
-    // DB에서 프로젝트 업데이트 시간 갱신
+    // DB에서 프로젝트가 GitHub 프로젝트인지 확인
     let conn = db.get_conn();
     let conn = conn.lock().unwrap();
 
+    let mut stmt = conn.prepare(
+        "SELECT github_repo_url FROM projects WHERE path = ?1"
+    ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
+
+    let github_url: Option<String> = stmt
+        .query_row(params![&project_path], |row| row.get(0))
+        .ok();
+
+    drop(stmt);
+
+    // GitHub 프로젝트가 아닌 경우에만 로컬 파일에 저장
+    if github_url.is_none() {
+        let project_path_buf = Path::new(&project_path);
+        let stack_yaml_path = project_path_buf.join("stack.yaml");
+        let arfni_path = project_path_buf.join(".arfni");
+
+        // stack.yaml 파일 저장
+        fs::write(&stack_yaml_path, yaml_content)
+            .map_err(|e| format!("stack.yaml 저장 실패: {}", e))?;
+
+        // Canvas 상태를 .arfni/canvas-state.json에 저장
+        let canvas_json = serde_json::to_string_pretty(&canvas_data)
+            .map_err(|e| format!("Canvas 데이터 직렬화 실패: {}", e))?;
+
+        fs::write(arfni_path.join("canvas-state.json"), canvas_json)
+            .map_err(|e| format!("Canvas 상태 저장 실패: {}", e))?;
+    }
+
+    // DB에서 프로젝트 업데이트 시간 갱신
     let updated_at = chrono::Utc::now().to_rfc3339();
     conn.execute(
         "UPDATE projects SET updated_at = ?1 WHERE path = ?2",
@@ -462,7 +515,35 @@ pub fn read_stack_yaml(project_path: String) -> Result<String, String> {
 
 /// Canvas 상태 읽기 (프로젝트 열 때 Canvas 복원용)
 #[tauri::command]
-pub fn load_canvas_state(project_path: String) -> Result<StackYamlData, String> {
+pub fn load_canvas_state(
+    db: State<Database>,
+    project_path: String
+) -> Result<StackYamlData, String> {
+    // DB에서 프로젝트가 GitHub 프로젝트인지 확인
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT github_repo_url FROM projects WHERE path = ?1"
+    ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
+
+    let github_url: Option<String> = stmt
+        .query_row(params![&project_path], |row| row.get(0))
+        .ok();
+
+    drop(stmt);
+    drop(conn);
+
+    // GitHub 프로젝트면 빈 상태 반환 (로컬 파일 없음)
+    if github_url.is_some() {
+        return Ok(StackYamlData {
+            nodes: vec![],
+            edges: vec![],
+            project_name: String::new(),
+            secrets: vec![],
+        });
+    }
+
     let canvas_state_path = Path::new(&project_path).join(".arfni").join("canvas-state.json");
 
     if !canvas_state_path.exists() {
@@ -489,7 +570,7 @@ pub fn get_all_projects(db: State<Database>) -> Result<Vec<Project>, String> {
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token
          FROM projects ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -506,6 +587,9 @@ pub fn get_all_projects(db: State<Database>) -> Result<Vec<Project>, String> {
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -521,7 +605,7 @@ pub fn get_projects_by_environment(db: State<Database>, environment: String) -> 
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token
          FROM projects WHERE environment = ?1 ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -538,6 +622,9 @@ pub fn get_projects_by_environment(db: State<Database>, environment: String) -> 
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -553,7 +640,7 @@ pub fn get_projects_by_server(db: State<Database>, server_id: String) -> Result<
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token
          FROM projects WHERE ec2_server_id = ?1 ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -570,6 +657,9 @@ pub fn get_projects_by_server(db: State<Database>, server_id: String) -> Result<
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -585,7 +675,7 @@ pub fn get_recent_projects(db: State<Database>) -> Result<Vec<Project>, String> 
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT p.id, p.name, p.path, p.environment, p.ec2_server_id, p.mode, p.workdir, p.created_at, p.updated_at, p.description, p.stack_yaml_path
+        "SELECT p.id, p.name, p.path, p.environment, p.ec2_server_id, p.mode, p.workdir, p.created_at, p.updated_at, p.description, p.stack_yaml_path, p.github_repo_url, p.github_branch, p.github_access_token
          FROM projects p
          INNER JOIN recent_projects r ON p.id = r.project_id
          ORDER BY r.opened_at DESC
@@ -605,6 +695,9 @@ pub fn get_recent_projects(db: State<Database>) -> Result<Vec<Project>, String> 
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("최근 프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -783,4 +876,232 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
         .map_err(|e| format!("Failed to write file: {}", e))?;
 
     Ok(())
+}
+
+/// EC2에서 GitHub 레포지토리 클론
+#[tauri::command]
+pub async fn clone_github_repo_on_ec2(
+    db: State<'_, Database>,
+    project_id: String,
+    ec2_server_id: String,
+) -> Result<String, String> {
+    println!("[GitHub Clone] Starting GitHub clone for project: {}", project_id);
+
+    // 프로젝트 정보 조회
+    let conn = db.get_conn();
+    let conn_lock = conn.lock().unwrap();
+
+    let mut stmt = conn_lock.prepare(
+        "SELECT github_repo_url, github_branch, github_access_token, name, workdir
+         FROM projects WHERE id = ?1"
+    ).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
+
+    let (repo_url, branch, access_token, project_name, workdir): (Option<String>, Option<String>, Option<String>, String, Option<String>) = stmt
+        .query_row(params![&project_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+        })
+        .map_err(|e| format!("프로젝트 정보 조회 실패: {}", e))?;
+
+    drop(stmt);
+    drop(conn_lock);
+
+    // GitHub 정보 확인
+    let repo_url = repo_url.ok_or("GitHub repository URL not found")?;
+    let branch = branch.unwrap_or("main".to_string());
+    let access_token = access_token.ok_or("GitHub access token not found")?;
+    let workdir = workdir.unwrap_or("arfni-deploy".to_string());
+
+    // EC2 서버 정보 조회
+    let conn = db.get_conn();
+    let conn_lock = conn.lock().unwrap();
+
+    let mut stmt = conn_lock.prepare(
+        "SELECT host, user, pem_path FROM ec2_servers WHERE id = ?1"
+    ).map_err(|e| format!("EC2 서버 조회 실패: {}", e))?;
+
+    let (host, user, pem_path): (String, String, String) = stmt
+        .query_row(params![&ec2_server_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .map_err(|e| format!("EC2 서버 정보 조회 실패: {}", e))?;
+
+    drop(stmt);
+    drop(conn_lock);
+
+    println!("[GitHub Clone] Cloning {} to EC2 {}@{}", repo_url, user, host);
+
+    // 토큰을 포함한 클론 URL 생성
+    let clone_url = if repo_url.starts_with("https://github.com/") {
+        repo_url.replace("https://github.com/", &format!("https://{}@github.com/", access_token))
+    } else {
+        format!("https://{}@{}", access_token, repo_url.trim_start_matches("https://"))
+    };
+
+    // EC2에서 실행할 명령어들
+    let remote_path = format!("~/{}/{}", workdir, project_name);
+
+    let commands = vec![
+        // 작업 디렉토리 생성
+        format!("mkdir -p ~/{}", workdir),
+        // 기존 프로젝트 디렉토리가 있으면 삭제
+        format!("rm -rf {}", remote_path),
+        // Git clone
+        format!("git clone --branch {} {} {}", branch, clone_url, remote_path),
+        // .arfni 디렉토리 생성
+        format!("mkdir -p {}/.arfni", remote_path),
+        format!("mkdir -p {}/.arfni/data", remote_path),
+        format!("mkdir -p {}/.arfni/compose", remote_path),
+    ];
+
+    // SSH로 명령어 실행
+    for (i, cmd) in commands.iter().enumerate() {
+        println!("[GitHub Clone] Executing command {}/{}: {}", i + 1, commands.len(), cmd);
+
+        // 토큰이 포함된 명령어는 로그에서 숨김
+        let log_cmd = if cmd.contains(&access_token) {
+            cmd.replace(&access_token, "***TOKEN***")
+        } else {
+            cmd.clone()
+        };
+
+        let output = std::process::Command::new("ssh")
+            .args(&[
+                "-i", &pem_path,
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
+                &format!("{}@{}", user, host),
+                cmd,
+            ])
+            .output()
+            .map_err(|e| format!("SSH 명령 실행 실패: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("명령 실패 ({}): {}", log_cmd, stderr));
+        }
+
+        println!("[GitHub Clone] Command {} completed successfully", i + 1);
+    }
+
+    println!("[GitHub Clone] ✅ GitHub repository cloned successfully to EC2");
+    Ok(format!("Repository cloned to {}", remote_path))
+}
+
+/// stack.yaml을 GitHub에 커밋하고 푸시
+#[tauri::command]
+pub async fn commit_stack_yaml_to_github(
+    db: State<'_, Database>,
+    project_id: String,
+    yaml_content: String,
+) -> Result<String, String> {
+    println!("[GitHub Commit] Committing stack.yaml for project: {}", project_id);
+
+    // 프로젝트 정보 조회
+    let conn = db.get_conn();
+    let conn_lock = conn.lock().unwrap();
+
+    let mut stmt = conn_lock.prepare(
+        "SELECT github_repo_url, github_branch, github_access_token, name, workdir, ec2_server_id
+         FROM projects WHERE id = ?1"
+    ).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
+
+    let (repo_url, branch, access_token, project_name, workdir, ec2_server_id):
+        (Option<String>, Option<String>, Option<String>, String, Option<String>, Option<String>) = stmt
+        .query_row(params![&project_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
+        })
+        .map_err(|e| format!("프로젝트 정보 조회 실패: {}", e))?;
+
+    drop(stmt);
+
+    // GitHub 프로젝트가 아니면 에러
+    let repo_url = repo_url.ok_or("Not a GitHub project")?;
+    let branch = branch.unwrap_or("main".to_string());
+    let access_token = access_token.ok_or("GitHub access token not found")?;
+    let workdir = workdir.unwrap_or("arfni-deploy".to_string());
+    let ec2_server_id = ec2_server_id.ok_or("EC2 server ID not found")?;
+
+    // EC2 서버 정보 조회
+    let mut stmt = conn_lock.prepare(
+        "SELECT host, user, pem_path FROM ec2_servers WHERE id = ?1"
+    ).map_err(|e| format!("EC2 서버 조회 실패: {}", e))?;
+
+    let (host, user, pem_path): (String, String, String) = stmt
+        .query_row(params![&ec2_server_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .map_err(|e| format!("EC2 서버 정보 조회 실패: {}", e))?;
+
+    drop(stmt);
+    drop(conn_lock);
+
+    let remote_path = format!("~/{}/{}", workdir, project_name);
+
+    println!("[GitHub Commit] Writing stack.yaml to EC2");
+
+    // EC2에 stack.yaml 파일 쓰기 (SSH로 전송)
+    let stack_yaml_path = format!("{}/stack.yaml", remote_path);
+
+    // 임시 파일에 yaml_content 저장
+    let temp_file = std::env::temp_dir().join(format!("stack_{}.yaml", project_id));
+    fs::write(&temp_file, &yaml_content)
+        .map_err(|e| format!("임시 파일 쓰기 실패: {}", e))?;
+
+    // SCP로 파일 전송
+    let scp_output = std::process::Command::new("scp")
+        .args(&[
+            "-i", &pem_path,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "UserKnownHostsFile=/dev/null",
+            temp_file.to_str().unwrap(),
+            &format!("{}@{}:{}", user, host, stack_yaml_path),
+        ])
+        .output()
+        .map_err(|e| format!("SCP 명령 실행 실패: {}", e))?;
+
+    // 임시 파일 삭제
+    let _ = fs::remove_file(&temp_file);
+
+    if !scp_output.status.success() {
+        let stderr = String::from_utf8_lossy(&scp_output.stderr);
+        return Err(format!("stack.yaml 전송 실패: {}", stderr));
+    }
+
+    println!("[GitHub Commit] stack.yaml uploaded to EC2");
+
+    // Git 명령어들
+    let commands = vec![
+        format!("cd {} && git config user.email 'arfni@example.com'", remote_path),
+        format!("cd {} && git config user.name 'ARFNI'", remote_path),
+        format!("cd {} && git add stack.yaml", remote_path),
+        format!("cd {} && git diff --staged --quiet || git commit -m 'Update stack.yaml via ARFNI'", remote_path),
+        format!("cd {} && git push origin {}", remote_path, branch),
+    ];
+
+    // SSH로 Git 명령어 실행
+    for (i, cmd) in commands.iter().enumerate() {
+        println!("[GitHub Commit] Executing git command {}/{}", i + 1, commands.len());
+
+        let output = std::process::Command::new("ssh")
+            .args(&[
+                "-i", &pem_path,
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
+                &format!("{}@{}", user, host),
+                cmd,
+            ])
+            .output()
+            .map_err(|e| format!("SSH 명령 실행 실패: {}", e))?;
+
+        // git commit 명령은 변경사항이 없으면 실패할 수 있으므로 무시
+        if !output.status.success() && !cmd.contains("git commit") {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Git 명령 실패: {}", stderr));
+        }
+
+        println!("[GitHub Commit] Git command {} completed", i + 1);
+    }
+
+    println!("[GitHub Commit] ✅ stack.yaml committed and pushed to GitHub");
+    Ok("stack.yaml committed successfully".to_string())
 }
