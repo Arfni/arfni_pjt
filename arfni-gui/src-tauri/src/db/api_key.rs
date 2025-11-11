@@ -138,3 +138,11 @@ pub fn delete(db:&Database,id: &str)->anyhow::Result<()>{
     conn.execute("DELETE FROM api_keys WHERE id=?1", params![id])?;
     Ok(())
 }
+
+// Deactivate all API keys
+pub fn deactivate_all(db: &Database) -> anyhow::Result<()> {
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+    conn.execute("UPDATE api_keys SET is_active=0", [])?;
+    Ok(())
+}

@@ -1,0 +1,91 @@
+{
+  "title": {
+    "page": "배포",
+    "inProgress": "배포 진행 중...",
+    "complete": "배포 완료",
+    "failed": "배포 실패",
+    "stopped": "배포 중지됨"
+  },
+  "stages": {
+    "prepare": "사전 검사",
+    "generate": "생성",
+    "build": "빌드",
+    "start": "배포",
+    "postProcess": "상태 확인"
+  },
+  "stageDescriptions": {
+    "prepare": "배포 환경 준비 중",
+    "generate": "설정 파일 생성 중",
+    "build": "컨테이너 이미지 빌드 중",
+    "start": "컨테이너 시작 중",
+    "postProcess": "상태 검사 실행 중"
+  },
+  "buttons": {
+    "stop": "배포 중지",
+    "restart": "배포 재시작",
+    "backToCanvas": "캔버스로 돌아가기",
+    "serverStatus": "서버 상태",
+    "goToCanvas": "캔버스로 이동",
+    "goHome": "홈으로 이동",
+    "goToProjectHome": "프로젝트 홈",
+    "viewLogs": "로그 보기"
+  },
+  "tabs": {
+    "containers": "컨테이너",
+    "logs": "로그"
+  },
+  "messages": {
+    "stopping": "배포 중지 중...",
+    "completedSuccessfully": "배포가 성공적으로 완료되었습니다",
+    "failedDuring": "{{stage}} 과정 중 배포 실패",
+    "stoppedDuring": "{{stage}} 과정 중 배포 중지됨",
+    "deploymentStopped": "배포가 중지되었습니다",
+    "preparing": "배포 준비 중...",
+    "unknownError": "알 수 없는 오류가 발생했습니다",
+    "startDeployment": "배포를 시작하려면 홈에서 캔버스로 이동하여 배포 버튼을 클릭하세요"
+  },
+  "containerStatus": {
+    "success": "성공",
+    "running": "실행 중",
+    "failed": "실패",
+    "stopped": "중지됨",
+    "building": "빌드 중",
+    "pending": "대기 중",
+    "unknown": "알 수 없음"
+  },
+  "containers": {
+    "title": "컨테이너",
+    "noContainers": "배포된 컨테이너가 없습니다",
+    "image": "이미지:",
+    "build": "빌드:",
+    "ports": "포트:"
+  },
+  "success": {
+    "title": "배포 성공!",
+    "message": "모든 컨테이너가 성공적으로 배포되었습니다",
+    "nextSteps": "다음 단계",
+    "checkServices": "서비스가 정상적으로 실행되고 있는지 확인하세요",
+    "viewMonitoring": "모니터링 대시보드에서 메트릭을 확인하세요",
+    "checkLogs": "문제가 발생하면 로그를 확인하세요",
+    "completedTitle": "배포 완료",
+    "completedMessage": "배포가 성공적으로 완료되었습니다.",
+    "duration": "소요 시간",
+    "services": "서비스",
+    "endpoints": "서비스 엔드포인트",
+    "confirm": "확인"
+  },
+  "failed": {
+    "title": "배포 실패",
+    "message": "배포 중 오류가 발생했습니다",
+    "errorDetails": "오류 상세:",
+    "troubleshooting": "문제 해결:",
+    "checkLogs": "상세한 오류 메시지를 보려면 배포 로그를 확인하세요",
+    "verifyConfig": "설정 파일이 올바른지 확인하세요",
+    "ensureDocker": "Docker가 실행 중인지 확인하세요",
+    "tryAgain": "문제를 해결한 후 다시 배포해보세요",
+    "failedTitle": "배포 실패",
+    "failedMessage": "배포 중 오류가 발생했습니다.",
+    "recentLogs": "최근 로그",
+    "confirm": "확인"
+  }
+}

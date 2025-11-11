@@ -1,0 +1,54 @@
+{
+  "settings": {
+    "title": "설정",
+    "general": "일반",
+    "appearance": "외관",
+    "language": "언어",
+    "theme": "테마",
+    "editor": "편집기",
+    "plugins": "플러그인",
+    "about": "정보",
+    "selectLanguage": "언어 선택",
+    "english": "English",
+    "korean": "한국어",
+    "selectTheme": "테마 선택",
+    "light": "라이트",
+    "dark": "다크",
+    "system": "시스템",
+    "fontSize": "글꼴 크기",
+    "tabSize": "탭 크기",
+    "autoSave": "자동 저장",
+    "enablePlugins": "플러그인 활성화",
+    "checkUpdates": "업데이트 확인",
+    "version": "버전:",
+    "saveSettings": "설정 저장",
+    "resetSettings": "기본값으로 초기화"
+  },
+  "confirmation": {
+    "title": "작업 확인",
+    "areYouSure": "정말 실행하시겠습니까?",
+    "cannotUndo": "이 작업은 취소할 수 없습니다",
+    "yes": "예",
+    "no": "아니오",
+    "proceed": "계속",
+    "cancel": "취소"
+  },
+  "error": {
+    "title": "오류",
+    "somethingWentWrong": "문제가 발생했습니다",
+    "tryAgain": "다시 시도해주세요",
+    "contactSupport": "문제가 지속되면 지원팀에 문의하세요",
+    "details": "오류 상세:",
+    "close": "닫기"
+  },
+  "success": {
+    "title": "성공",
+    "operationCompleted": "작업이 성공적으로 완료되었습니다",
+    "ok": "확인"
+  },
+  "loading": {
+    "pleaseWait": "잠시만 기다려주세요...",
+    "loading": "로딩 중",
+    "processing": "처리 중"
+  }
+}

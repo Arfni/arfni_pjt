@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import * as yaml from 'js-yaml';
+import { useTranslation } from 'react-i18next';
 import {
   selectDeploymentStatus,
   selectCurrentStage,
@@ -46,17 +47,18 @@ interface StackYaml {
   }>;
 }
 
-const STAGES: { id: DeploymentStage; label: string; description: string }[] = [
-  { id: 'prepare', label: 'Preflight', description: 'Preflight checks...' },
-  { id: 'generate', label: 'Generate', description: 'Generating Docker files...' },
-  { id: 'build', label: 'Build', description: 'Building images...' },
-  { id: 'start', label: 'Deploy', description: 'Deploying containers...' },
-  { id: 'post-process', label: 'Health', description: 'Health checks...' },
-];
-
 export function DeploymentPage() {
+  const { t } = useTranslation('deployment');
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  const STAGES: { id: DeploymentStage; label: string; description: string }[] = [
+    { id: 'prepare', label: t('stages.prepare'), description: t('stageDescriptions.prepare') },
+    { id: 'generate', label: t('stages.generate'), description: t('stageDescriptions.generate') },
+    { id: 'build', label: t('stages.build'), description: t('stageDescriptions.build') },
+    { id: 'start', label: t('stages.start'), description: t('stageDescriptions.start') },
+    { id: 'post-process', label: t('stages.postProcess'), description: t('stageDescriptions.postProcess') },
+  ];
   const currentProject = useSelector(selectCurrentProject);
   const status = useSelector(selectDeploymentStatus);
   const currentStage = useSelector(selectCurrentStage);
@@ -268,24 +270,24 @@ export function DeploymentPage() {
   const getDeploymentTitle = () => {
     switch (status) {
       case 'deploying':
-        return 'Deployment in Progress...';
+        return t('title.inProgress');
       case 'success':
-        return 'Deployment Complete';
+        return t('title.complete');
       case 'failed':
-        return 'Deployment Failed';
+        return t('title.failed');
       case 'stopped':
-        return 'Deployment Stopped';
+        return t('title.stopped');
       default:
-        return 'Deployment';
+        return t('title.page');
     }
   };
 
   // 배포 진행 중 UI
   if (status === 'deploying' || status === 'success' || status === 'failed' || status === 'stopped') {
     return (
-      <div className="h-screen flex flex-col bg-white relative">
+      <div className="min-h-screen bg-white">
         {/* 컨텐츠 */}
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="p-6">
           {activeTab === 'log' ? (
             <div className="max-w-6xl mx-auto">
               {/* 제목 */}
@@ -306,16 +308,6 @@ export function DeploymentPage() {
                 <div className="flex items-center justify-between border-b border-gray-200 bg-white">
                   <div className="flex">
                     <button
-                      onClick={() => setActiveLogTab('containers')}
-                      className={`px-6 py-3 font-semibold transition-colors ${
-                        activeLogTab === 'containers'
-                          ? 'text-blue-600 border-b-2 border-blue-600'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      Containers
-                    </button>
-                    <button
                       onClick={() => setActiveLogTab('logs')}
                       className={`px-6 py-3 font-semibold transition-colors ${
                         activeLogTab === 'logs'
@@ -323,7 +315,17 @@ export function DeploymentPage() {
                           : 'text-gray-600 hover:text-gray-900'
                       }`}
                     >
-                      Logs
+                      {t('tabs.logs')}
+                    </button>
+                    <button
+                      onClick={() => setActiveLogTab('containers')}
+                      className={`px-6 py-3 font-semibold transition-colors ${
+                        activeLogTab === 'containers'
+                          ? 'text-blue-600 border-b-2 border-blue-600'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      {t('tabs.containers')}
                     </button>
                   </div>
                   {status === 'deploying' ? (
@@ -336,14 +338,14 @@ export function DeploymentPage() {
                           : 'bg-red-600 hover:bg-red-700 text-white'
                       }`}
                     >
-                      Stop Deployment
+                      {t('buttons.stop')}
                     </button>
                   ) : (status === 'success' || status === 'failed' || status === 'stopped') ? (
                     <button
                       onClick={handleRestartDeployment}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors mr-2"
                     >
-                      Restart Deployment
+                      {t('buttons.restart')}
                     </button>
                   ) : null}
                 </div>
@@ -364,12 +366,12 @@ export function DeploymentPage() {
               </div>
 
               {/* 하단 네비게이션 버튼 */}
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="flex justify-end gap-3 mt-8 mb-8">
                 <button
                   onClick={handleBackToCanvas}
                   className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 rounded-lg font-semibold shadow-lg transition-colors"
                 >
-                  Back to Canvas
+                  {t('buttons.backToCanvas')}
                 </button>
                 <button
                   onClick={handleNavigateToStatus}
@@ -380,7 +382,7 @@ export function DeploymentPage() {
                       : 'bg-blue-600 enabled:hover:bg-blue-700 text-white'
                   }`}
                 >
-                  {currentProject?.environment === 'ec2' ? 'Server Status' : 'Project Home'}
+                  {currentProject?.environment === 'ec2' ? t('buttons.serverStatus') : t('buttons.goToProjectHome')}
                 </button>
               </div>
             </div>
@@ -415,12 +417,12 @@ export function DeploymentPage() {
   return (
     <div className="h-screen flex items-center justify-center bg-gray-50">
       <div className="text-gray-600 text-center">
-        <p>배포를 시작하려면 Canvas에서 Deploy 버튼을 클릭하세요.</p>
+        <p>{t('messages.startDeployment')}</p>
         <button
-          onClick={() => navigate('/canvas')}
+          onClick={() => navigate('/projects')}
           className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
         >
-          Canvas로 이동
+          {t('buttons.goHome')}
         </button>
       </div>
     </div>

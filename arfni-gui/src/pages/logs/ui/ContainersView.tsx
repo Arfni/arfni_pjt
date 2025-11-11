@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Square, Trash2, RotateCw, MoreVertical, RefreshCw } from 'lucide-react';
 import { Project, EC2Server } from '@shared/api/tauri/commands';
+import { useTranslation } from 'react-i18next';
 
 interface Container {
   id: string;
@@ -39,6 +40,7 @@ export function ContainersView({
   onStartAll,
   onStopAll
 }: ContainersViewProps) {
+  const { t } = useTranslation('logs');
   const [expandedContainerIds, setExpandedContainerIds] = useState<Set<string>>(new Set());
   const [openHeaderDropdown, setOpenHeaderDropdown] = useState(false);
 
@@ -73,13 +75,13 @@ export function ContainersView({
       {/* Container Information */}
       <div className="bg-white p-5 border-b border-gray-200 flex-1 overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Containers</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t('containers.title')}</h3>
           <div className="flex gap-1">
             <button
               onClick={onRefresh}
               disabled={!ec2Server || loadingContainers}
               className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Refresh"
+              title={t('containers.refresh')}
             >
               <RefreshCw className={`w-4 h-4 ${loadingContainers ? 'animate-spin' : ''}`} />
             </button>
@@ -92,7 +94,7 @@ export function ContainersView({
                   setOpenHeaderDropdown(!openHeaderDropdown);
                 }}
                 className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                title="More"
+                title={t('containers.more')}
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
@@ -112,7 +114,7 @@ export function ContainersView({
                     className="w-full px-3 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Play className="w-4 h-4" fill="currentColor" />
-                    Start All
+                    {t('containers.startAll')}
                   </button>
                   <button
                     onClick={() => {
@@ -123,7 +125,7 @@ export function ContainersView({
                     className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Square className="w-4 h-4" fill="currentColor" />
-                    Stop All
+                    {t('containers.stopAll')}
                   </button>
                 </div>
               )}
@@ -132,9 +134,9 @@ export function ContainersView({
         </div>
 
         {loadingContainers ? (
-          <div className="text-sm text-gray-500">Loading containers...</div>
+          <div className="text-sm text-gray-500">{t('containers.loading')}</div>
         ) : containers.length === 0 ? (
-          <div className="text-sm text-gray-500">No containers found</div>
+          <div className="text-sm text-gray-500">{t('containers.noContainers')}</div>
         ) : (
           <div className="space-y-2">
             {containers.map((container) => {
@@ -180,7 +182,7 @@ export function ContainersView({
                           className="flex flex-col items-center gap-1 p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                         >
                           <Square className="w-5 h-5" fill="currentColor" />
-                          <span className="text-xs font-medium">Stop</span>
+                          <span className="text-xs font-medium">{t('containers.actions.stop')}</span>
                         </button>
                       ) : (
                         <button
@@ -191,7 +193,7 @@ export function ContainersView({
                           className="flex flex-col items-center gap-1 p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
                         >
                           <Play className="w-5 h-5" fill="currentColor" />
-                          <span className="text-xs font-medium">Start</span>
+                          <span className="text-xs font-medium">{t('containers.actions.start')}</span>
                         </button>
                       )}
 
@@ -204,7 +206,7 @@ export function ContainersView({
                         className="flex flex-col items-center gap-1 p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                       >
                         <RotateCw className="w-5 h-5" />
-                        <span className="text-xs font-medium">Restart</span>
+                        <span className="text-xs font-medium">{t('containers.actions.restart')}</span>
                       </button>
 
                       {/* Delete button */}
@@ -216,7 +218,7 @@ export function ContainersView({
                         className="flex flex-col items-center gap-1 p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                       >
                         <Trash2 className="w-5 h-5" />
-                        <span className="text-xs font-medium">Delete</span>
+                        <span className="text-xs font-medium">{t('containers.actions.delete')}</span>
                       </button>
                     </div>
                   </div>
@@ -225,25 +227,25 @@ export function ContainersView({
                   {isExpanded && (
                     <div className="mt-3 ml-6 pt-3 border-t border-gray-100 space-y-1.5">
                       <div className="text-xs">
-                        <span className="text-gray-500 font-medium">Container ID:</span>{' '}
+                        <span className="text-gray-500 font-medium">{t('containers.details.id')}:</span>{' '}
                         <span className="text-gray-700 font-mono">{container.id}</span>
                       </div>
                       {container.command && (
                         <div className="text-xs">
-                          <span className="text-gray-500 font-medium">Command:</span>{' '}
+                          <span className="text-gray-500 font-medium">{t('containers.details.command')}:</span>{' '}
                           <span className="text-gray-700 font-mono break-all">{container.command}</span>
                         </div>
                       )}
                       {container.created && (
                         <div className="text-xs">
-                          <span className="text-gray-500 font-medium">Created:</span>{' '}
+                          <span className="text-gray-500 font-medium">{t('containers.details.created')}:</span>{' '}
                           <span className="text-gray-700">{container.created}</span>
                         </div>
                       )}
                       {container.ports && (
                         <div className="text-xs">
-                          <span className="text-gray-500 font-medium">Ports:</span>{' '}
-                          <span className="text-gray-700 font-mono">{container.ports || 'None'}</span>
+                          <span className="text-gray-500 font-medium">{t('containers.details.ports')}:</span>{' '}
+                          <span className="text-gray-700 font-mono">{container.ports || t('containers.details.noPorts')}</span>
                         </div>
                       )}
                     </div>

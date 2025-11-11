@@ -1,4 +1,5 @@
 import { Check, Clock, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface SuccessModalProps {
   isOpen: boolean;
@@ -25,6 +26,8 @@ const formatDuration = (seconds: number | null) => {
 };
 
 export function SuccessModal({ isOpen, onClose, duration, stats, endpoints }: SuccessModalProps) {
+  const { t } = useTranslation('deployment');
+
   if (!isOpen) return null;
 
   return (
@@ -35,8 +38,8 @@ export function SuccessModal({ isOpen, onClose, duration, stats, endpoints }: Su
             <Check className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Deployment Completed</h2>
-            <p className="text-gray-600">Deployment completed successfully.</p>
+            <h2 className="text-2xl font-bold text-gray-900">{t('success.completedTitle')}</h2>
+            <p className="text-gray-600">{t('success.completedMessage')}</p>
           </div>
         </div>
 
@@ -45,12 +48,12 @@ export function SuccessModal({ isOpen, onClose, duration, stats, endpoints }: Su
           <div className="bg-gray-100 rounded p-4">
             <div className="flex items-center gap-2 text-gray-600 mb-1">
               <Clock className="w-4 h-4" />
-              <span className="text-sm">Duration</span>
+              <span className="text-sm">{t('success.duration')}</span>
             </div>
             <div className="text-2xl font-bold text-gray-900">{formatDuration(duration)}</div>
           </div>
           <div className="bg-gray-100 rounded p-4">
-            <div className="text-gray-600 text-sm mb-1">Services</div>
+            <div className="text-gray-600 text-sm mb-1">{t('success.services')}</div>
             <div className="text-2xl font-bold text-gray-900">{stats.serviceCount}</div>
           </div>
         </div>
@@ -58,7 +61,7 @@ export function SuccessModal({ isOpen, onClose, duration, stats, endpoints }: Su
         {/* 엔드포인트 */}
         {endpoints.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Service Endpoints</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">{t('success.endpoints')}</h3>
             <div className="space-y-2">
               {endpoints.map((endpoint, index) => (
                 <div key={index} className="bg-gray-100 rounded p-3 border border-gray-200">
@@ -99,7 +102,7 @@ export function SuccessModal({ isOpen, onClose, duration, stats, endpoints }: Su
           onClick={onClose}
           className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
         >
-          OK
+          {t('success.confirm')}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { Laptop, Server, Package, Settings, FlaskConical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface ProjectsSidebarProps {
   selectedTab: 'local' | 'ec2' | 'plugins';
@@ -7,6 +8,7 @@ interface ProjectsSidebarProps {
 }
 
 export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarProps) {
+  const { t } = useTranslation('projects');
   const navigate = useNavigate();
 
   return (
@@ -24,7 +26,7 @@ export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarPro
           <div className="w-8 h-8 flex items-center justify-center rounded" style={{ backgroundColor: '#4C65E2' }}>
             <Laptop className="w-5 h-5 text-white" />
           </div>
-          <span className={`text-xs font-medium ${selectedTab === 'local' ? 'text-blue-700' : 'text-gray-700'}`}>Local</span>
+          <span className={`text-xs font-medium ${selectedTab === 'local' ? 'text-blue-700' : 'text-gray-700'}`}>{t('sidebar.local')}</span>
         </button>
 
         {/* EC2 Button */}
@@ -39,7 +41,7 @@ export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarPro
           <div className="w-8 h-8 flex items-center justify-center rounded" style={{ backgroundColor: '#4C65E2' }}>
             <Server className="w-5 h-5 text-white" />
           </div>
-          <span className={`text-xs font-medium ${selectedTab === 'ec2' ? 'text-blue-700' : 'text-gray-700'}`}>EC2</span>
+          <span className={`text-xs font-medium ${selectedTab === 'ec2' ? 'text-blue-700' : 'text-gray-700'}`}>{t('sidebar.ec2')}</span>
         </button>
 
         {/* Plugins Button */}
@@ -54,7 +56,7 @@ export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarPro
           <div className="w-8 h-8 flex items-center justify-center rounded" style={{ backgroundColor: '#4C65E2' }}>
             <Package className="w-5 h-5 text-white" />
           </div>
-          <span className={`text-xs font-medium ${selectedTab === 'plugins' ? 'text-blue-700' : 'text-gray-700'}`}>Plugins</span>
+          <span className={`text-xs font-medium ${selectedTab === 'plugins' ? 'text-blue-700' : 'text-gray-700'}`}>{t('sidebar.plugins')}</span>
         </button>
       </div>
 
@@ -65,14 +67,14 @@ export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarPro
           className="w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-gray-100"
         >
           <FlaskConical className="w-5 h-5 text-gray-600" />
-          <span className="text-xs font-medium text-gray-700">Test Page</span>
+          <span className="text-xs font-medium text-gray-700">{t('sidebar.testPage')}</span>
         </button>
         <button
           onClick={() => navigate('/settings')}
           className="w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-gray-100"
         >
           <Settings className="w-5 h-5 text-gray-600" />
-          <span className="text-xs font-medium text-gray-700">Settings</span>
+          <span className="text-xs font-medium text-gray-700">{t('sidebar.settings')}</span>
         </button>
       </div>
     </aside>

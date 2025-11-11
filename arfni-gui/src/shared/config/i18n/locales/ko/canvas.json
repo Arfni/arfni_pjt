@@ -1,0 +1,107 @@
+{
+  "title": {
+    "page": "Canvas",
+    "nodePalette": "노드 팔레트",
+    "propertyPanel": "속성",
+    "yamlEditor": "YAML 편집기"
+  },
+  "toolbar": {
+    "cicd": "CI/CD",
+    "githubYml": "Github YML",
+    "autoAlignment": "자동 정렬",
+    "export": "내보내기",
+    "deploy": "배포",
+    "stop": "중지",
+    "settings": "설정",
+    "ai": "AI",
+    "mode": {
+      "allInOne": "올인원",
+      "hybrid": "하이브리드",
+      "noMonitoring": "모니터링 없음"
+    }
+  },
+  "nodes": {
+    "service": "서비스",
+    "database": "데이터베이스",
+    "target": "대상",
+    "addNode": "노드 추가",
+    "deleteNode": "노드 삭제",
+    "duplicateNode": "노드 복제",
+    "categories": {
+      "services": "서비스",
+      "databases": "데이터베이스",
+      "targets": "대상",
+      "custom": "사용자 정의"
+    }
+  },
+  "properties": {
+    "title": "속성",
+    "noNodeSelected": "선택된 노드 없음",
+    "selectNodePrompt": "속성을 편집하려면 노드를 선택하세요",
+    "basicInfo": "기본 정보",
+    "nodeName": "노드 이름",
+    "nodeType": "노드 유형",
+    "configuration": "설정",
+    "advanced": "고급",
+    "connections": "연결",
+    "save": "저장",
+    "cancel": "취소",
+    "reset": "초기화"
+  },
+  "yaml": {
+    "title": "YAML 편집기",
+    "preview": "미리보기",
+    "edit": "편집",
+    "validate": "검증",
+    "format": "포맷",
+    "download": "다운로드",
+    "validationSuccess": "YAML이 유효합니다",
+    "validationFailed": "YAML 검증 실패",
+    "formatSuccess": "YAML이 성공적으로 포맷되었습니다",
+    "parseError": "YAML 파싱 실패"
+  },
+  "export": {
+    "title": "프로젝트 내보내기",
+    "format": "내보내기 형식",
+    "dockerCompose": "Docker Compose",
+    "kubernetes": "Kubernetes",
+    "terraform": "Terraform",
+    "includeConfig": "설정 파일 포함",
+    "includeSecrets": "비밀 정보 포함 (권장하지 않음)",
+    "destination": "대상",
+    "browse": "찾아보기...",
+    "exporting": "내보내는 중...",
+    "exportSuccess": "내보내기 성공!",
+    "exportFailed": "내보내기 실패",
+    "successMessage": "프로젝트가 성공적으로 내보내졌습니다",
+    "location": "위치:",
+    "openFolder": "폴더 열기",
+    "openFile": "파일 열기"
+  },
+  "ai": {
+    "title": "AI 어시스턴트",
+    "generate": "아키텍처 생성",
+    "optimize": "설정 최적화",
+    "suggest": "개선사항 제안",
+    "prompt": "구축하고 싶은 것을 설명하세요...",
+    "generating": "생성 중...",
+    "examples": {
+      "title": "예시:",
+      "webapp": "React 프론트엔드와 Node.js 백엔드가 있는 웹 애플리케이션",
+      "microservices": "API 게이트웨이가 있는 마이크로서비스 아키텍처",
+      "dataProcessing": "Kafka와 Spark를 사용한 데이터 처리 파이프라인"
+    }
+  },
+  "messages": {
+    "openProjectFirst": "먼저 프로젝트를 생성하거나 열어주세요",
+    "dockerNotInstalled": "Docker가 설치되어 있지 않거나 실행 중이지 않습니다",
+    "savingChanges": "변경사항 저장 중...",
+    "changesSaved": "변경사항이 성공적으로 저장되었습니다",
+    "saveFailed": "변경사항 저장 실패",
+    "deploymentStarted": "배포가 시작되었습니다",
+    "deploymentFailed": "배포 시작 실패",
+    "invalidConfiguration": "유효하지 않은 설정이 감지되었습니다",
+    "confirmDelete": "이 노드를 정말 삭제하시겠습니까?",
+    "confirmClearCanvas": "Canvas를 정말 지우시겠습니까?"
+  }
+}

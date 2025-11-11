@@ -7,6 +7,7 @@ import {
   Database,
   TrendingDown
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface OptimizeViewProps {
   prometheusUrl?: string;
@@ -57,6 +58,7 @@ interface OptimizationReport {
 }
 
 export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: OptimizeViewProps) {
+  const { t } = useTranslation('logs');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OptimizationReport | null>(null);
@@ -112,10 +114,10 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
           <div className="text-center">
             <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 mb-2">
-              Start Server Optimization Analysis
+              {t('optimize.startAnalysis')}
             </h3>
             <p className="text-gray-500 mb-6">
-              Analyze Prometheus metrics to identify cost savings and performance improvement opportunities
+              {t('optimize.description')}
             </p>
             <button
               onClick={handleOptimize}
@@ -124,7 +126,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
               onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
               onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
-              Start Analysis
+              {t('optimize.startButton')}
             </button>
           </div>
         )}
@@ -132,7 +134,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
         {loading && (
           <div className="text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-b-4 mx-auto mb-4" style={{ borderBottomColor: '#4C65E2' }}></div>
-            <p className="text-gray-600">Collecting and analyzing metrics...</p>
+            <p className="text-gray-600">{t('optimize.analyzing')}</p>
           </div>
         )}
 
@@ -141,13 +143,13 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-semibold text-red-800 mb-1">Analysis Failed</h4>
+                <h4 className="font-semibold text-red-800 mb-1">{t('optimize.analysisFailed')}</h4>
                 <p className="text-red-700 text-sm whitespace-pre-wrap">{error}</p>
                 <button
                   onClick={handleOptimize}
                   className="mt-3 text-red-700 hover:text-red-800 font-medium text-sm underline"
                 >
-                  Retry
+                  {t('optimize.retry')}
                 </button>
               </div>
             </div>
@@ -159,9 +161,9 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
             {/* Title Section */}
             <div className="mb-2 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">Server Optimization Analysis</h2>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('optimize.title')}</h2>
                 <p className="text-gray-600">
-                  AI Recommendations Based on Actual Usage Metrics
+                  {t('optimize.aiRecommendations')}
                 </p>
               </div>
               <button
@@ -172,27 +174,27 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
                 onMouseEnter={(e) => !loading && (e.currentTarget.style.opacity = '0.9')}
                 onMouseLeave={(e) => !loading && (e.currentTarget.style.opacity = '1')}
               >
-                Re-analyze
+                {t('optimize.reanalyze')}
               </button>
             </div>
 
             {/* Glossary Section */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
-                📖 Glossary
+                📖 {t('optimize.glossary.title')}
               </h4>
               <div className="grid md:grid-cols-3 gap-3 text-sm text-blue-700">
                 <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <div className="font-semibold text-blue-900 mb-1">P50 (Median)</div>
-                  <div className="text-xs">Used at or below this value for half the time. Represents typical usage.</div>
+                  <div className="font-semibold text-blue-900 mb-1">{t('optimize.glossary.p50Title')}</div>
+                  <div className="text-xs">{t('optimize.glossary.p50Description')}</div>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <div className="font-semibold text-blue-900 mb-1">P95</div>
-                  <div className="text-xs">Stays at or below this value 95% of the time. Represents typical peak levels.</div>
+                  <div className="font-semibold text-blue-900 mb-1">{t('optimize.glossary.p95Title')}</div>
+                  <div className="text-xs">{t('optimize.glossary.p95Description')}</div>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <div className="font-semibold text-blue-900 mb-1">P99</div>
-                  <div className="text-xs">At or below this value 99% of the time. Maximum excluding extreme peak situations.</div>
+                  <div className="font-semibold text-blue-900 mb-1">{t('optimize.glossary.p99Title')}</div>
+                  <div className="text-xs">{t('optimize.glossary.p99Description')}</div>
                 </div>
               </div>
             </div>
@@ -202,7 +204,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <Cpu className="w-5 h-5 text-purple-600" />
-                  Actual Resource Usage
+                  {t('optimize.actualUsage.title')}
                 </h3>
                 <div className="bg-purple-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm">
                   {result.actual_usage.instance_type || result.cost_analysis.current_instance_type}
@@ -210,13 +212,13 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <div className="text-sm text-gray-500 mb-1">CPU</div>
+                  <div className="text-sm text-gray-500 mb-1">{t('optimize.actualUsage.cpu')}</div>
                   <div className="text-2xl font-bold text-gray-800">
                     {result.actual_usage.cpu_usage_percent.toFixed(1)}%
                   </div>
                 </div>
                 <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <div className="text-sm text-gray-500 mb-1">Memory</div>
+                  <div className="text-sm text-gray-500 mb-1">{t('optimize.actualUsage.memory')}</div>
                   <div className="text-2xl font-bold text-gray-800">
                     {result.actual_usage.memory_usage_percent.toFixed(1)}%
                   </div>
@@ -225,7 +227,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
                   </div>
                 </div>
                 <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <div className="text-sm text-gray-500 mb-1">Disk</div>
+                  <div className="text-sm text-gray-500 mb-1">{t('optimize.actualUsage.disk')}</div>
                   <div className="text-2xl font-bold text-gray-800">
                     {result.actual_usage.disk_usage_percent.toFixed(1)}%
                   </div>
@@ -234,7 +236,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
                   </div>
                 </div>
                 <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <div className="text-sm text-gray-500 mb-1">Health</div>
+                  <div className="text-sm text-gray-500 mb-1">{t('optimize.actualUsage.health')}</div>
                   <div className={`text-xl font-bold ${getHealthStatusColor(result.performance_analysis.health_status)}`}>
                     {result.performance_analysis.health_status.toUpperCase()}
                   </div>
@@ -247,17 +249,17 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
               <div className="bg-green-50 border border-green-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-3 flex items-center gap-2 text-green-800">
                   <TrendingDown className="w-5 h-5" />
-                  Cost Savings Opportunity
+                  {t('optimize.costSavings.title')}
                 </h3>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <div className="text-sm text-green-700 mb-1">Current Monthly Cost</div>
+                    <div className="text-sm text-green-700 mb-1">{t('optimize.costSavings.currentCost')}</div>
                     <div className="text-3xl font-bold text-green-900">
                       ${result.cost_analysis.current_monthly_cost.toFixed(2)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-green-700 mb-1">Potential Savings</div>
+                    <div className="text-sm text-green-700 mb-1">{t('optimize.costSavings.potentialSavings')}</div>
                     <div className="text-3xl font-bold text-green-600">
                       ${result.cost_analysis.potential_savings.toFixed(2)}
                       <span className="text-lg ml-2">
@@ -274,7 +276,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
               <div className="bg-red-50 border border-red-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-3 flex items-center gap-2 text-red-800">
                   <AlertTriangle className="w-5 h-5" />
-                  Performance Bottlenecks
+                  {t('optimize.bottlenecks.title')}
                 </h3>
                 <ul className="space-y-2">
                   {result.performance_analysis.bottlenecks.map((bottleneck, idx) => (
@@ -291,7 +293,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
             <div>
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Database className="w-5 h-5 text-purple-600" />
-                AI Recommendations
+                {t('optimize.recommendations.title')}
               </h3>
               <div className="space-y-3">
                 {result.recommendations
@@ -323,11 +325,11 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
                         </div>
                         {rec.savings && rec.savings > 0 && (
                           <div className="text-right flex-shrink-0">
-                            <div className="text-xs opacity-75">Savings</div>
+                            <div className="text-xs opacity-75">{t('optimize.recommendations.savings')}</div>
                             <div className="text-xl font-bold">
                               ${rec.savings.toFixed(2)}
                             </div>
-                            <div className="text-xs opacity-75">/ month</div>
+                            <div className="text-xs opacity-75">{t('optimize.recommendations.perMonth')}</div>
                           </div>
                         )}
                       </div>

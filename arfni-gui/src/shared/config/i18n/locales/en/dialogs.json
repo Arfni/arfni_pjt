@@ -1,0 +1,54 @@
+{
+  "settings": {
+    "title": "Settings",
+    "general": "General",
+    "appearance": "Appearance",
+    "language": "Language",
+    "theme": "Theme",
+    "editor": "Editor",
+    "plugins": "Plugins",
+    "about": "About",
+    "selectLanguage": "Select Language",
+    "english": "English",
+    "korean": "한국어",
+    "selectTheme": "Select Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "fontSize": "Font Size",
+    "tabSize": "Tab Size",
+    "autoSave": "Auto Save",
+    "enablePlugins": "Enable Plugins",
+    "checkUpdates": "Check for Updates",
+    "version": "Version:",
+    "saveSettings": "Save Settings",
+    "resetSettings": "Reset to Defaults"
+  },
+  "confirmation": {
+    "title": "Confirm Action",
+    "areYouSure": "Are you sure?",
+    "cannotUndo": "This action cannot be undone",
+    "yes": "Yes",
+    "no": "No",
+    "proceed": "Proceed",
+    "cancel": "Cancel"
+  },
+  "error": {
+    "title": "Error",
+    "somethingWentWrong": "Something went wrong",
+    "tryAgain": "Please try again",
+    "contactSupport": "If the problem persists, contact support",
+    "details": "Error Details:",
+    "close": "Close"
+  },
+  "success": {
+    "title": "Success",
+    "operationCompleted": "Operation completed successfully",
+    "ok": "OK"
+  },
+  "loading": {
+    "pleaseWait": "Please wait...",
+    "loading": "Loading",
+    "processing": "Processing"
+  }
+}

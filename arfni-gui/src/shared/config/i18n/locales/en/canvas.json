@@ -1,0 +1,107 @@
+{
+  "title": {
+    "page": "Canvas",
+    "nodePalette": "Node Palette",
+    "propertyPanel": "Properties",
+    "yamlEditor": "YAML Editor"
+  },
+  "toolbar": {
+    "cicd": "CI/CD",
+    "githubYml": "Github YML",
+    "autoAlignment": "Auto Alignment",
+    "export": "Export",
+    "deploy": "Deploy",
+    "stop": "Stop",
+    "settings": "Settings",
+    "ai": "AI",
+    "mode": {
+      "allInOne": "All-in-One",
+      "hybrid": "Hybrid",
+      "noMonitoring": "No Monitoring"
+    }
+  },
+  "nodes": {
+    "service": "Service",
+    "database": "Database",
+    "target": "Target",
+    "addNode": "Add Node",
+    "deleteNode": "Delete Node",
+    "duplicateNode": "Duplicate Node",
+    "categories": {
+      "services": "Services",
+      "databases": "Databases",
+      "targets": "Targets",
+      "custom": "Custom"
+    }
+  },
+  "properties": {
+    "title": "Properties",
+    "noNodeSelected": "No node selected",
+    "selectNodePrompt": "Select a node to edit its properties",
+    "basicInfo": "Basic Information",
+    "nodeName": "Node Name",
+    "nodeType": "Node Type",
+    "configuration": "Configuration",
+    "advanced": "Advanced",
+    "connections": "Connections",
+    "save": "Save",
+    "cancel": "Cancel",
+    "reset": "Reset"
+  },
+  "yaml": {
+    "title": "YAML Editor",
+    "preview": "Preview",
+    "edit": "Edit",
+    "validate": "Validate",
+    "format": "Format",
+    "download": "Download",
+    "validationSuccess": "YAML is valid",
+    "validationFailed": "YAML validation failed",
+    "formatSuccess": "YAML formatted successfully",
+    "parseError": "Failed to parse YAML"
+  },
+  "export": {
+    "title": "Export Project",
+    "format": "Export Format",
+    "dockerCompose": "Docker Compose",
+    "kubernetes": "Kubernetes",
+    "terraform": "Terraform",
+    "includeConfig": "Include Configuration Files",
+    "includeSecrets": "Include Secrets (Not Recommended)",
+    "destination": "Destination",
+    "browse": "Browse...",
+    "exporting": "Exporting...",
+    "exportSuccess": "Export successful!",
+    "exportFailed": "Export failed",
+    "successMessage": "Project has been exported successfully",
+    "location": "Location:",
+    "openFolder": "Open Folder",
+    "openFile": "Open File"
+  },
+  "ai": {
+    "title": "AI Assistant",
+    "generate": "Generate Architecture",
+    "optimize": "Optimize Configuration",
+    "suggest": "Suggest Improvements",
+    "prompt": "Describe what you want to build...",
+    "generating": "Generating...",
+    "examples": {
+      "title": "Examples:",
+      "webapp": "A web application with React frontend and Node.js backend",
+      "microservices": "Microservices architecture with API gateway",
+      "dataProcessing": "Data processing pipeline with Kafka and Spark"
+    }
+  },
+  "messages": {
+    "openProjectFirst": "Please create or open a project first",
+    "dockerNotInstalled": "Docker is not installed or not running",
+    "savingChanges": "Saving changes...",
+    "changesSaved": "Changes saved successfully",
+    "saveFailed": "Failed to save changes",
+    "deploymentStarted": "Deployment started",
+    "deploymentFailed": "Failed to start deployment",
+    "invalidConfiguration": "Invalid configuration detected",
+    "confirmDelete": "Are you sure you want to delete this node?",
+    "confirmClearCanvas": "Are you sure you want to clear the canvas?"
+  }
+}

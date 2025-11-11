@@ -1,5 +1,6 @@
 import { ExternalLink, Package } from 'lucide-react';
 import { DeploymentStage, DeploymentContainer, DeploymentStatus } from '@features/deployment/model/deploymentSlice';
+import { useTranslation } from 'react-i18next';
 
 interface Endpoint {
   name: string;
@@ -26,27 +27,29 @@ export function ContainersView({
   containers,
   deploymentStatus
 }: ContainersViewProps) {
+  const { t } = useTranslation('deployment');
+
   const getStageLabel = (stage: DeploymentStage | null) => {
     if (!stage) return '-';
     const labels: Record<DeploymentStage, string> = {
-      'prepare': 'Preflight',
-      'generate': 'Generate',
-      'build': 'Build',
-      'start': 'Deploy',
-      'post-process': 'Health Check'
+      'prepare': t('stages.prepare'),
+      'generate': t('stages.generate'),
+      'build': t('stages.build'),
+      'start': t('stages.start'),
+      'post-process': t('stages.postProcess')
     };
     return labels[stage];
   };
 
   const getStatusLabel = (status: DeploymentContainer['status']) => {
     switch (status) {
-      case 'success': return 'Success';
-      case 'running': return 'Running';
-      case 'failed': return 'Failed';
-      case 'stopped': return 'Stopped';
-      case 'building': return 'Building';
-      case 'pending': return 'Pending';
-      default: return 'Unknown';
+      case 'success': return t('containerStatus.success');
+      case 'running': return t('containerStatus.running');
+      case 'failed': return t('containerStatus.failed');
+      case 'stopped': return t('containerStatus.stopped');
+      case 'building': return t('containerStatus.building');
+      case 'pending': return t('containerStatus.pending');
+      default: return t('containerStatus.unknown');
     }
   };
 
@@ -71,7 +74,7 @@ export function ContainersView({
       {/* 컨테이너 목록 */}
       {containers.length > 0 && (
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-3">Containers</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">{t('containers.title')}</h3>
           <div className="space-y-2">
             {containers.map((container, index) => (
               <div key={index} className={`bg-white rounded-lg p-4 border-2 transition-all ${getStatusColor(container.status)}`}>
@@ -85,19 +88,19 @@ export function ContainersView({
                       <div className="text-sm text-gray-600 space-y-1">
                         {container.image && (
                           <div className="flex items-center gap-1">
-                            <span className="font-medium">Image:</span>
+                            <span className="font-medium">{t('containers.image')}</span>
                             <span className="font-mono text-xs">{container.image}</span>
                           </div>
                         )}
                         {container.build && (
                           <div className="flex items-center gap-1">
-                            <span className="font-medium">Build:</span>
+                            <span className="font-medium">{t('containers.build')}</span>
                             <span className="font-mono text-xs">{container.build}</span>
                           </div>
                         )}
                         {container.ports && container.ports.length > 0 && (
                           <div className="flex items-center gap-1">
-                            <span className="font-medium">Ports:</span>
+                            <span className="font-medium">{t('containers.ports')}</span>
                             <span className="font-mono text-xs">{container.ports.join(', ')}</span>
                           </div>
                         )}

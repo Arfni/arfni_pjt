@@ -1,6 +1,7 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
 import { Project, EC2Server } from '@shared/api/tauri/commands';
+import { useTranslation } from 'react-i18next';
 
 interface MonitoringViewProps {
   project: Project | null;
@@ -13,6 +14,7 @@ export function MonitoringView({
   ec2Server,
   onNavigateToMonitoring
 }: MonitoringViewProps) {
+  const { t } = useTranslation('logs');
   return (
     <div className="flex-1 bg-white overflow-hidden flex flex-col">
       {/* Scrollable Content Area */}
@@ -20,10 +22,10 @@ export function MonitoringView({
         <div className="text-center">
           <Activity className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-700 mb-2">
-            Open Monitoring Dashboard
+            {t('monitoring.openDashboard')}
           </h3>
           <p className="text-gray-500 mb-6">
-            View real-time metrics and performance data in Grafana
+            {t('monitoring.description')}
           </p>
           <button
             onClick={onNavigateToMonitoring}
@@ -32,7 +34,7 @@ export function MonitoringView({
             onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
             onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
           >
-            Open Dashboard
+            {t('monitoring.openButton')}
           </button>
         </div>
       </div>

@@ -1,0 +1,162 @@
+{
+  "title": {
+    "page": "Project Status",
+    "terminal": "Terminal",
+    "containers": "Containers",
+    "monitor": "Monitor",
+    "optimize": "Optimize",
+    "monitoring": "Monitoring Dashboard"
+  },
+  "terminal": {
+    "title": "SSH Terminal",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "openTunnel": "Open Tunnel",
+    "closeTunnel": "Close Tunnel",
+    "clearLogs": "Clear Logs",
+    "clear": "Clear Logs",
+    "sendCommand": "Send",
+    "enter": "Send",
+    "commandPlaceholder": "Enter command...",
+    "placeholder": "Enter command...",
+    "noOutput": "No output",
+    "notConnected": "Not connected to server",
+    "connectPrompt": "Connect to start using terminal",
+    "connected": "SSH connected",
+    "connectionFailed": "Connection failed",
+    "tunnelOpened": "Tunnel opened - Use http://localhost:9091 for Prometheus",
+    "tunnelFailed": "Tunnel failed",
+    "noServerInfo": "EC2 server information not available",
+    "notAvailable": "Terminal not available for this project type"
+  },
+  "containers": {
+    "title": "Containers",
+    "noContainers": "No containers found",
+    "loading": "Loading containers...",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "delete": "Delete",
+    "startAll": "Start All",
+    "stopAll": "Stop All",
+    "refresh": "Refresh",
+    "more": "More",
+    "confirmStopAll": "Are you sure you want to stop all containers?",
+    "confirmRemove": "Are you sure you want to remove container '{{containerName}}'?",
+    "started": "Container '{{containerName}}' started",
+    "stopped": "Container '{{containerName}}' stopped",
+    "restarted": "Container '{{containerName}}' restarted",
+    "removed": "Container '{{containerName}}' removed",
+    "allStarted": "All containers started",
+    "allStopped": "All containers stopped",
+    "allStartFailed": "Failed to start all containers: {{error}}",
+    "allStopFailed": "Failed to stop all containers: {{error}}",
+    "startFailed": "Failed to start container",
+    "stopFailed": "Failed to stop container",
+    "restartFailed": "Failed to restart container",
+    "removeFailed": "Failed to remove container",
+    "containerId": "Container ID:",
+    "command": "Command:",
+    "created": "Created:",
+    "ports": "Ports:",
+    "none": "None",
+    "actions": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "delete": "Delete"
+    },
+    "details": {
+      "id": "Container ID:",
+      "command": "Command:",
+      "created": "Created:",
+      "ports": "Ports:",
+      "noPorts": "None"
+    }
+  },
+  "monitoring": {
+    "title": "Monitoring Dashboard",
+    "openDashboard": "Open Monitoring Dashboard",
+    "description": "View real-time metrics and performance data in Grafana",
+    "openButton": "Open Dashboard",
+    "openInNewTab": "Open in New Tab",
+    "loading": "Loading monitoring configuration...",
+    "starting": "Starting monitoring stack...",
+    "startingContainers": "Starting Docker containers...",
+    "waitingForGrafana": "Monitoring stack started. Waiting for Grafana to be ready...",
+    "preparingGrafana": "Preparing Grafana... ({{current}}/{{max}}s)",
+    "timeoutError": "Monitoring startup timed out. Please check your Docker setup and try again.",
+    "connectionFailed": "Monitoring Connection Failed",
+    "notReady": "Monitoring stack started but Grafana is not ready. Please try again later.",
+    "configNotFound": "Monitoring configuration not found.",
+    "projectMissing": "Project information is missing.",
+    "retry": "Retry",
+    "troubleshooting": "Troubleshooting:",
+    "checkDocker": "Check Docker Desktop is running",
+    "dockerNote": "Monitoring stack runs as Docker containers.",
+    "checkStackFile": "Check stack.yaml file",
+    "stackFilePath": "Path:",
+    "startStack": "Start monitoring stack",
+    "startCommand1": "Command 1:",
+    "startCommand2": "Or Command 2:"
+  },
+  "optimize": {
+    "title": "Server Optimization Analysis",
+    "startAnalysis": "Start Server Optimization Analysis",
+    "description": "Analyze Prometheus metrics to identify cost savings and performance improvement opportunities",
+    "startButton": "Start Analysis",
+    "reanalyze": "Re-analyze",
+    "analyzing": "Collecting and analyzing metrics...",
+    "analysisFailed": "Analysis Failed",
+    "retry": "Retry",
+    "aiRecommendations": "AI Recommendations Based on Actual Usage Metrics",
+    "glossary": {
+      "title": "Glossary",
+      "p50Title": "P50 (Median)",
+      "p50Description": "Used at or below this value for half the time. Represents typical usage.",
+      "p95Title": "P95",
+      "p95Description": "Stays at or below this value 95% of the time. Represents typical peak levels.",
+      "p99Title": "P99",
+      "p99Description": "At or below this value 99% of the time. Maximum excluding extreme peak situations."
+    },
+    "actualUsage": {
+      "title": "Actual Resource Usage",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk",
+      "health": "Health",
+      "healthy": "HEALTHY",
+      "warning": "WARNING",
+      "critical": "CRITICAL"
+    },
+    "costSavings": {
+      "title": "Cost Savings Opportunity",
+      "currentCost": "Current Monthly Cost",
+      "potentialSavings": "Potential Savings"
+    },
+    "bottlenecks": {
+      "title": "Performance Bottlenecks"
+    },
+    "recommendations": {
+      "title": "AI Recommendations",
+      "priority": {
+        "high": "HIGH",
+        "medium": "MEDIUM",
+        "low": "LOW"
+      },
+      "savings": "Savings",
+      "perMonth": "/ month"
+    }
+  },
+  "log": {
+    "commandPrefix": ">",
+    "stderr": "[stderr]",
+    "tunnelError": "[tunnel error]",
+    "sessionClosed": "[Session closed: {{id}}]",
+    "sendFailed": "Send failed: {{error}}"
+  },
+  "page": {
+    "title": "Project Status",
+    "backToProjects": "Back to Projects"
+  }
+}

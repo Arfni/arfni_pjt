@@ -1,6 +1,7 @@
 import React from 'react';
 import { Container, Terminal, Activity, BarChart3, Sparkles } from 'lucide-react';
 import { Project, EC2Server } from '@shared/api/tauri/commands';
+import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
   selectedView: 'containers' | 'terminal' | 'monitor' | 'optimize';
@@ -22,6 +23,8 @@ export function Sidebar({
   project,
   tunnelOpen
 }: SidebarProps) {
+  const { t } = useTranslation('logs');
+
   const handleContainersClick = () => {
     onViewChange('containers');
     onContainersRefresh();
@@ -64,7 +67,7 @@ export function Sidebar({
           >
             <Terminal className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xs font-medium text-gray-700">Terminal</span>
+          <span className="text-xs font-medium text-gray-700">{t('title.terminal')}</span>
         </button>
 
         {/* Containers */}
@@ -81,7 +84,7 @@ export function Sidebar({
           >
             <Container className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xs font-medium text-gray-700">Containers</span>
+          <span className="text-xs font-medium text-gray-700">{t('title.containers')}</span>
         </button>
 
         {/* Monitor */}
@@ -98,7 +101,7 @@ export function Sidebar({
           >
             <BarChart3 className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xs font-medium text-gray-700">Monitor</span>
+          <span className="text-xs font-medium text-gray-700">{t('title.monitor')}</span>
         </button>
 
         {/* Optimize */}
@@ -115,7 +118,7 @@ export function Sidebar({
           >
             <Sparkles className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xs font-medium text-gray-700">Optimize</span>
+          <span className="text-xs font-medium text-gray-700">{t('title.optimize')}</span>
         </button>
       </div>
     </aside>

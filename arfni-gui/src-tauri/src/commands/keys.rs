@@ -64,3 +64,8 @@ pub fn set_active_api_key(db: State<Database>, id: String) -> Result<(), String>
 pub fn get_active_api_key(db: State<Database>, provider: String) -> Result<Option<String>, String> {
   repo::get_active_value(&db, &provider).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn deactivate_all_api_keys(db: State<Database>) -> Result<(), String> {
+  repo::deactivate_all(&db).map_err(|e| e.to_string())
+}

@@ -1,5 +1,6 @@
 import { Loader2, Check, Square } from 'lucide-react';
 import { DeploymentStatus, DeploymentStage } from '@features/deployment/model/deploymentSlice';
+import { useTranslation } from 'react-i18next';
 
 interface ProgressBarProps {
   status: DeploymentStatus;
@@ -18,6 +19,8 @@ export function ProgressBar({
   getCurrentStageMessage,
   stages,
 }: ProgressBarProps) {
+  const { t } = useTranslation('deployment');
+
   // currentStage를 기준으로 진행률 계산 (점의 실제 위치에 맞춤)
   let progress = 0;
   if (status === 'success') {
@@ -48,13 +51,13 @@ export function ProgressBar({
         {status === 'stopped' && (
           <Square className="w-5 h-5 text-red-600 fill-red-600" />
         )}
-        <span className="text-lg font-semibold text-gray-900">
-          {status === 'deploying' && isStopping && 'Stopping deployment...'}
+        <span className="text-lg font-semibold text-gray-900 whitespace-nowrap flex-shrink-0">
+          {status === 'deploying' && isStopping && t('messages.stopping')}
           {status === 'deploying' && !isStopping && currentStage && getCurrentStageMessage()}
-          {status === 'success' && 'Deployment completed successfully'}
-          {status === 'failed' && `Deployment failed during ${stages.find(s => s.id === currentStage)?.label || 'Unknown'} process`}
-          {status === 'stopped' && currentStage && `Stopped deployment during ${stages.find(s => s.id === currentStage)?.label || 'Unknown'} process`}
-          {status === 'stopped' && !currentStage && 'Deployment stopped'}
+          {status === 'success' && t('messages.completedSuccessfully')}
+          {status === 'failed' && t('messages.failedDuring', { stage: stages.find(s => s.id === currentStage)?.label || 'Unknown' })}
+          {status === 'stopped' && currentStage && t('messages.stoppedDuring', { stage: stages.find(s => s.id === currentStage)?.label || 'Unknown' })}
+          {status === 'stopped' && !currentStage && t('messages.deploymentStopped')}
         </span>
       </div>
 
@@ -145,7 +148,7 @@ export function ProgressBar({
             return (
               <div
                 key={stage.id}
-                className={`absolute text-xs transition-colors ${
+                className={`absolute text-xs transition-colors whitespace-nowrap ${
                   isFailed
                     ? 'text-red-600 font-medium'
                     : isStopped

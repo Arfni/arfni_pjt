@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-shell';
 import { useState, useEffect } from 'react';
 import { Project, EC2Server } from '@shared/api/tauri/commands';
+import { useTranslation } from 'react-i18next';
 
 interface MonitoringConfig {
   mode: string;
@@ -15,6 +16,7 @@ interface MonitoringConfig {
 }
 
 export default function MonitoringPage() {
+  const { t } = useTranslation('logs');
   const navigate = useNavigate();
   const location = useLocation();
   const { project, ec2Server } = location.state as {
@@ -32,7 +34,7 @@ export default function MonitoringPage() {
   useEffect(() => {
     const loadConfig = async () => {
       if (!project?.path) {
-        setError('Project information is missing.');
+        setError(t('monitoring.projectMissing'));
         setLoading(false);
         return;
       }
@@ -52,14 +54,14 @@ export default function MonitoringPage() {
         if (!isRunning) {
           // 3. 실행 중이 아니면 자동으로 시작
           setIsStarting(true);
-          setStartupMessage('Starting monitoring stack...');
+          setStartupMessage(t('monitoring.starting'));
 
           const startResult = await invoke<string>('start_monitoring_stack', {
             projectPath: project.path
           });
 
           console.log(startResult);
-          setStartupMessage('Monitoring stack started. Waiting for Grafana to be ready...');
+          setStartupMessage(t('monitoring.waitingForGrafana'));
 
           // 4. Grafana가 준비될 때까지 대기 (최대 30초)
           let attempts = 0;
@@ -78,11 +80,11 @@ export default function MonitoringPage() {
             }
 
             attempts++;
-            setStartupMessage(`Preparing Grafana... (${attempts}/${maxAttempts}s)`);
+            setStartupMessage(t('monitoring.preparingGrafana', { current: attempts, max: maxAttempts }));
           }
 
           if (attempts >= maxAttempts) {
-            setError('Monitoring stack started but Grafana is not ready. Please try again later.');
+            setError(t('monitoring.timeoutError'));
             setIsStarting(false);
           }
         }
@@ -115,7 +117,7 @@ export default function MonitoringPage() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <Activity className="w-6 h-6 text-blue-500" />
-            <h1 className="text-xl font-semibold">Monitoring Dashboard</h1>
+            <h1 className="text-xl font-semibold">{t('monitoring.title')}</h1>
           </div>
         </header>
 
@@ -123,10 +125,10 @@ export default function MonitoringPage() {
           <div className="text-center">
             <Activity className="w-12 h-12 mx-auto mb-4 text-blue-500 animate-pulse" />
             <p className="text-lg text-gray-600 mb-2">
-              {isStarting ? startupMessage : 'Loading monitoring configuration...'}
+              {isStarting ? startupMessage : t('monitoring.loading')}
             </p>
             {isStarting && (
-              <p className="text-sm text-gray-500">Starting Docker containers...</p>
+              <p className="text-sm text-gray-500">{t('monitoring.startingContainers')}</p>
             )}
           </div>
         </main>
@@ -146,37 +148,37 @@ export default function MonitoringPage() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <Activity className="w-6 h-6 text-red-600" />
-            <h1 className="text-xl font-semibold">Monitoring Dashboard</h1>
+            <h1 className="text-xl font-semibold">{t('monitoring.title')}</h1>
           </div>
         </header>
 
         <main className="flex-1 flex items-center justify-center p-6">
           <div className="max-w-2xl w-full bg-red-50 border border-red-200 rounded-lg p-6">
             <Activity className="w-12 h-12 mx-auto mb-4 text-red-400" />
-            <h3 className="text-lg font-semibold text-red-900 mb-2 text-center">Monitoring Connection Failed</h3>
+            <h3 className="text-lg font-semibold text-red-900 mb-2 text-center">{t('monitoring.connectionFailed')}</h3>
             <p className="text-sm text-red-700 mb-4 text-center whitespace-pre-line">{error}</p>
 
             <div className="mt-6 space-y-3 text-left bg-white p-4 rounded border border-red-100">
-              <p className="text-sm font-semibold text-gray-700">Troubleshooting:</p>
+              <p className="text-sm font-semibold text-gray-700">{t('monitoring.troubleshooting')}</p>
               <ol className="text-sm text-gray-600 list-decimal list-inside space-y-2 ml-2">
                 <li>
-                  <strong>Docker Desktop 실행 확인</strong>
-                  <p className="ml-6 mt-1 text-xs text-gray-500">모니터링 스택은 Docker 컨테이너로 실행됩니다.</p>
+                  <strong>{t('monitoring.checkDocker')}</strong>
+                  <p className="ml-6 mt-1 text-xs text-gray-500">{t('monitoring.dockerNote')}</p>
                 </li>
                 <li>
-                  <strong>stack.yaml 파일 확인</strong>
+                  <strong>{t('monitoring.checkStackFile')}</strong>
                   <p className="ml-6 mt-1 text-xs text-gray-500">
-                    경로: <code className="bg-gray-100 px-1 py-0.5 rounded font-mono">{project?.path}\stack.yaml</code>
+                    {t('monitoring.stackFilePath')} <code className="bg-gray-100 px-1 py-0.5 rounded font-mono">{project?.path}\stack.yaml</code>
                   </p>
                 </li>
                 <li>
-                  <strong>모니터링 스택 시작</strong>
+                  <strong>{t('monitoring.startStack')}</strong>
                   <div className="ml-6 mt-1 space-y-1">
-                    <p className="text-xs text-gray-500">명령어 1:</p>
+                    <p className="text-xs text-gray-500">{t('monitoring.startCommand1')}</p>
                     <code className="block bg-gray-100 px-2 py-1 rounded font-mono text-xs">
                       start-monitoring-v2.exe {project?.path}\stack.yaml
                     </code>
-                    <p className="text-xs text-gray-500 mt-2">또는 명령어 2:</p>
+                    <p className="text-xs text-gray-500 mt-2">{t('monitoring.startCommand2')}</p>
                     <code className="block bg-gray-100 px-2 py-1 rounded font-mono text-xs">
                       arfni-go.exe monitor -f {project?.path}\stack.yaml
                     </code>
@@ -190,7 +192,7 @@ export default function MonitoringPage() {
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm"
               >
-                Retry
+                {t('monitoring.retry')}
               </button>
             </div>
           </div>
@@ -204,7 +206,7 @@ export default function MonitoringPage() {
       <div className="h-screen w-screen flex items-center justify-center bg-gray-50">
         <div className="text-center text-gray-500">
           <Activity className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <p className="text-lg">Monitoring configuration not found.</p>
+          <p className="text-lg">{t('monitoring.configNotFound')}</p>
         </div>
       </div>
     );
@@ -228,7 +230,7 @@ export default function MonitoringPage() {
             </button>
             <Activity className="w-6 h-6 text-blue-600" />
             <div>
-              <h1 className="text-xl font-semibold">Monitoring Dashboard</h1>
+              <h1 className="text-xl font-semibold">{t('monitoring.title')}</h1>
               {ec2Server && (
                 <p className="text-sm text-gray-500">{ec2Server.user}@{ec2Server.host}</p>
               )}
@@ -252,7 +254,7 @@ export default function MonitoringPage() {
               style={{ backgroundColor: '#4C65E2' }}
             >
               <ExternalLink className="w-4 h-4" />
-              Open in New Tab
+              {t('monitoring.openInNewTab')}
             </button>
           </div>
         </div>
