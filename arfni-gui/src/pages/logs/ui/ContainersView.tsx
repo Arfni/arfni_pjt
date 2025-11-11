@@ -147,7 +147,7 @@ export function ContainersView({
                   className="p-3 rounded-lg border border-gray-200 bg-white transition-all cursor-pointer hover:border-gray-300"
                   onClick={() => toggleExpand(container.id)}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-start gap-2 flex-1 min-w-0">
                       {/* Status indicator circle */}
                       <div className="mt-0.5">
@@ -169,7 +169,7 @@ export function ContainersView({
                         </div>
                       </div>
                     </div>
-                    <div className="flex gap-1 items-start" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex gap-3 items-center" onClick={(e) => e.stopPropagation()}>
                       {/* Start/Stop button */}
                       {isRunning ? (
                         <button
@@ -177,10 +177,10 @@ export function ContainersView({
                             e.stopPropagation();
                             onStopContainer(container.id, container.name);
                           }}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Stop"
+                          className="flex flex-col items-center gap-1 p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                         >
-                          <Square className="w-4 h-4" fill="currentColor" />
+                          <Square className="w-5 h-5" fill="currentColor" />
+                          <span className="text-xs font-medium">Stop</span>
                         </button>
                       ) : (
                         <button
@@ -188,10 +188,10 @@ export function ContainersView({
                             e.stopPropagation();
                             onStartContainer(container.id, container.name);
                           }}
-                          className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
-                          title="Start"
+                          className="flex flex-col items-center gap-1 p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
                         >
-                          <Play className="w-4 h-4" fill="currentColor" />
+                          <Play className="w-5 h-5" fill="currentColor" />
+                          <span className="text-xs font-medium">Start</span>
                         </button>
                       )}
 
@@ -201,10 +201,10 @@ export function ContainersView({
                           e.stopPropagation();
                           onRestartContainer(container.id, container.name);
                         }}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                        title="Restart"
+                        className="flex flex-col items-center gap-1 p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                       >
-                        <RotateCw className="w-4 h-4" />
+                        <RotateCw className="w-5 h-5" />
+                        <span className="text-xs font-medium">Restart</span>
                       </button>
 
                       {/* Delete button */}
@@ -213,10 +213,10 @@ export function ContainersView({
                           e.stopPropagation();
                           onRemoveContainer(container.id, container.name);
                         }}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                        title="Delete"
+                        className="flex flex-col items-center gap-1 p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
+                        <span className="text-xs font-medium">Delete</span>
                       </button>
                     </div>
                   </div>

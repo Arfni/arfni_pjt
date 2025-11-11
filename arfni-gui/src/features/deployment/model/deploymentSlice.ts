@@ -22,7 +22,7 @@ export interface DeploymentContainer {
   image?: string;
   build?: string;
   ports?: string[];
-  status: 'pending' | 'building' | 'running' | 'success' | 'failed';
+  status: 'pending' | 'building' | 'running' | 'success' | 'failed' | 'stopped';
 }
 
 export interface DeploymentState {
@@ -72,7 +72,7 @@ const deploymentSlice = createSlice({
       state.startTime = new Date().toISOString();
       state.endTime = null;
       state.error = null;
-      state.containers = [];
+      // state.containers는 초기화하지 않음 (loadContainersFromStack에서 설정한 값 유지)
       state.endpoints = [];
       state.serviceCount = 0;
       state.containerCount = 0;
@@ -197,6 +197,11 @@ const deploymentSlice = createSlice({
       // currentStage는 유지하여 어느 단계에서 중지되었는지 표시
       state.endTime = new Date().toISOString();
       state.error = null; // 중지는 에러가 아니므로 null
+      // 모든 컨테이너를 stopped 상태로 표시
+      state.containers = state.containers.map(container => ({
+        ...container,
+        status: 'stopped' as const,
+      }));
     },
 
     // 배포 초기화
