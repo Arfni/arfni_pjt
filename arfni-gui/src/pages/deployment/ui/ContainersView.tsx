@@ -95,7 +95,11 @@ export function ContainersView({
                         {container.build && (
                           <div className="flex items-center gap-1">
                             <span className="font-medium">{t('containers.build')}</span>
-                            <span className="font-mono text-xs">{container.build}</span>
+                            <span className="font-mono text-xs">
+                              {typeof container.build === 'string'
+                                ? container.build
+                                : `${container.build.context}${container.build.dockerfile ? `/${container.build.dockerfile}` : ''}`}
+                            </span>
                           </div>
                         )}
                         {container.ports && container.ports.length > 0 && (

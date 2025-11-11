@@ -20,7 +20,7 @@ export interface DeploymentEndpoint {
 export interface DeploymentContainer {
   name: string;
   image?: string;
-  build?: string;
+  build?: string | { context: string; dockerfile?: string };
   ports?: string[];
   status: 'pending' | 'building' | 'running' | 'success' | 'failed' | 'stopped';
 }
