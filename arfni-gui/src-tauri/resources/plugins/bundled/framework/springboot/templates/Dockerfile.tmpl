@@ -1,26 +1,64 @@
-# Build stage
-FROM maven:3.9-openjdk-{{default "17" .java_version}} AS builder
+# Multi-stage build for Spring Boot
+# Uses Maven image which includes both Maven and Gradle support
+FROM maven:{{default "3.9.9" .maven_version}}-eclipse-temurin-{{default "17" .java_version}}-alpine AS builder
 
 WORKDIR /app
 
-# Copy pom.xml and download dependencies
-COPY pom.xml .
-RUN mvn dependency:go-offline
+# Copy all project files first
+COPY . .
 
-# Copy source code and build
-COPY src ./src
-RUN mvn package -DskipTests
+# Auto-detect build tool and build
+RUN set -ex && \
+    if [ -f "build.gradle" ] || [ -f "build.gradle.kts" ]; then \
+      echo "🔨 Detected Gradle project" && \
+      apk add --no-cache gradle && \
+      if [ -f "./gradlew" ]; then \
+        chmod +x ./gradlew && \
+        ./gradlew build -x test --no-daemon --console=plain; \
+      else \
+        gradle build -x test --no-daemon --console=plain; \
+      fi && \
+      mkdir -p /app/output && \
+      find /app/build/libs -name "*.jar" ! -name "*-plain.jar" -exec cp {} /app/output/app.jar \;; \
+    elif [ -f "pom.xml" ]; then \
+      echo "🔨 Detected Maven project" && \
+      mvn package -DskipTests --no-transfer-progress -B && \
+      mkdir -p /app/output && \
+      find /app/target -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" -exec cp {} /app/output/app.jar \;; \
+    else \
+      echo "❌ ERROR: No build.gradle or pom.xml found!" && \
+      ls -la && \
+      exit 1; \
+    fi
 
-# Runtime stage
-FROM openjdk:{{default "17" .java_version}}-slim
+#############################################
+# RUNTIME STAGE (Common for both)
+#############################################
+FROM eclipse-temurin:{{default "17" .java_version}}-jre-alpine
 
 WORKDIR /app
+
+# Install curl for health checks
+RUN apk add --no-cache curl
 
 # Copy JAR from builder
-COPY --from=builder /app/target/*.jar app.jar
+COPY --from=builder /app/output/app.jar app.jar
+
+# Create non-root user for security
+RUN addgroup -S spring && adduser -S spring -G spring
+USER spring:spring
 
 # Expose port
 EXPOSE {{default 8080 .port}}
 
-# Run the application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Set environment variables
+ENV SPRING_PROFILES_ACTIVE={{default "production" .profile}}
+{{if .database_url}}ENV DATABASE_URL={{.database_url}}{{end}}
+ENV JAVA_OPTS="{{default "-Xmx512m -Xms256m" .jvm_opts}}"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:{{default 8080 .port}}/actuator/health || exit 1
+
+# Run application with JVM options
+ENTRYPOINT exec java $JAVA_OPTS -jar app.jar

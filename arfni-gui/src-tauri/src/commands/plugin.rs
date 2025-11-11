@@ -834,15 +834,20 @@ pub async fn read_plugin_template(
   plugin_path: String,
   template_path: String,
 ) -> Result<String, String> {
-  // Get resource directory for bundled plugins
-  let resource_dir = app.path()
-    .resource_dir()
-    .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-
   // Check if it's a bundled plugin or user-installed
   let full_path = if plugin_path.starts_with("bundled/") {
-    // Bundled plugin - look in resources/plugins
-    resource_dir.join("plugins").join(&plugin_path[8..]).join(&template_path)
+    // Bundled plugin
+    if cfg!(debug_assertions) {
+      // Development mode: use resources from src-tauri/resources
+      let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+      manifest_dir.join("resources").join("plugins").join(&plugin_path[8..]).join(&template_path)
+    } else {
+      // Production mode: use resource_dir
+      let resource_dir = app.path()
+        .resource_dir()
+        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+      resource_dir.join("resources").join("plugins").join(&plugin_path[8..]).join(&template_path)
+    }
   } else {
     // User-installed plugin
     let app_data_dir = app.path()
@@ -854,4 +859,101 @@ pub async fn read_plugin_template(
   // Read the template file
   fs::read_to_string(&full_path)
     .map_err(|e| format!("Failed to read template file at {:?}: {}", full_path, e))
+}
+
+/// List all bundled plugins in a specific category
+#[tauri::command]
+pub async fn list_bundled_plugins(
+  app: AppHandle,
+  category: String,
+) -> Result<Vec<String>, String> {
+  let bundled_dir = if cfg!(debug_assertions) {
+    // Development mode: use resources from src-tauri/resources
+    let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir.join("resources").join("plugins").join("bundled").join(&category)
+  } else {
+    // Production mode: use resource_dir
+    let resource_dir = app.path()
+      .resource_dir()
+      .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+    resource_dir.join("resources").join("plugins").join("bundled").join(&category)
+  };
+
+  if !bundled_dir.exists() {
+    return Ok(Vec::new());
+  }
+
+  let mut plugins = Vec::new();
+  let entries = fs::read_dir(&bundled_dir)
+    .map_err(|e| format!("Failed to read directory {:?}: {}", bundled_dir, e))?;
+
+  for entry in entries {
+    if let Ok(entry) = entry {
+      if entry.path().is_dir() {
+        // Check if plugin.yaml exists in this directory
+        let plugin_yaml = entry.path().join("plugin.yaml");
+        if plugin_yaml.exists() {
+          if let Some(name) = entry.file_name().to_str() {
+            plugins.push(name.to_string());
+          }
+        }
+      }
+    }
+  }
+
+  Ok(plugins)
+}
+
+/// Read bundled plugin manifest (plugin.yaml)
+#[tauri::command]
+pub async fn read_bundled_plugin_manifest(
+  app: AppHandle,
+  plugin_path: String, // e.g., "framework/springboot"
+) -> Result<String, String> {
+  let manifest_path = if cfg!(debug_assertions) {
+    // Development mode: use resources from src-tauri/resources
+    let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir.join("resources").join("plugins").join("bundled").join(&plugin_path).join("plugin.yaml")
+  } else {
+    // Production mode: use resource_dir
+    let resource_dir = app.path()
+      .resource_dir()
+      .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+    resource_dir.join("resources").join("plugins").join("bundled").join(&plugin_path).join("plugin.yaml")
+  };
+
+  fs::read_to_string(&manifest_path)
+    .map_err(|e| format!("Failed to read plugin manifest at {:?}: {}", manifest_path, e))
+}
+
+/// Read plugin icon as bytes (for creating blob URLs in frontend)
+#[tauri::command]
+pub async fn read_plugin_icon(
+  app: AppHandle,
+  plugin_path: String, // e.g., "framework/springboot"
+  is_bundled: bool,
+) -> Result<Vec<u8>, String> {
+  let icon_path = if is_bundled {
+    if cfg!(debug_assertions) {
+      // Development mode: use resources from src-tauri/resources
+      let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+      manifest_dir.join("resources").join("plugins").join("bundled").join(&plugin_path).join("icon.png")
+    } else {
+      // Production mode: use resource_dir
+      let resource_dir = app.path()
+        .resource_dir()
+        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+      resource_dir.join("resources").join("plugins").join("bundled").join(&plugin_path).join("icon.png")
+    }
+  } else {
+    // User-installed plugin
+    let app_data_dir = app.path()
+      .app_data_dir()
+      .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    app_data_dir.join("plugins").join("installed").join(&plugin_path).join("icon.png")
+  };
+
+  // Read icon file as bytes
+  fs::read(&icon_path)
+    .map_err(|e| format!("Failed to read icon file at {:?}: {}", icon_path, e))
 }

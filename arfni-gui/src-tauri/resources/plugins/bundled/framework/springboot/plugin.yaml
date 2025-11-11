@@ -1,5 +1,5 @@
 apiVersion: v0.1
-name: spring
+name: springboot
 displayName: Spring Boot
 version: 1.0.0
 category: framework
@@ -21,11 +21,48 @@ provides:
     - app.spring
 
 inputs:
+  build_tool:
+    description: "Build tool (auto-detected if not specified)"
+    type: select
+    required: false
+    options:
+      - "auto"
+      - "maven"
+      - "gradle"
+    default: "auto"
+    scope: build
+
   java_version:
     description: "Java version"
-    type: text
+    type: select
     required: false
+    options:
+      - "11"
+      - "17"
+      - "21"
     default: "17"
+    scope: build
+
+  maven_version:
+    description: "Maven version (for Maven builds)"
+    type: select
+    required: false
+    options:
+      - "3.8.8"
+      - "3.9.9"
+    default: "3.9.9"
+    scope: build
+
+  gradle_version:
+    description: "Gradle version (for Gradle builds)"
+    type: select
+    required: false
+    options:
+      - "8.2"
+      - "8.5"
+      - "8.7"
+    default: "8.5"
+    scope: build
 
   port:
     description: "Application port"
@@ -33,6 +70,7 @@ inputs:
     required: false
     env_var: SERVER_PORT
     default: 8080
+    scope: runtime
 
   database_url:
     description: "Database connection URL"
@@ -40,6 +78,7 @@ inputs:
     required: false
     env_var: DATABASE_URL
     default: ""
+    scope: runtime
 
   profile:
     description: "Spring profile"
@@ -47,6 +86,15 @@ inputs:
     required: false
     env_var: SPRING_PROFILES_ACTIVE
     default: "production"
+    scope: runtime
+
+  jvm_opts:
+    description: "Additional JVM options"
+    type: text
+    required: false
+    env_var: JAVA_OPTS
+    default: "-Xmx512m -Xms256m"
+    scope: runtime
 
 contributes:
   services:

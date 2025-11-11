@@ -733,8 +733,45 @@ pub fn delete_project(
     project_id: String,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    // DB에서 프로젝트 조회
-    let project = open_project(db.clone(), project_id.clone(), app_handle)?;
+    // DB에서 프로젝트 정보 조회 (open_project를 사용하지 않음 - 잠금 파일을 열지 않기 위해)
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    let project: Project = conn.query_row(
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, stack_yaml_path, description
+         FROM projects WHERE id = ?1",
+        params![&project_id],
+        |row| {
+            Ok(Project {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                path: row.get(2)?,
+                environment: row.get(3)?,
+                ec2_server_id: row.get(4)?,
+                mode: row.get(5)?,
+                workdir: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+                stack_yaml_path: row.get(9)?,
+                description: row.get(10)?,
+            })
+        },
+    ).map_err(|e| format!("프로젝트를 찾을 수 없습니다: {}", e))?;
+
+    drop(conn); // DB 연결을 먼저 해제
+
+    // 현재 열려있는 프로젝트라면 잠금 파일 핸들 해제
+    if let Some(lock) = app_handle.try_state::<Mutex<ProjectLock>>() {
+        let mut lock_guard = lock.lock().unwrap();
+        if let Some(ref locked_path) = lock_guard.path {
+            if locked_path == &project.path {
+                // 잠금 파일 핸들 해제
+                lock_guard.file = None;
+                lock_guard.path = None;
+                println!("🔓 프로젝트 잠금 해제: {}", project.path);
+            }
+        }
+    }
 
     let project_path_buf = PathBuf::from(&project.path);
 

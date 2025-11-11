@@ -324,7 +324,7 @@ export class PluginStackGenerator {
         // Try local file first, then GitHub
         try {
           frameworkYaml = await invoke<string>('read_plugin_template', {
-            pluginPath: `${category}/${pluginName}`,
+            pluginPath: `bundled/${category}/${pluginName}`,
             templatePath: frameworkPath
           });
         } catch {
@@ -1027,7 +1027,7 @@ export class PluginStackGenerator {
         // Try local file first, then GitHub
         try {
           frameworkYaml = await invoke<string>('read_plugin_template', {
-            pluginPath: `${category}/${pluginName}`,
+            pluginPath: `bundled/${category}/${pluginName}`,
             templatePath: frameworkPath
           });
         } catch {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, Terminal, Activity, BarChart3, Sparkles } from 'lucide-react';
+import { Container, Terminal, Activity, BarChart3, Sparkles } from 'lucide-react';
 import { Project, EC2Server } from '@shared/api/tauri/commands';
 
 interface SidebarProps {
@@ -49,22 +49,6 @@ export function Sidebar({
 
   return (
     <aside className="w-24 bg-[#F9FAFE] flex flex-col items-center py-6 gap-4 border-r border-gray-200">
-      {/* Containers */}
-      <button
-        onClick={handleContainersClick}
-        className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
-          selectedView === 'containers' ? 'bg-blue-50' : 'hover:bg-gray-100'
-        }`}
-        title="Containers"
-      >
-        <div className={`w-8 h-8 flex items-center justify-center rounded ${
-          selectedView === 'containers' ? 'bg-green-500' : 'bg-gray-400'
-        }`}>
-          <Package className="w-5 h-5 text-white" />
-        </div>
-        <span className="text-xs font-medium text-gray-700">Containers</span>
-      </button>
-
       {/* Terminal */}
       <button
         onClick={() => onViewChange('terminal')}
@@ -73,12 +57,30 @@ export function Sidebar({
         }`}
         title="Terminal"
       >
-        <div className={`w-8 h-8 flex items-center justify-center rounded ${
-          selectedView === 'terminal' ? 'bg-blue-500' : 'bg-gray-400'
-        }`}>
+        <div
+          className="w-8 h-8 flex items-center justify-center rounded"
+          style={{ backgroundColor: selectedView === 'terminal' ? '#4C65E2' : '#9CA3AF' }}
+        >
           <Terminal className="w-5 h-5 text-white" />
         </div>
         <span className="text-xs font-medium text-gray-700">Terminal</span>
+      </button>
+
+      {/* Containers */}
+      <button
+        onClick={handleContainersClick}
+        className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+          selectedView === 'containers' ? 'bg-blue-50' : 'hover:bg-gray-100'
+        }`}
+        title="Containers"
+      >
+        <div
+          className="w-8 h-8 flex items-center justify-center rounded"
+          style={{ backgroundColor: selectedView === 'containers' ? '#4C65E2' : '#9CA3AF' }}
+        >
+          <Container className="w-5 h-5 text-white" />
+        </div>
+        <span className="text-xs font-medium text-gray-700">Containers</span>
       </button>
 
       {/* Monitor */}
@@ -89,7 +91,10 @@ export function Sidebar({
         }`}
         title="Monitor"
       >
-        <div className="w-8 h-8 flex items-center justify-center rounded" style={{ backgroundColor: '#4C65E2' }}>
+        <div
+          className="w-8 h-8 flex items-center justify-center rounded"
+          style={{ backgroundColor: selectedView === 'monitor' ? '#4C65E2' : '#9CA3AF' }}
+        >
           <BarChart3 className="w-5 h-5 text-white" />
         </div>
         <span className="text-xs font-medium text-gray-700">Monitor</span>
@@ -103,7 +108,10 @@ export function Sidebar({
         }`}
         title="Optimize"
       >
-        <div className="w-8 h-8 flex items-center justify-center rounded bg-gradient-to-br from-purple-500 to-pink-500">
+        <div
+          className="w-8 h-8 flex items-center justify-center rounded"
+          style={{ backgroundColor: selectedView === 'optimize' ? '#4C65E2' : '#9CA3AF' }}
+        >
           <Sparkles className="w-5 h-5 text-white" />
         </div>
         <span className="text-xs font-medium text-gray-700">Optimize</span>

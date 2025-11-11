@@ -13,6 +13,7 @@ mod db;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // 데이터베이스 초기화
@@ -101,6 +102,9 @@ fn main() {
       commands::plugin::clear_registry_cache,
       commands::plugin::get_cache_info,
       commands::plugin::read_plugin_template,
+      commands::plugin::list_bundled_plugins,
+      commands::plugin::read_bundled_plugin_manifest,
+      commands::plugin::read_plugin_icon,
       commands::plugin_check::list_targets,
       commands::plugin_check::read_plugins,
 

@@ -47,6 +47,34 @@ const nodeTypes = {
   database: ServiceNode,
 };
 
+// MiniMap용 커스텀 노드 컴포넌트
+function MiniMapNode({ x, y, width, height }: any) {
+  return (
+    <g>
+      {/* 그림자 효과 */}
+      <rect
+        x={x}
+        y={y + 2}
+        width={width}
+        height={height}
+        rx={6}
+        fill="rgba(0,0,0,0.25)"
+      />
+      {/* 메인 노드 */}
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        rx={6}
+        fill="#F3F4F6"
+        stroke="#D1D5DB"
+        strokeWidth={0.5}
+      />
+    </g>
+  );
+}
+
 function CanvasEditorInner() {
   const dispatch = useAppDispatch();
   const nodes = useAppSelector(selectNodes);
@@ -351,6 +379,7 @@ function CanvasEditorInner() {
         <Controls className="!bg-white !border !border-gray-200 !shadow-md" />
         <MiniMap
           className="!bg-white !border !border-gray-200 !shadow-md"
+          nodeComponent={MiniMapNode}
           nodeColor={(node) => {
             if (node.type === 'database') return '#3b82f6';
             if (node.type === 'service') return '#06b6d4';

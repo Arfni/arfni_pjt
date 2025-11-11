@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Activity, ExternalLink } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-shell';
 import { useState, useEffect } from 'react';
 import { Project, EC2Server } from '@shared/api/tauri/commands';
 
@@ -236,7 +237,7 @@ export default function MonitoringPage() {
           <div className="flex items-center gap-3">
             {/* Grafana 새 탭에서 열기 */}
             <button
-              onClick={() => window.open(config.grafana_url, '_blank')}
+              onClick={() => open(config.grafana_url)}
               className="px-3 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm flex items-center gap-2"
             >
               <ExternalLink className="w-4 h-4" />

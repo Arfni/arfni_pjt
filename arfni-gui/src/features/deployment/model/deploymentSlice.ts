@@ -19,7 +19,10 @@ export interface DeploymentEndpoint {
 
 export interface DeploymentContainer {
   name: string;
-  status: 'pending' | 'success' | 'failed';
+  image?: string;
+  build?: string;
+  ports?: string[];
+  status: 'pending' | 'building' | 'running' | 'success' | 'failed';
 }
 
 export interface DeploymentState {
@@ -77,11 +80,20 @@ const deploymentSlice = createSlice({
     },
 
     // 컨테이너 목록 설정
-    setContainers: (state, action: PayloadAction<string[]>) => {
-      state.containers = action.payload.map(name => ({
-        name,
+    setContainers: (state, action: PayloadAction<DeploymentContainer[]>) => {
+      state.containers = action.payload.map(container => ({
+        ...container,
         status: 'pending' as const,
       }));
+      state.containerCount = action.payload.length;
+    },
+
+    // 개별 컨테이너 상태 업데이트
+    updateContainerStatus: (state, action: PayloadAction<{ name: string; status: DeploymentContainer['status'] }>) => {
+      const container = state.containers.find(c => c.name === action.payload.name);
+      if (container) {
+        container.status = action.payload.status;
+      }
     },
 
     // 로그 추가
@@ -202,6 +214,7 @@ const deploymentSlice = createSlice({
 export const {
   startDeployment,
   setContainers,
+  updateContainerStatus,
   addLog,
   setCurrentStage,
   completeStage,
