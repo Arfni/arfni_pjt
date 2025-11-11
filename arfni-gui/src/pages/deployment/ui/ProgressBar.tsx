@@ -1,4 +1,4 @@
-import { Loader2, Check } from 'lucide-react';
+import { Loader2, Check, Square } from 'lucide-react';
 import { DeploymentStatus, DeploymentStage } from '@features/deployment/model/deploymentSlice';
 
 interface ProgressBarProps {
@@ -46,7 +46,7 @@ export function ProgressBar({
           <span className="text-xl">⚠️</span>
         )}
         {status === 'stopped' && (
-          <span className="text-xl">🛑</span>
+          <Square className="w-5 h-5 text-red-600 fill-red-600" />
         )}
         <span className="text-lg font-semibold text-gray-900">
           {status === 'deploying' && isStopping && 'Stopping deployment...'}

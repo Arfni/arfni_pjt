@@ -7,6 +7,7 @@ import { useSelector } from 'react-redux';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
 import { ec2ServerCommands, EC2Server, Project } from '@shared/api/tauri/commands';
 import { OptimizeView } from './OptimizeView';
+import { MonitoringView } from './MonitoringView';
 import { Sidebar } from './Sidebar';
 import { TerminalView } from './TerminalView';
 import { ContainersView } from './ContainersView';
@@ -15,7 +16,7 @@ export default function LogPage() {
   const navigate = useNavigate();
   const projectFromStore = useSelector(selectCurrentProject);
   const location = useLocation();
-  const locationState = location.state as { project?: Project } | undefined;
+  const locationState = location.state as { project?: Project; selectedView?: 'containers' | 'terminal' | 'monitor' | 'optimize' } | undefined;
   const project = locationState?.project ?? projectFromStore;
   const [ec2Server, setEc2Server] = useState<EC2Server | null>(null);
 
@@ -42,8 +43,10 @@ export default function LogPage() {
   const [containers, setContainers] = useState<Container[]>([]);
   const [loadingContainers, setLoadingContainers] = useState(false);
 
-  // 좌측 사이드바 뷰 상태
-  const [selectedView, setSelectedView] = useState<'containers' | 'terminal' | 'monitor' | 'optimize'>('terminal');
+  // 좌측 사이드바 뷰 상태 (location state에서 selectedView가 있으면 사용, 없으면 기본값 'terminal')
+  const [selectedView, setSelectedView] = useState<'containers' | 'terminal' | 'monitor' | 'optimize'>(
+    locationState?.selectedView ?? 'terminal'
+  );
 
   // SSH 이벤트 리스너
   useEffect(() => {
@@ -423,6 +426,15 @@ export default function LogPage() {
             onRemoveContainer={removeContainer}
             onStartAll={startAllContainers}
             onStopAll={stopAllContainers}
+          />
+        )}
+
+        {/* Monitor View - Only show when monitor is selected */}
+        {selectedView === 'monitor' && (
+          <MonitoringView
+            project={project}
+            ec2Server={ec2Server}
+            onNavigateToMonitoring={() => navigate('/monitoring', { state: { project, ec2Server } })}
           />
         )}
 

@@ -30,6 +30,7 @@ pub struct MonitoringConfig {
     pub grafana_url: String,
     pub prometheus_port: u16,
     pub grafana_port: u16,
+    pub dashboard_uid: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -322,13 +323,42 @@ pub async fn get_monitoring_config(
     let prometheus_url = format!("http://localhost:{}", prometheus_port);
     let grafana_url = format!("http://localhost:{}", grafana_port);
 
+    // Grafana 대시보드 UID 읽기
+    let dashboard_uid = read_dashboard_uid();
+
     Ok(MonitoringConfig {
         mode,
         prometheus_url,
         grafana_url,
         prometheus_port,
         grafana_port,
+        dashboard_uid,
     })
+}
+
+/// Grafana 대시보드 JSON 파일에서 UID 읽기
+fn read_dashboard_uid() -> Option<String> {
+    use tauri::Manager;
+
+    // 리소스 경로에서 node-exporter-full.json 읽기
+    let resource_path = "resources/plugins/bundled/monitoring/grafana/provisioning/dashboards/node-exporter-full.json";
+
+    match std::fs::read_to_string(resource_path) {
+        Ok(content) => {
+            // JSON 파싱해서 uid 추출
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                json.get("uid")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            } else {
+                None
+            }
+        },
+        Err(e) => {
+            eprintln!("Failed to read dashboard JSON: {}", e);
+            None
+        }
+    }
 }
 
 /// Prometheus 연결 테스트

@@ -1,4 +1,4 @@
-import { ExternalLink, Package, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
+import { ExternalLink, Package } from 'lucide-react';
 import { DeploymentStage, DeploymentContainer, DeploymentStatus } from '@features/deployment/model/deploymentSlice';
 
 interface Endpoint {
@@ -38,26 +38,12 @@ export function ContainersView({
     return labels[stage];
   };
 
-  const getStatusIcon = (status: DeploymentContainer['status']) => {
-    switch (status) {
-      case 'success':
-      case 'running':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'failed':
-        return <XCircle className="w-5 h-5 text-red-500" />;
-      case 'building':
-        return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
-      case 'pending':
-      default:
-        return <Clock className="w-5 h-5 text-gray-400" />;
-    }
-  };
-
   const getStatusLabel = (status: DeploymentContainer['status']) => {
     switch (status) {
       case 'success': return 'Success';
       case 'running': return 'Running';
       case 'failed': return 'Failed';
+      case 'stopped': return 'Stopped';
       case 'building': return 'Building';
       case 'pending': return 'Pending';
       default: return 'Unknown';
@@ -70,6 +56,7 @@ export function ContainersView({
       case 'running':
         return 'bg-green-50 text-green-700 border-green-200';
       case 'failed':
+      case 'stopped':
         return 'bg-red-50 text-red-700 border-red-200';
       case 'building':
         return 'bg-blue-50 text-blue-700 border-blue-200';
@@ -94,7 +81,6 @@ export function ContainersView({
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-gray-900">{container.name}</span>
-                        {getStatusIcon(container.status)}
                       </div>
                       <div className="text-sm text-gray-600 space-y-1">
                         {container.image && (
@@ -124,39 +110,6 @@ export function ContainersView({
                     </span>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 엔드포인트 목록 */}
-      {endpoints.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-3">Service Endpoints</h3>
-          <div className="space-y-2">
-            {endpoints.map((endpoint, index) => (
-              <div key={index} className="bg-white rounded p-3 border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-gray-900 font-medium">{endpoint.name}</div>
-                    <div className="text-gray-600 text-sm">{endpoint.type}</div>
-                  </div>
-                  <a
-                    href={endpoint.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1"
-                  >
-                    Open
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                {endpoint.note && (
-                  <div className="mt-2 text-yellow-600 text-sm">
-                    ℹ️ {endpoint.note}
-                  </div>
-                )}
               </div>
             ))}
           </div>
