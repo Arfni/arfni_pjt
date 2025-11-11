@@ -968,8 +968,10 @@ func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
 	mode := monitoring.ModeAllInOne
 
 	stream.Info("Generating Grafana provisioning files...")
-	if err := monitoring.PrepareMonitoringStack(r.bundledPluginsDir, mode, outputDir); err != nil {
-		return fmt.Errorf("failed to prepare monitoring stack: %w", err)
+	// Copy provisioning files from bundled plugins
+	pluginsMonitoringDir := filepath.Join(r.bundledPluginsDir, "monitoring")
+	if err := monitoring.CopyAndUpdateProvisioningFiles(pluginsMonitoringDir, r.projectDir, mode); err != nil {
+		return fmt.Errorf("failed to copy provisioning files: %w", err)
 	}
 
 	// Find EC2 target for upload
@@ -994,7 +996,8 @@ func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
 
 	// Ensure grafana directory exists with correct ownership before upload
 	stream.Info("Preparing grafana directory on EC2...")
-	remoteGrafanaDir := filepath.Join(ec2Target.Workdir, "grafana")
+	// Use forward slashes for remote Linux paths (even when running on Windows/Mac)
+	remoteGrafanaDir := ec2Target.Workdir + "/grafana"
 	createDirCmd := fmt.Sprintf("mkdir -p %s/provisioning/datasources %s/provisioning/dashboards", remoteGrafanaDir, remoteGrafanaDir)
 	if err := sshClient.RunCommand(stream, createDirCmd); err != nil {
 		stream.Info(fmt.Sprintf("Warning: Failed to create grafana directories: %v", err))
@@ -1008,8 +1011,8 @@ func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
 
 	stream.Info("Uploading Grafana provisioning files to EC2...")
 	// Upload provisioning directory (outputDir/provisioning -> remoteGrafanaDir/provisioning)
-	localProvisioningDir := filepath.Join(outputDir, "provisioning")
-	remoteProvisioningDir := filepath.Join(remoteGrafanaDir, "provisioning")
+	localProvisioningDir := filepath.Join(outputDir, "provisioning") // Local path (OS-specific)
+	remoteProvisioningDir := remoteGrafanaDir + "/provisioning"      // Remote Linux path (always forward slash)
 	if err := sshClient.UploadDirectory(stream, localProvisioningDir, remoteProvisioningDir); err != nil {
 		return fmt.Errorf("failed to upload grafana provisioning: %w", err)
 	}
