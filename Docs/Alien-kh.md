@@ -608,4 +608,64 @@ if endpointType == "monitoring" && (deploymentMode == "hybrid" || deploymentMode
   - 증상: "Bind for 0.0.0.0:3000 failed: port is already allocated"
   - 원인: 이전 배포의 컨테이너가 실행 중
   - 해결: down --remove-orphans 플래그로 기존 컨테이너 정리
+# 2025.11.11
+ Grafana 포트 3200 마이그레이션 및 프로비저닝 수정
 
+  수정된 파일
+
+  1. Go 백엔드 - 모니터링 바이너리
+
+  파일: BE/arfni/cmd/arfni-monitoring/main.go
+  - 318번째 줄: 기본 Grafana 포트를 3000에서 3200으로 변경
+  cfg.Monitoring.GrafanaPort = 3200  // 이전: 3000
+
+  2. Go 백엔드 - 스택 모니터링 생성기
+
+  파일: BE/arfni/pkg/stack/monitoring.go
+  - 171번째 줄: 포트 매핑을 "3000:3000"에서 "3200:3200"으로 변경
+  - 173번째 줄: GF_SERVER_HTTP_PORT: "3200" 환경 변수 추가
+  Ports: []string{"3200:3200"},
+  Env: map[string]string{
+      "GF_SERVER_HTTP_PORT":        "3200",
+      // ... 기존 환경 변수들
+  }
+
+  3. 플러그인 YAML 템플릿
+
+  파일: arfni-gui/src-tauri/resources/plugins/bundled/monitoring/grafana/plugin.yaml
+  - 21번째 줄: 포트를 "3000:3000"에서 "3200:3200"으로 변경
+  - 28번째 줄: GF_SERVER_HTTP_PORT: "3200" 환경 변수 추가
+  ports:
+    - "3200:3200"
+  env:
+    GF_SERVER_HTTP_PORT: "3200"
+
+  4. Rust 모니터링 커맨드
+
+  파일: arfni-gui/src-tauri/src/commands/monitoring.rs
+  - 82번째 줄: SSH 터널 포트를 3000에서 3200으로 변경
+  let grafana_tunnel_id = open_tunnel(app.clone(), ssh_params, 3200, 3200)
+  - 90번째 줄: 로그 메시지를 localhost:3000에서 localhost:3200으로 업데이트
+  - 95번째 줄: 성공 메시지를 localhost:3000에서 localhost:3200으로 업데이트
+  - 319번째 줄: 기본 grafana_port를 3000에서 3200으로 변경
+  .unwrap_or(3200) as u16;  // 이전: 3000
+
+  5. 워크플로우 러너 - Linux 경로 수정
+
+  파일: BE/arfni/internal/core/workflow/runner.go
+  - 998번째 줄: Linux 경로를 위해 filepath.Join()을 슬래시 문자열 결합으로 변경
+  remoteGrafanaDir := ec2Target.Workdir + "/grafana"  // 이전: filepath.Join(ec2Target.Workdir, "grafana")
+  - 1013번째 줄: 원격 경로 구성을 슬래시 사용으로 변경
+  remoteProvisioningDir := remoteGrafanaDir + "/provisioning"  // 이전: filepath.Join(remoteGrafanaDir,
+  "provisioning")
+
+  6. 워크플로우 러너 - 프로비저닝 파일 생성 수정
+
+  파일: BE/arfni/internal/core/workflow/runner.go
+  - 971-975번째 줄: 함수 호출을 PrepareMonitoringStack에서 CopyAndUpdateProvisioningFiles로 변경
+  // 이전:
+  if err := monitoring.PrepareMonitoringStack(r.bundledPluginsDir, mode, outputDir); err != nil {
+
+  // 이후:
+  pluginsMonitoringDir := filepath.Join(r.bundledPluginsDir, "monitoring")
+  if err := monitoring.CopyAndUpdateProvisioningFiles(pluginsMonitoringDir, r.projectDir, mode); err != nil {
