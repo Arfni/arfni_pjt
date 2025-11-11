@@ -251,7 +251,6 @@
     "local": "Local",
     "ec2": "EC2",
     "plugins": "Plugins",
-    "testPage": "Test Page",
     "settings": "Settings"
   }
 }

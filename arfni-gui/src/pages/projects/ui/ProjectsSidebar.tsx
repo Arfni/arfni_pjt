@@ -1,4 +1,4 @@
-import { Laptop, Server, Package, Settings, FlaskConical } from 'lucide-react';
+import { Laptop, Server, Package, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -60,15 +60,8 @@ export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarPro
         </button>
       </div>
 
-      {/* Test and Settings Buttons at Bottom */}
+      {/* Settings Button at Bottom */}
       <div className="p-3 border-t border-gray-200 flex flex-col gap-3">
-        <button
-          onClick={() => navigate('/test')}
-          className="w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-gray-100"
-        >
-          <FlaskConical className="w-5 h-5 text-gray-600" />
-          <span className="text-xs font-medium text-gray-700">{t('sidebar.testPage')}</span>
-        </button>
         <button
           onClick={() => navigate('/settings')}
           className="w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-gray-100"
