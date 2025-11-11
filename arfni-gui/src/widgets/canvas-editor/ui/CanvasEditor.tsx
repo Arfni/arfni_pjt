@@ -13,6 +13,7 @@ import {
   ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { useTranslation } from 'react-i18next';
 
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
@@ -76,6 +77,7 @@ function MiniMapNode({ x, y, width, height }: any) {
 }
 
 function CanvasEditorInner() {
+  const { t } = useTranslation('canvas');
   const dispatch = useAppDispatch();
   const nodes = useAppSelector(selectNodes);
   const edges = useAppSelector(selectEdges);
@@ -98,7 +100,7 @@ function CanvasEditorInner() {
       /*
       dispatch(addNode(createTargetNode(
         {
-          name: 'Local Docker',
+          name: t('nodeDefaults.localDocker'),
           type: 'docker-desktop',
         },
         { x: 100, y: 100 }
@@ -106,7 +108,7 @@ function CanvasEditorInner() {
 
       dispatch(addNode(createDatabaseNode(
         {
-          name: 'PostgreSQL',
+          name: t('nodeDefaults.postgres'),
           type: 'postgres',
           version: '15',
           ports: ['5432:5432'],
@@ -279,7 +281,7 @@ function CanvasEditorInner() {
       } else if (category === 'target') {
         // 타겟 노드
         const targetData: any = {
-          name: nodeType === 'docker-local' ? 'Docker Local' : 'EC2',
+          name: nodeType === 'docker-local' ? t('nodeDefaults.dockerLocal') : t('nodeDefaults.ec2'),
           type: nodeType === 'docker-local' ? 'docker-desktop' : 'ec2.ssh'
         };
 
@@ -393,12 +395,12 @@ function CanvasEditorInner() {
       {isSaving && (
         <div className="absolute top-4 right-4 bg-white border border-yellow-300 text-yellow-700 px-3 py-1.5 rounded-lg shadow-md z-10 flex items-center gap-2 text-sm">
           <div className="w-3 h-3 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
-          저장 중...
+          {t('autoSave.saving')}
         </div>
       )}
       {!isSaving && lastSaved && (
         <div className="absolute top-4 right-4 bg-white border border-green-300 text-green-700 px-3 py-1.5 rounded-lg shadow-md z-10 text-sm">
-          ✓ 저장됨 {lastSaved.toLocaleTimeString()}
+          {t('autoSave.saved')} {lastSaved.toLocaleTimeString()}
         </div>
       )}
     </div>

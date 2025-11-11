@@ -54,7 +54,7 @@
     "unknown": "Unknown"
   },
   "containers": {
-    "title": "Containers",
+    "title": "Container List",
     "noContainers": "No containers deployed yet",
     "image": "Image:",
     "build": "Build:",

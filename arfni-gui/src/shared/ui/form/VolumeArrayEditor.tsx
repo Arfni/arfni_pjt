@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Volume {
   host: string;
@@ -12,6 +13,7 @@ interface VolumeArrayEditorProps {
 }
 
 export function VolumeArrayEditor({ values = [], onChange, label }: VolumeArrayEditorProps) {
+  const { t } = useTranslation('canvas');
   // Normalize values to Volume[] format
   const normalizeVolumes = (vals: Volume[] | string[]): Volume[] => {
     if (!vals || vals.length === 0) return [];
@@ -77,7 +79,7 @@ export function VolumeArrayEditor({ values = [], onChange, label }: VolumeArrayE
       {volumes.map((volume, index) => (
         <div key={index} style={{ padding: '0.75rem', border: '1px solid #e5e7eb', borderRadius: '4px', backgroundColor: '#f9fafb' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Volume #{index + 1}</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>{t('volumeEditor.volumeNumber', { number: index + 1 })}</span>
             <button
               onClick={() => handleRemove(index)}
               style={{
@@ -92,17 +94,17 @@ export function VolumeArrayEditor({ values = [], onChange, label }: VolumeArrayE
               }}
               type="button"
             >
-              Remove
+              {t('volumeEditor.remove')}
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <div>
-              <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500, display: 'block', marginBottom: '0.25rem' }}>Host Path</label>
+              <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500, display: 'block', marginBottom: '0.25rem' }}>{t('volumeEditor.hostPath')}</label>
               <input
                 type="text"
                 value={volume.host}
                 onChange={(e) => handleChange(index, 'host', e.target.value)}
-                placeholder="./data"
+                placeholder={t('volumeEditor.hostPathPlaceholder')}
                 style={{
                   width: '100%',
                   padding: '0.4rem',
@@ -114,12 +116,12 @@ export function VolumeArrayEditor({ values = [], onChange, label }: VolumeArrayE
               />
             </div>
             <div>
-              <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500, display: 'block', marginBottom: '0.25rem' }}>Container Path</label>
+              <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500, display: 'block', marginBottom: '0.25rem' }}>{t('volumeEditor.containerPath')}</label>
               <input
                 type="text"
                 value={volume.mount}
                 onChange={(e) => handleChange(index, 'mount', e.target.value)}
-                placeholder="/var/lib/data"
+                placeholder={t('volumeEditor.containerPathPlaceholder')}
                 style={{
                   width: '100%',
                   padding: '0.4rem',
@@ -137,17 +139,17 @@ export function VolumeArrayEditor({ values = [], onChange, label }: VolumeArrayE
       {/* Add new volume */}
       <div style={{ padding: '0.75rem', border: '1px dashed #d1d5db', borderRadius: '4px', backgroundColor: '#fafafa' }}>
         <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600, marginBottom: '0.5rem' }}>
-          Add New Volume
+          {t('volumeEditor.addNewVolume')}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <div>
-            <label style={{ fontSize: '0.7rem', color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Host Path</label>
+            <label style={{ fontSize: '0.7rem', color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>{t('volumeEditor.hostPath')}</label>
             <input
               type="text"
               value={newHost}
               onChange={(e) => setNewHost(e.target.value)}
               onKeyPress={(e) => handleKeyPress(e, 'host')}
-              placeholder="./data"
+              placeholder={t('volumeEditor.hostPathPlaceholder')}
               style={{
                 width: '100%',
                 padding: '0.4rem',
@@ -159,13 +161,13 @@ export function VolumeArrayEditor({ values = [], onChange, label }: VolumeArrayE
             />
           </div>
           <div>
-            <label style={{ fontSize: '0.7rem', color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Container Path</label>
+            <label style={{ fontSize: '0.7rem', color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>{t('volumeEditor.containerPath')}</label>
             <input
               type="text"
               value={newMount}
               onChange={(e) => setNewMount(e.target.value)}
               onKeyPress={(e) => handleKeyPress(e, 'mount')}
-              placeholder="/var/lib/data"
+              placeholder={t('volumeEditor.containerPathPlaceholder')}
               style={{
                 width: '100%',
                 padding: '0.4rem',
@@ -191,7 +193,7 @@ export function VolumeArrayEditor({ values = [], onChange, label }: VolumeArrayE
             }}
             type="button"
           >
-            + Add Volume
+            {t('volumeEditor.addButton')}
           </button>
         </div>
       </div>

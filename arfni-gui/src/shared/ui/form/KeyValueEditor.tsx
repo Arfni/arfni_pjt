@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Input } from './Input';
 
 interface KeyValueEditorProps {
@@ -14,6 +15,7 @@ export function KeyValueEditor({
   keyPlaceholder = 'KEY',
   valuePlaceholder = 'value'
 }: KeyValueEditorProps) {
+  const { t } = useTranslation('canvas');
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
 
@@ -79,7 +81,7 @@ export function KeyValueEditor({
                 color: '#dc3545'
               }}
             >
-              Remove
+              {t('keyValueEditor.remove')}
             </button>
           </div>
         ))}
@@ -126,7 +128,7 @@ export function KeyValueEditor({
             fontSize: '0.875rem'
           }}
         >
-          + Add Variable
+          {t('keyValueEditor.addVariable')}
         </button>
       </div>
     </div>

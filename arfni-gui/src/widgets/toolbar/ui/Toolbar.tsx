@@ -7,6 +7,7 @@ import {
   StopCircle,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 import aiLogo from '../../../assets/ai.png';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
@@ -42,6 +43,7 @@ import { AIDialog } from './dialogs/AIDialog';
 export function Toolbar() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation('canvas');
 
   const nodes = useAppSelector(selectNodes);
   const edges = useAppSelector(selectEdges);
@@ -341,7 +343,7 @@ export function Toolbar() {
           <button
             onClick={() => navigate('/')}
             className="text-gray-700 hover:text-gray-900 transition-colors flex items-center gap-2"
-            title="홈으로"
+            title={t('toolbar.home')}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -357,57 +359,57 @@ export function Toolbar() {
           <button
             onClick={() => setShowSettingsDialog(true)}
             className="text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors px-3 py-1.5 rounded"
-            title="설정"
+            title={t('toolbar.settings')}
           >
-            Setting
+            {t('toolbar.settings')}
           </button>
 
           <button
             onClick={handleAutoAlign}
             disabled={nodes.length === 0}
             className="text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded"
-            title="노드 자동 정렬"
+            title={t('toolbar.autoAlignment')}
           >
-            Auto Alignment
+            {t('toolbar.autoAlignment')}
           </button>
 
           <button
             onClick={() => setShowExportDialog(true)}
             className="text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors px-3 py-1.5 rounded"
-            title="캔버스 내보내기"
+            title={t('toolbar.exportCanvas')}
           >
-            Export
+            {t('toolbar.export')}
           </button>
 
           <button
             onClick={() => navigate('/yml')}
             disabled={true}
             className="text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded"
-            title="GitHub Actions YML 생성"
+            title={t('toolbar.githubYml')}
           >
-            Github Yml
+            {t('toolbar.githubYml')}
           </button>
 
           {isEC2Project && (
             <>
             <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700">Monitoring:</span>
+                <span className="text-sm text-gray-700">{t('toolbar.monitoring')}</span>
                 <select
                   value={currentMonitoringMode}
                   onChange={(e) => handleMonitoringModeChange(e.target.value)}
                   disabled={!currentProject}
                   className="text-sm bg-white text-gray-700 border border-gray-300 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                 >
-                  <option value="all-in-one">All-in-One</option>
-                  <option value="hybrid">Hybrid</option>
-                  <option value="no-monitoring">No Monitoring</option>
+                  <option value="all-in-one">{t('toolbar.mode.allInOne')}</option>
+                  <option value="hybrid">{t('toolbar.mode.hybrid')}</option>
+                  <option value="no-monitoring">{t('toolbar.mode.noMonitoring')}</option>
                 </select>
 
                 <div className="flex items-center relative">
                   <button
                     onClick={() => setShowMonitoringHelp(!showMonitoringHelp)}
                     className="text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors p-1 rounded"
-                    title="도움말"
+                    title={t('toolbar.help')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <circle cx="12" cy="12" r="10" strokeWidth="1.5"/>
@@ -427,13 +429,13 @@ export function Toolbar() {
                       <div className="absolute top-full right-0 mt-4 w-96 bg-white border border-gray-300 rounded-lg shadow-lg p-4 z-50">
                         <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
                           <li>
-                            <strong>All-in-One:</strong> All monitoring tools (Prometheus, Grafana, etc.) run on a single server. Simple and cost-effective.
+                            <strong>{t('toolbar.mode.allInOne')}:</strong> {t('toolbar.monitoringHelp.allInOne')}
                           </li>
                           <li>
-                            <strong>Hybrid:</strong> Monitoring tools are distributed across multiple servers. Balances performance and cost.
+                            <strong>{t('toolbar.mode.hybrid')}:</strong> {t('toolbar.monitoringHelp.hybrid')}
                           </li>
                           <li>
-                            <strong>No Monitoring:</strong> No monitoring tools deployed. For development or when monitoring isn't needed.
+                            <strong>{t('toolbar.mode.noMonitoring')}:</strong> {t('toolbar.monitoringHelp.noMonitoring')}
                           </li>
                         </ol>
                       </div>
@@ -451,10 +453,10 @@ export function Toolbar() {
             <button
               onClick={() => setShowAIDialog(true)}
               className="text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors flex items-center gap-1 px-3 py-1.5 rounded"
-              title="AI"
+              title={t('toolbar.ai')}
             >
               <img src={aiLogo} alt="AI" className="w-3 h-3" />
-              
+
             </button>
           )}
 
@@ -462,7 +464,7 @@ export function Toolbar() {
             onClick={handleSave}
             disabled={isSaving || !currentProject}
             className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors relative disabled:opacity-50 rounded"
-            title="저장"
+            title={t('toolbar.save')}
           >
             <Save className="w-4 h-4" />
             {isDirty && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-yellow-400 rounded-full"></span>}
@@ -477,7 +479,7 @@ export function Toolbar() {
               className="px-4 py-1.5 bg-blue-600 text-white text-sm font-bold rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
               <PlayCircle className="w-4 h-4" strokeWidth={2.5} />
-              Deploy
+              {t('toolbar.deploy')}
             </button>
           ) : (
             <button
@@ -485,7 +487,7 @@ export function Toolbar() {
               className="px-4 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors flex items-center gap-1.5"
             >
               <StopCircle className="w-4 h-4" strokeWidth={2.5} />
-              Stop
+              {t('toolbar.stop')}
             </button>
           )}
         </div>

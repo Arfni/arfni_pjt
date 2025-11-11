@@ -24,7 +24,7 @@
     "stop": "배포 중지",
     "restart": "배포 재시작",
     "backToCanvas": "캔버스로 돌아가기",
-    "serverStatus": "서버 상태",
+    "serverStatus": "서버 상태 확인",
     "goToCanvas": "캔버스로 이동",
     "goHome": "홈으로 이동",
     "goToProjectHome": "프로젝트 홈",
@@ -54,7 +54,7 @@
     "unknown": "알 수 없음"
   },
   "containers": {
-    "title": "컨테이너",
+    "title": "컨테이너 목록",
     "noContainers": "배포된 컨테이너가 없습니다",
     "image": "이미지:",
     "build": "빌드:",

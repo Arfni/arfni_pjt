@@ -5,6 +5,7 @@ import { selectTemplate, selectSelectedTemplate } from '@features/canvas';
 import { pluginService, type NodeTemplate } from '@services/pluginLoader';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { appDataDir, join } from '@tauri-apps/api/path';
+import { useTranslation } from 'react-i18next';
 
 // No more hardcoded icon imports!
 // Icons are now loaded dynamically from plugin folders
@@ -19,6 +20,7 @@ const tabCategories: Record<TabKey, 'database' | 'runtime' | 'infra' | 'monitor'
 };
 
 export function NodePalette() {
+  const { t } = useTranslation('canvas');
   const dispatch = useAppDispatch();
   const selectedTemplate = useAppSelector(selectSelectedTemplate);
   const [activeTab, setActiveTab] = useState<TabKey>('DB');
@@ -120,26 +122,35 @@ export function NodePalette() {
     <div className="w-60 h-full bg-white border-r border-gray-200 flex flex-col">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200">
-        <h2 className="text-base font-semibold text-gray-800">Blocks</h2>
+        <h2 className="text-base font-semibold text-gray-800">{t('blocks.title')}</h2>
       </div>
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200">
-        {(['DB', 'Runtime', 'Infra', 'Monitor'] as TabKey[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`
-              flex-1 px-3 py-2 text-xs font-medium transition-colors
-              ${activeTab === tab
-                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-              }
-            `}
-          >
-            {tab}
-          </button>
-        ))}
+        {(['DB', 'Runtime', 'Infra', 'Monitor'] as TabKey[]).map((tab) => {
+          const tabTranslationKey = tab === 'DB' ? 'blocks.tabs.db'
+            : tab === 'Runtime' ? 'blocks.tabs.runtime'
+            : tab === 'Infra' ? 'blocks.tabs.infra'
+            : 'blocks.tabs.monitor';
+
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`
+                flex-1 px-3 py-2 text-xs font-medium transition-colors
+                whitespace-nowrap min-w-0
+                flex items-center justify-center
+                ${activeTab === tab
+                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }
+              `}
+            >
+              {t(tabTranslationKey)}
+            </button>
+          );
+        })}
       </div>
 
       {/* Search */}
@@ -148,7 +159,7 @@ export function NodePalette() {
           <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <input
             type="text"
-            placeholder="Block Search..."
+            placeholder={t('blocks.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -161,7 +172,7 @@ export function NodePalette() {
         {isLoading ? (
           <div className="text-center py-8">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <div className="text-sm text-gray-500 mt-2">Loading plugins...</div>
+            <div className="text-sm text-gray-500 mt-2">{t('blocks.loading')}</div>
           </div>
         ) : (
           <div className="space-y-2">
@@ -190,7 +201,7 @@ export function NodePalette() {
             })}
             {filteredNodes.length === 0 && !isLoading && (
               <div className="text-center py-8 text-sm text-gray-500">
-                No blocks found
+                {t('blocks.noBlocksFound')}
               </div>
             )}
           </div>

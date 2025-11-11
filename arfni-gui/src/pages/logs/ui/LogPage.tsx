@@ -44,6 +44,7 @@ export default function LogPage() {
   }
   const [containers, setContainers] = useState<Container[]>([]);
   const [loadingContainers, setLoadingContainers] = useState(false);
+  const [deletingContainerId, setDeletingContainerId] = useState<string | null>(null);
 
   // 좌측 사이드바 뷰 상태 (location state에서 selectedView가 있으면 사용, 없으면 기본값 'terminal')
   const [selectedView, setSelectedView] = useState<'containers' | 'terminal' | 'monitor' | 'optimize'>(
@@ -236,9 +237,12 @@ export default function LogPage() {
 
   // 컨테이너 삭제
   const removeContainer = async (containerId: string, containerName: string) => {
+    console.log('[REMOVE_CONTAINER] Called with:', containerId, containerName);
     if (!ec2Server) return;
-    if (!confirm(`Are you sure you want to remove container '${containerName}'?`)) return;
+    console.log('[REMOVE_CONTAINER] Setting deleting state...');
+    setDeletingContainerId(containerId);
     try {
+      console.log('[REMOVE_CONTAINER] Executing docker rm command...');
       await invoke('ssh_exec_system', {
         params: {
           host: ec2Server.host,
@@ -247,10 +251,17 @@ export default function LogPage() {
           cmd: `docker rm -f ${containerId}`
         }
       });
-      setTerminalLogs((prev) => [...prev, `✅ Container '${containerName}' removed`]);
-      fetchContainersQuietly(); // 목록 새로고침 (로딩 표시 없이)
+      console.log('[REMOVE_CONTAINER] Docker rm succeeded, updating logs...');
+      setTerminalLogs((prev) => [...prev, `✅ ${t('containers.removed', { containerName })}`]);
+      console.log('[REMOVE_CONTAINER] Fetching updated container list...');
+      await fetchContainersQuietly(); // 목록 새로고침 (로딩 표시 없이)
+      console.log('[REMOVE_CONTAINER] Container list updated');
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Failed to remove container: ${String(err)}`]);
+      console.log('[REMOVE_CONTAINER] Error:', err);
+      setTerminalLogs((prev) => [...prev, `❌ ${t('containers.removeFailed')}: ${String(err)}`]);
+    } finally {
+      console.log('[REMOVE_CONTAINER] Clearing deleting state');
+      setDeletingContainerId(null);
     }
   };
 
@@ -421,6 +432,7 @@ export default function LogPage() {
             ec2Server={ec2Server}
             containers={containers}
             loadingContainers={loadingContainers}
+            deletingContainerId={deletingContainerId}
             onRefresh={fetchContainers}
             onStartContainer={startContainer}
             onStopContainer={stopContainer}

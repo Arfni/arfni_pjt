@@ -237,7 +237,7 @@
     "openCanvas": "캔버스 열기",
     "editInCanvas": "캔버스에서 편집",
     "viewStatus": "상태 보기",
-    "projectStatus": "프로젝트 상태",
+    "projectStatus": "프로젝트 상태 보기",
     "delete": "삭제",
     "deleteProject": "프로젝트 삭제",
     "pinProject": "프로젝트 고정",

@@ -22,7 +22,17 @@
     "checkUpdates": "Check for Updates",
     "version": "Version:",
     "saveSettings": "Save Settings",
-    "resetSettings": "Reset to Defaults"
+    "resetSettings": "Reset to Defaults",
+    "search": "Search...",
+    "projectPath": "Project Path",
+    "activePort": "Active Port",
+    "openFolder": "Open Folder",
+    "activatePort": "Activate Port",
+    "inputPortNumber": "Input Port Number...",
+    "portActive": "This port is active!",
+    "portInactive": "This port is inactive!",
+    "allActivePort": "All Active Port",
+    "noActivePorts": "No active ports."
   },
   "confirmation": {
     "title": "Confirm Action",
@@ -50,5 +60,44 @@
     "pleaseWait": "Please wait...",
     "loading": "Loading",
     "processing": "Processing"
+  },
+  "export": {
+    "title": "Export Image",
+    "fileFormat": "File Format",
+    "png": "PNG",
+    "svg": "SVG",
+    "pdf": "PDF",
+    "minimapNote": "* It will be captured according to the minimap. Please check that all blocks are included in the minimap before exporting.",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
+  },
+  "exportSuccess": {
+    "title": "Success Export!",
+    "openFolder": "Click here to show save folder."
+  },
+  "ai": {
+    "title": "AI-powered server cost prediction",
+    "noProject": "No project selected",
+    "emptyCanvas": "Canvas is empty. Please add services first to use cost prediction.",
+    "analysisTitle": "AI Analysis Content:",
+    "analysisList": {
+      "serviceConfig": "Analyze stack.yaml service configuration",
+      "memoryRequirement": "Estimate minimum memory requirements",
+      "stability": "Evaluate operational stability based on benchmark data",
+      "recommendation": "Recommend Budget/Recommended/Performance 3-tier options",
+      "costCalculation": "Calculate monthly costs based on Seoul region"
+    },
+    "analyzing": "Analyzing your project...",
+    "analyzeButton": "Analyze Project & Recommend Server",
+    "recommended": "💡 Recommended:",
+    "selectedReason": "Selection Reason:",
+    "monthlyCost": "Monthly Cost Details:",
+    "instance": "Instance (730 hours):",
+    "instanceShort": "Instance:",
+    "ebsStorage": "EBS Storage",
+    "dataTransfer": "Data Transfer (Estimated):",
+    "budgetOption": "Budget Option:",
+    "performanceOption": "Performance Option:",
+    "tips": "Tips:"
   }
 }

@@ -1,5 +1,5 @@
-import React from 'react';
 import { CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ExportSuccessNotificationProps {
   show: boolean;
@@ -12,6 +12,8 @@ export function ExportSuccessNotification({
   onClose,
   onOpenFolder,
 }: ExportSuccessNotificationProps) {
+  const { t } = useTranslation('dialogs');
+
   if (!show) return null;
 
   return (
@@ -19,7 +21,7 @@ export function ExportSuccessNotification({
       <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center justify-between">
         <div className="flex items-center gap-3">
           <CheckCircle className="w-6 h-6" />
-          <span className="font-medium text-lg">Success Export!</span>
+          <span className="font-medium text-lg">{t('exportSuccess.title')}</span>
           <button
             onClick={() => {
               onOpenFolder();
@@ -27,7 +29,7 @@ export function ExportSuccessNotification({
             }}
             className="ml-4 underline hover:text-green-100 transition-colors font-medium"
           >
-            Click here to show save folder.
+            {t('exportSuccess.openFolder')}
           </button>
         </div>
         <button

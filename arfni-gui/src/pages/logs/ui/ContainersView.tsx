@@ -18,6 +18,7 @@ interface ContainersViewProps {
   ec2Server: EC2Server | null;
   containers: Container[];
   loadingContainers: boolean;
+  deletingContainerId: string | null;
   onRefresh: () => void;
   onStartContainer: (id: string, name: string) => void;
   onStopContainer: (id: string, name: string) => void;
@@ -32,6 +33,7 @@ export function ContainersView({
   ec2Server,
   containers,
   loadingContainers,
+  deletingContainerId,
   onRefresh,
   onStartContainer,
   onStopContainer,
@@ -211,13 +213,26 @@ export function ContainersView({
 
                       {/* Delete button */}
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          onRemoveContainer(container.id, container.name);
+                          console.log('[DELETE] Button clicked, showing confirm dialog...');
+                          const userConfirmed = await confirm(t('containers.confirmRemove', { containerName: container.name }));
+                          console.log('[DELETE] User confirmed:', userConfirmed);
+                          if (userConfirmed) {
+                            console.log('[DELETE] Calling onRemoveContainer...');
+                            onRemoveContainer(container.id, container.name);
+                          } else {
+                            console.log('[DELETE] User cancelled deletion');
+                          }
                         }}
-                        className="flex flex-col items-center gap-1 p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        disabled={deletingContainerId === container.id}
+                        className="flex flex-col items-center gap-1 p-2 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        {deletingContainerId === container.id ? (
+                          <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Trash2 className="w-5 h-5" />
+                        )}
                         <span className="text-xs font-medium">{t('containers.actions.delete')}</span>
                       </button>
                     </div>
