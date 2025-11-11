@@ -79,8 +79,8 @@ async fn start_monitoring_with_tunnel(
 
     println!("[start_monitoring_with_tunnel] Prometheus tunnel created: {}", prometheus_tunnel_id);
 
-    // Grafana 터널: EC2:3000 -> localhost:3000
-    let grafana_tunnel_id = open_tunnel(app.clone(), ssh_params, 3000, 3000)
+    // Grafana 터널: EC2:3200 -> localhost:3200
+    let grafana_tunnel_id = open_tunnel(app.clone(), ssh_params, 3200, 3200)
         .map_err(|e| format!("Failed to create Grafana tunnel: {}", e))?;
 
     println!("[start_monitoring_with_tunnel] Grafana tunnel created: {}", grafana_tunnel_id);
@@ -88,12 +88,12 @@ async fn start_monitoring_with_tunnel(
     // 터널이 준비될 때까지 대기
     tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
-    println!("[start_monitoring_with_tunnel] SSH tunnels are ready. Access Grafana at http://localhost:3000");
+    println!("[start_monitoring_with_tunnel] SSH tunnels are ready. Access Grafana at http://localhost:3200");
 
     Ok(format!(
         "All-in-one monitoring started via SSH tunnels\n\
         Prometheus: http://localhost:9091\n\
-        Grafana: http://localhost:3000\n\
+        Grafana: http://localhost:3200\n\
         Tunnel IDs: prometheus={}, grafana={}",
         prometheus_tunnel_id, grafana_tunnel_id
     ))
@@ -317,7 +317,7 @@ pub async fn get_monitoring_config(
         .and_then(|m| m.get("monitoring"))
         .and_then(|mon| mon.get("grafana_port"))
         .and_then(|p| p.as_u64())
-        .unwrap_or(3000) as u16;
+        .unwrap_or(3200) as u16;
 
     // URL 구성
     let prometheus_url = format!("http://localhost:{}", prometheus_port);
