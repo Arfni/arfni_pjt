@@ -2,16 +2,12 @@ import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Save,
+  ArrowLeft,
   PlayCircle,
   StopCircle,
-  Loader2,
-  ArrowLeft,
-  Camera,
-  Settings,
-  FileText,
-  AlignJustify
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 import aiLogo from '../../../assets/ai.png';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import {
@@ -47,6 +43,7 @@ import { AIDialog } from './dialogs/AIDialog';
 export function Toolbar() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation('canvas');
 
   const nodes = useAppSelector(selectNodes);
   const edges = useAppSelector(selectEdges);
@@ -62,6 +59,7 @@ export function Toolbar() {
   const [showExportSuccess, setShowExportSuccess] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showAIDialog, setShowAIDialog] = useState(false);
+  const [showMonitoringHelp, setShowMonitoringHelp] = useState(false);
 
   const isEC2Project = currentProject?.environment === 'ec2';
   const ec2TargetNode = isEC2Project && targetNodes.length > 0 ? targetNodes[0] : null;
@@ -339,121 +337,162 @@ export function Toolbar() {
 
   return (
     <>
-      <div className="h-12 bg-gray-800 text-white flex items-center justify-between px-4 border-b border-gray-600">
+      <div className="h-10 bg-white border-b border-gray-200 flex items-center justify-between px-6">
         {/* Left section */}
-        <div className="flex items-center space-x-4">
-          <button onClick={() => navigate('/')} className="p-1 hover:bg-gray-700 rounded transition-colors" title="홈으로">
+        <div className="flex items-center gap-6">
+          <button
+            onClick={() => navigate('/')}
+            className="text-gray-700 hover:text-gray-900 transition-colors flex items-center gap-2"
+            title={t('toolbar.home')}
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-lg font-semibold">
+          <h1 className="text-base font-bold text-gray-900">
             {currentProject && (
-              <span className="ml-2 text-sm text-gray-400">{currentProject.name}</span>
+              <span>{currentProject.name}</span>
             )}
           </h1>
         </div>
 
         {/* Middle section */}
-        <div className="flex items-center space-x-2">
-          {isEC2Project && (
-            <>
-              <div className="flex items-center gap-2 px-3 py-1 bg-gray-700 rounded">
-                <span className="text-xs text-gray-300">Monitoring:</span>
-                <select
-                  value={currentMonitoringMode}
-                  onChange={(e) => handleMonitoringModeChange(e.target.value)}
-                  disabled={!currentProject}
-                  className="px-2 py-0.5 text-xs bg-gray-600 text-white rounded border border-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                >
-                  <option value="all-in-one">All-in-One</option>
-                  <option value="hybrid">Hybrid</option>
-                  <option value="no-monitoring">No Monitoring</option>
-                </select>
-              </div>
-
-              <button
-                onClick={() => { }}
-                disabled={!currentProject}
-                className="px-2.5 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50"
-              >
-                CI/CD
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Right section */}
-        <div className="flex items-center space-x-2">
-          {isEC2Project && (
-            <button onClick={() => setShowAIDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="AI">
-              <img src={aiLogo} alt="AI" className="w-4 h-4" />
-            </button>
-          )}
-
-          <button onClick={() => setShowSettingsDialog(true)} className="p-2 hover:bg-gray-700 rounded transition-colors" title="설정">
-            <Settings className="w-4 h-4" />
-          </button>
-
+        <div className="flex items-center gap-6">
           <button
-            onClick={handleSave}
-            disabled={isSaving || !currentProject}
-            className="p-2 hover:bg-gray-700 rounded transition-colors relative disabled:opacity-50"
-            title="저장"
+            onClick={() => setShowSettingsDialog(true)}
+            className="text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors px-3 py-1.5 rounded"
+            title={t('toolbar.settings')}
           >
-            {isSaving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            {isDirty && <span className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full"></span>}
-          </button>
-
-          <button
-            onClick={() => navigate('/yml')}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
-            title="GitHub Actions YML 생성"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            Github YML
+            {t('toolbar.settings')}
           </button>
 
           <button
             onClick={handleAutoAlign}
             disabled={nodes.length === 0}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="노드 자동 정렬"
+            className="text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded"
+            title={t('toolbar.autoAlignment')}
           >
-            <AlignJustify className="w-3.5 h-3.5" />
-            Auto Alignment
+            {t('toolbar.autoAlignment')}
           </button>
 
           <button
             onClick={() => setShowExportDialog(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors"
-            title="캔버스 내보내기"
+            className="text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors px-3 py-1.5 rounded"
+            title={t('toolbar.exportCanvas')}
           >
-            <Camera className="w-3.5 h-3.5" />
-            Export
+            {t('toolbar.export')}
           </button>
+
+          <button
+            onClick={() => navigate('/yml')}
+            disabled={true}
+            className="text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded"
+            title={t('toolbar.githubYml')}
+          >
+            {t('toolbar.githubYml')}
+          </button>
+
+          {isEC2Project && (
+            <>
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">{t('toolbar.monitoring')}</span>
+                <select
+                  value={currentMonitoringMode}
+                  onChange={(e) => handleMonitoringModeChange(e.target.value)}
+                  disabled={!currentProject}
+                  className="text-sm bg-white text-gray-700 border border-gray-300 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  <option value="all-in-one">{t('toolbar.mode.allInOne')}</option>
+                  <option value="hybrid">{t('toolbar.mode.hybrid')}</option>
+                  <option value="no-monitoring">{t('toolbar.mode.noMonitoring')}</option>
+                </select>
+
+                <div className="flex items-center relative">
+                  <button
+                    onClick={() => setShowMonitoringHelp(!showMonitoringHelp)}
+                    className="text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors p-1 rounded"
+                    title={t('toolbar.help')}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="10" strokeWidth="1.5"/>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01"/>
+                    </svg>
+                  </button>
+
+                  {/* Monitoring Help Tooltip */}
+                  {showMonitoringHelp && (
+                    <>
+                      {/* Backdrop to close tooltip */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowMonitoringHelp(false)}
+                      />
+                      {/* Tooltip */}
+                      <div className="absolute top-full right-0 mt-4 w-96 bg-white border border-gray-300 rounded-lg shadow-lg p-4 z-50">
+                        <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                          <li>
+                            <strong>{t('toolbar.mode.allInOne')}:</strong> {t('toolbar.monitoringHelp.allInOne')}
+                          </li>
+                          <li>
+                            <strong>{t('toolbar.mode.hybrid')}:</strong> {t('toolbar.monitoringHelp.hybrid')}
+                          </li>
+                          <li>
+                            <strong>{t('toolbar.mode.noMonitoring')}:</strong> {t('toolbar.monitoringHelp.noMonitoring')}
+                          </li>
+                        </ol>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>              
+              
+            </>
+          )}
+
+          
+
+          {isEC2Project && (
+            <button
+              onClick={() => setShowAIDialog(true)}
+              className="text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors flex items-center gap-1 px-3 py-1.5 rounded"
+              title={t('toolbar.ai')}
+            >
+              <img src={aiLogo} alt="AI" className="w-3 h-3" />
+
+            </button>
+          )}
+
+          <button
+            onClick={handleSave}
+            disabled={isSaving || !currentProject}
+            className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors relative disabled:opacity-50 rounded"
+            title={t('toolbar.save')}
+          >
+            <Save className="w-4 h-4" />
+            {isDirty && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-yellow-400 rounded-full"></span>}
+          </button>
+
+          
 
           {!isDeploying ? (
             <button
               onClick={handleDeploy}
               disabled={!currentProject}
-              className="px-2.5 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              className="px-4 py-1.5 bg-blue-600 text-white text-sm font-bold rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
-              <PlayCircle className="w-3.5 h-3.5" />
-              Deploy
+              <PlayCircle className="w-4 h-4" strokeWidth={2.5} />
+              {t('toolbar.deploy')}
             </button>
           ) : (
             <button
               onClick={handleStopDeployment}
-              className="px-2.5 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors flex items-center gap-1.5"
+              className="px-4 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors flex items-center gap-1.5"
             >
-              <StopCircle className="w-3.5 h-3.5" />
-              Stop
+              <StopCircle className="w-4 h-4" strokeWidth={2.5} />
+              {t('toolbar.stop')}
             </button>
           )}
         </div>
+
+        
       </div>
 
 

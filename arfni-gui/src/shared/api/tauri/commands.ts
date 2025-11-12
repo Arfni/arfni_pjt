@@ -85,7 +85,8 @@ export const projectCommands = {
     description?: string,
     githubRepoUrl?: string,
     githubBranch?: string,
-    githubAccessToken?: string
+    githubAccessToken?: string,
+    workdir?: string
   ): Promise<Project> => {
     return await invoke('create_project', {
       name,
@@ -96,6 +97,7 @@ export const projectCommands = {
       githubRepoUrl,
       githubBranch,
       githubAccessToken,
+      workdir,
     });
   },
 

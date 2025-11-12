@@ -3,6 +3,7 @@ import { X, Folder, Loader2 } from 'lucide-react';
 import { ec2ServerCommands, EC2Server } from '@shared/api/tauri/commands';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
+import { useTranslation } from 'react-i18next';
 
 interface AddServerModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface AddServerModalProps {
 }
 
 export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: AddServerModalProps) {
+  const { t } = useTranslation('projects');
   const [name, setName] = useState('');
   const [host, setHost] = useState('');
   const [user, setUser] = useState('ubuntu');
@@ -49,8 +51,8 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
     try {
       const selected = await open({
         multiple: false,
-        filters: [{ name: 'PEM Files', extensions: ['pem'] }],
-        title: 'Select PEM File',
+        filters: [{ name: t('server.pemFileFilter'), extensions: ['pem'] }],
+        title: t('server.selectPemFileTitle'),
       });
 
       if (selected && typeof selected === 'string') {
@@ -59,7 +61,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
       }
     } catch (err) {
       console.error('PEM 파일 선택 실패:', err);
-      setError('Failed to select PEM file');
+      setError(t('server.errors.selectPemFailed'));
     }
   };
 
@@ -69,15 +71,15 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
 
     // 필수 필드 검증
     if (!host.trim()) {
-      setError('Please enter Host Address before testing connection');
+      setError(t('server.validation.enterHostBeforeTesting'));
       return;
     }
     if (!user.trim()) {
-      setError('Please enter Username before testing connection');
+      setError(t('server.validation.enterUsernameBeforeTesting'));
       return;
     }
     if (!pemPath.trim()) {
-      setError('Please select PEM Key File before testing connection');
+      setError(t('server.validation.selectPemBeforeTesting'));
       return;
     }
 
@@ -94,7 +96,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
       setTestSuccess(true);
     } catch (err) {
       console.error('Connection test failed:', err);
-      setError(`Connection test failed: ${err}`);
+      setError(t('server.errors.connectionTestFailed', { error: String(err) }));
     } finally {
       setTesting(false);
     }
@@ -106,19 +108,19 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
 
     // 필수 필드 검증
     if (!name.trim()) {
-      setError('Please enter Server Name');
+      setError(t('server.validation.enterServerName'));
       return;
     }
     if (!host.trim()) {
-      setError('Please enter Host Address');
+      setError(t('server.validation.enterHostAddress'));
       return;
     }
     if (!user.trim()) {
-      setError('Please enter Username');
+      setError(t('server.validation.enterUsername'));
       return;
     }
     if (!pemPath.trim()) {
-      setError('Please select PEM Key File');
+      setError(t('server.validation.selectPemKeyFile'));
       return;
     }
 
@@ -132,13 +134,13 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
 
       // 변경 사항이 있으면 테스트 성공 필요
       if (hasChanges && !testSuccess) {
-        setError('Please test the SSH connection first after making changes');
+        setError(t('server.validation.testConnectionAfterChanges'));
         return;
       }
     } else {
       // 추가 모드일 때는 항상 테스트 성공 필요
       if (!testSuccess) {
-        setError('Please test the SSH connection first');
+        setError(t('server.validation.testConnectionFirst'));
         return;
       }
     }
@@ -175,7 +177,10 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
       onClose();
     } catch (err) {
       console.error(`서버 ${isEditMode ? '수정' : '추가'} 실패:`, err);
-      setError(`Failed to ${isEditMode ? 'update' : 'add'} server: ${err}`);
+      setError(isEditMode
+        ? t('server.errors.updateFailed', { error: String(err) })
+        : t('server.errors.addFailed', { error: String(err) })
+      );
     } finally {
       setSaving(false);
     }
@@ -191,7 +196,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-800">
-            {isEditMode ? 'Edit EC2 Server' : 'Add New EC2 Server'}
+            {isEditMode ? t('server.editTitle') : t('server.addTitle')}
           </h2>
           <button
             onClick={onClose}
@@ -213,13 +218,13 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
             {/* Server Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Server Name *
+                {t('server.serverNameLabel')}
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="My EC2 Server"
+                placeholder={t('server.serverNamePlaceholder')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
@@ -228,7 +233,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
             {/* Host */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Host Address *
+                {t('server.hostLabel')}
               </label>
               <input
                 type="text"
@@ -237,7 +242,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
                   setHost(e.target.value);
                   setTestSuccess(false);
                 }}
-                placeholder="ec2-12-34-56-78.compute.amazonaws.com"
+                placeholder={t('server.hostAddressPlaceholder')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
@@ -246,7 +251,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
             {/* User */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Username *
+                {t('server.usernameLabel')}
               </label>
               <input
                 type="text"
@@ -255,7 +260,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
                   setUser(e.target.value);
                   setTestSuccess(false);
                 }}
-                placeholder="ubuntu"
+                placeholder={t('server.usernamePlaceholder')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
@@ -264,14 +269,14 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
             {/* PEM File */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                PEM Key File *
+                {t('server.pemKeyLabel')}
               </label>
               <div className="flex gap-3">
                 <input
                   type="text"
                   value={pemPath}
                   readOnly
-                  placeholder="Select PEM file..."
+                  placeholder={t('server.pemKeyPlaceholder')}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
                   required
                 />
@@ -279,7 +284,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
                   type="button"
                   onClick={handlePemFileSelect}
                   className="w-10 h-10 flex items-center justify-center bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  title="Browse PEM file"
+                  title={t('server.browsePemFile')}
                 >
                   <Folder className="w-5 h-5" />
                 </button>
@@ -300,12 +305,12 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
                 {testing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Testing Connection...
+                    {t('server.testingConnection')}
                   </>
                 ) : testSuccess ? (
-                  <>✅ Connection Successful</>
+                  <>{t('server.connectionSuccessful')}</>
                 ) : (
-                  <>Test SSH Connection</>
+                  <>{t('server.testConnection')}</>
                 )}
               </button>
             </div>
@@ -322,7 +327,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
               disabled={saving}
               className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
-              Cancel
+              {t('server.cancel')}
             </button>
             <button
               type="submit"
@@ -332,7 +337,10 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
               onMouseEnter={(e) => !saving && (e.currentTarget.style.backgroundColor = '#3B52C9')}
               onMouseLeave={(e) => !saving && (e.currentTarget.style.backgroundColor = '#4C65E2')}
             >
-              {saving ? (isEditMode ? 'Updating...' : 'Adding...') : (isEditMode ? 'Update Server' : 'Add Server')}
+              {saving
+                ? (isEditMode ? t('server.updatingServer') : t('server.addingServer'))
+                : (isEditMode ? t('server.updateServer') : t('server.addServer'))
+              }
             </button>
           </div>
         </form>

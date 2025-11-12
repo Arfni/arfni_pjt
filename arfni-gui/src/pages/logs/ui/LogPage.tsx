@@ -7,15 +7,18 @@ import { useSelector } from 'react-redux';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
 import { ec2ServerCommands, EC2Server, Project } from '@shared/api/tauri/commands';
 import { OptimizeView } from './OptimizeView';
+import { MonitoringView } from './MonitoringView';
 import { Sidebar } from './Sidebar';
 import { TerminalView } from './TerminalView';
 import { ContainersView } from './ContainersView';
+import { useTranslation } from 'react-i18next';
 
 export default function LogPage() {
+  const { t } = useTranslation('logs');
   const navigate = useNavigate();
   const projectFromStore = useSelector(selectCurrentProject);
   const location = useLocation();
-  const locationState = location.state as { project?: Project } | undefined;
+  const locationState = location.state as { project?: Project; selectedView?: 'containers' | 'terminal' | 'monitor' | 'optimize' } | undefined;
   const project = locationState?.project ?? projectFromStore;
   const [ec2Server, setEc2Server] = useState<EC2Server | null>(null);
 
@@ -41,9 +44,12 @@ export default function LogPage() {
   }
   const [containers, setContainers] = useState<Container[]>([]);
   const [loadingContainers, setLoadingContainers] = useState(false);
+  const [deletingContainerId, setDeletingContainerId] = useState<string | null>(null);
 
-  // 좌측 사이드바 뷰 상태
-  const [selectedView, setSelectedView] = useState<'containers' | 'terminal' | 'monitor' | 'optimize'>('terminal');
+  // 좌측 사이드바 뷰 상태 (location state에서 selectedView가 있으면 사용, 없으면 기본값 'terminal')
+  const [selectedView, setSelectedView] = useState<'containers' | 'terminal' | 'monitor' | 'optimize'>(
+    locationState?.selectedView ?? 'terminal'
+  );
 
   // SSH 이벤트 리스너
   useEffect(() => {
@@ -137,10 +143,10 @@ export default function LogPage() {
     if (!sessionId || !cmd.trim()) return;
     try {
       await invoke('ssh_send', { id: sessionId, cmd });
-      setTerminalLogs((prev) => [...prev, `> ${cmd}`]);
+      setTerminalLogs((prev) => [...prev, `${t('log.commandPrefix')} ${cmd}`]);
       setCmd('');
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Send failed: ${String(err)}`]);
+      setTerminalLogs((prev) => [...prev, `❌ ${t('log.sendFailed', { error: String(err) })}`]);
     }
   };
 
@@ -231,9 +237,12 @@ export default function LogPage() {
 
   // 컨테이너 삭제
   const removeContainer = async (containerId: string, containerName: string) => {
+    console.log('[REMOVE_CONTAINER] Called with:', containerId, containerName);
     if (!ec2Server) return;
-    if (!confirm(`Are you sure you want to remove container '${containerName}'?`)) return;
+    console.log('[REMOVE_CONTAINER] Setting deleting state...');
+    setDeletingContainerId(containerId);
     try {
+      console.log('[REMOVE_CONTAINER] Executing docker rm command...');
       await invoke('ssh_exec_system', {
         params: {
           host: ec2Server.host,
@@ -242,10 +251,17 @@ export default function LogPage() {
           cmd: `docker rm -f ${containerId}`
         }
       });
-      setTerminalLogs((prev) => [...prev, `✅ Container '${containerName}' removed`]);
-      fetchContainersQuietly(); // 목록 새로고침 (로딩 표시 없이)
+      console.log('[REMOVE_CONTAINER] Docker rm succeeded, updating logs...');
+      setTerminalLogs((prev) => [...prev, `✅ ${t('containers.removed', { containerName })}`]);
+      console.log('[REMOVE_CONTAINER] Fetching updated container list...');
+      await fetchContainersQuietly(); // 목록 새로고침 (로딩 표시 없이)
+      console.log('[REMOVE_CONTAINER] Container list updated');
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Failed to remove container: ${String(err)}`]);
+      console.log('[REMOVE_CONTAINER] Error:', err);
+      setTerminalLogs((prev) => [...prev, `❌ ${t('containers.removeFailed')}: ${String(err)}`]);
+    } finally {
+      console.log('[REMOVE_CONTAINER] Clearing deleting state');
+      setDeletingContainerId(null);
     }
   };
 
@@ -280,17 +296,17 @@ export default function LogPage() {
           cmd: 'docker start $(docker ps -aq)'
         }
       });
-      setTerminalLogs((prev) => [...prev, `✅ All containers started`]);
+      setTerminalLogs((prev) => [...prev, `✅ ${t('containers.allStarted')}`]);
       fetchContainersQuietly();
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Failed to start all containers: ${String(err)}`]);
+      setTerminalLogs((prev) => [...prev, `❌ ${t('containers.allStartFailed', { error: String(err) })}`]);
     }
   };
 
   // 모든 컨테이너 중지
   const stopAllContainers = async () => {
     if (!ec2Server || containers.length === 0) return;
-    if (!confirm('Are you sure you want to stop all containers?')) return;
+    if (!confirm(t('containers.confirmStopAll'))) return;
     try {
       await invoke('ssh_exec_system', {
         params: {
@@ -300,10 +316,10 @@ export default function LogPage() {
           cmd: 'docker stop $(docker ps -q)'
         }
       });
-      setTerminalLogs((prev) => [...prev, `✅ All containers stopped`]);
+      setTerminalLogs((prev) => [...prev, `✅ ${t('containers.allStopped')}`]);
       fetchContainersQuietly();
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Failed to stop all containers: ${String(err)}`]);
+      setTerminalLogs((prev) => [...prev, `❌ ${t('containers.allStopFailed', { error: String(err) })}`]);
     }
   };
 
@@ -366,11 +382,11 @@ export default function LogPage() {
         <button
           onClick={() => navigate('/projects')}
           className="p-1.5 hover:bg-gray-200 rounded transition-colors"
-          title="Back to Projects"
+          title={t('page.backToProjects')}
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-semibold">Project Status</h1>
+        <h1 className="text-xl font-semibold">{t('page.title')}</h1>
       </header>
 
       {/* Main Layout - Sidebar + Content */}
@@ -416,6 +432,7 @@ export default function LogPage() {
             ec2Server={ec2Server}
             containers={containers}
             loadingContainers={loadingContainers}
+            deletingContainerId={deletingContainerId}
             onRefresh={fetchContainers}
             onStartContainer={startContainer}
             onStopContainer={stopContainer}
@@ -423,6 +440,15 @@ export default function LogPage() {
             onRemoveContainer={removeContainer}
             onStartAll={startAllContainers}
             onStopAll={stopAllContainers}
+          />
+        )}
+
+        {/* Monitor View - Only show when monitor is selected */}
+        {selectedView === 'monitor' && (
+          <MonitoringView
+            project={project}
+            ec2Server={ec2Server}
+            onNavigateToMonitoring={() => navigate('/monitoring', { state: { project, ec2Server } })}
           />
         )}
 

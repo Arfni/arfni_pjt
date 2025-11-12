@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Terminal } from 'lucide-react';
 import { Project, EC2Server } from '@shared/api/tauri/commands';
+import { useTranslation } from 'react-i18next';
 
 interface TerminalViewProps {
   project: Project | null;
@@ -44,6 +45,7 @@ export function TerminalView({
   onCmdChange,
   onSendCmd
 }: TerminalViewProps) {
+  const { t } = useTranslation('logs');
   const terminalLogRef = useRef<HTMLDivElement>(null);
 
   // 터미널 로그 자동 스크롤
@@ -59,8 +61,8 @@ export function TerminalView({
       <div className="flex-1 flex items-center justify-center bg-white">
         <div className="text-center text-gray-500">
           <Terminal className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <p className="text-lg font-semibold mb-2">SSH Terminal</p>
-          <p className="text-sm">EC2 프로젝트를 선택하면 SSH 터미널을 사용할 수 있습니다.</p>
+          <p className="text-lg font-semibold mb-2">{t('terminal.title')}</p>
+          <p className="text-sm">{t('terminal.notAvailable')}</p>
         </div>
       </div>
     );
@@ -73,9 +75,9 @@ export function TerminalView({
         {/* Left: Project Info */}
         <div className="flex items-center gap-3">
           <div className="flex flex-col gap-1">
-            <span className="font-semibold text-sm">{project.name}</span>
+            <span className="font-semibold text-base">{project.name}</span>
             {ec2Server && (
-              <span className="font-mono text-xs text-gray-600">
+              <span className="font-mono text-sm text-gray-600">
                 {ec2Server.user}@{ec2Server.host}
               </span>
             )}
@@ -88,41 +90,23 @@ export function TerminalView({
             <button
               onClick={onConnect}
               disabled={!ec2Server}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Connect
+              {t('terminal.connect')}
             </button>
           ) : (
             <button
               onClick={onDisconnect}
-              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs"
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
             >
-              Disconnect
-            </button>
-          )}
-          {!tunnelOpen ? (
-            <button
-              onClick={onTunnelOpen}
-              disabled={!ec2Server}
-              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Open SSH tunnel for Prometheus (9091:9090)"
-            >
-              Open Tunnel
-            </button>
-          ) : (
-            <button
-              onClick={onTunnelClose}
-              className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs"
-              title="Close Prometheus tunnel"
-            >
-              Close Tunnel
+              {t('terminal.disconnect')}
             </button>
           )}
           <button
             onClick={onClearLogs}
-            className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded text-xs"
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded text-sm"
           >
-            Clear
+            {t('terminal.clear')}
           </button>
         </div>
       </div>
@@ -136,15 +120,11 @@ export function TerminalView({
           scrollbarColor: '#d1d5db #f3f4f6'
         }}
       >
-        {terminalLogs.length === 0 ? (
-          <div className="text-gray-500">No output yet. Connect and run commands.</div>
-        ) : (
-          terminalLogs.map((line, i) => (
-            <div key={i} className={getLogLineStyle(line)}>
-              {line}
-            </div>
-          ))
-        )}
+        {terminalLogs.map((line, i) => (
+          <div key={i} className={getLogLineStyle(line)}>
+            {line}
+          </div>
+        ))}
         <div className="mt-2 text-gray-400">
           <span className="animate-pulse">_</span>
         </div>
@@ -154,7 +134,7 @@ export function TerminalView({
       <div className="bg-gray-50 p-3 flex gap-2 flex-shrink-0 border-t border-gray-200">
         <input
           className="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-gray-900 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Enter Command ..."
+          placeholder={t('terminal.placeholder')}
           value={cmd}
           onChange={(e) => onCmdChange(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && onSendCmd()}
@@ -165,7 +145,7 @@ export function TerminalView({
           disabled={!connected}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Enter
+          {t('terminal.enter')}
         </button>
       </div>
     </div>

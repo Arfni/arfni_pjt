@@ -5,6 +5,7 @@ import { CanvasPreview } from './CanvasPreview';
 import { useAppDispatch } from '@app/hooks';
 import { openProject, clearError } from '@features/project';
 import { confirm } from '@tauri-apps/plugin-dialog';
+import { useTranslation } from 'react-i18next';
 
 // Star Icon Component
 const StarIcon = ({ filled, onClick, className }: { filled: boolean; onClick?: (e: React.MouseEvent) => void; className?: string }) => (
@@ -37,6 +38,7 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDelete, onTogglePin }: ProjectCardProps) {
+  const { t } = useTranslation('projects');
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
@@ -78,12 +80,12 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
       if (errorMsg.includes('PROJECT_FOLDER_NOT_FOUND') || error?.type === 'PROJECT_FOLDER_NOT_FOUND') {
         // Show error dialog
         const shouldDelete = await confirm(
-          `프로젝트 폴더를 찾을 수 없습니다:\n\n${project.path}\n\n폴더가 삭제되었거나 이동된 것 같습니다.\n\n목록에서 프로젝트를 제거하시겠습니까?`,
+          t('card.folderNotFound', { projectPath: project.path }),
           {
-            title: '프로젝트 폴더를 찾을 수 없음',
+            title: t('card.folderNotFoundTitle'),
             kind: 'warning',
-            okLabel: '프로젝트 제거',
-            cancelLabel: '취소',
+            okLabel: t('card.removeProject'),
+            cancelLabel: t('delete.confirmCancelLabel'),
           }
         );
 
@@ -118,7 +120,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
           <CanvasPreview nodes={canvasPreview.nodes} edges={canvasPreview.edges} />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-gray-400 text-sm">Empty Canvas</p>
+            <p className="text-gray-400 text-sm">{t('card.emptyCanvas')}</p>
           </div>
         )}
         {/* Star Pin Icon - 왼쪽 위 */}
@@ -126,7 +128,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
           <button
             onClick={(e) => onTogglePin(project.id, e)}
             className="p-1 transition-all hover:scale-110"
-            title={isPinned ? "Unpin project" : "Pin project"}
+            title={isPinned ? t('card.unpinProject') : t('card.pinProject')}
           >
             <StarIcon filled={isPinned} />
           </button>
@@ -137,7 +139,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
             onClick={handleDeleteClick}
             disabled={isDeleting}
             className="p-1.5 bg-white/90 backdrop-blur-sm text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 shadow-sm"
-            title="프로젝트 삭제"
+            title={t('card.deleteProject')}
           >
             {isDeleting ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -159,15 +161,15 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-gray-900 text-sm">{project.name}</h3>
-            <p className="text-xs text-gray-500">{project.environment === 'ec2' ? 'EC2' : 'Local Docker'}</p>
+            <h3 className="font-semibold text-gray-900 text-lg">{project.name}</h3>
+            <p className="text-xs text-gray-500">{project.environment === 'ec2' ? t('card.ec2') : t('card.localDocker')}</p>
           </div>
         </div>
 
         <div className="space-y-1 text-xs text-gray-600 mt-2">
           <div className="flex items-center gap-2">
             <Calendar className="w-3 h-3" />
-            <span>Created: {new Date(project.created_at).toLocaleDateString()}</span>
+            <span>{t('card.created')} {new Date(project.created_at).toLocaleDateString()}</span>
           </div>
           {project.github_repo_url && (
             <div className="flex items-center gap-2 text-gray-700">
@@ -190,7 +192,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
               className="flex-1 px-4 py-2.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 font-medium transition-colors"
               style={{ borderRadius: '10px' }}
             >
-              Project Status
+              {t('card.projectStatus')}
             </button>
           )}
           <button
@@ -204,7 +206,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
             onMouseEnter={(e) => !isDeleting && (e.currentTarget.style.backgroundColor = '#3B52C9')}
             onMouseLeave={(e) => !isDeleting && (e.currentTarget.style.backgroundColor = '#4C65E2')}
           >
-            Edit In Canvas
+            {t('card.editInCanvas')}
           </button>
         </div>
       </div>

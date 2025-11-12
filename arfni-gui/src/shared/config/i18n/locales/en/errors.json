@@ -1,0 +1,75 @@
+{
+  "general": {
+    "unknown": "An unknown error occurred",
+    "network": "Network error. Please check your connection",
+    "timeout": "Request timed out",
+    "unauthorized": "Unauthorized access",
+    "forbidden": "Access forbidden",
+    "notFound": "Resource not found",
+    "serverError": "Server error occurred",
+    "badRequest": "Invalid request"
+  },
+  "project": {
+    "loadFailed": "Failed to load project",
+    "saveFailed": "Failed to save project",
+    "createFailed": "Failed to create project",
+    "deleteFailed": "Failed to delete project",
+    "notFound": "Project not found",
+    "invalidPath": "Invalid project path",
+    "alreadyExists": "Project already exists",
+    "corrupted": "Project data is corrupted"
+  },
+  "deployment": {
+    "failed": "Deployment failed",
+    "dockerNotRunning": "Docker is not running",
+    "invalidConfig": "Invalid deployment configuration",
+    "buildFailed": "Container build failed",
+    "startFailed": "Failed to start containers",
+    "stopFailed": "Failed to stop deployment",
+    "timeout": "Deployment timed out"
+  },
+  "server": {
+    "connectionFailed": "Failed to connect to server",
+    "authFailed": "Authentication failed",
+    "sshFailed": "SSH connection failed",
+    "invalidCredentials": "Invalid credentials",
+    "serverNotFound": "Server not found",
+    "addFailed": "Failed to add server",
+    "updateFailed": "Failed to update server",
+    "deleteFailed": "Failed to delete server"
+  },
+  "container": {
+    "startFailed": "Failed to start container",
+    "stopFailed": "Failed to stop container",
+    "removeFailed": "Failed to remove container",
+    "restartFailed": "Failed to restart container",
+    "notFound": "Container not found",
+    "alreadyRunning": "Container is already running",
+    "notRunning": "Container is not running"
+  },
+  "monitoring": {
+    "connectionFailed": "Failed to connect to monitoring service",
+    "configMissing": "Monitoring configuration is missing",
+    "startFailed": "Failed to start monitoring stack",
+    "grafanaNotReady": "Grafana is not ready",
+    "prometheusNotReady": "Prometheus is not ready"
+  },
+  "file": {
+    "readFailed": "Failed to read file",
+    "writeFailed": "Failed to write file",
+    "deleteFailed": "Failed to delete file",
+    "notFound": "File not found",
+    "permissionDenied": "Permission denied",
+    "invalidFormat": "Invalid file format"
+  },
+  "validation": {
+    "required": "{{field}} is required",
+    "invalidEmail": "Invalid email address",
+    "invalidUrl": "Invalid URL",
+    "tooShort": "{{field}} is too short",
+    "tooLong": "{{field}} is too long",
+    "invalidCharacters": "Contains invalid characters",
+    "mustBeNumber": "Must be a number",
+    "mustBePositive": "Must be a positive number"
+  }
+}

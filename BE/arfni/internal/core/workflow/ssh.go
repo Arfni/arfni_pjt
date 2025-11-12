@@ -2,8 +2,8 @@ package workflow
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -63,39 +63,74 @@ func (c *SSHClient) UploadFile(stream *events.Stream, localPath, remotePath stri
 func (c *SSHClient) UploadDirectory(stream *events.Stream, localDir, remoteDir string) error {
 	stream.Info(fmt.Sprintf("Uploading directory %s to %s:%s", localDir, c.target.Host, remoteDir))
 
-	// scp -r source target을 하면 target/source가 되므로
-	// 상위 디렉토리를 만들고 상위 디렉토리로 전송
-	// 주의: 원격 경로는 Linux 형식이므로 path 패키지 사용 (filepath 아님!)
-	parentDir := path.Dir(remoteDir)
-
-	// 상위 디렉토리 생성
-	if err := c.RunCommand(stream, fmt.Sprintf("mkdir -p %s", parentDir)); err != nil {
+	// 원격 디렉토리 생성
+	if err := c.RunCommand(stream, fmt.Sprintf("mkdir -p %s", remoteDir)); err != nil {
 		return fmt.Errorf("failed to create remote directory: %w", err)
 	}
 
-	// SCP로 디렉토리 전송 (상위 디렉토리로) - -r 플래그 필요
-	args := []string{
-		"-i", c.target.SSHKey,
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "LogLevel=ERROR",
-		"-r", // 디렉토리 전송
-		localDir,
-		fmt.Sprintf("%s@%s:%s", c.target.User, c.target.Host, parentDir),
-	}
-
-	cmd := exec.Command("scp", args...)
-
-	// Windows에서 콘솔 창 숨김
-	if runtime.GOOS == "windows" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			HideWindow:    true,
-			CreationFlags: 0x08000000 | 0x00000200,
-		}
-	}
-
-	output, err := cmd.CombinedOutput()
+	// 로컬 디렉토리 내 모든 항목 찾기
+	entries, err := os.ReadDir(localDir)
 	if err != nil {
-		return fmt.Errorf("scp failed: %w\nOutput: %s", err, string(output))
+		return fmt.Errorf("failed to read local directory: %w", err)
+	}
+
+	// 업로드 시 제외할 항목들
+	excludeList := map[string]bool{
+		"node_modules":    true,
+		"docs":            true,
+		".git":            true,
+		".gradle":         true,
+		".idea":           true,
+		"build":           true,
+		"dist":            true,
+		".next":           true,
+		"out":             true,
+		"target":          true,
+		"__pycache__":     true,
+		".venv":           true,
+		"venv":            true,
+		".pytest_cache":   true,
+		"coverage":        true,
+		".DS_Store":       true,
+		"Thumbs.db":       true,
+		"npm-debug.log":   true,
+		"yarn-debug.log":  true,
+		"yarn-error.log":  true,
+	}
+
+	// 각 항목을 개별적으로 업로드
+	for _, entry := range entries {
+		// 제외 목록에 있는 항목은 건너뛰기
+		if excludeList[entry.Name()] {
+			stream.Info(fmt.Sprintf("Skipping excluded item: %s", entry.Name()))
+			continue
+		}
+
+		localPath := filepath.Join(localDir, entry.Name())
+
+		args := []string{
+			"-i", c.target.SSHKey,
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "LogLevel=ERROR",
+			"-r", // 디렉토리도 지원
+			localPath,
+			fmt.Sprintf("%s@%s:%s", c.target.User, c.target.Host, remoteDir),
+		}
+
+		cmd := exec.Command("scp", args...)
+
+		// Windows에서 콘솔 창 숨김
+		if runtime.GOOS == "windows" {
+			cmd.SysProcAttr = &syscall.SysProcAttr{
+				HideWindow:    true,
+				CreationFlags: 0x08000000 | 0x00000200,
+			}
+		}
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("scp failed for %s: %w\nOutput: %s", entry.Name(), err, string(output))
+		}
 	}
 
 	stream.Success(fmt.Sprintf("Uploaded directory %s", filepath.Base(localDir)))

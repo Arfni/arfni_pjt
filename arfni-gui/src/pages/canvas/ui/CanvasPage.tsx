@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { openProject, selectCurrentProject, selectProjectLoading } from '@features/project';
 import { Project } from '@shared/api/tauri/commands';
@@ -11,6 +12,7 @@ import { YamlEditor } from '@widgets/yaml-editor';
 import { PropertyPanel } from '@widgets/property-panel';
 
 export function CanvasPage() {
+  const { t } = useTranslation('canvas');
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
   const [showRightSidebar, setShowRightSidebar] = useState(true);
   const [yamlHeight, setYamlHeight] = useState(256); // 초기 높이 256px (h-64)
@@ -96,7 +98,7 @@ export function CanvasPage() {
       <div className="h-full flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">프로젝트를 불러오는 중...</p>
+          <p className="text-gray-600">{t('page.loadingProject')}</p>
         </div>
       </div>
     );
@@ -116,7 +118,7 @@ export function CanvasPage() {
           onClick={() => setShowLeftSidebar(!showLeftSidebar)}
           className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r-lg shadow-md p-1.5 hover:bg-gray-50 transition-colors"
           style={{ left: showLeftSidebar ? '15rem' : '0' }}
-          title={showLeftSidebar ? 'Hide Blocks' : 'Show Blocks'}
+          title={showLeftSidebar ? t('page.toggleBlocksPalette.hide') : t('page.toggleBlocksPalette.show')}
         >
           {showLeftSidebar ? (
             <ChevronLeft className="w-4 h-4 text-gray-600" />
@@ -155,7 +157,7 @@ export function CanvasPage() {
           onClick={() => setShowRightSidebar(!showRightSidebar)}
           className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-l-lg shadow-md p-1.5 hover:bg-gray-50 transition-colors"
           style={{ right: showRightSidebar ? '20rem' : '0' }}
-          title={showRightSidebar ? 'Hide Properties' : 'Show Properties'}
+          title={showRightSidebar ? t('page.toggleProperties.hide') : t('page.toggleProperties.show')}
         >
           {showRightSidebar ? (
             <ChevronRight className="w-4 h-4 text-gray-600" />

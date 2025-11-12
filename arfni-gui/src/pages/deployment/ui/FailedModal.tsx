@@ -1,4 +1,5 @@
 import { AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface FailedModalProps {
   isOpen: boolean;
@@ -27,6 +28,8 @@ const getLogColor = (level: string) => {
 };
 
 export function FailedModal({ isOpen, onClose, error, logs }: FailedModalProps) {
+  const { t } = useTranslation('deployment');
+
   if (!isOpen) return null;
 
   return (
@@ -37,8 +40,8 @@ export function FailedModal({ isOpen, onClose, error, logs }: FailedModalProps) 
             <AlertCircle className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Deployment Failed</h2>
-            <p className="text-gray-600">An error occurred during deployment.</p>
+            <h2 className="text-2xl font-bold text-gray-900">{t('failed.failedTitle')}</h2>
+            <p className="text-gray-600">{t('failed.failedMessage')}</p>
           </div>
         </div>
 
@@ -49,7 +52,7 @@ export function FailedModal({ isOpen, onClose, error, logs }: FailedModalProps) 
 
         {/* 로그 표시 (마지막 20줄) */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-3">Recent Logs</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">{t('failed.recentLogs')}</h3>
           <div className="bg-gray-50 rounded p-3 font-mono text-xs h-48 overflow-y-auto border border-gray-200">
             {logs.slice(-20).map((log, index) => (
               <div key={index} className={getLogColor(log.level)}>
@@ -64,7 +67,7 @@ export function FailedModal({ isOpen, onClose, error, logs }: FailedModalProps) 
           onClick={onClose}
           className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
         >
-          OK
+          {t('failed.confirm')}
         </button>
       </div>
     </div>

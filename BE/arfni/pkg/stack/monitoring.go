@@ -168,8 +168,9 @@ func ensureGrafana(stack *Stack, targetName string) error {
 		Target: targetName,
 		Spec: ServiceSpec{
 			Image: "grafana/grafana:latest",
-			Ports: []string{"3000:3000"},
+			Ports: []string{"3200:3200"},
 			Env: map[string]string{
+				"GF_SERVER_HTTP_PORT":        "3200",
 				"GF_AUTH_ANONYMOUS_ENABLED":  "true",
 				"GF_AUTH_ANONYMOUS_ORG_ROLE": "Admin",
 				"GF_AUTH_DISABLE_LOGIN_FORM": "true",

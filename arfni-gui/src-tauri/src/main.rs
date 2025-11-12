@@ -13,7 +13,9 @@ mod db;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // 데이터베이스 초기화
             let db = db::Database::new(app.handle())?;
@@ -180,6 +182,7 @@ fn main() {
       commands::keys::delete_api_key,
       commands::keys::set_active_api_key,
       commands::keys::get_active_api_key,
+      commands::keys::deactivate_all_api_keys,
 
       // CI/CD 명령어
       commands::cicd::authenticate_github,

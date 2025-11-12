@@ -5,8 +5,10 @@ import { selectCurrentProject } from '@features/project';
 import { PluginStackGenerator } from '@features/canvas/lib/pluginStackGenerator';
 import { Copy, Download } from 'lucide-react';
 import { ec2ServerCommands } from '@shared/api/tauri/commands';
+import { useTranslation } from 'react-i18next';
 
 export function YamlEditor() {
+  const { t } = useTranslation('canvas');
   const nodes = useAppSelector(selectNodes);
   const edges = useAppSelector(selectEdges);
   const currentProject = useAppSelector(selectCurrentProject);
@@ -18,7 +20,7 @@ export function YamlEditor() {
   // Canvas 변경 시 YAML 자동 생성
   useEffect(() => {
     if (!currentProject) {
-      setYamlContent('# 프로젝트를 먼저 생성하세요\n# New 버튼을 클릭하여 새 프로젝트를 만드세요');
+      setYamlContent(t('yaml.noProject'));
       return;
     }
 
@@ -47,7 +49,7 @@ export function YamlEditor() {
 
         setYamlContent(yamlString);
       } catch (error) {
-        setYamlContent(`# 오류: ${error}\n# Canvas가 비어있거나 유효하지 않습니다`);
+        setYamlContent(t('yaml.yamlError', { error }));
       }
     };
 
@@ -88,14 +90,14 @@ export function YamlEditor() {
           <button
             onClick={handleCopy}
             className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
-            title="Copy to clipboard"
+            title={t('yaml.copyToClipboard')}
           >
             <Copy className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={handleDownload}
             className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
-            title="Download YAML"
+            title={t('yaml.downloadYaml')}
           >
             <Download className="w-3.5 h-3.5" />
           </button>
@@ -105,7 +107,7 @@ export function YamlEditor() {
       {/* Copy success message */}
       {copied && (
         <div className="px-3 py-1.5 bg-green-50 border-b border-green-200 text-green-700 text-xs">
-          ✓ Copied to clipboard!
+          {t('yaml.copiedSuccess')}
         </div>
       )}
 

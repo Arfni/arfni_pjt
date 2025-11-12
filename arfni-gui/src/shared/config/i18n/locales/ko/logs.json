@@ -1,0 +1,162 @@
+{
+  "title": {
+    "page": "프로젝트 상태",
+    "terminal": "터미널",
+    "containers": "컨테이너",
+    "monitor": "모니터링",
+    "optimize": "최적화",
+    "monitoring": "모니터링 대시보드"
+  },
+  "terminal": {
+    "title": "SSH 터미널",
+    "connect": "연결",
+    "disconnect": "연결 해제",
+    "openTunnel": "터널 열기",
+    "closeTunnel": "터널 닫기",
+    "clearLogs": "로그 지우기",
+    "clear": "로그 지우기",
+    "sendCommand": "전송",
+    "enter": "전송",
+    "commandPlaceholder": "명령어를 입력하세요...",
+    "placeholder": "명령어를 입력하세요...",
+    "noOutput": "출력 없음",
+    "notConnected": "서버에 연결되지 않음",
+    "connectPrompt": "터미널을 사용하려면 연결하세요",
+    "connected": "SSH 연결됨",
+    "connectionFailed": "연결 실패",
+    "tunnelOpened": "터널 열림 - Prometheus는 http://localhost:9091 사용",
+    "tunnelFailed": "터널 실패",
+    "noServerInfo": "EC2 서버 정보가 없습니다",
+    "notAvailable": "이 프로젝트 유형에서는 터미널을 사용할 수 없습니다"
+  },
+  "containers": {
+    "title": "컨테이너 목록",
+    "noContainers": "컨테이너를 찾을 수 없습니다",
+    "loading": "컨테이너 로딩 중...",
+    "start": "시작",
+    "stop": "중지",
+    "restart": "재시작",
+    "delete": "삭제",
+    "startAll": "전체 시작",
+    "stopAll": "전체 중지",
+    "refresh": "새로고침",
+    "more": "더보기",
+    "confirmStopAll": "모든 컨테이너를 정말 중지하시겠습니까?",
+    "confirmRemove": "컨테이너 '{{containerName}}'을(를) 정말 삭제하시겠습니까?",
+    "started": "컨테이너 '{{containerName}}' 시작됨",
+    "stopped": "컨테이너 '{{containerName}}' 중지됨",
+    "restarted": "컨테이너 '{{containerName}}' 재시작됨",
+    "removed": "컨테이너 '{{containerName}}' 삭제됨",
+    "allStarted": "모든 컨테이너 시작됨",
+    "allStopped": "모든 컨테이너 중지됨",
+    "allStartFailed": "모든 컨테이너 시작 실패: {{error}}",
+    "allStopFailed": "모든 컨테이너 중지 실패: {{error}}",
+    "startFailed": "컨테이너 시작 실패",
+    "stopFailed": "컨테이너 중지 실패",
+    "restartFailed": "컨테이너 재시작 실패",
+    "removeFailed": "컨테이너 삭제 실패",
+    "containerId": "컨테이너 ID:",
+    "command": "명령어:",
+    "created": "생성 일시:",
+    "ports": "포트:",
+    "none": "없음",
+    "actions": {
+      "start": "시작",
+      "stop": "중지",
+      "restart": "재시작",
+      "delete": "삭제"
+    },
+    "details": {
+      "id": "컨테이너 ID:",
+      "command": "명령어:",
+      "created": "생성 일시:",
+      "ports": "포트:",
+      "noPorts": "없음"
+    }
+  },
+  "monitoring": {
+    "title": "모니터링 대시보드",
+    "openDashboard": "모니터링 대시보드 열기",
+    "description": "Grafana에서 실시간 메트릭 및 성능 데이터 보기",
+    "openButton": "대시보드 열기",
+    "openInNewTab": "새 창에서 열기",
+    "loading": "모니터링 설정 로딩 중...",
+    "starting": "모니터링 스택 시작 중...",
+    "startingContainers": "Docker 컨테이너 시작 중...",
+    "waitingForGrafana": "모니터링 스택 시작됨. Grafana 준비 대기 중...",
+    "preparingGrafana": "Grafana 준비 중... ({{current}}/{{max}}초)",
+    "timeoutError": "모니터링 시작 시간 초과. Docker 설정을 확인하고 다시 시도하세요.",
+    "connectionFailed": "모니터링 연결 실패",
+    "notReady": "모니터링 스택이 시작되었지만 Grafana가 준비되지 않았습니다. 나중에 다시 시도해주세요.",
+    "configNotFound": "모니터링 설정을 찾을 수 없습니다.",
+    "projectMissing": "프로젝트 정보가 없습니다.",
+    "retry": "재시도",
+    "troubleshooting": "문제 해결:",
+    "checkDocker": "Docker Desktop 실행 확인",
+    "dockerNote": "모니터링 스택은 Docker 컨테이너로 실행됩니다.",
+    "checkStackFile": "stack.yaml 파일 확인",
+    "stackFilePath": "경로:",
+    "startStack": "모니터링 스택 시작",
+    "startCommand1": "명령어 1:",
+    "startCommand2": "또는 명령어 2:"
+  },
+  "optimize": {
+    "title": "서버 최적화 분석",
+    "startAnalysis": "서버 최적화 분석 시작",
+    "description": "Prometheus 메트릭을 분석하여 비용 절감 및 성능 개선 기회를 찾습니다",
+    "startButton": "분석 시작",
+    "reanalyze": "재분석",
+    "analyzing": "메트릭 수집 및 분석 중...",
+    "analysisFailed": "분석 실패",
+    "retry": "재시도",
+    "aiRecommendations": "실제 사용량 메트릭 기반 AI 권장사항",
+    "glossary": {
+      "title": "용어 설명",
+      "p50Title": "P50 (중간값)",
+      "p50Description": "시간의 절반 동안 이 값 이하로 사용됨. 일반적인 사용량을 나타냅니다.",
+      "p95Title": "P95",
+      "p95Description": "시간의 95% 동안 이 값 이하로 유지됨. 일반적인 최대 수준을 나타냅니다.",
+      "p99Title": "P99",
+      "p99Description": "시간의 99% 동안 이 값 이하. 극단적인 피크 상황을 제외한 최대값입니다."
+    },
+    "actualUsage": {
+      "title": "실제 리소스 사용량",
+      "cpu": "CPU",
+      "memory": "메모리",
+      "disk": "디스크",
+      "health": "상태",
+      "healthy": "정상",
+      "warning": "경고",
+      "critical": "위험"
+    },
+    "costSavings": {
+      "title": "비용 절감 기회",
+      "currentCost": "현재 월별 비용",
+      "potentialSavings": "절감 가능 금액"
+    },
+    "bottlenecks": {
+      "title": "성능 병목 현상"
+    },
+    "recommendations": {
+      "title": "AI 권장사항",
+      "priority": {
+        "high": "높음",
+        "medium": "중간",
+        "low": "낮음"
+      },
+      "savings": "절감액",
+      "perMonth": "/ 월"
+    }
+  },
+  "log": {
+    "commandPrefix": ">",
+    "stderr": "[stderr]",
+    "tunnelError": "[터널 오류]",
+    "sessionClosed": "[세션 종료: {{id}}]",
+    "sendFailed": "전송 실패: {{error}}"
+  },
+  "page": {
+    "title": "프로젝트 상태",
+    "backToProjects": "프로젝트로 돌아가기"
+  }
+}

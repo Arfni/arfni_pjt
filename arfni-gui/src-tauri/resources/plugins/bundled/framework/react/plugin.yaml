@@ -25,48 +25,13 @@ inputs:
   node_version:
     description: "Node.js version"
     type: select
-    scope: build  # Only needed at build time for Dockerfile
+    scope: build
     options:
       - "16-alpine"
       - "18-alpine"
       - "20-alpine"
     required: false
     default: "18-alpine"
-
-  port:
-    description: "Application port"
-    type: number
-    scope: both  # Needed for both Dockerfile EXPOSE and runtime PORT env
-    required: false
-    env_var: PORT
-    default: 3000
-
-  environment:
-    description: "Deployment environment"
-    type: select
-    scope: runtime  # Only needed at runtime
-    options:
-      - development
-      - staging
-      - production
-    default: development
-    env_var: NODE_ENV
-    required: false
-
-  build_command:
-    description: "Build command"
-    type: text
-    scope: build  # Only for Dockerfile RUN command
-    default: "npm run build"
-    required: false
-
-  start_command:
-    description: "Start command"
-    type: text
-    scope: build  # Only for Dockerfile CMD
-    default: ""
-    placeholder: "Defaults to serve -s build -l {port}"
-    required: false
 
 contributes:
   services:
