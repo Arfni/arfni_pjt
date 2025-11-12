@@ -32,55 +32,6 @@ inputs:
     default: "3.11"
     scope: build
 
-  port:
-    description: "Application port"
-    type: number
-    required: false
-    env_var: PORT
-    default: 5000
-    scope: both
-
-  app_module:
-    description: "Flask app module"
-    type: text
-    required: false
-    default: "app:app"
-    scope: both
-
-  workers:
-    description: "Number of Gunicorn workers"
-    type: number
-    required: false
-    env_var: WORKERS
-    default: 4
-    scope: runtime
-
-  requirements_file:
-    description: "Requirements file path"
-    type: text
-    required: false
-    default: "requirements.txt"
-    scope: build
-
-  flask_env:
-    description: "Flask environment"
-    type: select
-    required: false
-    options:
-      - "production"
-      - "development"
-    default: "production"
-    scope: runtime
-    env_var: FLASK_ENV
-
-  database_url:
-    description: "Database connection URL"
-    type: text
-    required: false
-    env_var: DATABASE_URL
-    default: ""
-    scope: runtime
-
 contributes:
   services:
     flask:

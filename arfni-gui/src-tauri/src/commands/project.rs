@@ -75,6 +75,7 @@ pub fn create_project(
     environment: String, // "local" | "ec2"
     ec2_server_id: Option<String>,
     description: Option<String>,
+    workdir: Option<String>,
 ) -> Result<Project, String> {
     // 환경 검증
     if environment != "local" && environment != "ec2" {
@@ -134,7 +135,11 @@ pub fn create_project(
         environment: environment.clone(),
         ec2_server_id: ec2_server_id.clone(),
         mode: if environment == "ec2" { Some("all-in-one".to_string()) } else { None },
-        workdir: if environment == "ec2" { Some("arfni-deploy".to_string()) } else { None },
+        workdir: if environment == "ec2" {
+            Some(workdir.unwrap_or_else(|| "arfni-deploy".to_string()))
+        } else {
+            None
+        },
         created_at: created_at.clone(),
         updated_at: created_at.clone(),
         stack_yaml_path: Some(stack_yaml_path),

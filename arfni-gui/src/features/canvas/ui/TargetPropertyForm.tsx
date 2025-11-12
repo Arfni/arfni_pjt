@@ -27,16 +27,16 @@ export function TargetPropertyForm({ node }: TargetPropertyFormProps) {
       }
     }));
 
-    // EC2 프로젝트이고 mode 필드 변경 시 프로젝트 DB에도 업데이트
-    if (field === 'mode' && currentProject?.id) {
+    // EC2 프로젝트이고 mode 또는 workdir 필드 변경 시 프로젝트 DB에도 업데이트
+    if ((field === 'mode' || field === 'workdir') && currentProject?.id) {
       try {
         await projectCommands.updateProject(
           currentProject.id,
-          value as string,
-          undefined // workdir는 변경하지 않음
+          field === 'mode' ? (value as string) : data.mode,
+          field === 'workdir' ? (value as string) : data.workdir
         );
       } catch (error) {
-        console.error('❌ 프로젝트 모니터링 모드 업데이트 실패:', error);
+        console.error(`❌ 프로젝트 ${field} 업데이트 실패:`, error);
       }
     }
   };

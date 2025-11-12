@@ -7,12 +7,14 @@ interface CreateProjectModalProps {
   selectedTab: 'local' | 'ec2' | 'plugins';
   newProjectName: string;
   newProjectPath: string;
+  newProjectWorkdir: string;
   creating: boolean;
   selectedEC2ServerId: string;
   ec2Servers: EC2Server[];
   error: string | null;
   onClose: () => void;
   onNameChange: (name: string) => void;
+  onWorkdirChange: (workdir: string) => void;
   onSelectFolder: () => void;
   onCreate: () => void;
 }
@@ -22,12 +24,14 @@ export function CreateProjectModal({
   selectedTab,
   newProjectName,
   newProjectPath,
+  newProjectWorkdir,
   creating,
   selectedEC2ServerId,
   ec2Servers,
   error,
   onClose,
   onNameChange,
+  onWorkdirChange,
   onSelectFolder,
   onCreate,
 }: CreateProjectModalProps) {
@@ -102,6 +106,25 @@ export function CreateProjectModal({
               </button>
             </div>
           </div>
+
+          {selectedTab === 'ec2' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('create.workdir')}
+              </label>
+              <input
+                type="text"
+                value={newProjectWorkdir}
+                onChange={(e) => onWorkdirChange(e.target.value)}
+                placeholder="arfni-deploy"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={creating}
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                {t('create.workdirHelp')}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer Buttons */}

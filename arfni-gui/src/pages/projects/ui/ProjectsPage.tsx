@@ -56,6 +56,7 @@ export default function ProjectsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectPath, setNewProjectPath] = useState('');
+  const [newProjectWorkdir, setNewProjectWorkdir] = useState('arfni-deploy');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -246,6 +247,10 @@ export default function ProjectsPage() {
       setCreateError(t('messages.selectEC2Server'));
       return;
     }
+    if (selectedTab === 'ec2' && !newProjectWorkdir.trim()) {
+      setCreateError(t('messages.enterWorkdir'));
+      return;
+    }
 
     setCreating(true);
     try {
@@ -254,7 +259,9 @@ export default function ProjectsPage() {
         newProjectName.trim(),
         newProjectPath.trim(),
         environment, // 현재 선택된 탭 (local or ec2)
-        environment === 'ec2' ? selectedEC2ServerId : undefined
+        environment === 'ec2' ? selectedEC2ServerId : undefined,
+        undefined, // description
+        environment === 'ec2' ? newProjectWorkdir.trim() : undefined
       );
       console.log('프로젝트 생성 완료:', project);
 
@@ -262,6 +269,7 @@ export default function ProjectsPage() {
       setShowCreateModal(false);
       setNewProjectName('');
       setNewProjectPath('');
+      setNewProjectWorkdir('arfni-deploy');
       setCreateError(null);
 
       // 프로젝트 목록 새로고침
@@ -281,7 +289,7 @@ export default function ProjectsPage() {
     } finally {
       setCreating(false);
     }
-  }, [newProjectName, newProjectPath, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch]);
+  }, [newProjectName, newProjectPath, newProjectWorkdir, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch, t]);
 
   // 탭 상태를 sessionStorage에 저장
   useEffect(() => {
@@ -464,6 +472,7 @@ export default function ProjectsPage() {
         selectedTab={selectedTab}
         newProjectName={newProjectName}
         newProjectPath={newProjectPath}
+        newProjectWorkdir={newProjectWorkdir}
         creating={creating}
         selectedEC2ServerId={selectedEC2ServerId}
         ec2Servers={ec2Servers}
@@ -472,9 +481,11 @@ export default function ProjectsPage() {
           setShowCreateModal(false);
           setNewProjectName('');
           setNewProjectPath('');
+          setNewProjectWorkdir('arfni-deploy');
           setCreateError(null);
         }}
         onNameChange={setNewProjectName}
+        onWorkdirChange={setNewProjectWorkdir}
         onSelectFolder={handleSelectFolder}
         onCreate={handleCreateProject}
       />

@@ -1125,7 +1125,13 @@ export class PluginStackGenerator {
     if (!spec.env) spec.env = {};
 
     // Get plugin inputs definition for scope information
-    const inputs = (plugin.manifest as any)?.inputs || [];
+    const inputsObj = (plugin.manifest as any)?.inputs || {};
+
+    // Convert inputs object to array for compatibility
+    const inputsArray = Object.entries(inputsObj).map(([name, config]: [string, any]) => ({
+      name,
+      ...config
+    }));
 
     // If plugin has propertyForm, use it for field mapping
     const propertyForm = plugin.frameworkDefinition?.propertyForm || [];
@@ -1135,7 +1141,7 @@ export class PluginStackGenerator {
       if (propValue === undefined || propValue === null || propValue === '') continue;
 
       // Find input definition for this property
-      const input = inputs.find((i: any) => i.name === propKey);
+      const input = inputsArray.find((i: any) => i.name === propKey);
       const formField = propertyForm.find((f: any) => f.name === propKey);
 
       // Determine scope from input or formField

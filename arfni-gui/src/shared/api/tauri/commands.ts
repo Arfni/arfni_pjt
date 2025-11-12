@@ -79,7 +79,8 @@ export const projectCommands = {
     path: string,
     environment: 'local' | 'ec2',
     ec2ServerId?: string,
-    description?: string
+    description?: string,
+    workdir?: string
   ): Promise<Project> => {
     return await invoke('create_project', {
       name,
@@ -87,6 +88,7 @@ export const projectCommands = {
       environment,
       ec2ServerId,
       description,
+      workdir,
     });
   },
 

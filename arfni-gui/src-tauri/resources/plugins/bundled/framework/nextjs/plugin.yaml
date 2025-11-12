@@ -27,20 +27,7 @@ inputs:
     type: text
     required: false
     default: "18-alpine"
-
-  port:
-    description: "Application port"
-    type: number
-    required: false
-    env_var: PORT
-    default: 3000
-
-  api_url:
-    description: "Backend API URL"
-    type: text
-    required: false
-    env_var: NEXT_PUBLIC_API_URL
-    default: ""
+    scope: build
 
 contributes:
   services:
