@@ -330,12 +330,13 @@ export default function ProjectsPage() {
           <PluginManager className="flex-1" />
         ) : (
           <>
-        <div className="mt-2 mb-6 px-6 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-3xl font-semibold text-gray-900">
-            {selectedTab === 'local' ? t('title.local') : t('title.ec2')}
-          </h2>
+        <div className="mt-2 mb-6 flex-shrink-0">
+          <div className="px-6 flex items-center justify-between">
+            <h2 className="text-3xl font-semibold text-gray-900">
+              {selectedTab === 'local' ? t('title.local') : t('title.ec2')}
+            </h2>
 
-          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
             {/* EC2 Server Selection - Always render to prevent layout shift */}
             <button
               onClick={() => setShowServerModal(true)}
@@ -377,8 +378,12 @@ export default function ProjectsPage() {
             >
               {t('buttons.createProject')}
             </button>
+            </div>
           </div>
         </div>
+
+        {/* Divider */}
+        <div className="border-b border-gray-200"></div>
 
         {/* 로딩 상태 */}
         {loading && (
@@ -437,7 +442,7 @@ export default function ProjectsPage() {
 
         {/* 프로젝트 목록 */}
         {!loading && !error && projects.length > 0 && (
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 overflow-y-auto min-h-0 pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-3 px-6">
               {projects
                 .sort((a, b) => {

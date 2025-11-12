@@ -74,8 +74,38 @@ func (c *SSHClient) UploadDirectory(stream *events.Stream, localDir, remoteDir s
 		return fmt.Errorf("failed to read local directory: %w", err)
 	}
 
+	// 업로드 시 제외할 항목들
+	excludeList := map[string]bool{
+		"node_modules":    true,
+		"docs":            true,
+		".git":            true,
+		".gradle":         true,
+		".idea":           true,
+		"build":           true,
+		"dist":            true,
+		".next":           true,
+		"out":             true,
+		"target":          true,
+		"__pycache__":     true,
+		".venv":           true,
+		"venv":            true,
+		".pytest_cache":   true,
+		"coverage":        true,
+		".DS_Store":       true,
+		"Thumbs.db":       true,
+		"npm-debug.log":   true,
+		"yarn-debug.log":  true,
+		"yarn-error.log":  true,
+	}
+
 	// 각 항목을 개별적으로 업로드
 	for _, entry := range entries {
+		// 제외 목록에 있는 항목은 건너뛰기
+		if excludeList[entry.Name()] {
+			stream.Info(fmt.Sprintf("Skipping excluded item: %s", entry.Name()))
+			continue
+		}
+
 		localPath := filepath.Join(localDir, entry.Name())
 
 		args := []string{

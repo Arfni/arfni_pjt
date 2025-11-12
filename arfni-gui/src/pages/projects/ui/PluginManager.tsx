@@ -247,7 +247,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* Header */}
-      <div className="mt-2 mb-6 px-6 border-b border-gray-200">
+      <div className="mt-2 mb-6 px-6">
         <h2 className="text-3xl font-semibold text-gray-900 mb-4">{t('plugins.management')}</h2>
 
         {/* Install from URL */}
@@ -307,6 +307,9 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
         </div>
       </div>
 
+      {/* Divider */}
+      <div className="border-b border-gray-200"></div>
+
       {/* Plugin Lists */}
       <div className="flex-1 overflow-y-auto py-6">
         {/* Bundled Plugins */}
@@ -345,7 +348,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
         </div>
 
         {/* Available Plugins from Registry */}
-        <div>
+        <div className="mb-8 px-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold text-gray-800">{t('plugins.availablePlugins')}</h3>
