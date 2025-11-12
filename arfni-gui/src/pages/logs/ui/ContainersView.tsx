@@ -77,15 +77,15 @@ export function ContainersView({
       {/* Container Information */}
       <div className="bg-white p-5 border-b border-gray-200 flex-1 overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">{t('containers.title')}</h3>
+          <h3 className="text-xl font-semibold text-gray-900">{t('containers.title')}</h3>
           <div className="flex gap-1">
             <button
               onClick={onRefresh}
               disabled={!ec2Server || loadingContainers}
-              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title={t('containers.refresh')}
             >
-              <RefreshCw className={`w-4 h-4 ${loadingContainers ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-5 h-5 ${loadingContainers ? 'animate-spin' : ''}`} />
             </button>
 
             {/* 헤더 삼점 메뉴 */}
@@ -95,10 +95,10 @@ export function ContainersView({
                   e.stopPropagation();
                   setOpenHeaderDropdown(!openHeaderDropdown);
                 }}
-                className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
                 title={t('containers.more')}
               >
-                <MoreVertical className="w-4 h-4" />
+                <MoreVertical className="w-5 h-5" />
               </button>
 
               {/* 헤더 드롭다운 메뉴 */}

@@ -2,7 +2,7 @@
   "title": {
     "page": "Project Status",
     "terminal": "Terminal",
-    "containers": "Containers",
+    "containers": "Container",
     "monitor": "Monitor",
     "optimize": "Optimize",
     "monitoring": "Monitoring Dashboard"
@@ -30,7 +30,7 @@
     "notAvailable": "Terminal not available for this project type"
   },
   "containers": {
-    "title": "Containers",
+    "title": "Container List",
     "noContainers": "No containers found",
     "loading": "Loading containers...",
     "start": "Start",

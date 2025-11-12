@@ -50,22 +50,22 @@ export function Sidebar({
   };
 
   return (
-    <aside className="w-24 bg-[#F9FAFE] flex flex-col items-center py-6 gap-4 border-r border-gray-200">
+    <aside className="w-24 border-r border-gray-200 flex flex-col" style={{ backgroundColor: '#F9FAFE' }}>
       {/* Top Navigation Buttons */}
-      <div className="flex flex-col items-center gap-4 w-full">
+      <div className="pt-4 px-3 pb-3 flex-1 flex flex-col items-center gap-3">
         {/* Terminal */}
         <button
           onClick={() => onViewChange('terminal')}
-          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+          className={`w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
             selectedView === 'terminal' ? 'bg-blue-50' : 'hover:bg-gray-100'
           }`}
           title="Terminal"
         >
           <div
-            className="w-8 h-8 flex items-center justify-center rounded"
+            className="w-12 h-12 flex items-center justify-center rounded"
             style={{ backgroundColor: selectedView === 'terminal' ? '#4C65E2' : '#9CA3AF' }}
           >
-            <Terminal className="w-5 h-5 text-white" />
+            <Terminal className="w-8 h-8 text-white" />
           </div>
           <span className="text-xs font-medium text-gray-700">{t('title.terminal')}</span>
         </button>
@@ -73,16 +73,16 @@ export function Sidebar({
         {/* Containers */}
         <button
           onClick={handleContainersClick}
-          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+          className={`w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
             selectedView === 'containers' ? 'bg-blue-50' : 'hover:bg-gray-100'
           }`}
           title="Containers"
         >
           <div
-            className="w-8 h-8 flex items-center justify-center rounded"
+            className="w-12 h-12 flex items-center justify-center rounded"
             style={{ backgroundColor: selectedView === 'containers' ? '#4C65E2' : '#9CA3AF' }}
           >
-            <Container className="w-5 h-5 text-white" />
+            <Container className="w-8 h-8 text-white" />
           </div>
           <span className="text-xs font-medium text-gray-700">{t('title.containers')}</span>
         </button>
@@ -90,16 +90,16 @@ export function Sidebar({
         {/* Monitor */}
         <button
           onClick={handleMonitorClick}
-          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+          className={`w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
             selectedView === 'monitor' ? 'bg-blue-50' : 'hover:bg-gray-100'
           }`}
           title="Monitor"
         >
           <div
-            className="w-8 h-8 flex items-center justify-center rounded"
+            className="w-12 h-12 flex items-center justify-center rounded"
             style={{ backgroundColor: selectedView === 'monitor' ? '#4C65E2' : '#9CA3AF' }}
           >
-            <BarChart3 className="w-5 h-5 text-white" />
+            <BarChart3 className="w-8 h-8 text-white" />
           </div>
           <span className="text-xs font-medium text-gray-700">{t('title.monitor')}</span>
         </button>
@@ -107,16 +107,16 @@ export function Sidebar({
         {/* Optimize */}
         <button
           onClick={handleOptimizeClick}
-          className={`w-16 h-16 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+          className={`w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
             selectedView === 'optimize' ? 'bg-blue-50' : 'hover:bg-gray-100'
           }`}
           title="Optimize"
         >
           <div
-            className="w-8 h-8 flex items-center justify-center rounded"
+            className="w-12 h-12 flex items-center justify-center rounded"
             style={{ backgroundColor: selectedView === 'optimize' ? '#4C65E2' : '#9CA3AF' }}
           >
-            <Sparkles className="w-5 h-5 text-white" />
+            <Sparkles className="w-8 h-8 text-white" />
           </div>
           <span className="text-xs font-medium text-gray-700">{t('title.optimize')}</span>
         </button>

@@ -75,9 +75,9 @@ export function TerminalView({
         {/* Left: Project Info */}
         <div className="flex items-center gap-3">
           <div className="flex flex-col gap-1">
-            <span className="font-semibold text-sm">{project.name}</span>
+            <span className="font-semibold text-base">{project.name}</span>
             {ec2Server && (
-              <span className="font-mono text-xs text-gray-600">
+              <span className="font-mono text-sm text-gray-600">
                 {ec2Server.user}@{ec2Server.host}
               </span>
             )}
@@ -90,21 +90,21 @@ export function TerminalView({
             <button
               onClick={onConnect}
               disabled={!ec2Server}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('terminal.connect')}
             </button>
           ) : (
             <button
               onClick={onDisconnect}
-              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs"
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
             >
               {t('terminal.disconnect')}
             </button>
           )}
           <button
             onClick={onClearLogs}
-            className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded text-xs"
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded text-sm"
           >
             {t('terminal.clear')}
           </button>
