@@ -317,13 +317,13 @@ export default function ProjectsPage() {
       />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col px-6 py-3 overflow-hidden min-h-0">
+      <main className="flex-1 flex flex-col pt-6 pb-0 overflow-hidden min-h-0">
         {selectedTab === 'plugins' ? (
           <PluginManager className="flex-1" />
         ) : (
           <>
-        <div className="mb-3 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-2xl font-semibold text-gray-900">
+        <div className="mt-2 mb-6 px-6 flex items-center justify-between flex-shrink-0">
+          <h2 className="text-3xl font-semibold text-gray-900">
             {selectedTab === 'local' ? t('title.local') : t('title.ec2')}
           </h2>
 
@@ -430,7 +430,7 @@ export default function ProjectsPage() {
         {/* 프로젝트 목록 */}
         {!loading && !error && projects.length > 0 && (
           <div className="flex-1 overflow-y-auto min-h-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-3 px-6">
               {projects
                 .sort((a, b) => {
                   // 핀된 프로젝트를 먼저 표시

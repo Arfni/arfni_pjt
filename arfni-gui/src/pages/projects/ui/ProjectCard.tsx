@@ -161,7 +161,7 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-gray-900 text-sm">{project.name}</h3>
+            <h3 className="font-semibold text-gray-900 text-lg">{project.name}</h3>
             <p className="text-xs text-gray-500">{project.environment === 'ec2' ? t('card.ec2') : t('card.localDocker')}</p>
           </div>
         </div>

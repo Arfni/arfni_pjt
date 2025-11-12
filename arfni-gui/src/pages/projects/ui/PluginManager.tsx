@@ -247,8 +247,8 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* Header */}
-      <div className="p-6 border-b border-gray-200">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">{t('plugins.management')}</h2>
+      <div className="mt-2 mb-6 px-6 border-b border-gray-200">
+        <h2 className="text-3xl font-semibold text-gray-900 mb-4">{t('plugins.management')}</h2>
 
         {/* Install from URL */}
         <div className="mb-4">
@@ -308,9 +308,9 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       </div>
 
       {/* Plugin Lists */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto py-6">
         {/* Bundled Plugins */}
-        <div className="mb-8">
+        <div className="mb-8 px-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('plugins.builtInPlugins')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredBundledPlugins.map(plugin => (
@@ -325,7 +325,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
         </div>
 
         {/* Installed Plugins */}
-        <div className="mb-8">
+        <div className="mb-8 px-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('plugins.installedPlugins')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredInstalledPlugins.map(plugin => (

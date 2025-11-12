@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Activity, ExternalLink } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { useState, useEffect } from 'react';
 import { Project, EC2Server } from '@shared/api/tauri/commands';
 import { useTranslation } from 'react-i18next';
@@ -244,7 +245,7 @@ export default function MonitoringPage() {
                   const url = config.dashboard_uid
                     ? `${config.grafana_url}/d/${config.dashboard_uid}`
                     : config.grafana_url;
-                  await open(url);
+                  await openUrl(url);
                 } catch (err) {
                   console.error('Failed to open URL:', err);
                 }

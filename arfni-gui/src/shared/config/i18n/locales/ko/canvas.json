@@ -114,7 +114,7 @@
       }
     },
     "targetTypes": {
-      "ec2": "EC2 (SSH)",
+      "ec2": "원격 (SSH)",
       "dockerDesktop": "Docker Desktop"
     },
     "monitoringModeOptions": {
@@ -207,7 +207,7 @@
     "fieldOptions": {
       "target": {
         "local": "로컬",
-        "ec2": "EC2"
+        "ec2": "원격"
       },
       "restart": {
         "no": "없음",
@@ -298,7 +298,7 @@
     "localDocker": "로컬 Docker",
     "dockerLocal": "Docker 로컬",
     "postgres": "PostgreSQL",
-    "ec2": "EC2"
+    "ec2": "원격"
   },
   "blocks": {
     "title": "블록",

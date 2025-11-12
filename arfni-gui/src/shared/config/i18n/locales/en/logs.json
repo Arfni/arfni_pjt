@@ -79,7 +79,7 @@
     "openDashboard": "Open Monitoring Dashboard",
     "description": "View real-time metrics and performance data in Grafana",
     "openButton": "Open Dashboard",
-    "openInNewTab": "Open in New Tab",
+    "openInNewTab": "Open in New Screen",
     "loading": "Loading monitoring configuration...",
     "starting": "Starting monitoring stack...",
     "startingContainers": "Starting Docker containers...",

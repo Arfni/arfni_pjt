@@ -3,7 +3,7 @@
     "page": "프로젝트 상태",
     "terminal": "터미널",
     "containers": "컨테이너",
-    "monitor": "모니터",
+    "monitor": "모니터링",
     "optimize": "최적화",
     "monitoring": "모니터링 대시보드"
   },
@@ -79,7 +79,7 @@
     "openDashboard": "모니터링 대시보드 열기",
     "description": "Grafana에서 실시간 메트릭 및 성능 데이터 보기",
     "openButton": "대시보드 열기",
-    "openInNewTab": "새 탭에서 열기",
+    "openInNewTab": "새 창에서 열기",
     "loading": "모니터링 설정 로딩 중...",
     "starting": "모니터링 스택 시작 중...",
     "startingContainers": "Docker 컨테이너 시작 중...",

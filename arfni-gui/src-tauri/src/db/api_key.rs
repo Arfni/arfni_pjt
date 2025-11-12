@@ -32,7 +32,7 @@ pub fn add_or_update_api_key(
     let tx=conn.transaction()?;
 
     if set_active {
-        tx.execute("UPDATE api_keys SET is_active=0 WHERE provider=?1", [provider])?;
+        tx.execute("UPDATE api_keys SET is_active=0", [])?;
     }
     tx.execute(
         "INSERT INTO api_keys (id, provider, label, api_key, created_at, updated_at, is_active)
@@ -115,13 +115,7 @@ pub fn set_active(db: &Database, id: &str) -> anyhow::Result<()> {
     let mut conn = conn.lock().unwrap();
     let tx = conn.transaction()?;
 
-    let provider: String = tx.query_row(
-        "SELECT provider FROM api_keys WHERE id=?1",
-        params![id],
-        |r| r.get(0),
-    )?;
-
-    tx.execute("UPDATE api_keys SET is_active=0 WHERE provider=?1", params![&provider])?;
+    tx.execute("UPDATE api_keys SET is_active=0", [])?;
     tx.execute(
         "UPDATE api_keys SET is_active=1, updated_at=?2 WHERE id=?1",
         params![id, Utc::now().to_rfc3339()],
