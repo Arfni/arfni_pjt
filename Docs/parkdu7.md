@@ -55,3 +55,8 @@
 # 2025.11.11
 - plugins 레포 readme 작성 -> 수정 필요
 - 플리마켓 퍼블리싱 작업
+
+# 2025.11.12
+- 기본 번들 plugin들 필요 없는 값 제거
+- tauri react workdir 설정 추가
+- next js 도커파일 추가
