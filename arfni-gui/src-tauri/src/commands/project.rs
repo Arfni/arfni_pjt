@@ -502,7 +502,40 @@ pub fn save_stack_yaml(
 
 /// stack.yaml 읽기
 #[tauri::command]
-pub fn read_stack_yaml(project_path: String) -> Result<String, String> {
+pub fn read_stack_yaml(
+    db: State<Database>,
+    project_path: String
+) -> Result<String, String> {
+    // DB에서 프로젝트가 GitHub 프로젝트인지 확인
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT github_repo_url, name FROM projects WHERE path = ?1"
+    ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
+
+    let project_info: Option<(Option<String>, String)> = stmt
+        .query_row(params![&project_path], |row| Ok((row.get(0)?, row.get(1)?)))
+        .ok();
+
+    drop(stmt);
+    drop(conn);
+
+    // GitHub 프로젝트면 기본 stack.yaml 반환
+    if let Some((Some(_github_url), project_name)) = project_info {
+        let default_yaml = format!(r#"apiVersion: v0.1
+name: {}
+
+targets:
+  ec2:
+    type: ec2.ssh
+
+services:
+  # 서비스를 여기에 추가하세요
+"#, project_name);
+        return Ok(default_yaml);
+    }
+
     let stack_yaml_path = Path::new(&project_path).join("stack.yaml");
 
     if !stack_yaml_path.exists() {
