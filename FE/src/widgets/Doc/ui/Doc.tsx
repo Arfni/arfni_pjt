@@ -1,11 +1,11 @@
 import { motion } from 'framer-motion';
-// import { useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { FiArrowLeft } from 'react-icons/fi';
 import { Container, Button } from '../../../shared/ui';
 import { useNavigate } from 'react-router-dom';
 
 export const Doc = () => {
-//   const { t } = useTranslation('doc');
+  const { t } = useTranslation('doc');
   const navigate = useNavigate();
 
   const containerVariants = {
@@ -43,22 +43,25 @@ export const Doc = () => {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="text-center max-w-3xl mx-auto"
+          className="relative text-center max-w-3xl mx-auto"
         >
-          {/* Construction Icon */}
+          {/* Floating Gradient Blobs */}
           <motion.div
-            variants={itemVariants}
-            className="mb-8"
-          >
+            animate={{ rotate: 360 }}
+            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+            className="pointer-events-none absolute -top-24 -right-24 w-40 h-40 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-3xl opacity-20"
+          />
+          <motion.div
+            animate={{ rotate: -360 }}
+            transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
+            className="pointer-events-none absolute -bottom-24 -left-24 w-48 h-48 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full opacity-20"
+          />
+
+          {/* Construction Icon */}
+          <motion.div variants={itemVariants} className="mb-8">
             <motion.div
-              animate={{
-                rotate: [0, 5, -5, 0],
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
+              animate={{ rotate: [0, 5, -5, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
             >
               <svg
                 className="mx-auto h-32 w-32 text-yellow-500"
@@ -82,60 +85,29 @@ export const Doc = () => {
             variants={itemVariants}
             className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-tight mb-6"
           >
-            <span className="text-gradient">🚧 공사중입니다 🚧</span>
+            <span className="text-gradient">{t('title')}</span>
           </motion.h1>
 
           {/* Description */}
           <motion.p
             variants={itemVariants}
-            className="text-lg sm:text-xl text-gray-600 mb-8"
+            className="text-lg sm:text-xl text-gray-600 mb-8 leading-relaxed"
           >
-            현재 페이지를 개선하고 있습니다.
+            {t('descriptionLine1')}
             <br />
-            곧 더 나은 모습으로 찾아뵙겠습니다.
+            {t('descriptionLine2')}
           </motion.p>
 
           {/* Back Button */}
-          <motion.div
-            variants={itemVariants}
-            className="flex justify-center"
-          >
-            <Button
-              size="lg"
-              onClick={handleGoBack}
-              className="group"
-            >
-              <FiArrowLeft 
-                size={20} 
-                className="mr-2 flex-shrink-0 group-hover:-translate-x-1 transition-transform" 
+          <motion.div variants={itemVariants} className="flex justify-center">
+            <Button size="lg" onClick={handleGoBack} className="group">
+              <FiArrowLeft
+                size={20}
+                className="mr-2 flex-shrink-0 group-hover:-translate-x-1 transition-transform"
               />
-              뒤로 가기
+              {t('backButton')}
             </Button>
           </motion.div>
-
-          {/* Floating elements */}
-          <motion.div
-            animate={{
-              rotate: 360,
-            }}
-            transition={{
-              duration: 20,
-              repeat: Infinity,
-              ease: 'linear',
-            }}
-            className="absolute top-20 right-20 w-24 h-24 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-xl opacity-20"
-          />
-          <motion.div
-            animate={{
-              rotate: -360,
-            }}
-            transition={{
-              duration: 15,
-              repeat: Infinity,
-              ease: 'linear',
-            }}
-            className="absolute bottom-20 left-20 w-32 h-32 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full opacity-20"
-          />
         </motion.div>
       </Container>
     </section>
