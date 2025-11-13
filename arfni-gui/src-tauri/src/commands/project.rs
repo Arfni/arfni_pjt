@@ -198,6 +198,89 @@ services:
     fs::write(project_path.join("stack.yaml"), initial_stack)
         .map_err(|e| format!("초기 stack.yaml 생성 실패: {}", e))?;
 
+    // .arfniignore 파일 생성
+    let arfniignore_content = r#"# Arfni Ignore File
+# This file specifies which files/directories should NOT be uploaded to the server during deployment
+# Similar to .gitignore, but for deployment purposes
+#
+# Files that WILL be uploaded (do NOT add these):
+# - Source code (.js, .py, .go, etc)
+# - Configuration files (.env, config.json, etc)
+# - Dependency manifests (package.json, requirements.txt, go.mod, etc)
+# - Docker files (Dockerfile, docker-compose.yml)
+# - Static resources (images, css, etc)
+
+# Node.js
+node_modules/
+
+# Python
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Go
+vendor/
+
+# Java
+target/
+.gradle/
+.maven/
+
+# Build outputs
+build/
+dist/
+out/
+.next/
+.nuxt/
+.output/
+
+# Cache directories
+.cache/
+.parcel-cache/
+.turbo/
+
+# IDE and editors
+.idea/
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+
+# Version control
+.git/
+.svn/
+.hg/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Documentation (optional, uncomment if you don't want to upload docs)
+# docs/
+# documentation/
+"#;
+
+    fs::write(project_path.join(".arfniignore"), arfniignore_content)
+        .map_err(|e| format!("초기 .arfniignore 생성 실패: {}", e))?;
+
     Ok(project)
 }
 

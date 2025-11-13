@@ -14,7 +14,7 @@ type ArfniIgnore struct {
 }
 
 // LoadArfniIgnore loads and parses .arfniignore file from the project directory
-// If the file doesn't exist, it creates one with default patterns
+// If the file doesn't exist, it uses default patterns in memory
 func LoadArfniIgnore(projectDir string) (*ArfniIgnore, error) {
 	ignoreFile := filepath.Join(projectDir, ".arfniignore")
 
@@ -23,13 +23,10 @@ func LoadArfniIgnore(projectDir string) (*ArfniIgnore, error) {
 		baseDir:  projectDir,
 	}
 
-	// If .arfniignore doesn't exist, create it with default patterns
+	// If .arfniignore doesn't exist, use default patterns in memory
 	if _, err := os.Stat(ignoreFile); os.IsNotExist(err) {
-		if err := createDefaultArfniIgnore(ignoreFile); err != nil {
-			// If creation fails, still use default patterns in memory
-			ai.patterns = getDefaultIgnorePatterns()
-			return ai, nil
-		}
+		ai.patterns = getDefaultIgnorePatterns()
+		return ai, nil
 	}
 
 	// Read and parse .arfniignore file
@@ -139,90 +136,6 @@ func (ai *ArfniIgnore) matchPattern(pattern, relPath, baseName string) bool {
 	}
 
 	return false
-}
-
-// createDefaultArfniIgnore creates .arfniignore file with default patterns
-func createDefaultArfniIgnore(filePath string) error {
-	content := `# Arfni Ignore File
-# This file specifies which files/directories should NOT be uploaded to the server during deployment
-# Similar to .gitignore, but for deployment purposes
-#
-# Files that WILL be uploaded (do NOT add these):
-# - Source code (.js, .py, .go, etc)
-# - Configuration files (.env, config.json, etc)
-# - Dependency manifests (package.json, requirements.txt, go.mod, etc)
-# - Docker files (Dockerfile, docker-compose.yml)
-# - Static resources (images, css, etc)
-
-# Node.js
-node_modules/
-
-# Python
-venv/
-.venv/
-env/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-
-# Go
-vendor/
-
-# Java
-target/
-.gradle/
-.maven/
-
-# Build outputs
-build/
-dist/
-out/
-.next/
-.nuxt/
-.output/
-
-# Cache directories
-.cache/
-.parcel-cache/
-.turbo/
-
-# IDE and editors
-.idea/
-.vscode/
-.vs/
-*.swp
-*.swo
-*~
-
-# Version control
-.git/
-.svn/
-.hg/
-
-# OS files
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Logs
-*.log
-logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Test coverage
-coverage/
-.nyc_output/
-
-# Documentation (optional, uncomment if you don't want to upload docs)
-# docs/
-# documentation/
-`
-
-	return os.WriteFile(filePath, []byte(content), 0644)
 }
 
 // getDefaultIgnorePatterns returns default patterns (used as fallback)
