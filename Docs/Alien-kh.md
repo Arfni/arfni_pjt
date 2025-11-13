@@ -669,3 +669,56 @@ if endpointType == "monitoring" && (deploymentMode == "hybrid" || deploymentMode
   // 이후:
   pluginsMonitoringDir := filepath.Join(r.bundledPluginsDir, "monitoring")
   if err := monitoring.CopyAndUpdateProvisioningFiles(pluginsMonitoringDir, r.projectDir, mode); err != nil {
+
+# 2025.11.14
+  1. arfniignore 시스템 구현
+
+  1.1 파일 제외 시스템 구현
+  - BE/arfni/internal/core/workflow/arfniignore.go (신규 212줄):
+    - LoadArfniIgnore 함수: .arfniignore 파일 파싱, 없으면 기본 패턴 사용
+    - ShouldIgnore 함수: 파일 경로가 제외 패턴에 매칭되는지 확인
+    - matchPattern 함수: 패턴 매칭 로직 (와일드카드, 정확한 이름, 디렉토리)
+    - getDefaultIgnorePatterns 함수: 기본 제외 패턴 반환
+  - 지원 패턴:
+    - 정확한 이름: node_modules
+    - 와일드카드: *.log
+    - 디렉토리: build/
+    - 재귀 패턴: **/*.pyc
+    - 주석: # comment
+
+  1.2 프로젝트 생성 시 .arfniignore 자동 생성
+  - arfni-gui/src-tauri/src/commands/project.rs (create_project 함수):
+    - 프로젝트 생성 시 .arfniignore 파일 자동 생성
+    - 기본 패턴 포함: node_modules, venv, __pycache__, build, dist, .idea, .git, logs 등
+
+  1.3 SSH 파일 업로드 시 .arfniignore 적용
+  - BE/arfni/internal/core/workflow/ssh.go:
+    - NewSSHClient 함수: SSH 클라이언트 생성 시 .arfniignore 로드
+    - UploadDirectory 함수: 파일 업로드 시 ShouldIgnore 확인
+    - 매칭되는 파일은 자동 제외 및 로그 출력
+
+  1.4 테스트 결과
+  - 프로젝트 생성 시 .arfniignore 파일 생성 확인
+  - EC2 배포 시 node_modules, .idea 제외 확인 (배포 로그에 "Skipping ignored item" 표시)
+
+  2. 개발 문서 작성
+
+  2.1 DEVELOPMENT.md 및 DEVELOPMENT_EN.md 작성
+  - 프로젝트 구조 설명 (arfni_pjt/ 기준)
+  - 개발 환경 설정 가이드
+  - 주요 기능별 파일 위치 및 함수 설명
+  - 빌드 방법, 테스트 방법, 코딩 컨벤션
+  - 버전 정보 검증:
+    - Go 1.25.2 (BE/arfni/go.mod)
+    - React 19.1.0 (arfni-gui/package.json)
+    - TypeScript 5.8.3 (arfni-gui/package.json)
+    - Tauri 2.9 (arfni-gui/src-tauri/Cargo.toml)
+  - GitHub 경로: https://github.com/Arfni/arfni_pjt
+
+
+
+
+  3. v1.0.1 릴리즈 노트 작성
+
+
+
