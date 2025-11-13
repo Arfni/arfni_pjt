@@ -15,15 +15,24 @@ import (
 
 // SSHClient는 EC2 SSH 연결을 관리합니다
 type SSHClient struct {
-	target     stack.Target
-	projectDir string
+	target       stack.Target
+	projectDir   string
+	arfniIgnore  *ArfniIgnore
 }
 
 // NewSSHClient는 새로운 SSH 클라이언트를 생성합니다
 func NewSSHClient(target stack.Target, projectDir string) *SSHClient {
+	// Load .arfniignore file (creates default if not exists)
+	arfniIgnore, err := LoadArfniIgnore(projectDir)
+	if err != nil {
+		// If loading fails, use nil and fall back to default patterns
+		arfniIgnore = nil
+	}
+
 	return &SSHClient{
-		target:     target,
-		projectDir: projectDir,
+		target:       target,
+		projectDir:   projectDir,
+		arfniIgnore:  arfniIgnore,
 	}
 }
 
@@ -74,39 +83,15 @@ func (c *SSHClient) UploadDirectory(stream *events.Stream, localDir, remoteDir s
 		return fmt.Errorf("failed to read local directory: %w", err)
 	}
 
-	// 업로드 시 제외할 항목들
-	excludeList := map[string]bool{
-		"node_modules":    true,
-		"docs":            true,
-		".git":            true,
-		".gradle":         true,
-		".idea":           true,
-		"build":           true,
-		"dist":            true,
-		".next":           true,
-		"out":             true,
-		"target":          true,
-		"__pycache__":     true,
-		".venv":           true,
-		"venv":            true,
-		".pytest_cache":   true,
-		"coverage":        true,
-		".DS_Store":       true,
-		"Thumbs.db":       true,
-		"npm-debug.log":   true,
-		"yarn-debug.log":  true,
-		"yarn-error.log":  true,
-	}
-
 	// 각 항목을 개별적으로 업로드
 	for _, entry := range entries {
-		// 제외 목록에 있는 항목은 건너뛰기
-		if excludeList[entry.Name()] {
-			stream.Info(fmt.Sprintf("Skipping excluded item: %s", entry.Name()))
+		localPath := filepath.Join(localDir, entry.Name())
+
+		// .arfniignore 패턴에 매칭되는 항목은 건너뛰기
+		if c.arfniIgnore != nil && c.arfniIgnore.ShouldIgnore(localPath) {
+			stream.Info(fmt.Sprintf("Skipping ignored item: %s", entry.Name()))
 			continue
 		}
-
-		localPath := filepath.Join(localDir, entry.Name())
 
 		args := []string{
 			"-i", c.target.SSHKey,
