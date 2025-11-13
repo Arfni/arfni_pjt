@@ -217,8 +217,8 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
           <div style={{ paddingLeft: '0.5rem' }}>
             <KeyValueEditor
               entries={(() => {
-                // If user has defined env vars, use only those (don't merge with template)
-                if (data.env && Object.keys(data.env).length > 0) {
+                // If user has explicitly set env (even if empty), use that
+                if (data.env !== undefined) {
                   return data.env;
                 }
 
@@ -447,7 +447,29 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
           </summary>
           <div style={{ paddingLeft: '0.5rem' }}>
             <KeyValueEditor
-              entries={data.env || {}}
+              entries={(() => {
+                // If user has explicitly set env (even if empty), use that
+                if (data.env !== undefined) {
+                  return data.env;
+                }
+
+                // Otherwise, use plugin template as initial values
+                const allEnv: Record<string, string> = {};
+
+                const plugin = pluginService.getPluginByNodeType(serviceType);
+                if (plugin?.manifest.contributes?.services) {
+                  const serviceTemplate = plugin.manifest.contributes.services[serviceType];
+                  // Support both 'env' and 'environment' keys
+                  const envVars = serviceTemplate?.spec?.env || serviceTemplate?.spec?.environment;
+                  if (envVars) {
+                    Object.entries(envVars).forEach(([key, value]) => {
+                      allEnv[key] = String(value);
+                    });
+                  }
+                }
+
+                return allEnv;
+              })()}
               onChange={updateAllEnv}
               keyPlaceholder={t('properties.placeholders.envKey')}
               valuePlaceholder={t('properties.placeholders.envValueUpper')}
