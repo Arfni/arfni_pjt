@@ -1,0 +1,8 @@
+{
+  "title": "다운로드 하시겠습니까?",
+  "description": "선택한 프로그램을 PC에 다운로드합니다.",
+  "buttons": {
+    "cancel": "취소",
+    "confirm": "다운로드"
+  }
+}

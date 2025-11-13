@@ -9,13 +9,13 @@ export const NAVIGATION_ITEMS = [
 ] as const;
 
 export const SOCIAL_LINKS = {
-  github: 'https://github.com/your-org/arfni',
+  github: 'https://github.com/Arfni/arfni-exe',
   twitter: 'https://twitter.com/arfni',
   discord: 'https://discord.gg/arfni',
 } as const;
 
 export const DOWNLOAD_LINKS = {
-  windows: 'https://github.com/Arfni/arfni-exe/releases/download/0.01/Setup.exe',
+  windows: 'https://github.com/Arfni/arfni-exe/releases/download/1.0.0/Setup.exe',
   mac: null, // Coming soon
   linux: null, // Coming soon
 } as const;
