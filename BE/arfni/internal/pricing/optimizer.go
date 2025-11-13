@@ -86,7 +86,12 @@ type Recommendation struct {
 }
 
 // Analyze collects metrics and generates optimization report
-func (a *OptimizationAnalyzer) Analyze() (*OptimizationReport, error) {
+func (a *OptimizationAnalyzer) Analyze(language string) (*OptimizationReport, error) {
+	// Default to English if not specified
+	if language == "" {
+		language = "en"
+	}
+
 	// Collect actual metrics from Prometheus
 	metrics, err := a.collectMetrics()
 	if err != nil {
@@ -100,7 +105,7 @@ func (a *OptimizationAnalyzer) Analyze() (*OptimizationReport, error) {
 	perfAnalysis := a.analyzePerformance(metrics)
 
 	// Generate recommendations
-	recommendations := a.generateRecommendations(metrics, costAnalysis, perfAnalysis)
+	recommendations := a.generateRecommendations(metrics, costAnalysis, perfAnalysis, language)
 
 	return &OptimizationReport{
 		ActualUsage:         *metrics,
@@ -270,6 +275,7 @@ func (a *OptimizationAnalyzer) generateRecommendations(
 	metrics *ActualUsageMetrics,
 	costAnalysis CostAnalysis,
 	perfAnalysis PerformanceAnalysis,
+	language string,
 ) []Recommendation {
 	var recommendations []Recommendation
 
@@ -310,14 +316,25 @@ func (a *OptimizationAnalyzer) generateRecommendations(
 	if metrics.InstanceType != "" && metrics.InstanceType != "unknown" {
 		if costAnalysis.PotentialSavings > 5 {
 			optimalInstance := a.findOptimalInstance(metrics)
+			var title, description, impact string
+			if language == "ko" {
+				title = "인스턴스 다운사이징으로 비용 절감"
+				description = fmt.Sprintf("현재 사용량(CPU %.1f%%, 메모리 %.1f%%)을 고려하면 %s로도 충분합니다. %s에서 %s로 변경을 권장합니다.",
+					metrics.CPUUsagePercent, metrics.MemoryUsagePercent, optimalInstance, metrics.InstanceType, optimalInstance)
+				impact = fmt.Sprintf("월 $%.2f 절감 가능 (%.1f%% 절감)", costAnalysis.PotentialSavings, costAnalysis.SavingsPercent)
+			} else {
+				title = "Cost Savings via Instance Downsizing"
+				description = fmt.Sprintf("Based on current usage (CPU %.1f%%, Memory %.1f%%), %s is sufficient. Recommend changing from %s to %s.",
+					metrics.CPUUsagePercent, metrics.MemoryUsagePercent, optimalInstance, metrics.InstanceType, optimalInstance)
+				impact = fmt.Sprintf("Potential savings: $%.2f/month (%.1f%% reduction)", costAnalysis.PotentialSavings, costAnalysis.SavingsPercent)
+			}
 			recommendations = append(recommendations, Recommendation{
 				Priority:    "low",
 				Category:    "cost",
-				Title:       "인스턴스 다운사이징으로 비용 절감",
-				Description: fmt.Sprintf("현재 사용량(CPU %.1f%%, 메모리 %.1f%%)을 고려하면 %s로도 충분합니다. %s에서 %s로 변경을 권장합니다.",
-					metrics.CPUUsagePercent, metrics.MemoryUsagePercent, optimalInstance, metrics.InstanceType, optimalInstance),
-				Impact:   fmt.Sprintf("월 $%.2f 절감 가능 (%.1f%% 절감)", costAnalysis.PotentialSavings, costAnalysis.SavingsPercent),
-				Savings:  costAnalysis.PotentialSavings,
+				Title:       title,
+				Description: description,
+				Impact:      impact,
+				Savings:     costAnalysis.PotentialSavings,
 			})
 		} else if metrics.CPUUsagePercent < 20 && metrics.MemoryUsagePercent < 50 {
 			recommendations = append(recommendations, Recommendation{
@@ -366,7 +383,7 @@ func (a *OptimizationAnalyzer) generateRecommendations(
 	}
 
 	// Add OpenAI-powered recommendations
-	aiRecommendations := a.getAIRecommendations(metrics, costAnalysis, perfAnalysis)
+	aiRecommendations := a.getAIRecommendations(metrics, costAnalysis, perfAnalysis, language)
 	recommendations = append(recommendations, aiRecommendations...)
 
 	return recommendations
@@ -377,6 +394,7 @@ func (a *OptimizationAnalyzer) getAIRecommendations(
 	metrics *ActualUsageMetrics,
 	costAnalysis CostAnalysis,
 	perfAnalysis PerformanceAnalysis,
+	language string,
 ) []Recommendation {
 	if a.openai.APIKey == "" {
 		// No API key, skip AI recommendations
@@ -384,17 +402,31 @@ func (a *OptimizationAnalyzer) getAIRecommendations(
 	}
 
 	// Build detailed usage pattern description
-	usagePattern := "시계열 데이터 없음"
+	var usagePattern string
+	if language == "ko" {
+		usagePattern = "시계열 데이터 없음"
+	} else {
+		usagePattern = "No time series data"
+	}
+
 	if metrics.CPUStats != nil && metrics.MemoryStats != nil {
 		peakHoursStr := ""
 		if len(metrics.CPUStats.PeakHours) > 0 {
-			peakHoursStr = fmt.Sprintf("%d시", metrics.CPUStats.PeakHours[0])
-			for i := 1; i < len(metrics.CPUStats.PeakHours); i++ {
-				peakHoursStr += fmt.Sprintf(", %d시", metrics.CPUStats.PeakHours[i])
+			if language == "ko" {
+				peakHoursStr = fmt.Sprintf("%d시", metrics.CPUStats.PeakHours[0])
+				for i := 1; i < len(metrics.CPUStats.PeakHours); i++ {
+					peakHoursStr += fmt.Sprintf(", %d시", metrics.CPUStats.PeakHours[i])
+				}
+			} else {
+				peakHoursStr = fmt.Sprintf("%d:00", metrics.CPUStats.PeakHours[0])
+				for i := 1; i < len(metrics.CPUStats.PeakHours); i++ {
+					peakHoursStr += fmt.Sprintf(", %d:00", metrics.CPUStats.PeakHours[i])
+				}
 			}
 		}
 
-		usagePattern = fmt.Sprintf(`
+		if language == "ko" {
+			usagePattern = fmt.Sprintf(`
 CPU 24시간 분석 (48개 데이터 포인트):
   - 최소: %.1f%%, 평균: %.1f%%, 최대: %.1f%%
   - 중앙값(P50): %.1f%%, P95: %.1f%%, P99: %.1f%%
@@ -405,14 +437,35 @@ CPU 24시간 분석 (48개 데이터 포인트):
   - 최소: %.1f%%, 평균: %.1f%%, 최대: %.1f%%
   - 중앙값(P50): %.1f%%, P95: %.1f%%, P99: %.1f%%
   - 변동성(표준편차): %.1f`,
-			metrics.CPUStats.Min, metrics.CPUStats.Average, metrics.CPUStats.Max,
-			metrics.CPUStats.P50, metrics.CPUStats.P95, metrics.CPUStats.P99,
-			metrics.CPUStats.StdDev,
-			peakHoursStr,
-			metrics.MemoryStats.Min, metrics.MemoryStats.Average, metrics.MemoryStats.Max,
-			metrics.MemoryStats.P50, metrics.MemoryStats.P95, metrics.MemoryStats.P99,
-			metrics.MemoryStats.StdDev,
-		)
+				metrics.CPUStats.Min, metrics.CPUStats.Average, metrics.CPUStats.Max,
+				metrics.CPUStats.P50, metrics.CPUStats.P95, metrics.CPUStats.P99,
+				metrics.CPUStats.StdDev,
+				peakHoursStr,
+				metrics.MemoryStats.Min, metrics.MemoryStats.Average, metrics.MemoryStats.Max,
+				metrics.MemoryStats.P50, metrics.MemoryStats.P95, metrics.MemoryStats.P99,
+				metrics.MemoryStats.StdDev,
+			)
+		} else {
+			usagePattern = fmt.Sprintf(`
+CPU 24-hour Analysis (48 data points):
+  - Min: %.1f%%, Avg: %.1f%%, Max: %.1f%%
+  - Median(P50): %.1f%%, P95: %.1f%%, P99: %.1f%%
+  - Variability(StdDev): %.1f
+  - Peak Hours: %s
+
+Memory 24-hour Analysis:
+  - Min: %.1f%%, Avg: %.1f%%, Max: %.1f%%
+  - Median(P50): %.1f%%, P95: %.1f%%, P99: %.1f%%
+  - Variability(StdDev): %.1f`,
+				metrics.CPUStats.Min, metrics.CPUStats.Average, metrics.CPUStats.Max,
+				metrics.CPUStats.P50, metrics.CPUStats.P95, metrics.CPUStats.P99,
+				metrics.CPUStats.StdDev,
+				peakHoursStr,
+				metrics.MemoryStats.Min, metrics.MemoryStats.Average, metrics.MemoryStats.Max,
+				metrics.MemoryStats.P50, metrics.MemoryStats.P95, metrics.MemoryStats.P99,
+				metrics.MemoryStats.StdDev,
+			)
+		}
 
 		// Debug log
 		fmt.Printf("\n========== TIME SERIES DATA COLLECTED ==========\n")
@@ -429,7 +482,11 @@ CPU 24시간 분석 (48개 데이터 포인트):
 			metrics.CPUStats != nil, metrics.MemoryStats != nil)
 	}
 
-	prompt := fmt.Sprintf(`AWS EC2 인스턴스의 실제 사용 패턴을 분석하여 최적화 방안을 제시해주세요.
+	var prompt string
+	var systemPrompt string
+
+	if language == "ko" {
+		prompt = fmt.Sprintf(`AWS EC2 인스턴스의 실제 사용 패턴을 분석하여 최적화 방안을 제시해주세요.
 
 📊 현재 사용량 (실시간):
 - CPU 사용률: %.1f%%
@@ -447,25 +504,6 @@ CPU 24시간 분석 (48개 데이터 포인트):
 - 데이터 전송 비용: $%.2f/월
 - 성능 병목: %v
 
-🎯 분석 요구사항 (MUST 포함):
-1. **반드시 구체적인 수치를 인용하며 분석하세요:**
-   - "CPU P95가 X%%로..." 형식으로 실제 수치 명시
-   - "최소 X%%, 평균 Y%%, 최대 Z%%" 패턴 설명
-   - "변동성(표준편차)이 X로..." 구체적 언급
-   - "피크 시간대가 X시, Y시이므로..." 시간대 활용
-
-2. **24시간 패턴을 근거로 추천:**
-   - P95 < 20%이고 변동성 낮음 → 안전한 다운사이징
-   - P95 > 70%이거나 피크가 높음 → 유지 또는 업그레이드
-   - 변동성 큼 → 버스트 인스턴스 또는 오토스케일링
-
-3. **구체적인 인스턴스 타입과 비용 제시:**
-   - 현재: X 타입 → 추천: Y 타입
-   - 예상 절감액 또는 추가 비용
-   - 성능 리스크 정량적 평가
-
-**필수**: 위 시계열 데이터의 모든 수치(min, avg, max, P50, P95, P99, 표준편차, 피크시간)를 description에 활용해야 합니다!
-
 JSON 형식으로 응답:
 [
   {
@@ -477,55 +515,86 @@ JSON 형식으로 응답:
     "savings": 0.0
   }
 ]`,
-		metrics.CPUUsagePercent,
-		metrics.MemoryUsedMB,
-		metrics.MemoryUsagePercent,
-		metrics.DiskUsedGB,
-		metrics.DiskUsagePercent,
-		metrics.NetworkInboundMB,
-		metrics.NetworkOutboundMB,
-		metrics.InstanceType,
-		perfAnalysis.HealthStatus,
-		usagePattern,
-		costAnalysis.CurrentMonthlyCost,
-		costAnalysis.ActualDataTransfer,
-		perfAnalysis.Bottlenecks,
-	)
+			metrics.CPUUsagePercent,
+			metrics.MemoryUsedMB,
+			metrics.MemoryUsagePercent,
+			metrics.DiskUsedGB,
+			metrics.DiskUsagePercent,
+			metrics.NetworkInboundMB,
+			metrics.NetworkOutboundMB,
+			metrics.InstanceType,
+			perfAnalysis.HealthStatus,
+			usagePattern,
+			costAnalysis.CurrentMonthlyCost,
+			costAnalysis.ActualDataTransfer,
+			perfAnalysis.Bottlenecks,
+		)
 
-	systemPrompt := `You are an AWS cost optimization expert who MUST use detailed time series data in recommendations.
+		systemPrompt = `You are an AWS cost optimization expert. Analyze actual usage patterns and provide optimization recommendations.
 
 CRITICAL REQUIREMENTS:
-1. ALWAYS cite specific numbers from the time series data:
-   - Quote min, avg, max, P50, P95, P99 values explicitly
-   - When first mentioning percentile terms, ALWAYS explain them in parentheses:
-     * P50 (중앙값, 50%의 시간 동안 이 값 이하)
-     * P95 (95%의 시간 동안 이 값 이하로 유지)
-     * P99 (99%의 시간 동안 이 값 이하, 극단적 피크 제외)
-   - Reference standard deviation to explain variability
-   - Mention specific peak hours
+1. Always cite specific numbers from time series data
+2. Base analysis on 24-hour patterns, not just current usage
+3. Connect data to actionable recommendations
+4. Use Korean language only, with user-friendly explanations
+5. Return ONLY JSON array (no markdown, no code blocks)`
+	} else {
+		prompt = fmt.Sprintf(`Analyze AWS EC2 instance usage patterns and provide optimization recommendations.
 
-2. Base analysis on 24-hour patterns, NOT just current usage:
-   - Example: "CPU 사용률이 24시간 동안 최소 0.5%, 평균 1.3%, 최대 4.2%로 매우 낮게 유지되었으며, P95(95%의 시간 동안 이 값 이하)도 1.9%에 불과합니다."
-   - Example: "메모리는 평균 36.1%, P95(95%의 시간)는 42.3%로 여유가 충분합니다."
-   - Example: "변동성(표준편차 0.8)이 낮아 일정한 부하 패턴을 보입니다."
+📊 Current Usage (Real-time):
+- CPU Usage: %.1f%%
+- Memory Usage: %.0f MB (%.1f%%)
+- Disk Usage: %.1f GB (%.1f%%)
+- Network Traffic (24h): %.1f MB in / %.1f MB out
+- Instance Type: %s
+- System Status: %s
 
-3. Connect data to recommendations:
-   - If P95 < 20% AND low variability → SAFE to downsize
-   - If P95 > 70% OR high variability → Keep or upgrade
-   - Always explain WHY using the actual numbers in user-friendly language
+📈 Usage Pattern Analysis (Last 24 hours):
+%s
 
-4. Format requirements:
-   - Korean language only, use user-friendly explanations
-   - Include ALL relevant statistics in description WITH explanations
-   - Explain technical terms when first mentioned
-   - Provide specific instance type recommendations
-   - Return ONLY JSON array (no markdown, no code blocks)
+💰 Cost Information:
+- Current Monthly Cost: $%.2f
+- Data Transfer Cost: $%.2f/month
+- Performance Bottlenecks: %v
+
+Respond in JSON format:
+[
+  {
+    "priority": "high|medium|low",
+    "category": "cost|performance|stability",
+    "title": "Title (English)",
+    "description": "Detailed analysis and rationale (English, data-based explanation)",
+    "impact": "Expected impact (English)",
+    "savings": 0.0
+  }
+]`,
+			metrics.CPUUsagePercent,
+			metrics.MemoryUsedMB,
+			metrics.MemoryUsagePercent,
+			metrics.DiskUsedGB,
+			metrics.DiskUsagePercent,
+			metrics.NetworkInboundMB,
+			metrics.NetworkOutboundMB,
+			metrics.InstanceType,
+			perfAnalysis.HealthStatus,
+			usagePattern,
+			costAnalysis.CurrentMonthlyCost,
+			costAnalysis.ActualDataTransfer,
+			perfAnalysis.Bottlenecks,
+		)
+
+		systemPrompt = `You are an AWS cost optimization expert. Analyze actual usage patterns and provide optimization recommendations.
+
+CRITICAL REQUIREMENTS:
+1. Always cite specific numbers from time series data (min, avg, max, P50, P95, P99)
+2. Base analysis on 24-hour patterns, not just current usage
+3. Connect data to actionable recommendations with specific instance types
+4. Use English language only
+5. Return ONLY JSON array (no markdown, no code blocks)
 
 EXAMPLE GOOD DESCRIPTION:
-"지난 24시간 동안 CPU 사용률은 최소 0.5%, 평균 1.3%, 최대 4.2%, P95(95%의 시간 동안 이 값 이하) 1.9%, P99(99%의 시간 동안 이 값 이하) 3.5%로 매우 낮은 수준을 유지했습니다. 즉, 대부분의 시간 동안 CPU가 거의 유휴 상태였다는 의미입니다. 변동성(표준편차 0.8)도 낮아 안정적인 패턴을 보이며, 피크 시간대(14시, 15시)에도 5% 미만입니다. 메모리는 평균 36.1%, P95는 42.3%로 여유가 충분합니다. 이러한 데이터를 종합하면..."
-
-EXAMPLE BAD DESCRIPTION (DO NOT DO THIS):
-"CPU 사용률이 낮습니다. 다운사이징을 고려하세요."`
+"Over the last 24 hours, CPU usage remained very low: min 0.5%, avg 1.3%, max 4.2%, P95 (95th percentile) 1.9%, P99 3.5%. This means the CPU was mostly idle throughout the period. Variability (std dev 0.8) is low, showing a stable load pattern, and even during peak hours (2pm, 3pm) it stayed under 5%. Memory averaged 36.1%, with P95 at 42.3%, leaving ample headroom. Based on this data..."`
+	}
 
 	req := OpenAIRequest{
 		Model: a.openai.Model,

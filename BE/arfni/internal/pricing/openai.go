@@ -34,7 +34,7 @@ func NewOpenAIClient() *OpenAIClient {
 	// Auto-detect or use specified provider
 	switch provider {
 	case "gms":
-		apiKey = "S13P32D201-bf78916c-2ed6-49cc-84b2-ff824e7fe9fe"
+		apiKey = os.Getenv("GMS_KEY")
 		baseURL = "https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions"
 		selectedProvider = "gms"
 	case "openai":
@@ -45,7 +45,7 @@ func NewOpenAIClient() *OpenAIClient {
 		fallthrough
 	default:
 		// Try GMS first, fallback to OpenAI
-		apiKey = "S13P32D201-bf78916c-2ed6-49cc-84b2-ff824e7fe9fe"
+		apiKey = os.Getenv("GMS_KEY")
 		if apiKey != "" {
 			baseURL = "https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions"
 			selectedProvider = "gms"
@@ -58,7 +58,7 @@ func NewOpenAIClient() *OpenAIClient {
 
 	return &OpenAIClient{
 		APIKey:   apiKey,
-		Model:    "gpt-4o-mini",
+		Model:    "gpt-4o",
 		BaseURL:  baseURL,
 		Provider: selectedProvider,
 	}
@@ -156,8 +156,8 @@ func (c *OpenAIClient) GetResourceRecommendation(req CostEstimationRequest, minR
 		return nil, fmt.Errorf("failed to load pricing database: %w", err)
 	}
 
-	prompt := c.buildPrompt(req, minRequiredMemoryMB)
-	systemPrompt := c.buildSystemPrompt(req.DeploymentType, pricing)
+	prompt := c.buildPrompt(req, minRequiredMemoryMB, req.Language)
+	systemPrompt := c.buildSystemPrompt(req.DeploymentType, pricing, req.Language)
 
 	openAIReq := OpenAIRequest{
 		Model: c.Model,
@@ -229,15 +229,32 @@ func (c *OpenAIClient) GetResourceRecommendation(req CostEstimationRequest, minR
 }
 
 // buildSystemPrompt creates system prompt based on deployment type
-func (c *OpenAIClient) buildSystemPrompt(deploymentType string, pricing *AWSPricing) string {
+func (c *OpenAIClient) buildSystemPrompt(deploymentType string, pricing *AWSPricing, language string) string {
+	// Determine language directive - make it very strong and clear
+	languageDirective := `CRITICAL LANGUAGE REQUIREMENT:
+- You MUST respond in English language ONLY.
+- ALL text fields (reason, description, warnings, optimization_tips) MUST be in English.
+- Even if you see Korean examples below, YOU MUST respond in English.
+- This is a strict requirement. Do NOT mix languages.`
+	if language == "ko" {
+		languageDirective = `CRITICAL LANGUAGE REQUIREMENT (중요 언어 요구사항):
+- 반드시 한국어로만 답변해야 합니다.
+- 모든 텍스트 필드 (reason, description, warnings, optimization_tips)는 한국어로 작성해야 합니다.
+- 아래 영어 예제가 있더라도 반드시 한국어로 답변하세요.
+- 이것은 엄격한 요구사항입니다. 언어를 섞지 마세요.`
+	}
+
 	// Generate dynamic instance list from pricing database
 	ec2InstanceList := formatEC2InstanceList(pricing, deploymentType)
 	if deploymentType == "simple" {
-		return `You are an AWS infrastructure expert. The user wants to run ALL services as Docker containers on a SINGLE EC2 instance.
+		return languageDirective + `
+
+You are an AWS infrastructure expert. The user wants to run ALL services as Docker containers on a SINGLE EC2 instance.
 
 IMPORTANT:
 - Respond ONLY with valid JSON. No additional text before or after.
-- Respond in Korean language (한국어로 답변). All text fields (reason, description, warnings, optimization_tips) must be in Korean.
+- If a tier has no warnings, use empty array: "warnings": []
+- Never use null for array fields. Always use [] for empty arrays.
 
 CRITICAL: The user prompt will include BENCHMARK DATA from verified public sources (TechEmpower, Stack Overflow, AWS case studies, official documentation).
 This includes VERIFIED memory requirements and ESTIMATED capacity ranges derived from verified data.
@@ -259,47 +276,43 @@ CRITICAL LIMITATION - Single Instance Deployment:
 - If user count exceeds 5,000: ADD CRITICAL WARNING that single instance is insufficient
 
 IF USER COUNT > 5,000:
-You MUST add this to ALL tiers' warnings array:
-"⚠️ CRITICAL: 단일 서버로 XX,XXX명 처리는 불가능합니다. 최소 10-20대의 로드밸런싱된 서버 필요. Production 환경에서는 AWS RDS, ElastiCache, Auto Scaling 구성 권장."
-
-And in optimization_tips:
-"단일 EC2 인스턴스는 최대 3,000-5,000명까지만 권장됩니다. 더 많은 사용자를 위해서는 다중 서버 아키텍처로 전환하세요."
+Add critical warning about single server limitations to all tiers.
 
 Never pretend a single server can handle 10,000+ users. Be honest about architectural limitations.
 
-Provide THREE pricing tiers using this EXACT format:
+Provide THREE pricing tiers using this EXACT JSON format:
 {
   "budget": {
-    "ec2_instances": [{"type": "t3.medium", "count": 1, "reason": "전체 서비스 메모리 요구사항 XXX MB를 충족하기 위해 t3.medium (4GB RAM) 선택. 벤치마크 데이터에 따르면 XXX명 사용자 지원 가능."}],
+    "ec2_instances": [{"type": "t3.large", "count": 1, "reason": "Detailed 4-6 sentence explanation in English"}],
     "rds_instances": [],
     "elasticache": [],
-    "storage": {"type": "gp3", "size_gb": 50, "reason": "최소 저장 공간 - 로그와 데이터 저장용"},
+    "storage": {"type": "gp3", "size_gb": 50, "reason": "Storage reasoning"},
     "load_balancer": false,
-    "data_transfer": {"estimated_gb": 100, "reason": "월 100GB 예상 (XXX명 사용자 기준)"},
-    "description": "XXX명 사용자를 위한 최소 구성. 모든 컨테이너가 안정적으로 실행되지만 여유 공간이 제한적.",
-    "warnings": ["트래픽 급증 시 대응 어려움", "모니터링 필수"]
+    "data_transfer": {"estimated_gb": 100, "reason": "Data transfer estimate with WARNING"},
+    "description": "Budget tier description in English",
+    "warnings": ["Warning text in English"]
   },
   "recommended": {
-    "ec2_instances": [{"type": "t3.medium", "count": 1, "reason": "예상 사용자 XXX명에 최적화된 구성. 30-50% 여유 메모리 확보로 안정적 운영 가능."}],
+    "ec2_instances": [{"type": "t3.xlarge", "count": 1, "reason": "Detailed 4-6 sentence explanation in English"}],
     "rds_instances": [],
     "elasticache": [],
-    "storage": {"type": "gp3", "size_gb": 100, "reason": "표준 저장 공간 - 로그와 데이터 증가 대비"},
+    "storage": {"type": "gp3", "size_gb": 100, "reason": "Storage reasoning"},
     "load_balancer": false,
-    "data_transfer": {"estimated_gb": 150, "reason": "월 150GB 예상"},
-    "description": "XXX명 사용자에게 안정적인 서비스 제공. 충분한 메모리 여유로 트래픽 변동 대응 가능.",
+    "data_transfer": {"estimated_gb": 150, "reason": "Data transfer estimate"},
+    "description": "Recommended tier description in English",
     "warnings": []
   },
   "performance": {
-    "ec2_instances": [{"type": "t3.large", "count": 1, "reason": "t3.large (8GB RAM)로 업그레이드하여 트래픽 급증과 향후 확장에 대비. 2배의 메모리 여유 확보."}],
+    "ec2_instances": [{"type": "m5.large", "count": 1, "reason": "Detailed 4-6 sentence explanation in English"}],
     "rds_instances": [],
     "elasticache": [],
-    "storage": {"type": "gp3", "size_gb": 200, "reason": "대용량 저장 공간 - 장기 로그 보관 및 데이터 증가 대비"},
+    "storage": {"type": "gp3", "size_gb": 200, "reason": "Storage reasoning"},
     "load_balancer": false,
-    "data_transfer": {"estimated_gb": 200, "reason": "월 200GB 예상 - 트래픽 증가 여유 포함"},
-    "description": "고성능 구성으로 트래픽 급증 시에도 안정적 운영. 향후 사용자 증가에도 대응 가능.",
+    "data_transfer": {"estimated_gb": 200, "reason": "Data transfer estimate"},
+    "description": "Performance tier description in English",
     "warnings": []
   },
-  "optimization_tips": ["컨테이너 메모리 제한 설정으로 리소스 효율 증대", "불필요한 로그 레벨 낮춰 저장 공간 절약"]
+  "optimization_tips": ["Tip 1 in English", "Tip 2 in English", "Tip 3 in English", "Tip 4 in English", "Tip 5 in English"]
 }
 
 ⚠️ CRITICAL - OPTIMIZATION TIPS (STACK-SPECIFIC):
@@ -432,11 +445,50 @@ Available EC2 instance types:
 	}
 
 	// Production mode (default)
-	return `You are an AWS infrastructure expert. Based on user requirements, recommend appropriate AWS resources using AWS managed services.
+	// Create example JSON based on language
+	var exampleJSON string
+	if language == "ko" {
+		exampleJSON = `{
+  "budget": {
+    "ec2_instances": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
+    "rds_instances": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
+    "elasticache": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
+    "storage": {"type": "gp3", "size_gb": 100, "reason": "한국어 설명"},
+    "load_balancer": true,
+    "data_transfer": {"estimated_gb": 100, "reason": "한국어 설명 (경고 포함)"},
+    "description": "비용 최적화 구성 - 최소 리소스",
+    "warnings": ["버스트 용량 제한", "리소스 사용량 주의 깊게 모니터링 필요"]
+  },
+  "recommended": {...},
+  "performance": {...},
+  "optimization_tips": ["최적화 팁1", "최적화 팁2"]
+}`
+	} else {
+		exampleJSON = `{
+  "budget": {
+    "ec2_instances": [{"type": "instance-type", "count": 1, "reason": "English explanation"}],
+    "rds_instances": [{"type": "instance-type", "count": 1, "reason": "English explanation"}],
+    "elasticache": [{"type": "instance-type", "count": 1, "reason": "English explanation"}],
+    "storage": {"type": "gp3", "size_gb": 100, "reason": "English explanation"},
+    "load_balancer": true,
+    "data_transfer": {"estimated_gb": 100, "reason": "English explanation (with warning)"},
+    "description": "Cost-optimized configuration - minimal resources",
+    "warnings": ["Burst capacity limitation", "Resource usage requires careful monitoring"]
+  },
+  "recommended": {...},
+  "performance": {...},
+  "optimization_tips": ["Optimization tip 1", "Optimization tip 2"]
+}`
+	}
+
+	return languageDirective + `
+
+You are an AWS infrastructure expert. Based on user requirements, recommend appropriate AWS resources using AWS managed services.
 
 IMPORTANT:
 - Respond ONLY with valid JSON. No additional text before or after.
-- Respond in Korean language (한국어로 답변). All text fields (reason, description, warnings, optimization_tips) must be in Korean.
+- If a tier has no warnings, use empty array: "warnings": []
+- Never use null for array fields. Always use [] for empty arrays.
 
 CRITICAL: The user prompt will include BENCHMARK DATA from verified public sources (TechEmpower, Stack Overflow, AWS case studies, official documentation).
 This includes VERIFIED memory requirements and ESTIMATED capacity ranges derived from verified data.
@@ -453,39 +505,7 @@ Example: "Benchmark suggests X, but this seems unreasonable because [reason]. Re
 
 Provide THREE pricing tiers using this EXACT format:
 
-{
-  "budget": {
-    "ec2_instances": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
-    "rds_instances": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
-    "elasticache": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
-    "storage": {"type": "gp3", "size_gb": 100, "reason": "한국어 설명"},
-    "load_balancer": true,
-    "data_transfer": {"estimated_gb": 100, "reason": "한국어 설명 (경고 포함)"},
-    "description": "비용 최적화 구성 - 최소 리소스",
-    "warnings": ["버스트 용량 제한", "리소스 사용량 주의 깊게 모니터링 필요"]
-  },
-  "recommended": {
-    "ec2_instances": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
-    "rds_instances": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
-    "elasticache": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
-    "storage": {"type": "gp3", "size_gb": 100, "reason": "한국어 설명"},
-    "load_balancer": true,
-    "data_transfer": {"estimated_gb": 150, "reason": "한국어 설명 (경고 포함)"},
-    "description": "균형 잡힌 프로덕션 구성 - 안전 마진 확보",
-    "warnings": []
-  },
-  "performance": {
-    "ec2_instances": [{"type": "instance-type", "count": 2, "reason": "한국어 설명"}],
-    "rds_instances": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
-    "elasticache": [{"type": "instance-type", "count": 1, "reason": "한국어 설명"}],
-    "storage": {"type": "gp3", "size_gb": 200, "reason": "한국어 설명"},
-    "load_balancer": true,
-    "data_transfer": {"estimated_gb": 200, "reason": "한국어 설명 (경고 포함)"},
-    "description": "고가용성 프로덕션 - 중복성 확보",
-    "warnings": []
-  },
-  "optimization_tips": ["최적화 팁1", "최적화 팁2"]
-}
+` + exampleJSON + `
 
 ⚠️ CRITICAL - OPTIMIZATION TIPS (STACK-SPECIFIC):
 Generate 3-5 SPECIFIC optimization tips based on the user's actual stack composition.
@@ -544,7 +564,7 @@ Consider:
 
 // buildPrompt creates a prompt for OpenAI based on user requirements
 // Includes benchmark data when available to improve recommendation accuracy
-func (c *OpenAIClient) buildPrompt(req CostEstimationRequest, minRequiredMemoryMB int) string {
+func (c *OpenAIClient) buildPrompt(req CostEstimationRequest, minRequiredMemoryMB int, language string) string {
 	var servicesList []string
 	var servicesDetail []string
 	for _, svc := range req.Services {
@@ -561,9 +581,19 @@ func (c *OpenAIClient) buildPrompt(req CostEstimationRequest, minRequiredMemoryM
 		servicesDetail = append(servicesDetail, detail)
 	}
 
-	deploymentMode := "production (AWS managed services)"
+	var deploymentMode string
 	if req.DeploymentType == "simple" {
-		deploymentMode = "Docker All-in-One (모든 서비스가 하나의 EC2에서 Docker 컨테이너로 실행)"
+		if language == "ko" {
+			deploymentMode = "Docker All-in-One (모든 서비스가 하나의 EC2에서 Docker 컨테이너로 실행)"
+		} else {
+			deploymentMode = "Docker All-in-One (All services run as Docker containers on a single EC2 instance)"
+		}
+	} else {
+		if language == "ko" {
+			deploymentMode = "production (AWS managed services)"
+		} else {
+			deploymentMode = "production (AWS managed services)"
+		}
 	}
 
 	// Build benchmark context from verified data
@@ -572,7 +602,8 @@ func (c *OpenAIClient) buildPrompt(req CostEstimationRequest, minRequiredMemoryM
 	// Calculate per-service memory and build detailed breakdown
 	memoryBreakdown := ""
 	if req.DeploymentType == "simple" && minRequiredMemoryMB > 0 {
-		memoryBreakdown = fmt.Sprintf(`
+		if language == "ko" {
+			memoryBreakdown = fmt.Sprintf(`
 ═══════════════════════════════════════════════════
 최소 메모리 요구사항 (계산됨)
 ═══════════════════════════════════════════════════
@@ -581,7 +612,7 @@ func (c *OpenAIClient) buildPrompt(req CostEstimationRequest, minRequiredMemoryM
 
 이는 OS/Docker 오버헤드 30%%를 포함한 계산입니다.
 
-⚠️ CRITICAL: Budget tier는 최소 %.1f GB RAM 이상 인스턴스를 사용해야 합니다.
+CRITICAL: Budget tier는 최소 %.1f GB RAM 이상 인스턴스를 사용해야 합니다.
 - t3.small (2GB): %.1f GB < 2GB이면 가능, 아니면 부족
 - t3.medium (4GB): %.1f GB < 4GB이면 가능, 아니면 부족
 - t3.large (8GB): %.1f GB < 8GB이면 가능, 아니면 부족
@@ -590,15 +621,43 @@ func (c *OpenAIClient) buildPrompt(req CostEstimationRequest, minRequiredMemoryM
 인스턴스 선택 시 이 메모리 요구사항을 **반드시** 충족해야 합니다.
 
 `,
-			minRequiredMemoryMB,
-			float64(minRequiredMemoryMB)/1024,
-			float64(minRequiredMemoryMB)/1024,
-			float64(minRequiredMemoryMB)/1024,
-			float64(minRequiredMemoryMB)/1024,
-			float64(minRequiredMemoryMB)/1024)
+				minRequiredMemoryMB,
+				float64(minRequiredMemoryMB)/1024,
+				float64(minRequiredMemoryMB)/1024,
+				float64(minRequiredMemoryMB)/1024,
+				float64(minRequiredMemoryMB)/1024,
+				float64(minRequiredMemoryMB)/1024)
+		} else {
+			memoryBreakdown = fmt.Sprintf(`
+═══════════════════════════════════════════════════
+Minimum Memory Requirements (Calculated)
+═══════════════════════════════════════════════════
+
+Total Required Memory: %d MB (%.1f GB)
+
+This includes 30%% overhead for OS/Docker.
+
+CRITICAL: Budget tier must use instances with at least %.1f GB RAM.
+- t3.small (2GB): Sufficient if %.1f GB < 2GB, otherwise insufficient
+- t3.medium (4GB): Sufficient if %.1f GB < 4GB, otherwise insufficient
+- t3.large (8GB): Sufficient if %.1f GB < 8GB, otherwise insufficient
+- t3.xlarge (16GB): Always sufficient if %.1f GB < 16GB
+
+Instance selection MUST meet this memory requirement.
+
+`,
+				minRequiredMemoryMB,
+				float64(minRequiredMemoryMB)/1024,
+				float64(minRequiredMemoryMB)/1024,
+				float64(minRequiredMemoryMB)/1024,
+				float64(minRequiredMemoryMB)/1024,
+				float64(minRequiredMemoryMB)/1024)
+		}
 	}
 
-	prompt := fmt.Sprintf(`
+	var prompt string
+	if language == "ko" {
+		prompt = fmt.Sprintf(`
 다음 서비스 구성을 AWS %s 리전에 배포해야 합니다:
 
 %s
@@ -618,21 +677,21 @@ func (c *OpenAIClient) buildPrompt(req CostEstimationRequest, minRequiredMemoryM
 위 서비스 구성과 벤치마크 데이터를 기반으로 3가지 티어로 AWS 인스턴스를 추천해주세요:
 
 1. **Budget Tier**: 최소 메모리 요구사항을 충족하는 가장 작은 인스턴스
-   - 운영 안정성: 최소 유지 (메모리 헤드룸 10-20%)
+   - 운영 안정성: 최소 유지 (메모리 헤드룸 10-20%%)
    - 특징: 평상시 운영 가능하나 트래픽 급증 시 위험
    - 경고사항 포함 (모니터링 필수, 여유 공간 제한적)
 
 2. **Recommended Tier**: Budget보다 1단계 큰 인스턴스 (가능하면)
-   - 운영 안정성: 적정 유지 (메모리 헤드룸 40-60%)
+   - 운영 안정성: 적정 유지 (메모리 헤드룸 40-60%%)
    - 특징: 일상적 트래픽 변동 안정적 대응, 운영 여유 확보
    - 안정적 장기 운영 가능
 
 3. **Performance Tier**: Recommended보다 1-2단계 큰 인스턴스
-   - 운영 안정성: 여유 운영 (메모리 헤드룸 80-100%)
+   - 운영 안정성: 여유 운영 (메모리 헤드룸 80-100%%)
    - 특징: 트래픽 급증, 향후 서비스 추가, 데이터 증가 대비
    - 고성능 안정적 운영
 
-⚠️ 중요 지침:
+중요 지침:
 - **사용자 수 추정 금지**: 검증 불가능하므로 인원 수는 절대 언급하지 말 것
 - **운영 관점 설명**: 메모리 헤드룸, 트래픽 대응력, 안정성으로 설명
 - 검증된 벤치마크 데이터가 있으면 **출처와 함께 인용**
@@ -640,12 +699,62 @@ func (c *OpenAIClient) buildPrompt(req CostEstimationRequest, minRequiredMemoryM
 
 JSON만 응답하세요 (추가 텍스트 없이).
 `,
-		req.Region,
-		strings.Join(servicesDetail, "\n"),
-		deploymentMode,
-		memoryBreakdown,
-		benchmarkContext,
-	)
+			req.Region,
+			strings.Join(servicesDetail, "\n"),
+			deploymentMode,
+			memoryBreakdown,
+			benchmarkContext,
+		)
+	} else {
+		prompt = fmt.Sprintf(`
+Deploy the following service configuration to AWS %s region:
+
+%s
+
+Deployment method: %s
+%s
+═══════════════════════════════════════════════════
+Verified Benchmark Data (Verified Production Cases)
+═══════════════════════════════════════════════════
+
+%s
+
+═══════════════════════════════════════════════════
+Requirements
+═══════════════════════════════════════════════════
+
+Based on the service configuration and benchmark data above, recommend AWS instances in 3 tiers:
+
+1. **Budget Tier**: Smallest instance that meets minimum memory requirements
+   - Operational stability: Minimum (memory headroom 10-20%%)
+   - Characteristics: Suitable for normal operations but risky during traffic spikes
+   - Include warnings (monitoring required, limited headroom)
+
+2. **Recommended Tier**: One tier larger than Budget (if possible)
+   - Operational stability: Adequate (memory headroom 40-60%%)
+   - Characteristics: Handles daily traffic variations stably, operational buffer secured
+   - Stable long-term operation
+
+3. **Performance Tier**: 1-2 tiers larger than Recommended
+   - Operational stability: Comfortable (memory headroom 80-100%%)
+   - Characteristics: Prepared for traffic spikes, future service additions, data growth
+   - High-performance stable operation
+
+Important guidelines:
+- **NO user count estimation**: Do not mention user counts as they cannot be verified
+- **Operational perspective**: Explain in terms of memory headroom, traffic handling capability, stability
+- If verified benchmark data exists, **cite the source**
+- **All reason fields must be 4-6 sentences**: Budget, Recommended, Performance all with equal detail
+
+Respond with JSON only (no additional text).
+`,
+			req.Region,
+			strings.Join(servicesDetail, "\n"),
+			deploymentMode,
+			memoryBreakdown,
+			benchmarkContext,
+		)
+	}
 
 	return prompt
 }

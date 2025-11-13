@@ -121,6 +121,7 @@ pub struct OptimizationReport {
 pub async fn estimate_cost(
     db: State<'_, Database>,
     stack_path: String,
+    language: Option<String>,
 ) -> Result<CostEstimationResult, String> {
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -133,11 +134,16 @@ pub async fn estimate_cost(
     // Find arfni-go.exe
     let exe_path = find_arfni_go_executable()?;
 
+    // Use default language if not provided
+    let lang = language.unwrap_or_else(|| "en".to_string());
+
     // Build command
     let mut cmd = Command::new(&exe_path);
     cmd.arg("estimate-cost")
         .arg("-f")
         .arg(&stack_path)
+        .arg("-language")
+        .arg(&lang)
         .env("GMS_KEY", api_key);
 
     #[cfg(target_os = "windows")]
@@ -151,7 +157,10 @@ pub async fn estimate_cost(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("There are no blocks. Please drag and drop blocks. {}", stderr));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        eprintln!("[RUST DEBUG] Command failed. stderr: {}", stderr);
+        eprintln!("[RUST DEBUG] Command failed. stdout: {}", stdout);
+        return Err(format!("Cost estimation failed: {}\n{}", stderr, stdout));
     }
 
     // Parse output
@@ -173,6 +182,7 @@ pub async fn estimate_cost(
 pub async fn optimize(
     db: State<'_, Database>,
     prometheus_url: Option<String>,
+    language: Option<String>,
 ) -> Result<OptimizationReport, String> {
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -188,11 +198,21 @@ pub async fn optimize(
     // Use default Prometheus URL if not provided
     let prometheus = prometheus_url.unwrap_or_else(|| "http://localhost:9090".to_string());
 
+    // DEBUG: Print language value before using it
+    eprintln!("[RUST DEBUG] optimize called with language: {:?}", language);
+
+    // Use default language if not provided
+    let lang = language.unwrap_or_else(|| "en".to_string());
+
+    eprintln!("[RUST DEBUG] normalized language: {}", lang);
+
     // Build command
     let mut cmd = Command::new(&exe_path);
     cmd.arg("optimize")
         .arg("-prometheus")
         .arg(&prometheus)
+        .arg("-language")
+        .arg(&lang)
         .env("GMS_KEY", api_key);
 
     #[cfg(target_os = "windows")]

@@ -58,7 +58,7 @@ interface OptimizationReport {
 }
 
 export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: OptimizeViewProps) {
-  const { t } = useTranslation('logs');
+  const { t, i18n } = useTranslation('logs');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OptimizationReport | null>(null);
@@ -69,8 +69,13 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
     setError(null);
 
     try {
+      // Get current language and normalize (ko-KR -> ko, en-US -> en)
+      const currentLanguage = i18n.language;
+      const languageCode = currentLanguage.split('-')[0];
+
       const report = await invoke<OptimizationReport>('optimize', {
         prometheusUrl,
+        language: languageCode,
       });
       setResult(report);
     } catch (err) {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 import {
   X,
   BarChart3,
@@ -61,6 +62,7 @@ interface OptimizationReport {
 }
 
 export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhost:9090' }: OptimizeDialogProps) {
+  const { i18n } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OptimizationReport | null>(null);
@@ -70,8 +72,19 @@ export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhos
     setError(null);
 
     try {
+      const currentLanguage = i18n.language;
+      console.log('[OptimizeDialog] Current language from i18n:', currentLanguage);
+
+      // Normalize language code (ko-KR -> ko, en-US -> en)
+      const languageCode = currentLanguage.split('-')[0];
+      console.log('[OptimizeDialog] Normalized language code:', languageCode);
+
+      // Debug: Show alert to confirm language
+      alert(`Language: ${currentLanguage}, Normalized: ${languageCode}`);
+
       const report = await invoke<OptimizationReport>('optimize', {
         prometheusUrl,
+        language: languageCode,
       });
       setResult(report);
     } catch (err) {
@@ -148,7 +161,7 @@ export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhos
                 onClick={handleOptimize}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
               >
-                분석 시작
+                [TEST] 분석 시작
               </button>
             </div>
           )}

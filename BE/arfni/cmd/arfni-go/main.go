@@ -334,10 +334,15 @@ func findICExecutable(exeDir string) string {
 
 // ========== Cost Estimation Command ==========
 
+type BuildConfig struct {
+	Context    string `yaml:"context"`
+	Dockerfile string `yaml:"dockerfile"`
+}
+
 type ServiceSpec struct {
-	Build string   `yaml:"build"`
-	Image string   `yaml:"image"`
-	Ports []string `yaml:"ports"`
+	Build interface{} `yaml:"build"` // Can be string or BuildConfig object
+	Image string      `yaml:"image"`
+	Ports []string    `yaml:"ports"`
 }
 
 type Service struct {
@@ -355,10 +360,12 @@ func runCostEstimation(args []string) {
 	fs := flag.NewFlagSet("estimate-cost", flag.ExitOnError)
 	stackFileFlag := fs.String("f", "stack.yaml", "path to stack.yaml")
 	deploymentFlag := fs.String("deployment", "simple", "deployment type (simple, production)")
+	languageFlag := fs.String("language", "en", "language for recommendations (en or ko)")
 	fs.Parse(args)
 
 	stackFile := *stackFileFlag
 	deploymentType := *deploymentFlag
+	language := *languageFlag
 
 	// Validate deployment type
 	if deploymentType != "simple" && deploymentType != "production" {
@@ -412,11 +419,26 @@ func runCostEstimation(args []string) {
 	var services []pricing.ServiceInfo
 	for name, svc := range stack.Services {
 		serviceType := detectServiceType(name, svc)
+
+		// Handle build field - can be string or object
+		var buildStr string
+		if svc.Spec.Build != nil {
+			switch v := svc.Spec.Build.(type) {
+			case string:
+				buildStr = v
+			case map[string]interface{}:
+				// If build is an object, use context as build path
+				if context, ok := v["context"].(string); ok {
+					buildStr = context
+				}
+			}
+		}
+
 		services = append(services, pricing.ServiceInfo{
 			Name:  name,
 			Type:  serviceType,
 			Image: svc.Spec.Image,
-			Build: svc.Spec.Build,
+			Build: buildStr,
 		})
 	}
 
@@ -436,6 +458,7 @@ func runCostEstimation(args []string) {
 		Services:       services,
 		Region:         "ap-northeast-2",
 		DeploymentType: deploymentType,
+		Language:       language,
 	}
 
 	// Initialize cost estimator
@@ -609,6 +632,7 @@ func detectServiceType(name string, svc Service) string {
 func runOptimize(args []string) {
 	fs := flag.NewFlagSet("optimize", flag.ExitOnError)
 	prometheusURL := fs.String("prometheus", "http://localhost:9090", "Prometheus server URL")
+	language := fs.String("language", "en", "Language for recommendations (en or ko)")
 	fs.Parse(args)
 
 	fmt.Println()
@@ -617,6 +641,7 @@ func runOptimize(args []string) {
 	fmt.Println("================================================")
 	fmt.Println()
 	fmt.Printf("Prometheus URL:    %s\n", *prometheusURL)
+	fmt.Printf("Language:          %s\n", *language)
 	fmt.Println()
 
 	// Initialize optimization analyzer
@@ -631,7 +656,7 @@ func runOptimize(args []string) {
 	fmt.Println()
 
 	// Run analysis
-	report, err := analyzer.Analyze()
+	report, err := analyzer.Analyze(*language)
 	if err != nil {
 		fmt.Printf("[ERROR] Failed to analyze: %v\n", err)
 		fmt.Println()

@@ -46,7 +46,7 @@ interface CostEstimationResult {
 }
 
 export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
-  const { t } = useTranslation('dialogs');
+  const { t, i18n } = useTranslation('dialogs');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CostEstimationResult | null>(null);
@@ -64,8 +64,13 @@ export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
     try {
       const stackPath = `${currentProject.path}\\stack.yaml`;
 
+      // Get current language and normalize (ko-KR -> ko, en-US -> en)
+      const currentLanguage = i18n.language;
+      const languageCode = currentLanguage.split('-')[0];
+
       const estimateResult = await invoke<CostEstimationResult>('estimate_cost', {
         stackPath,
+        language: languageCode,
       });
 
       setResult(estimateResult);
