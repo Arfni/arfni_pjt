@@ -68,8 +68,7 @@ function MiniMapNode({ x, y, width, height }: any) {
         width={width}
         height={height}
         rx={6}
-        fill="white"
-        stroke="#E5E7EB"
+        fill="#D3D3D3"
         strokeWidth={0.5}
       />
     </g>
@@ -380,13 +379,15 @@ function CanvasEditorInner() {
       >
         <Controls className="!bg-white !border !border-gray-200 !shadow-md" />
         <MiniMap
-          className="!bg-white !border !border-gray-200 !shadow-md"
+          className="!bg-gray-100 !border !border-gray-200 !shadow-md"
           nodeComponent={MiniMapNode}
           nodeColor={(node) => {
             if (node.type === 'database') return '#3b82f6';
             if (node.type === 'service') return '#06b6d4';
             return '#6b7280';
           }}
+          maskColor="rgba(0, 0, 0, 0.1)"
+          maskStrokeWidth={2}
         />
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#d1d5db" />
       </ReactFlow>
