@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, FolderOpen, Github, Folder } from 'lucide-react';
 import { EC2Server } from '@shared/api/tauri/commands';
 import { CICDSetupModal } from '@pages/deployment/ui/CICDSetupModal';
@@ -10,15 +10,17 @@ interface CreateProjectModalProps {
   selectedTab: 'local' | 'ec2' | 'plugins';
   newProjectName: string;
   newProjectPath: string;
+  newProjectWorkdir: string;
   creating: boolean;
   selectedEC2ServerId: string;
   ec2Servers: EC2Server[];
   error: string | null;
   onClose: () => void;
   onNameChange: (name: string) => void;
+  onWorkdirChange: (workdir: string) => void;
   onSelectFolder: () => void;
   onCreate: () => void;
-  onCreateFromGitHub?: (repoUrl: string, repoName: string, branch: string, accessToken: string) => void;
+  onCreateFromGitHub?: (repoUrl: string, repoName: string, branch: string, accessToken: string, workdir: string) => void;
 }
 
 export function CreateProjectModal({
@@ -26,18 +28,28 @@ export function CreateProjectModal({
   selectedTab,
   newProjectName,
   newProjectPath,
+  newProjectWorkdir,
   creating,
   selectedEC2ServerId,
   ec2Servers,
   error,
   onClose,
   onNameChange,
+  onWorkdirChange,
   onSelectFolder,
   onCreate,
   onCreateFromGitHub,
 }: CreateProjectModalProps) {
   const [projectSource, setProjectSource] = useState<ProjectSource>('local');
   const [showGitHubModal, setShowGitHubModal] = useState(false);
+
+  // Reset state when modal is closed
+  useEffect(() => {
+    if (!isOpen) {
+      setProjectSource('local');
+      setShowGitHubModal(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -48,23 +60,37 @@ export function CreateProjectModal({
 
   const handleGitHubSetupComplete = (repoUrl: string, repoName: string, branch: string, accessToken: string) => {
     setShowGitHubModal(false);
+    // onCreateFromGitHub will handle the loading state and close the modal when done
     if (onCreateFromGitHub) {
-      onCreateFromGitHub(repoUrl, repoName, branch, accessToken);
+      // Pass the workdir value from the modal state
+      onCreateFromGitHub(repoUrl, repoName, branch, accessToken, newProjectWorkdir || 'arfni-deploy');
     }
-    onClose();
+    // Don't call onClose() here - let the parent component close the modal after project creation completes
   };
 
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 relative">
+          {/* Loading Overlay */}
+          {creating && (
+            <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-10 rounded-lg">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-700 font-medium">Setting up project...</p>
+                <p className="text-gray-500 text-sm mt-2">This may take a few moments</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <h2 className="text-xl font-semibold">
               Create {selectedTab === 'local' ? 'Local' : 'EC2'} Project
             </h2>
             <button
               onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              disabled={creating}
+              className="p-1 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
             >
               <X className="w-5 h-5" />
             </button>
@@ -158,6 +184,26 @@ export function CreateProjectModal({
                   </div>
                 </div>
               </>
+            )}
+
+            {/* Working Directory (for EC2 projects) */}
+            {isEC2Project && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Working Directory (on EC2)
+                </label>
+                <input
+                  type="text"
+                  value={newProjectWorkdir}
+                  onChange={(e) => onWorkdirChange(e.target.value)}
+                  placeholder="arfni-deploy"
+                  disabled={creating}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Directory on EC2 where project will be deployed (e.g., arfni-deploy)
+                </p>
+              </div>
             )}
 
             {/* GitHub repository selection info */}

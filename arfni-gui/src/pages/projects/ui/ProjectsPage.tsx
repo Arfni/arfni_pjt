@@ -9,6 +9,7 @@ import { ProjectsSidebar } from './ProjectsSidebar';
 import { ProjectCard } from './ProjectCard';
 import { CreateProjectModal } from './CreateProjectModal';
 import { PluginManager } from './PluginManager';
+import { CICDSetupModal } from '../../deployment/ui/CICDSetupModal';
 import { useAppDispatch } from '@app/hooks';
 import { addNode } from '@features/canvas/model/canvasSlice';
 import { useTranslation } from 'react-i18next';
@@ -72,6 +73,10 @@ export default function ProjectsPage() {
 
   // Canvas 미리보기 데이터
   const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
+
+  // CI/CD Setup Modal
+  const [showCICDSetup, setShowCICDSetup] = useState(false);
+  const [cicdProject, setCicdProject] = useState<Project | null>(null);
 
   // 환경별 프로젝트 목록 로드 함수
   const loadProjects = useCallback(async (environment: 'local' | 'ec2', serverId?: string) => {
@@ -195,6 +200,30 @@ export default function ProjectsPage() {
     }
   }, [deletingProjectPath]);
 
+  // CI/CD Setup 핸들러
+  const handleSetupCICD = useCallback(async (project: Project) => {
+    // EC2 서버 정보 가져오기
+    if (!project.ec2_server_id) {
+      alert('EC2 server not found for this project');
+      return;
+    }
+
+    try {
+      const server = await ec2ServerCommands.getServerById(project.ec2_server_id);
+      if (!server) {
+        alert('EC2 server not found');
+        return;
+      }
+
+      // EC2 서버 정보와 함께 프로젝트 저장
+      setCicdProject({ ...project, _ec2Server: server });
+      setShowCICDSetup(true);
+    } catch (err) {
+      console.error('Failed to load EC2 server:', err);
+      alert(`Failed to load EC2 server: ${err}`);
+    }
+  }, []);
+
   // 폴더 선택 핸들러
   const handleSelectFolder = useCallback(async () => {
     const selected = await open({
@@ -261,7 +290,10 @@ export default function ProjectsPage() {
         environment, // 현재 선택된 탭 (local or ec2)
         environment === 'ec2' ? selectedEC2ServerId : undefined,
         undefined, // description
-        environment === 'ec2' ? newProjectWorkdir.trim() : undefined
+        undefined, // githubRepoUrl
+        undefined, // githubBranch
+        undefined, // githubAccessToken
+        environment === 'ec2' ? newProjectWorkdir.trim() || 'arfni-deploy' : undefined // workdir
       );
       console.log('프로젝트 생성 완료:', project);
 
@@ -292,7 +324,7 @@ export default function ProjectsPage() {
   }, [newProjectName, newProjectPath, newProjectWorkdir, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch, t]);
 
   // GitHub 레포지토리에서 프로젝트 생성
-  const handleCreateFromGitHub = useCallback(async (repoUrl: string, repoName: string, branch: string, accessToken: string) => {
+  const handleCreateFromGitHub = useCallback(async (repoUrl: string, repoName: string, branch: string, accessToken: string, workdir: string) => {
     if (!selectedEC2ServerId) {
       setCreateError('Please select EC2 Server');
       return;
@@ -302,7 +334,7 @@ export default function ProjectsPage() {
     setCreateError(null);
 
     try {
-      console.log('Creating project from GitHub:', { repoUrl, repoName, branch, selectedEC2ServerId });
+      console.log('Creating project from GitHub:', { repoUrl, repoName, branch, selectedEC2ServerId, workdir });
 
       // GitHub 프로젝트 생성 (GitHub 정보와 함께 저장)
       const project = await projectCommands.createProject(
@@ -313,30 +345,34 @@ export default function ProjectsPage() {
         `GitHub repository: ${repoUrl}`,
         repoUrl,
         branch,
-        accessToken
+        accessToken,
+        workdir || 'arfni-deploy' // workdir 파라미터
       );
 
       console.log('✅ GitHub 프로젝트 생성 완료:', project);
 
-      // EC2에 GitHub 레포지토리 클론
-      console.log('🔄 Cloning GitHub repository to EC2...');
+      // EC2에 GitHub 프로젝트 설정 (클론 + stack.yaml + workflow 생성 + 커밋)
+      console.log('🔄 Setting up GitHub project with CI/CD...');
       try {
-        await projectCommands.cloneGithubRepoOnEc2(project.id, selectedEC2ServerId);
-        console.log('✅ Repository cloned successfully to EC2');
-      } catch (cloneErr) {
-        console.error('GitHub 클론 실패 (계속 진행):', cloneErr);
-        // 클론 실패해도 프로젝트는 생성되었으므로 계속 진행
+        const result = await projectCommands.setupGithubProjectWithCicd(project.id, selectedEC2ServerId);
+        console.log('✅ GitHub project setup completed:', result);
+      } catch (setupErr) {
+        console.error('GitHub 프로젝트 설정 실패:', setupErr);
+        setCreateError(`Failed to setup GitHub project: ${setupErr}`);
+        setCreating(false);
+        return;
       }
 
-      // 모달 닫기
+      // Setup이 완료된 후에만 모달 닫고 프로젝트 목록 새로고침
       setShowCreateModal(false);
       setNewProjectName('');
       setNewProjectPath('');
+      setNewProjectWorkdir('arfni-deploy'); // workdir도 초기화
 
       // 프로젝트 목록 새로고침
       loadProjects('ec2', selectedEC2ServerId);
 
-      // 캔버스로 이동
+      // 캔버스로 이동 (setup 완료 후이므로 stack.yaml이 DB에 저장되어 있음)
       navigate('/canvas', { state: { project } });
     } catch (err) {
       console.error('GitHub 프로젝트 생성 실패:', err);
@@ -518,6 +554,7 @@ export default function ProjectsPage() {
                     isPinned={pinnedProjects.has(project.id)}
                     onDelete={handleDeleteProject}
                     onTogglePin={togglePin}
+                    onSetupCICD={handleSetupCICD}
                   />
                 ))}
             </div>
@@ -598,6 +635,22 @@ export default function ProjectsPage() {
         }}
         editServer={editingServer}
       />
+
+      {/* CI/CD Setup Modal */}
+      {cicdProject && (cicdProject as any)._ec2Server && (
+        <CICDSetupModal
+          isOpen={showCICDSetup}
+          onClose={() => {
+            setShowCICDSetup(false);
+            setCicdProject(null);
+          }}
+          ec2Host={(cicdProject as any)._ec2Server.host}
+          ec2User={(cicdProject as any)._ec2Server.user}
+          ec2SshKey={(cicdProject as any)._ec2Server.pem_path}
+          projectName={cicdProject.name}
+          repoSelectionOnly={false}
+        />
+      )}
     </div>
   );
 }

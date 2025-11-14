@@ -78,88 +78,45 @@ pub async fn deploy_stack(
         return Err("이미 배포가 진행 중입니다".to_string());
     }
 
-    // GitHub 프로젝트인 경우 EC2에서 pull
+    // GitHub 프로젝트인 경우 별도 처리
     if let Some(proj_id) = project_id {
         use crate::db::Database;
         use rusqlite::params;
 
         if let Some(db) = app.try_state::<Database>() {
-            let conn = db.get_conn();
-            let conn_lock = conn.lock().unwrap();
+            let (repo_url, branch, access_token, project_name) = {
+                let conn = db.get_conn();
+                let conn_lock = conn.lock().unwrap();
 
-            let mut stmt = conn_lock.prepare(
-                "SELECT github_repo_url, github_branch, name, workdir, ec2_server_id
-                 FROM projects WHERE id = ?1"
-            ).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
-
-            let (repo_url, branch, project_name, workdir, ec2_server_id):
-                (Option<String>, Option<String>, String, Option<String>, Option<String>) = stmt
-                .query_row(params![&proj_id], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
-                })
-                .map_err(|e| format!("프로젝트 정보 조회 실패: {}", e))?;
-
-            drop(stmt);
-
-            // GitHub 프로젝트인 경우 pull 실행
-            if repo_url.is_some() {
-                app.emit("deployment-log", DeploymentLog {
-                    timestamp: chrono::Utc::now().to_rfc3339(),
-                    level: "info".to_string(),
-                    message: "🔄 Pulling latest changes from GitHub...".to_string(),
-                    data: None,
-                }).unwrap_or(());
-
-                let branch = branch.unwrap_or("main".to_string());
-                let workdir = workdir.unwrap_or("arfni-deploy".to_string());
-                let ec2_server_id = ec2_server_id.ok_or("EC2 server ID not found")?;
-
-                // EC2 서버 정보 조회
                 let mut stmt = conn_lock.prepare(
-                    "SELECT host, user, pem_path FROM ec2_servers WHERE id = ?1"
-                ).map_err(|e| format!("EC2 서버 조회 실패: {}", e))?;
+                    "SELECT github_repo_url, github_branch, github_access_token, name, workdir, ec2_server_id
+                     FROM projects WHERE id = ?1"
+                ).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
-                let (host, user, pem_path): (String, String, String) = stmt
-                    .query_row(params![&ec2_server_id], |row| {
-                        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                let (repo_url, branch, access_token, project_name, _workdir, _ec2_server_id):
+                    (Option<String>, Option<String>, Option<String>, String, Option<String>, Option<String>) = stmt
+                    .query_row(params![&proj_id], |row| {
+                        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
                     })
-                    .map_err(|e| format!("EC2 서버 정보 조회 실패: {}", e))?;
+                    .map_err(|e| format!("프로젝트 정보 조회 실패: {}", e))?;
 
                 drop(stmt);
-                drop(conn_lock);
+                // conn_lock은 이 블록을 벗어나면 자동으로 drop됨
 
-                let remote_path = format!("~/{}/{}", workdir, project_name);
+                Ok::<_, String>((repo_url, branch, access_token, project_name))
+            }?;
 
-                // Git pull 실행
-                let pull_cmd = format!("cd {} && git pull origin {}", remote_path, branch);
-
-                let output = std::process::Command::new("ssh")
-                    .args(&[
-                        "-i", &pem_path,
-                        "-o", "StrictHostKeyChecking=no",
-                        "-o", "UserKnownHostsFile=/dev/null",
-                        &format!("{}@{}", user, host),
-                        &pull_cmd,
-                    ])
-                    .output()
-                    .map_err(|e| format!("Git pull 실행 실패: {}", e))?;
-
-                if output.status.success() {
-                    app.emit("deployment-log", DeploymentLog {
-                        timestamp: chrono::Utc::now().to_rfc3339(),
-                        level: "success".to_string(),
-                        message: "✅ Successfully pulled latest changes from GitHub".to_string(),
-                        data: None,
-                    }).unwrap_or(());
-                } else {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    app.emit("deployment-log", DeploymentLog {
-                        timestamp: chrono::Utc::now().to_rfc3339(),
-                        level: "warning".to_string(),
-                        message: format!("⚠️ Git pull warning: {}", stderr),
-                        data: None,
-                    }).unwrap_or(());
-                }
+            // GitHub 프로젝트인 경우 GitHub Actions Workflow로 배포
+            if repo_url.is_some() {
+                // GitHub 프로젝트 배포는 Workflow API로 처리
+                return deploy_github_project_via_workflow(
+                    app,
+                    proj_id,
+                    project_name,
+                    branch.unwrap_or("main".to_string()),
+                    repo_url.unwrap(),
+                    access_token.ok_or("GitHub access token not found")?,
+                ).await;
             }
         }
     }
@@ -793,7 +750,8 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
 
     // 4. Resource 경로들 시도 (배포 환경) - 개발 경로 이후에 확인
     let resource_patterns = vec![
-        format!("bin/{}", binary_name),  // Resource/bin/arfni-go.exe (resources/bin/* 매핑)
+        format!("resources/bin/{}", binary_name),  // Resource/resources/bin/arfni-go.exe (array 방식은 구조 유지)
+        format!("bin/{}", binary_name),  // Resource/bin/arfni-go.exe (fallback)
         binary_name.clone(),  // Resource/arfni-go.exe (fallback)
     ];
 
@@ -1009,4 +967,473 @@ pub async fn start_monitoring(
     println!("✅ Monitoring process started with PID: {}", pid);
 
     Ok(format!("모니터링이 시작되었습니다 (PID: {})", pid))
+}
+
+// GitHub API helper functions
+
+/// Parse GitHub repo URL to extract owner and repo name
+fn parse_github_repo(url: &str) -> Result<(String, String), String> {
+    // Handle both HTTPS and SSH formats
+    // HTTPS: https://github.com/owner/repo.git
+    // SSH: git@github.com:owner/repo.git
+
+    let cleaned = url.trim_end_matches(".git");
+
+    if let Some(parts) = cleaned.strip_prefix("https://github.com/") {
+        let segments: Vec<&str> = parts.split('/').collect();
+        if segments.len() >= 2 {
+            return Ok((segments[0].to_string(), segments[1].to_string()));
+        }
+    } else if let Some(parts) = cleaned.strip_prefix("git@github.com:") {
+        let segments: Vec<&str> = parts.split('/').collect();
+        if segments.len() >= 2 {
+            return Ok((segments[0].to_string(), segments[1].to_string()));
+        }
+    }
+
+    Err(format!("Invalid GitHub URL format: {}", url))
+}
+
+/// Check if GitHub Actions workflow file exists
+async fn check_workflow_exists(
+    owner: &str,
+    repo: &str,
+    token: &str,
+) -> Result<bool, String> {
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/contents/.github/workflows/deploy.yml",
+        owner, repo
+    );
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", "arfni-gui")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to check workflow file: {}", e))?;
+
+    Ok(response.status().is_success())
+}
+
+/// Trigger GitHub Actions workflow dispatch
+async fn trigger_workflow_dispatch(
+    owner: &str,
+    repo: &str,
+    branch: &str,
+    token: &str,
+) -> Result<(), String> {
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/actions/workflows/deploy.yml/dispatches",
+        owner, repo
+    );
+
+    let body = serde_json::json!({
+        "ref": branch,
+    });
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", "arfni-gui")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to trigger workflow: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("Workflow trigger failed: {}", error_text));
+    }
+
+    Ok(())
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct WorkflowRun {
+    id: u64,
+    status: String,
+    conclusion: Option<String>,
+    created_at: String,
+}
+
+#[derive(serde::Deserialize)]
+struct WorkflowRunsResponse {
+    workflow_runs: Vec<WorkflowRun>,
+}
+
+/// Get recent workflow runs
+async fn get_recent_workflow_run(
+    owner: &str,
+    repo: &str,
+    branch: &str,
+    token: &str,
+    created_after: &str,
+) -> Result<Option<WorkflowRun>, String> {
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/actions/workflows/deploy.yml/runs?branch={}&per_page=5",
+        owner, repo, branch
+    );
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", "arfni-gui")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get workflow runs: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Failed to get workflow runs: {}", response.status()));
+    }
+
+    let runs: WorkflowRunsResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse workflow runs: {}", e))?;
+
+    // Find the most recent run created after our trigger time
+    for run in runs.workflow_runs {
+        if run.created_at.as_str() >= created_after {
+            return Ok(Some(run));
+        }
+    }
+
+    Ok(None)
+}
+
+/// Download workflow run logs
+async fn download_workflow_logs(
+    owner: &str,
+    repo: &str,
+    run_id: u64,
+    token: &str,
+) -> Result<String, String> {
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/actions/runs/{}/logs",
+        owner, repo, run_id
+    );
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", "arfni-gui")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download logs: {}", e))?;
+
+    if !response.status().is_success() {
+        return Ok(String::new());
+    }
+
+    response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read logs: {}", e))
+}
+
+/// GitHub 프로젝트를 GitHub Actions Workflow로 배포
+async fn deploy_github_project_via_workflow(
+    app: AppHandle,
+    _project_id: String,
+    project_name: String,
+    branch: String,
+    github_repo_url: String,
+    github_access_token: String,
+) -> Result<DeploymentStatus, String> {
+    println!("[GitHub Deploy] Starting workflow deployment for project: {}", project_name);
+
+    // Parse GitHub repo URL
+    let (owner, repo) = parse_github_repo(&github_repo_url)?;
+    println!("[GitHub Deploy] Repository: {}/{}", owner, repo);
+
+    // 배포 시작 플래그 설정
+    DEPLOYMENT_RUNNING.store(true, Ordering::SeqCst);
+
+    // 배포 시작 이벤트 전송
+    app.emit("deployment-started", DeploymentStatus {
+        status: "deploying".to_string(),
+        message: Some("배포를 시작합니다...".to_string()),
+        outputs: None,
+    }).unwrap_or(());
+
+    // Step 1: Check if workflow file exists
+    app.emit("deployment-log", DeploymentLog {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: "info".to_string(),
+        message: "🔍 Checking CI/CD workflow configuration...".to_string(),
+        data: None,
+    }).unwrap_or(());
+
+    let workflow_exists = check_workflow_exists(&owner, &repo, &github_access_token).await
+        .map_err(|e| {
+            DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+            e
+        })?;
+
+    if !workflow_exists {
+        DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "error".to_string(),
+            message: "❌ CI/CD workflow not configured.".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "📋 To deploy this GitHub project, you need to setup CI/CD first:".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "   1. Go back to Projects page".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "   2. Click 'Setup CI/CD' button on your project card".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "   3. Complete the 5-step CI/CD configuration wizard".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "   4. After setup completes, return here and deploy again".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "💡 This is a one-time setup. Once configured, future deployments will work automatically.".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-failed", DeploymentStatus {
+            status: "failed".to_string(),
+            message: Some("CI/CD가 설정되지 않았습니다. Projects 페이지에서 'Setup CI/CD' 버튼을 클릭하세요.".to_string()),
+            outputs: None,
+        }).unwrap_or(());
+
+        return Err("CI/CD workflow not configured. Please run 'Setup CI/CD' from the project card.".to_string());
+    }
+
+    app.emit("deployment-log", DeploymentLog {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: "success".to_string(),
+        message: "✅ Workflow configuration found".to_string(),
+        data: None,
+    }).unwrap_or(());
+
+    // Step 2: Trigger workflow
+    app.emit("deployment-log", DeploymentLog {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: "info".to_string(),
+        message: format!("🚀 Triggering GitHub Actions workflow (branch: {})...", branch),
+        data: None,
+    }).unwrap_or(());
+
+    let trigger_time = chrono::Utc::now().to_rfc3339();
+
+    trigger_workflow_dispatch(&owner, &repo, &branch, &github_access_token).await
+        .map_err(|e| {
+            DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+            app.emit("deployment-log", DeploymentLog {
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                level: "error".to_string(),
+                message: format!("❌ Failed to trigger workflow: {}", e),
+                data: None,
+            }).unwrap_or(());
+            e
+        })?;
+
+    app.emit("deployment-log", DeploymentLog {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: "success".to_string(),
+        message: "✅ Workflow triggered successfully".to_string(),
+        data: None,
+    }).unwrap_or(());
+
+    // Step 3: Monitor workflow in background thread
+    let app_clone = app.clone();
+    let owner_clone = owner.clone();
+    let repo_clone = repo.clone();
+    let branch_clone = branch.clone();
+    let token_clone = github_access_token.clone();
+
+    tokio::spawn(async move {
+        // Wait a bit for workflow to appear in the API
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+        app_clone.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "⏳ Waiting for workflow to start...".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        let mut last_status = String::new();
+        let mut log_fetched = false;
+
+        // Poll for workflow run (max 2 minutes)
+        for _ in 0..24 {
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+            if let Ok(Some(run)) = get_recent_workflow_run(
+                &owner_clone,
+                &repo_clone,
+                &branch_clone,
+                &token_clone,
+                &trigger_time,
+            ).await {
+
+                if run.status != last_status {
+                    last_status = run.status.clone();
+
+                    let message = match run.status.as_str() {
+                        "queued" => "📋 Workflow queued...",
+                        "in_progress" => "🔄 Workflow running...",
+                        "completed" => {
+                            match run.conclusion.as_deref() {
+                                Some("success") => "✅ Workflow completed successfully!",
+                                Some("failure") => "❌ Workflow failed!",
+                                Some("cancelled") => "⚠️ Workflow cancelled",
+                                _ => "⏹️ Workflow completed",
+                            }
+                        },
+                        _ => &format!("Status: {}", run.status),
+                    };
+
+                    let level = if run.status == "completed" {
+                        if run.conclusion.as_deref() == Some("success") {
+                            "success"
+                        } else {
+                            "error"
+                        }
+                    } else {
+                        "info"
+                    };
+
+                    app_clone.emit("deployment-log", DeploymentLog {
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        level: level.to_string(),
+                        message: message.to_string(),
+                        data: None,
+                    }).unwrap_or(());
+                }
+
+                // If completed, fetch logs and finish
+                if run.status == "completed" {
+                    if !log_fetched {
+                        log_fetched = true;
+
+                        app_clone.emit("deployment-log", DeploymentLog {
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                            level: "info".to_string(),
+                            message: "📥 Fetching workflow logs...".to_string(),
+                            data: None,
+                        }).unwrap_or(());
+
+                        if let Ok(logs) = download_workflow_logs(&owner_clone, &repo_clone, run.id, &token_clone).await {
+                            if !logs.is_empty() {
+                                // Send truncated logs (last 100 lines)
+                                let log_lines: Vec<&str> = logs.lines().collect();
+                                let start = if log_lines.len() > 100 { log_lines.len() - 100 } else { 0 };
+
+                                for line in &log_lines[start..] {
+                                    if !line.trim().is_empty() {
+                                        app_clone.emit("deployment-log", DeploymentLog {
+                                            timestamp: chrono::Utc::now().to_rfc3339(),
+                                            level: "info".to_string(),
+                                            message: line.to_string(),
+                                            data: None,
+                                        }).unwrap_or(());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+
+                    if run.conclusion.as_deref() == Some("success") {
+                        app_clone.emit("deployment-completed", DeploymentStatus {
+                            status: "success".to_string(),
+                            message: Some("배포가 성공적으로 완료되었습니다".to_string()),
+                            outputs: None,
+                        }).unwrap_or(());
+                    } else {
+                        app_clone.emit("deployment-failed", DeploymentStatus {
+                            status: "failed".to_string(),
+                            message: Some(format!("배포 실패: {}", run.conclusion.unwrap_or_default())),
+                            outputs: None,
+                        }).unwrap_or(());
+                    }
+
+                    return;
+                }
+            }
+        }
+
+        // Timeout
+        DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+        app_clone.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "warning".to_string(),
+            message: "⚠️ Workflow monitoring timeout. Check GitHub Actions for status.".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app_clone.emit("deployment-completed", DeploymentStatus {
+            status: "unknown".to_string(),
+            message: Some("워크플로우 모니터링 시간 초과. GitHub Actions에서 상태를 확인하세요.".to_string()),
+            outputs: None,
+        }).unwrap_or(());
+    });
+
+    Ok(DeploymentStatus {
+        status: "deploying".to_string(),
+        message: Some("GitHub Actions 워크플로우 실행 중...".to_string()),
+        outputs: None,
+    })
 }

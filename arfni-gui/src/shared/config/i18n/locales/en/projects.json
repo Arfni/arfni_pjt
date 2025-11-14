@@ -189,7 +189,44 @@
       "proxy": "Proxy",
       "cicd": "CI/CD",
       "orchestration": "Orchestration",
-      "monitoring": "Monitoring"
+      "monitoring": "Monitoring",
+      "custom": "Custom"
+    },
+    "custom": {
+      "title": "Custom Plugins",
+      "selectFolder": "Select Plugin Folder",
+      "addPlugin": "Add Plugin",
+      "importPlugin": "Import Plugin",
+      "requirements": {
+        "title": "Plugin Folder Requirements",
+        "pluginYaml": "Must contain plugin.yaml file",
+        "icon": "icon.png file (128x128px recommended)",
+        "structure": "Must follow valid plugin structure"
+      },
+      "notes": {
+        "title": "Notes",
+        "category": "Added plugins will be displayed in 'Custom' category",
+        "management": "Can be managed in Plugin Manager",
+        "usage": "Available immediately in canvas after adding"
+      },
+      "errors": {
+        "noFolder": "Please select a plugin folder first.",
+        "selectFailed": "Failed to select folder.",
+        "importFailed": "Failed to import plugin:"
+      },
+      "tutorial": {
+        "pageTitle": "Add Custom Plugin",
+        "pageDescription": "Import a local plugin folder to use in ARFNI",
+        "folderLabel": "Plugin Folder",
+        "requirementsTitle": "Plugin Folder Requirements",
+        "requirement1": "• Must contain plugin.yaml file",
+        "requirement2": "• icon.png file (128x128px recommended)",
+        "requirement3": "• Must follow valid plugin structure",
+        "notesTitle": "Notes",
+        "note1": "• Added plugins will be displayed in 'Custom' category",
+        "note2": "• Can be managed in Plugin Manager",
+        "note3": "• Available immediately in canvas after adding"
+      }
     },
     "cache": {
       "lastSynced": "Last synced:",
@@ -203,12 +240,18 @@
     "empty": {
       "noBundled": "No bundled plugins found matching your search.",
       "noInstalled": "No installed plugins found. Install plugins from GitHub using the URL above.",
+      "noCustom": "No custom plugins registered.",
       "noRegistry": "No registry plugins found matching your search."
     },
+    "customPlugins": "Custom Plugins",
     "confirm": {
-      "uninstall": "Are you sure you want to uninstall {{pluginName}}?"
+      "title": "Confirm",
+      "uninstall": "Are you sure you want to uninstall {{pluginName}}?",
+      "yes": "Yes",
+      "no": "No"
     },
     "success": {
+      "title": "Success",
       "installed": "✅ {{message}}",
       "uninstalled": "✅ {{message}}",
       "refreshed": "✅ Registry refreshed successfully"
@@ -251,6 +294,7 @@
     "local": "Local",
     "ec2": "Remote",
     "plugins": "Plugins",
+    "testPage": "Test Page",
     "settings": "Settings"
   }
 }

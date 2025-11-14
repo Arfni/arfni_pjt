@@ -1,11 +1,18 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@shared/ui/Button/Button";
+import { pluginCommands } from "@shared/api/tauri/commands";
+import { open } from "@tauri-apps/plugin-dialog";
+import { pluginService } from "@services/pluginLoader";
+import { useTranslation } from "react-i18next";
 
 export default function PluginTestTutorial() {
   const navigate = useNavigate();
+  const { t } = useTranslation(['projects', 'test']);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-  const [activeSection, setActiveSection] = useState<'guide' | 'checklist' | 'issues'>('guide');
+  const [activeSection, setActiveSection] = useState<'guide' | 'checklist' | 'issues' | 'import'>('guide');
+  const [selectedFolder, setSelectedFolder] = useState<string>("");
+  const [importStatus, setImportStatus] = useState<{type: 'success' | 'error' | null, message: string}>({type: null, message: ""});
 
   const toggleStep = (step: number) => {
     setCompletedSteps(prev =>
@@ -13,31 +20,92 @@ export default function PluginTestTutorial() {
     );
   };
 
+  const handleSelectFolder = async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: t('plugins.custom.selectFolder'),
+      });
+
+      if (selected && typeof selected === 'string') {
+        setSelectedFolder(selected);
+        setImportStatus({type: null, message: ""});
+      }
+    } catch (error) {
+      console.error("폴더 선택 실패:", error);
+      setImportStatus({type: 'error', message: t('plugins.custom.errors.selectFailed')});
+    }
+  };
+
+  const handleImportPlugin = async () => {
+    if (!selectedFolder) {
+      setImportStatus({type: 'error', message: t('plugins.custom.errors.noFolder')});
+      return;
+    }
+
+    try {
+      const result = await pluginCommands.importCustomPlugin(selectedFolder);
+      setImportStatus({type: 'success', message: result});
+      setSelectedFolder("");
+
+      // Reload plugins to reflect the new custom plugin
+      await pluginService.reloadPlugins();
+    } catch (error) {
+      console.error("플러그인 가져오기 실패:", error);
+      setImportStatus({type: 'error', message: String(error)});
+    }
+  };
+
   const steps = [
     {
       id: 1,
-      title: "Plugin Structure Setup",
-      description: "Create your plugin directory with required files",
+      title: t('test:pluginTutorial.steps.step1.title'),
+      description: t('test:pluginTutorial.steps.step1.description'),
       content: (
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Create a new directory under the appropriate category in the <code className="bg-gray-100 px-2 py-1 rounded font-mono text-xs">plugins/</code> folder:
+            {t('test:pluginTutorial.steps.step1.intro')}
           </p>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-xs overflow-x-auto">
-            <div>plugins/</div>
-            <div className="ml-4">└── [category]/</div>
-            <div className="ml-8">└── [your-plugin]/</div>
-            <div className="ml-12">├── plugin.yaml</div>
-            <div className="ml-12">├── README.md</div>
-            <div className="ml-12">├── icon.png (128x128px)</div>
-            <div className="ml-12">├── templates/ (optional)</div>
-            <div className="ml-12">├── hooks/ (optional)</div>
-            <div className="ml-12">└── frameworks/ (optional)</div>
+
+          <div>
+            <h4 className="font-semibold text-sm mb-2 text-gray-900">{t('test:pluginTutorial.steps.step1.folderStructure')}</h4>
+            <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-xs overflow-x-auto">
+              <div>my-plugin/</div>
+              <div className="ml-4">├── plugin.yaml</div>
+              <div className="ml-4">├── icon.png</div>
+              <div className="ml-4">├── README.md</div>
+              <div className="ml-4">├── templates/</div>
+              <div className="ml-8">│   └── docker-compose.yml</div>
+              <div className="ml-4">├── hooks/</div>
+              <div className="ml-8">│   ├── pre-deploy.sh</div>
+              <div className="ml-8">│   └── post-deploy.sh</div>
+              <div className="ml-4">└── frameworks/</div>
+              <div className="ml-8">    └── myframework.yaml</div>
+            </div>
           </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="font-semibold text-blue-900 text-sm mb-2">Valid Categories</div>
-            <div className="text-blue-800 text-sm">
-              framework, database, cache, message_queue, proxy, cicd, orchestration, infrastructure
+
+          <div>
+            <h4 className="font-semibold text-sm mb-2 text-gray-900">{t('test:pluginTutorial.steps.step1.requiredFiles')}</h4>
+            <div className="text-sm text-gray-600 space-y-1 ml-4">
+              <div>• {t('test:pluginTutorial.steps.step1.requiredList.item1')}</div>
+              <div>• {t('test:pluginTutorial.steps.step1.requiredList.item2')}</div>
+              <div>• {t('test:pluginTutorial.steps.step1.requiredList.item3')}</div>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-sm mb-2 text-gray-900">{t('test:pluginTutorial.steps.step1.optionalFiles')}</h4>
+            <div className="text-sm text-gray-600 space-y-1 ml-4">
+              <div>• {t('test:pluginTutorial.steps.step1.optionalList.item1')}</div>
+              <div>• {t('test:pluginTutorial.steps.step1.optionalList.item2')}</div>
+              <div>• {t('test:pluginTutorial.steps.step1.optionalList.item3')}</div>
+            </div>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="text-yellow-800 text-sm">
+              {t('test:pluginTutorial.steps.step1.yamlNote')}
             </div>
           </div>
         </div>
@@ -45,96 +113,41 @@ export default function PluginTestTutorial() {
     },
     {
       id: 2,
-      title: "Write plugin.yaml",
-      description: "Define your plugin metadata and configuration",
+      title: t('test:pluginTutorial.steps.step2.title'),
+      description: t('test:pluginTutorial.steps.step2.description'),
       content: (
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Create your <code className="bg-gray-100 px-2 py-1 rounded font-mono text-xs">plugin.yaml</code> with required fields:
-          </p>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-xs overflow-x-auto">
-            <pre>{`apiVersion: v0.1
-name: my-awesome-plugin
-version: 1.0.0
-category: framework
-description: "Brief description of your plugin"
-author:
-  name: "Your Name"
-  email: "your.email@example.com"
+          <div className="text-sm text-gray-600 space-y-2">
+            <div>{t('test:pluginTutorial.steps.step2.step1')}</div>
+            <div>{t('test:pluginTutorial.steps.step2.step2')}</div>
+            <div>{t('test:pluginTutorial.steps.step2.step3')}</div>
+            <div>{t('test:pluginTutorial.steps.step2.step4')}</div>
+          </div>
 
-provides:
-  frameworks:
-    - django
-    - flask
-  # OR for services:
-  service_kinds:
-    - database
-    - cache
-
-requirements:
-  os:
-    - linux
-    - darwin
-  arch:
-    - amd64
-    - arm64
-
-contributes:
-  port: 8000
-  environment:
-    - name: APP_ENV
-      default: "production"
-      description: "Application environment"
-
-documentation:
-  homepage: "https://example.com"
-  repository: "https://github.com/user/plugin"
-
-tags:
-  - web
-  - python`}</pre>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="text-blue-800 text-sm">
+              {t('test:pluginTutorial.steps.step2.note')}
+            </div>
           </div>
         </div>
       )
     },
     {
       id: 3,
-      title: "Validate Plugin Locally",
-      description: "Run validation script before testing in GUI",
+      title: t('test:pluginTutorial.steps.step3.title'),
+      description: t('test:pluginTutorial.steps.step3.description'),
       content: (
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Before testing in ARFNI GUI, validate your plugin structure:
-          </p>
-          <div className="space-y-3">
-            <div>
-              <h4 className="font-semibold text-sm mb-2">1. Install Dependencies</h4>
-              <div className="bg-gray-900 text-gray-100 p-3 rounded-lg font-mono text-xs">
-                cd scripts<br />
-                npm install
-              </div>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-2">2. Run Validation</h4>
-              <div className="bg-gray-900 text-gray-100 p-3 rounded-lg font-mono text-xs">
-                node generate-registry.js
-              </div>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-2">3. Check Output</h4>
-              <p className="text-sm text-gray-600">
-                The script will validate all plugins and generate <code className="bg-gray-100 px-2 py-1 rounded font-mono text-xs">registry/index.json</code>.
-                Check for validation errors specific to your plugin.
-              </p>
-            </div>
+          <div className="text-sm text-gray-600 space-y-2">
+            <div>{t('test:pluginTutorial.steps.step3.step1')}</div>
+            <div>{t('test:pluginTutorial.steps.step3.step2')}</div>
+            <div>{t('test:pluginTutorial.steps.step3.step3')}</div>
+            <div>{t('test:pluginTutorial.steps.step3.step4')}</div>
           </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="font-semibold text-yellow-900 text-sm mb-2">Common Validation Errors</div>
-            <div className="text-yellow-800 text-sm space-y-1">
-              <div>• Missing required fields (apiVersion, name, version, category)</div>
-              <div>• Invalid category name</div>
-              <div>• Invalid version format (must be semantic: X.Y.Z)</div>
-              <div>• Missing provides.frameworks or provides.service_kinds</div>
+
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="text-green-800 text-sm">
+              {t('test:pluginTutorial.steps.step3.tip')}
             </div>
           </div>
         </div>
@@ -142,41 +155,22 @@ tags:
     },
     {
       id: 4,
-      title: "Link Plugin to ARFNI GUI",
-      description: "Connect your plugin repository to local ARFNI installation",
+      title: t('test:pluginTutorial.steps.step4.title'),
+      description: t('test:pluginTutorial.steps.step4.description'),
       content: (
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            To test your plugin in the ARFNI GUI, you need to configure it to load from your local development directory:
-          </p>
-          <div className="space-y-3">
-            <div>
-              <h4 className="font-semibold text-sm mb-2">Option 1: Environment Variable (Recommended)</h4>
-              <div className="bg-gray-900 text-gray-100 p-3 rounded-lg font-mono text-xs">
-                # Set plugin directory path<br />
-                export ARFNI_PLUGIN_DIR="/path/to/arfni-plugins"<br />
-                <br />
-                # Run ARFNI GUI<br />
-                npm run tauri dev
-              </div>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-2">Option 2: Symlink Method</h4>
-              <div className="bg-gray-900 text-gray-100 p-3 rounded-lg font-mono text-xs">
-                # Create symlink in ARFNI GUI plugins directory<br />
-                ln -s /path/to/arfni-plugins/plugins ~/.arfni/plugins
-              </div>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-2">Option 3: Configuration File</h4>
-              <p className="text-sm text-gray-600 mb-2">
-                Edit ARFNI config file at <code className="bg-gray-100 px-2 py-1 rounded font-mono text-xs">~/.arfni/config.json</code>:
-              </p>
-              <div className="bg-gray-900 text-gray-100 p-3 rounded-lg font-mono text-xs">
-                {`{
-  "pluginDirectory": "/path/to/arfni-plugins/plugins"
-}`}
-              </div>
+          <div className="text-sm text-gray-600 space-y-2">
+            <div>{t('test:pluginTutorial.steps.step4.step1')}</div>
+            <div>{t('test:pluginTutorial.steps.step4.step2')}</div>
+            <div>{t('test:pluginTutorial.steps.step4.step3')}</div>
+            <div>{t('test:pluginTutorial.steps.step4.step4')}</div>
+            <div>{t('test:pluginTutorial.steps.step4.step5')}</div>
+            <div>{t('test:pluginTutorial.steps.step4.step6')}</div>
+          </div>
+
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <div className="text-purple-800 text-sm">
+              {t('test:pluginTutorial.steps.step4.tip')}
             </div>
           </div>
         </div>
@@ -184,69 +178,42 @@ tags:
     },
     {
       id: 5,
-      title: "Test in ARFNI GUI",
-      description: "Verify your plugin loads and works correctly",
+      title: t('test:pluginTutorial.steps.step5.title'),
+      description: t('test:pluginTutorial.steps.step5.description'),
       content: (
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Once linked, test your plugin in the ARFNI GUI:
-          </p>
-          <div className="space-y-3">
-            <div>
-              <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 text-xs">1</span>
-                Start ARFNI GUI
-              </h4>
-              <div className="bg-gray-900 text-gray-100 p-3 rounded-lg font-mono text-xs">
-                cd arfni-gui<br />
-                npm run tauri dev
-              </div>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 text-xs">2</span>
-                Create New Project
-              </h4>
-              <p className="text-sm text-gray-600">
-                Go to Projects page and create a new project. Your plugin should appear in the available plugins list.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 text-xs">3</span>
-                Add Plugin to Canvas
-              </h4>
-              <p className="text-sm text-gray-600">
-                Open the canvas and drag your plugin from the sidebar. Configure it with test values.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 text-xs">4</span>
-                Generate Files
-              </h4>
-              <p className="text-sm text-gray-600">
-                Use the "Generate" feature to see if your plugin creates the expected template files correctly.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 text-xs">5</span>
-                Test Hooks
-              </h4>
-              <p className="text-sm text-gray-600">
-                If your plugin includes lifecycle hooks, deploy the project and verify hooks execute at the right time.
-              </p>
+          <div className="text-sm text-gray-600 space-y-2">
+            <div>{t('test:pluginTutorial.steps.step5.step1')}</div>
+            <div>{t('test:pluginTutorial.steps.step5.step2')}</div>
+            <div>{t('test:pluginTutorial.steps.step5.step3')}</div>
+            <div>{t('test:pluginTutorial.steps.step5.step4')}</div>
+            <div>{t('test:pluginTutorial.steps.step5.step5')}</div>
+            <div>{t('test:pluginTutorial.steps.step5.step6')}</div>
+          </div>
+
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="text-red-800 text-sm">
+              {t('test:pluginTutorial.steps.step5.errorCheck')}
             </div>
           </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="font-semibold text-blue-900 text-sm mb-2">Debugging Tips</div>
-            <div className="text-blue-800 text-sm space-y-1">
-              <div>• Check browser console for plugin loading errors</div>
-              <div>• Verify plugin appears in registry/index.json</div>
-              <div>• Ensure icon.png is exactly 128x128 pixels</div>
-              <div>• Test with minimal configuration first</div>
-              <div>• Check Tauri backend logs for hook execution errors</div>
+        </div>
+      )
+    },
+    {
+      id: 6,
+      title: t('test:pluginTutorial.steps.step6.title'),
+      description: t('test:pluginTutorial.steps.step6.description'),
+      content: (
+        <div className="space-y-4">
+          <div className="text-sm text-gray-600 space-y-2">
+            <div>{t('test:pluginTutorial.steps.step6.steps.fork')}</div>
+            <div>{t('test:pluginTutorial.steps.step6.steps.addPlugin')}</div>
+            <div>{t('test:pluginTutorial.steps.step6.steps.updateReadme')}</div>
+            <div>{t('test:pluginTutorial.steps.step6.steps.createPR')}</div>
+            <div className="ml-4 space-y-1">
+              <div>{t('test:pluginTutorial.steps.step6.steps.prItems.description')}</div>
+              <div>{t('test:pluginTutorial.steps.step6.steps.prItems.testing')}</div>
+              <div>{t('test:pluginTutorial.steps.step6.steps.prItems.breaking')}</div>
             </div>
           </div>
         </div>
@@ -268,10 +235,10 @@ tags:
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </button>
-            <h1 className="text-3xl font-bold text-gray-900">Plugin Testing Tutorial</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{t('test:pluginTutorial.title')}</h1>
           </div>
           <p className="text-gray-600">
-            Learn how to develop and test ARFNI plugins locally before submitting them to the repository.
+            {t('test:pluginTutorial.description')}
           </p>
         </div>
 
@@ -280,19 +247,25 @@ tags:
             variant={activeSection === 'guide' ? 'primary' : 'secondary'}
             onClick={() => setActiveSection('guide')}
           >
-            Step-by-Step Guide
+            {t('test:pluginTutorial.tabs.guide')}
           </Button>
           <Button
             variant={activeSection === 'checklist' ? 'primary' : 'secondary'}
             onClick={() => setActiveSection('checklist')}
           >
-            Testing Checklist
+            {t('test:pluginTutorial.tabs.checklist')}
           </Button>
           <Button
             variant={activeSection === 'issues' ? 'primary' : 'secondary'}
             onClick={() => setActiveSection('issues')}
           >
-            Common Issues
+            {t('test:pluginTutorial.tabs.issues')}
+          </Button>
+          <Button
+            variant={activeSection === 'import' ? 'primary' : 'secondary'}
+            onClick={() => setActiveSection('import')}
+          >
+            {t('test:pluginTutorial.tabs.import')}
           </Button>
         </div>
 
@@ -345,64 +318,49 @@ tags:
         {activeSection === 'checklist' && (
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Plugin Testing Checklist</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('test:pluginTutorial.checklist.title')}</h2>
               <p className="text-sm text-gray-600 mb-6">
-                Make sure to verify all these items before submitting your plugin
+                {t('test:pluginTutorial.checklist.intro')}
               </p>
 
               <div className="space-y-6">
                 <div>
-                  <h3 className="font-semibold mb-3 text-gray-900">File Structure</h3>
+                  <h3 className="font-semibold mb-3 text-gray-900">{t('test:pluginTutorial.checklist.structure.title')}</h3>
                   <div className="space-y-2 ml-6">
-                    <ChecklistItem>plugin.yaml exists and is valid</ChecklistItem>
-                    <ChecklistItem>README.md with clear documentation</ChecklistItem>
-                    <ChecklistItem>icon.png is exactly 128x128 pixels</ChecklistItem>
-                    <ChecklistItem>All template files use correct Go template syntax</ChecklistItem>
-                    <ChecklistItem>Hook scripts are executable (chmod +x)</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.structure.item1')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.structure.item2')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.structure.item3')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.structure.item4')}</ChecklistItem>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold mb-3 text-gray-900">plugin.yaml Validation</h3>
+                  <h3 className="font-semibold mb-3 text-gray-900">{t('test:pluginTutorial.checklist.functionality.title')}</h3>
                   <div className="space-y-2 ml-6">
-                    <ChecklistItem>apiVersion follows v0.1 format</ChecklistItem>
-                    <ChecklistItem>Version uses semantic versioning (X.Y.Z)</ChecklistItem>
-                    <ChecklistItem>Category is one of 8 valid categories</ChecklistItem>
-                    <ChecklistItem>Has either frameworks or service_kinds in provides</ChecklistItem>
-                    <ChecklistItem>Author information is complete</ChecklistItem>
-                    <ChecklistItem>All required environment variables documented</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.functionality.item1')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.functionality.item2')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.functionality.item3')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.functionality.item4')}</ChecklistItem>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold mb-3 text-gray-900">Functional Testing</h3>
+                  <h3 className="font-semibold mb-3 text-gray-900">{t('test:pluginTutorial.checklist.validation.title')}</h3>
                   <div className="space-y-2 ml-6">
-                    <ChecklistItem>Plugin loads in ARFNI GUI without errors</ChecklistItem>
-                    <ChecklistItem>Plugin appears in correct category</ChecklistItem>
-                    <ChecklistItem>Icon displays correctly in GUI</ChecklistItem>
-                    <ChecklistItem>Configuration inputs render properly</ChecklistItem>
-                    <ChecklistItem>Template files generate with correct values</ChecklistItem>
-                    <ChecklistItem>Lifecycle hooks execute successfully</ChecklistItem>
-                    <ChecklistItem>Works with different input combinations</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.validation.item1')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.validation.item2')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.validation.item3')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.validation.item4')}</ChecklistItem>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold mb-3 text-gray-900">Deployment Testing</h3>
+                  <h3 className="font-semibold mb-3 text-gray-900">{t('test:pluginTutorial.checklist.testing.title')}</h3>
                   <div className="space-y-2 ml-6">
-                    <ChecklistItem>Generated Docker container builds successfully</ChecklistItem>
-                    <ChecklistItem>Application runs without errors</ChecklistItem>
-                    <ChecklistItem>Health checks pass (if implemented)</ChecklistItem>
-                    <ChecklistItem>Port mappings work correctly</ChecklistItem>
-                    <ChecklistItem>Environment variables are set properly</ChecklistItem>
-                  </div>
-                </div>
-
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
-                  <div className="font-semibold text-green-900 text-sm mb-2">Ready to Submit?</div>
-                  <div className="text-green-800 text-sm">
-                    Once all checklist items are verified, you can submit your plugin via Pull Request to the arfni-plugins repository.
-                    Include a detailed description of your plugin and what you tested.
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.testing.item1')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.testing.item2')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.testing.item3')}</ChecklistItem>
+                    <ChecklistItem>{t('test:pluginTutorial.checklist.testing.item4')}</ChecklistItem>
                   </div>
                 </div>
               </div>
@@ -413,50 +371,123 @@ tags:
         {activeSection === 'issues' && (
           <div className="space-y-4">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Common Issues & Solutions</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">{t('test:pluginTutorial.issues.title')}</h2>
 
               <div className="space-y-6">
                 <div>
-                  <h4 className="font-semibold text-sm mb-2 text-gray-900">Plugin not appearing in GUI</h4>
+                  <h4 className="font-semibold text-sm mb-2 text-gray-900">{t('test:pluginTutorial.issues.pluginNotAppearing.title')}</h4>
                   <div className="text-sm text-gray-600 space-y-1">
-                    <div>• Verify ARFNI_PLUGIN_DIR is set correctly</div>
-                    <div>• Check that plugin passed validation (run generate-registry.js)</div>
-                    <div>• Restart ARFNI GUI after adding plugin</div>
-                    <div>• Check browser console for loading errors</div>
+                    <div>{t('test:pluginTutorial.issues.pluginNotAppearing.item1')}</div>
+                    <div>{t('test:pluginTutorial.issues.pluginNotAppearing.item2')}</div>
+                    <div>{t('test:pluginTutorial.issues.pluginNotAppearing.item3')}</div>
+                    <div>{t('test:pluginTutorial.issues.pluginNotAppearing.item4')}</div>
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="font-semibold text-sm mb-2 text-gray-900">Template not generating correctly</h4>
+                  <h4 className="font-semibold text-sm mb-2 text-gray-900">{t('test:pluginTutorial.issues.templateIssues.title')}</h4>
                   <div className="text-sm text-gray-600 space-y-1">
-                    <div>• Verify Go template syntax (use {`{{ .VariableName }}`})</div>
-                    <div>• Check that variable names match contributes.environment</div>
-                    <div>• Test templates with minimal values first</div>
+                    <div>{t('test:pluginTutorial.issues.templateIssues.item1')}</div>
+                    <div>{t('test:pluginTutorial.issues.templateIssues.item2')}</div>
+                    <div>{t('test:pluginTutorial.issues.templateIssues.item3')}</div>
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="font-semibold text-sm mb-2 text-gray-900">Hook script failing</h4>
+                  <h4 className="font-semibold text-sm mb-2 text-gray-900">{t('test:pluginTutorial.issues.hookFailures.title')}</h4>
                   <div className="text-sm text-gray-600 space-y-1">
-                    <div>• Ensure script has execute permissions (chmod +x)</div>
-                    <div>• Add #!/bin/bash shebang at the top</div>
-                    <div>• Test script independently before integration</div>
-                    <div>• Check Tauri backend logs for detailed error messages</div>
+                    <div>{t('test:pluginTutorial.issues.hookFailures.item1')}</div>
+                    <div>{t('test:pluginTutorial.issues.hookFailures.item2')}</div>
+                    <div>{t('test:pluginTutorial.issues.hookFailures.item3')}</div>
+                    <div>{t('test:pluginTutorial.issues.hookFailures.item4')}</div>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-              <h3 className="font-semibold text-blue-900 mb-3">Need Help?</h3>
+              <h3 className="font-semibold text-blue-900 mb-3">{t('test:pluginTutorial.issues.help.title')}</h3>
               <div className="text-blue-800 text-sm">
-                <p className="mb-2">If you encounter issues during plugin development:</p>
+                <p className="mb-2">{t('test:pluginTutorial.issues.help.intro')}</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>Check the full documentation in README.md and README.ko.md</li>
-                  <li>Review existing plugins for reference (Django, PostgreSQL, GitHub Actions)</li>
-                  <li>Open an issue in the arfni-plugins repository</li>
-                  <li>Join the ARFNI community discussions</li>
+                  <li>{t('test:pluginTutorial.issues.help.item1')}</li>
+                  <li>{t('test:pluginTutorial.issues.help.item2')}</li>
+                  <li>{t('test:pluginTutorial.issues.help.item3')}</li>
+                  <li>{t('test:pluginTutorial.issues.help.item4')}</li>
                 </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'import' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">{t('plugins.custom.tutorial.pageTitle')}</h2>
+
+              <div className="space-y-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="font-semibold text-blue-900 text-sm mb-2">{t('plugins.custom.tutorial.requirementsTitle')}</div>
+                  <div className="text-blue-800 text-sm space-y-1">
+                    <div>{t('plugins.custom.tutorial.requirement1')}</div>
+                    <div>{t('plugins.custom.tutorial.requirement2')}</div>
+                    <div>{t('plugins.custom.tutorial.requirement3')}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('plugins.custom.tutorial.folderLabel')}
+                    </label>
+                    <div className="flex gap-3">
+                      <Button
+                        variant="secondary"
+                        onClick={handleSelectFolder}
+                      >
+                        {t('plugins.custom.selectFolder')}
+                      </Button>
+                      {selectedFolder && (
+                        <div className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700 overflow-x-auto">
+                          {selectedFolder}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Button
+                      variant="primary"
+                      onClick={handleImportPlugin}
+                      disabled={!selectedFolder}
+                    >
+                      {t('plugins.custom.addPlugin')}
+                    </Button>
+                  </div>
+
+                  {importStatus.type && (
+                    <div className={`p-4 rounded-lg ${
+                      importStatus.type === 'success'
+                        ? 'bg-green-50 border border-green-200'
+                        : 'bg-red-50 border border-red-200'
+                    }`}>
+                      <div className={`text-sm ${
+                        importStatus.type === 'success' ? 'text-green-800' : 'text-red-800'
+                      }`}>
+                        {importStatus.message}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="font-semibold text-yellow-900 text-sm mb-2">{t('plugins.custom.tutorial.notesTitle')}</div>
+                  <div className="text-yellow-800 text-sm space-y-1">
+                    <div>{t('plugins.custom.tutorial.note1')}</div>
+                    <div>{t('plugins.custom.tutorial.note2')}</div>
+                    <div>{t('plugins.custom.tutorial.note3')}</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

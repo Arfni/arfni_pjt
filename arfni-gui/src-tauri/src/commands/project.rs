@@ -511,36 +511,50 @@ pub fn read_stack_yaml(
     db: State<Database>,
     project_path: String
 ) -> Result<String, String> {
-    // DB에서 프로젝트가 GitHub 프로젝트인지 확인
+    // DB에서 프로젝트 정보 조회 (GitHub 프로젝트인지, stack_yaml이 DB에 저장되어 있는지)
     let conn = db.get_conn();
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT github_repo_url, name FROM projects WHERE path = ?1"
+        "SELECT github_repo_url, name, stack_yaml FROM projects WHERE path = ?1"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
-    let project_info: Option<(Option<String>, String)> = stmt
-        .query_row(params![&project_path], |row| Ok((row.get(0)?, row.get(1)?)))
+    let project_info: Option<(Option<String>, String, Option<String>)> = stmt
+        .query_row(params![&project_path], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
         .ok();
 
     drop(stmt);
     drop(conn);
 
-    // GitHub 프로젝트면 기본 stack.yaml 반환
-    if let Some((Some(_github_url), project_name)) = project_info {
-        let default_yaml = format!(r#"apiVersion: v0.1
-name: {}
+    // GitHub 프로젝트이고 DB에 stack_yaml이 저장되어 있으면 그걸 반환
+    if let Some((Some(_github_url), project_name, stack_yaml_from_db)) = project_info {
+        if let Some(yaml_content) = stack_yaml_from_db {
+            println!("[read_stack_yaml] Returning stack.yaml from database for project: {}", project_name);
+            return Ok(yaml_content);
+        }
 
-targets:
-  ec2:
-    type: ec2.ssh
+        // DB에 없으면 기본 템플릿 반환
+        println!("[read_stack_yaml] No stack.yaml in DB, returning default template for: {}", project_name);
+        let default_yaml = format!(r#"# ARFNI Stack Configuration
+version: "1.0"
 
-services:
-  # 서비스를 여기에 추가하세요
+# Project metadata
+metadata:
+  name: {}
+  description: "Auto-generated stack configuration"
+
+# Services configuration
+services: {{}}
+
+# Network configuration
+networks:
+  default:
+    driver: bridge
 "#, project_name);
         return Ok(default_yaml);
     }
 
+    // 일반 로컬 프로젝트는 파일에서 읽기
     let stack_yaml_path = Path::new(&project_path).join("stack.yaml");
 
     if !stack_yaml_path.exists() {
@@ -869,7 +883,7 @@ pub fn delete_project(
     let conn = conn.lock().unwrap();
 
     let project: Project = conn.query_row(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, stack_yaml_path, description
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, stack_yaml_path, description, github_repo_url, github_branch, github_access_token
          FROM projects WHERE id = ?1",
         params![&project_id],
         |row| {
@@ -885,6 +899,9 @@ pub fn delete_project(
                 updated_at: row.get(8)?,
                 stack_yaml_path: row.get(9)?,
                 description: row.get(10)?,
+                github_repo_url: row.get(11)?,
+                github_branch: row.get(12)?,
+                github_access_token: row.get(13)?,
             })
         },
     ).map_err(|e| format!("프로젝트를 찾을 수 없습니다: {}", e))?;
@@ -1179,4 +1196,271 @@ pub async fn commit_stack_yaml_to_github(
 
     println!("[GitHub Commit] ✅ stack.yaml committed and pushed to GitHub");
     Ok("stack.yaml committed successfully".to_string())
+}
+
+/// GitHub 프로젝트 전체 설정: 클론 + stack.yaml 생성 + workflow 생성 + 커밋
+#[tauri::command]
+pub async fn setup_github_project_with_cicd(
+    db: State<'_, Database>,
+    project_id: String,
+    ec2_server_id: String,
+) -> Result<String, String> {
+    println!("[GitHub Setup] Starting full GitHub project setup for project: {}", project_id);
+
+    // Step 1: EC2에 레포지토리 클론
+    println!("[GitHub Setup] Step 1: Cloning repository to EC2...");
+    clone_github_repo_on_ec2(db.clone(), project_id.clone(), ec2_server_id.clone()).await?;
+
+    // Step 2: 프로젝트 정보 조회
+    println!("[GitHub Setup] Step 2: Getting project info...");
+    let conn = db.get_conn();
+    let conn_lock = conn.lock().unwrap();
+
+    let mut stmt = conn_lock.prepare(
+        "SELECT github_repo_url, github_branch, github_access_token, name, workdir, ec2_server_id
+         FROM projects WHERE id = ?1"
+    ).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
+
+    let (repo_url, branch, access_token, project_name, workdir, db_ec2_server_id):
+        (Option<String>, Option<String>, Option<String>, String, Option<String>, Option<String>) = stmt
+        .query_row(params![&project_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
+        })
+        .map_err(|e| format!("프로젝트 정보 조회 실패: {}", e))?;
+
+    drop(stmt);
+
+    let _repo_url = repo_url.ok_or("Not a GitHub project")?;
+    let branch = branch.unwrap_or("main".to_string());
+    let access_token = access_token.ok_or("GitHub access token not found")?;
+    let workdir = workdir.unwrap_or("arfni-deploy".to_string());
+    let db_ec2_server_id = db_ec2_server_id.ok_or("EC2 server ID not found")?;
+
+    // EC2 서버 정보 조회
+    let mut stmt = conn_lock.prepare(
+        "SELECT host, user, pem_path FROM ec2_servers WHERE id = ?1"
+    ).map_err(|e| format!("EC2 서버 조회 실패: {}", e))?;
+
+    let (host, user, pem_path): (String, String, String) = stmt
+        .query_row(params![&db_ec2_server_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .map_err(|e| format!("EC2 서버 정보 조회 실패: {}", e))?;
+
+    drop(stmt);
+    drop(conn_lock);
+
+    let remote_path = format!("~/{}/{}", workdir, project_name);
+
+    // Step 3: 기본 stack.yaml 생성
+    println!("[GitHub Setup] Step 3: Generating basic stack.yaml...");
+    let stack_yaml = format!(r#"# ARFNI Stack Configuration
+version: "1.0"
+
+# Project metadata
+metadata:
+  name: {}
+  description: "Auto-generated stack configuration"
+
+# Services configuration
+services: {{}}
+
+# Network configuration
+networks:
+  default:
+    driver: bridge
+"#, project_name);
+
+    // Step 4: GitHub에 stack.yaml 커밋
+    println!("[GitHub Setup] Step 4: Committing stack.yaml to GitHub...");
+
+    // Git push를 위한 URL 구성 (토큰 포함)
+    // 원본 URL에서 레포 경로 추출 (예: parkdu7/arfni-test)
+    let repo_path = _repo_url
+        .trim_end_matches(".git")
+        .replace("https://github.com/", "")
+        .replace("http://github.com/", "");
+
+    let push_url = format!("https://{}@github.com/{}.git", access_token, repo_path);
+
+    // EC2에서 실행할 Git 명령어들
+    let commands = vec![
+        // stack.yaml 생성
+        format!("cat > {}/stack.yaml << 'EOF'\n{}\nEOF", remote_path, stack_yaml),
+        // Git add
+        format!("cd {} && git add stack.yaml", remote_path),
+        // Git commit
+        format!("cd {} && git commit -m 'Add stack.yaml configuration'", remote_path),
+        // Git push (토큰 포함 URL 사용)
+        format!("cd {} && git push {} {}", remote_path, push_url, branch),
+    ];
+
+    // SSH로 명령어 실행
+    for (i, cmd) in commands.iter().enumerate() {
+        println!("[GitHub Setup] Executing command {}/{}", i + 1, commands.len());
+
+        let log_cmd = if cmd.contains(&access_token) {
+            cmd.replace(&access_token, "***TOKEN***")
+        } else {
+            cmd.clone()
+        };
+        println!("[GitHub Setup] Command: {}", log_cmd);
+
+        let output = std::process::Command::new("ssh")
+            .args(&[
+                "-i", &pem_path,
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
+                &format!("{}@{}", user, host),
+                cmd,
+            ])
+            .output()
+            .map_err(|e| format!("SSH 명령 실행 실패: {}", e))?;
+
+        // git commit 명령은 변경사항이 없으면 실패할 수 있으므로 무시
+        if !output.status.success() && !cmd.contains("git commit") {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Git 명령 실패: {}", stderr));
+        }
+
+        println!("[GitHub Setup] Command {} completed", i + 1);
+    }
+
+    println!("[GitHub Setup] ✅ GitHub project setup completed");
+
+    // Step 5: stack.yaml을 프로젝트 DB에 저장
+    println!("[GitHub Setup] Step 5: Saving stack.yaml to project DB...");
+    let conn = db.get_conn();
+    let conn_lock = conn.lock().unwrap();
+
+    conn_lock.execute(
+        "UPDATE projects SET stack_yaml = ?1 WHERE id = ?2",
+        params![&stack_yaml, &project_id],
+    ).map_err(|e| format!("Failed to save stack.yaml to DB: {}", e))?;
+
+    drop(conn_lock);
+
+    println!("[GitHub Setup] ✅ All setup completed successfully");
+    Ok(format!("Project '{}' setup completed with basic stack.yaml", project_name))
+}
+
+/// stack.yaml을 GitHub에 커밋하고 푸시 (배포 시 사용)
+#[tauri::command]
+pub async fn commit_and_push_stack_yaml(
+    db: State<'_, Database>,
+    project_id: String,
+    yaml_content: String,
+) -> Result<String, String> {
+    println!("[GitHub Commit] Starting commit for project: {}", project_id);
+
+    // Step 1: 프로젝트 정보 조회
+    let (repo_url, branch, access_token, project_name, workdir, host, user, pem_path) = {
+        let conn = db.get_conn();
+        let conn_lock = conn.lock().unwrap();
+
+        let mut stmt = conn_lock.prepare(
+            "SELECT github_repo_url, github_branch, github_access_token, name, workdir, ec2_server_id
+             FROM projects WHERE id = ?1"
+        ).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
+
+        let (repo_url, branch, access_token, project_name, workdir, ec2_server_id):
+            (Option<String>, Option<String>, Option<String>, String, Option<String>, Option<String>) = stmt
+            .query_row(params![&project_id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
+            })
+            .map_err(|e| format!("프로젝트 정보 조회 실패: {}", e))?;
+
+        drop(stmt);
+
+        // GitHub 정보 확인
+        let _repo_url = repo_url.ok_or("GitHub repository URL not found")?;
+        let branch = branch.unwrap_or("main".to_string());
+        let access_token = access_token.ok_or("GitHub access token not found")?;
+        let workdir = workdir.unwrap_or("arfni-deploy".to_string());
+        let ec2_server_id = ec2_server_id.ok_or("EC2 server ID not found")?;
+
+        // EC2 서버 정보 조회
+        let mut stmt = conn_lock.prepare(
+            "SELECT host, user, pem_path FROM ec2_servers WHERE id = ?1"
+        ).map_err(|e| format!("EC2 서버 조회 실패: {}", e))?;
+
+        let (host, user, pem_path): (String, String, String) = stmt
+            .query_row(params![&ec2_server_id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })
+            .map_err(|e| format!("EC2 서버 정보 조회 실패: {}", e))?;
+
+        drop(stmt);
+        // conn_lock은 이 블록을 벗어나면 자동으로 drop됨
+
+        Ok::<_, String>((_repo_url, branch, access_token, project_name, workdir, host, user, pem_path))
+    }?;
+
+    println!("[GitHub Commit] Committing to {}@{}", user, host);
+
+    // Step 2: EC2에 SSH로 연결해서 stack.yaml 업데이트 및 커밋
+    let remote_path = format!("~/{}/{}", workdir, project_name);
+
+    // Git push URL 생성
+    let repo_path = repo_url
+        .trim_end_matches(".git")
+        .replace("https://github.com/", "");
+    let push_url = format!("https://{}@github.com/{}.git", access_token, repo_path);
+
+    let commands = vec![
+        // stack.yaml 파일 업데이트
+        format!("cat > {}/stack.yaml << 'EOF'\n{}\nEOF", remote_path, yaml_content),
+        // Git add
+        format!("cd {} && git add stack.yaml", remote_path),
+        // Git commit
+        format!("cd {} && git commit -m 'Update stack.yaml from deployment'", remote_path),
+        // Git push
+        format!("cd {} && git push {} {}", remote_path, push_url, branch),
+    ];
+
+    // SSH로 명령어 실행
+    for (i, cmd) in commands.iter().enumerate() {
+        println!("[GitHub Commit] Executing command {}/{}", i + 1, commands.len());
+
+        // 토큰이 포함된 명령어는 로그에서 숨김
+        let log_cmd = if cmd.contains(&access_token) {
+            cmd.replace(&access_token, "***TOKEN***")
+        } else {
+            cmd.clone()
+        };
+        println!("[GitHub Commit] Command: {}", log_cmd);
+
+        let output = tokio::process::Command::new("ssh")
+            .arg("-i")
+            .arg(&pem_path)
+            .arg("-o")
+            .arg("StrictHostKeyChecking=no")
+            .arg(format!("{}@{}", user, host))
+            .arg(cmd)
+            .output()
+            .await
+            .map_err(|e| format!("SSH 실행 실패: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Git 명령 실패: {}", stderr));
+        }
+
+        println!("[GitHub Commit] Command {} completed", i + 1);
+    }
+
+    // Step 3: DB에도 업데이트
+    {
+        let conn = db.get_conn();
+        let conn_lock = conn.lock().unwrap();
+
+        conn_lock.execute(
+            "UPDATE projects SET stack_yaml = ?1 WHERE id = ?2",
+            params![&yaml_content, &project_id],
+        ).map_err(|e| format!("Failed to update stack.yaml in DB: {}", e))?;
+        // conn_lock은 이 블록을 벗어나면 자동으로 drop됨
+    }
+
+    println!("[GitHub Commit] ✅ stack.yaml committed and pushed successfully");
+    Ok(format!("stack.yaml committed to GitHub for project '{}'", project_name))
 }

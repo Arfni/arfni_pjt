@@ -8,7 +8,7 @@ export interface PluginManifest {
   name: string;
   displayName: string;
   version: string;
-  category: 'database' | 'framework' | 'cache' | 'proxy' | 'cicd' | 'orchestration' | 'monitoring';
+  category: 'database' | 'framework' | 'cache' | 'proxy' | 'cicd' | 'orchestration' | 'monitoring' | 'custom';
   description: string;
   author: string;
   license: string;
@@ -52,6 +52,7 @@ export interface LoadedPlugin {
   path: string;
   iconPath: string;
   isBundled: boolean;
+  isCustomPlugin: boolean; // True if plugin is in custom/ folder
   frameworkDefinition?: any; // Framework definition from frameworks/*.yaml
 }
 
@@ -116,7 +117,7 @@ class PluginService {
   private async loadBundledPluginsStatic(): Promise<void> {
     try {
       const bundledPath = 'plugins/bundled';
-      const categories = ['database', 'framework', 'cache', 'proxy', 'cicd', 'orchestration', 'monitoring'];
+      const categories = ['database', 'framework', 'cache', 'proxy', 'cicd', 'orchestration', 'monitoring', 'custom'];
 
       for (const category of categories) {
         const categoryPath = `${bundledPath}/${category}`;
@@ -167,7 +168,8 @@ class PluginService {
         manifest,
         path: pluginPath,
         iconPath,
-        isBundled: true
+        isBundled: true,
+        isCustomPlugin: false // Bundled plugins are never custom
       };
 
       this.plugins.set(manifest.name, plugin);
@@ -202,7 +204,7 @@ class PluginService {
         try {
           // For each installed plugin, try to find its manifest
           // We need to search through category directories since PluginInfo doesn't include category
-          const categories = ['database', 'framework', 'cache', 'proxy', 'cicd', 'orchestration', 'monitoring'];
+          const categories = ['database', 'framework', 'cache', 'proxy', 'cicd', 'orchestration', 'monitoring', 'custom'];
 
           let manifest: PluginManifest | null = null;
           let foundCategory: string | null = null;
@@ -215,6 +217,7 @@ class PluginService {
               });
 
               manifest = yaml.load(manifestYaml) as PluginManifest;
+              // Use the directory category for file paths
               foundCategory = category;
               break;
             } catch {
@@ -228,6 +231,8 @@ class PluginService {
             continue;
           }
 
+          // Use the directory category for file paths (foundCategory)
+          // The manifest.category is used for UI display and filtering
           const pluginPath = `plugins/installed/${foundCategory}/${pluginInfo.name}`;
           const iconPath = `${pluginPath}/icon.png`;
 
@@ -235,9 +240,11 @@ class PluginService {
             manifest,
             path: pluginPath,
             iconPath,
-            isBundled: false
+            isBundled: false,
+            isCustomPlugin: foundCategory === 'custom' // Mark as custom if in custom/ folder
           };
 
+          // Use manifest.name as the key (name collision is prevented by Rust validation)
           this.plugins.set(manifest.name, plugin);
           console.log(`Loaded installed plugin: ${manifest.displayName || manifest.name}`);
         } catch (error) {

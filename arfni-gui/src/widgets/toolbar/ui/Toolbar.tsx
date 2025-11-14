@@ -170,8 +170,14 @@ export function Toolbar() {
       alert('먼저 프로젝트를 생성하거나 열어주세요.');
       return;
     }
+
+    // Start loading immediately
+    setIsDeploying(true);
+    dispatch(startDeployment());
+
     if (isDirty) {
       try {
+        console.log('[Deploy] Saving stack.yaml...');
         let ec2Server = null;
         if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
           ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
@@ -211,8 +217,24 @@ export function Toolbar() {
           },
         })).unwrap();
         dispatch(setDirty(false));
+        console.log('[Deploy] stack.yaml saved');
+
+        // If GitHub project, commit and push to GitHub
+        if (currentProject.github_repo_url) {
+          try {
+            console.log('[Deploy] Committing stack.yaml to GitHub...');
+            await projectCommands.commitAndPushStackYaml(currentProject.id, yamlContent);
+            console.log('[Deploy] stack.yaml committed to GitHub');
+          } catch (commitError) {
+            console.error('[Deploy] GitHub commit failed:', commitError);
+            alert(`GitHub 커밋 실패: ${commitError}`);
+            setIsDeploying(false);
+            return;
+          }
+        }
       } catch (error) {
         alert(`저장 실패: ${error}`);
+        setIsDeploying(false);
         return;
       }
     }
@@ -221,24 +243,31 @@ export function Toolbar() {
         const hasDocker = await deploymentCommands.checkDocker();
         if (!hasDocker) {
           alert('Docker가 설치되어 있지 않습니다.');
+          setIsDeploying(false);
           return;
         }
         const isDockerRunning = await deploymentCommands.checkDockerRunning();
         if (!isDockerRunning) {
           alert('Docker가 실행되고 있지 않습니다.');
+          setIsDeploying(false);
           return;
         }
       } catch (error) {
         alert(`Docker 검증 실패: ${error}`);
+        setIsDeploying(false);
         return;
       }
     }
-    dispatch(startDeployment());
-    setIsDeploying(true);
+
+    // Start deployment
+    console.log('[Deploy] Starting deployment...');
     try {
       const stackYamlPath = `${currentProject.path}/stack.yaml`;
       const result = await deploymentCommands.deployStack(currentProject.path, stackYamlPath, currentProject.id);
-      if (result.status === 'deploying') navigate('/deployment', { replace: true });
+      if (result.status === 'deploying') {
+        console.log('[Deploy] Navigating to deployment page');
+        navigate('/deployment', { replace: true });
+      }
     } catch (error) {
       alert(`배포 실패: ${error}`);
       setIsDeploying(false);

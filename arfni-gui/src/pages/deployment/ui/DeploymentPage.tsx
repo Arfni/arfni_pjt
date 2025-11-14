@@ -401,7 +401,11 @@ export function DeploymentPage() {
           stats={stats}
           endpoints={endpoints}
           isEC2Deployment={currentProject?.environment === 'ec2'}
-          ec2Server={ec2Server || undefined}
+          ec2Server={ec2Server ? {
+            host: ec2Server.host,
+            user: ec2Server.user,
+            pemPath: ec2Server.pem_path
+          } : undefined}
           projectName={currentProject?.name}
         />
 

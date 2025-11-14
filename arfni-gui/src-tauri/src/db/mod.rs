@@ -136,6 +136,16 @@ impl Database {
             println!("✅ Migration 005 completed");
         }
 
+        // Migration 006: stack_yaml 컬럼 추가
+        if current_version < 6 {
+            println!("⬆️ Running migration 006...");
+            let migration_sql = include_str!("../../migrations/006_add_stack_yaml.sql");
+            conn.execute_batch(migration_sql)
+                .context("Failed to run migration 006")?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (6)", [])?;
+            println!("✅ Migration 006 completed");
+        }
+
         println!("✅ All database migrations completed successfully");
         Ok(())
     }

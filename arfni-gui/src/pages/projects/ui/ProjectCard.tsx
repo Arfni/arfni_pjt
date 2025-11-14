@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Server, Loader2, Trash2, Laptop, Github } from 'lucide-react';
+import { Calendar, Server, Loader2, Trash2, Laptop, Github, Rocket } from 'lucide-react';
 import { Project, CanvasNode, CanvasEdge, projectCommands } from '@shared/api/tauri/commands';
 import { CanvasPreview } from './CanvasPreview';
 import { useAppDispatch } from '@app/hooks';
 import { openProject, clearError } from '@features/project';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
+import { useState } from 'react';
 
 // Star Icon Component
 const StarIcon = ({ filled, onClick, className }: { filled: boolean; onClick?: (e: React.MouseEvent) => void; className?: string }) => (
@@ -35,9 +36,10 @@ interface ProjectCardProps {
   isPinned: boolean;
   onDelete: (project: Project, e: React.MouseEvent) => Promise<void>;
   onTogglePin: (projectId: string, e: React.MouseEvent) => void;
+  onSetupCICD?: (project: Project) => void;
 }
 
-export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDelete, onTogglePin }: ProjectCardProps) {
+export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDelete, onTogglePin, onSetupCICD }: ProjectCardProps) {
   const { t } = useTranslation('projects');
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -180,6 +182,24 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
             </div>
           )}
         </div>
+
+        {/* CI/CD Setup Button - GitHub 프로젝트만 */}
+        {project.github_repo_url && onSetupCICD && (
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetupCICD(project);
+              }}
+              disabled={isDeleting}
+              className="w-full px-4 py-2.5 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 transition-all font-medium flex items-center justify-center gap-2"
+              style={{ borderRadius: '10px' }}
+            >
+              <Rocket className="w-4 h-4" />
+              Setup CI/CD Pipeline
+            </button>
+          </div>
+        )}
 
         <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
           {project.environment === 'ec2' && (

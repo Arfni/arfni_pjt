@@ -104,11 +104,13 @@ export const setupCICD = createAsyncThunk<
       if (!accessToken) throw new Error('No access token');
 
       const { invoke } = await import('@tauri-apps/api/core');
-      await invoke<string>('setup_cicd', {
-        config,
-        accessToken,
-        sshKey,
-      });
+      const params = {
+        config: config,
+        accessToken: accessToken,
+        sshKey: sshKey,
+      };
+      console.log('[CICD] Calling setup_cicd with params:', params);
+      await invoke<string>('setup_cicd', params);
       return config;
     } catch (error) {
       return rejectWithValue(String(error));

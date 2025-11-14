@@ -106,6 +106,7 @@ fn main() {
       commands::plugin::list_bundled_plugins,
       commands::plugin::read_bundled_plugin_manifest,
       commands::plugin::read_plugin_icon,
+      commands::plugin::import_custom_plugin,
       commands::plugin_check::list_targets,
       commands::plugin_check::read_plugins,
 
@@ -129,6 +130,8 @@ fn main() {
       commands::project::close_project,
       commands::project::clone_github_repo_on_ec2,
       commands::project::commit_stack_yaml_to_github,
+      commands::project::setup_github_project_with_cicd,
+      commands::project::commit_and_push_stack_yaml,
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,

@@ -187,6 +187,11 @@ export const projectCommands = {
     return await invoke('delete_project_from_db_only', { projectId });
   },
 
+  // stack.yaml을 GitHub에 커밋/푸시
+  commitAndPushStackYaml: async (projectId: string, yamlContent: string): Promise<string> => {
+    return await invoke('commit_and_push_stack_yaml', { projectId, yamlContent });
+  },
+
   // GitHub 레포지토리 EC2에 클론
   cloneGithubRepoOnEc2: async (projectId: string, ec2ServerId: string): Promise<string> => {
     return await invoke('clone_github_repo_on_ec2', { projectId, ec2ServerId });
@@ -195,6 +200,11 @@ export const projectCommands = {
   // stack.yaml을 GitHub에 커밋
   commitStackYamlToGithub: async (projectId: string, yamlContent: string): Promise<string> => {
     return await invoke('commit_stack_yaml_to_github', { projectId, yamlContent });
+  },
+
+  // GitHub 프로젝트 전체 설정 (클론 + stack.yaml + workflow 생성 + 커밋)
+  setupGithubProjectWithCicd: async (projectId: string, ec2ServerId: string): Promise<string> => {
+    return await invoke('setup_github_project_with_cicd', { projectId, ec2ServerId });
   },
 };
 
@@ -407,5 +417,9 @@ export const pluginCommands = {
 
   readPlugins: async (): Promise<any> => {
     return await invoke('read_plugins');
+  },
+
+  importCustomPlugin: async (folderPath: string): Promise<string> => {
+    return await invoke('import_custom_plugin', { folderPath });
   },
 };
