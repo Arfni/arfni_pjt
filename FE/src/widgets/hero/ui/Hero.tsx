@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { FiDownload, FiGithub, FiArrowDown } from 'react-icons/fi';
 import { Container, Button } from '../../../shared/ui';
-import { DOWNLOAD_LINKS, SOCIAL_LINKS } from '../../../shared/config';
+import { SOCIAL_LINKS } from '../../../shared/config';
 import { useEffect, useState } from "react";
 import { DownloadConfirmModal } from '../DownloadModal.tsx/DownloadConfirmModal';
 
@@ -27,7 +27,13 @@ const [isModalOpen, setIsModalOpen] = useState(false);
   
   const confirmDownload = () => {
     setIsModalOpen(false);
-    window.open(DOWNLOAD_LINKS.windows, "_blank");
+
+    const cleanVersion = version.startsWith("v") ? version.substring(1) : version;
+
+    window.open(
+      `https://github.com/Arfni/arfni_pjt/releases/download/${cleanVersion}/Setup.exe`,
+      "_blank"
+    );
   };
 
   const cancelDownload = () => {
