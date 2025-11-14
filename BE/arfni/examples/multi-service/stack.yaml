@@ -1,0 +1,64 @@
+apiVersion: v0.1
+name: multi-service-example
+targets:
+  local:
+    type: docker-desktop
+secrets:
+  - MYSQL_ROOT_PASSWORD
+  - MYSQL_PASSWORD
+services:
+  mysql:
+    kind: docker.container
+    target: local
+    spec:
+      image: mysql:8.0
+      env:
+        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+        MYSQL_DATABASE: app
+        MYSQL_USER: app
+        MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      ports:
+        - "3306:3306"
+      volumes:
+        - host: ./data/mysql
+          mount: /var/lib/mysql
+      health:
+        tcp:
+          port: 3306
+
+  redis:
+    kind: docker.container
+    target: local
+    spec:
+      image: redis:7
+      ports:
+        - "6379:6379"
+      health:
+        tcp:
+          port: 6379
+
+  api:
+    kind: docker.container
+    target: local
+    spec:
+      build: ./app
+      dependsOn:
+        - mysql
+        - redis
+      env:
+        DB_HOST: mysql
+        DB_PORT: "3306"
+        DB_NAME: app
+        DB_USER: app
+        DB_PASSWORD: ${MYSQL_PASSWORD}
+        REDIS_HOST: redis
+        REDIS_PORT: "6379"
+      ports:
+        - "8080:8080"
+      health:
+        httpGet:
+          path: /health
+          port: 8080
+outputs:
+  api_url: http://localhost:8080
+  mysql_host: localhost:3306

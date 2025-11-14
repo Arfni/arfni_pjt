@@ -1,0 +1,28 @@
+apiVersion: v0.1
+name: ec2-deployment-example
+targets:
+  ec2:
+    type: ec2.ssh
+    host: ec2-xxx-xxx-xxx-xxx.compute.amazonaws.com
+    user: ec2-user
+    sshKey: ~/.ssh/my-key.pem
+    workdir: /home/ec2-user/app
+secrets:
+  - APP_SECRET
+services:
+  web:
+    kind: docker.container
+    target: ec2
+    spec:
+      build: ./app
+      env:
+        APP_SECRET: ${APP_SECRET}
+        PORT: "8080"
+      ports:
+        - "80:8080"
+      health:
+        httpGet:
+          path: /health
+          port: 8080
+outputs:
+  web_url: http://${ref:ec2.host}

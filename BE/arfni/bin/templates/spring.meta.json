@@ -1,0 +1,36 @@
+{
+  "name": "Spring Boot CI/CD",
+  "description": "Build and deploy Spring Boot JAR to EC2 using GitHub Actions.",
+  "vars": [
+    {
+      "key": "BRANCH",
+      "label": "Branch",
+      "default": "main",
+      "type": "string"
+    },
+    {
+      "key": "JAVA_VERSION",
+      "label": "Java Version",
+      "default": "17",
+      "type": "string"
+    },
+    {
+      "key": "JAVA_DIST",
+      "label": "Java Distribution",
+      "default": "temurin",
+      "type": "string"
+    },
+    {
+      "key": "DEPLOY_ROOT",
+      "label": "Deploy Root Path",
+      "default": "/home/ubuntu/arfni-deploy",
+      "type": "string"
+    },
+    {
+      "key": "DOCKER_SERVICE",
+      "label": "Docker Service Name",
+      "default": "spring",
+      "type": "string"
+    }
+  ]
+}

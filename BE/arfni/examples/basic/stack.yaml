@@ -1,0 +1,17 @@
+apiVersion: v0.1
+name: basic-example
+targets:
+  local:
+    type: docker-desktop
+services:
+  web:
+    kind: docker.container
+    target: local
+    spec:
+      image: nginx:latest
+      ports:
+        - "8080:80"
+      health:
+        httpGet:
+          path: /
+          port: 80
