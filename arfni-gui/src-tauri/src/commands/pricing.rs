@@ -126,10 +126,12 @@ pub async fn estimate_cost(
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-    // Get API key from database
-    let api_key = repo::get_active_value(&db, "etc")
-        .map_err(|e| format!("Failed to get API key: {}", e))?
-        .ok_or_else(|| "No active API key found in 'etc' provider. Please add an API key in settings.".to_string())?;
+    // Get API key from database (try multiple providers)
+    let api_key = repo::get_active_value(&db, "openai")
+        .ok()
+        .flatten()
+        .or_else(|| repo::get_active_value(&db, "etc").ok().flatten())
+        .ok_or_else(|| "No active API key found. Please add an OpenAI API key in settings (Settings > API Keys).".to_string())?;
 
     // Find arfni-go.exe
     let exe_path = find_arfni_go_executable()?;
@@ -143,8 +145,16 @@ pub async fn estimate_cost(
         .arg("-f")
         .arg(&stack_path)
         .arg("-language")
-        .arg(&lang)
-        .env("GMS_KEY", api_key);
+        .arg(&lang);
+
+    // Set appropriate environment variable based on key format
+    if api_key.starts_with("sk-") {
+        // OpenAI key format
+        cmd.env("OPENAI_API_KEY", &api_key);
+    } else {
+        // GMS key format
+        cmd.env("GMS_KEY", &api_key);
+    }
 
     #[cfg(target_os = "windows")]
     {
@@ -187,10 +197,12 @@ pub async fn optimize(
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-    // Get API key from database
-    let api_key = repo::get_active_value(&db, "etc")
-        .map_err(|e| format!("Failed to get API key: {}", e))?
-        .ok_or_else(|| "No active API key found in 'etc' provider. Please add an API key in settings.".to_string())?;
+    // Get API key from database (try multiple providers)
+    let api_key = repo::get_active_value(&db, "openai")
+        .ok()
+        .flatten()
+        .or_else(|| repo::get_active_value(&db, "etc").ok().flatten())
+        .ok_or_else(|| "No active API key found. Please add an OpenAI API key in settings (Settings > API Keys).".to_string())?;
 
     // Find arfni-go.exe
     let exe_path = find_arfni_go_executable()?;
@@ -212,8 +224,16 @@ pub async fn optimize(
         .arg("-prometheus")
         .arg(&prometheus)
         .arg("-language")
-        .arg(&lang)
-        .env("GMS_KEY", api_key);
+        .arg(&lang);
+
+    // Set appropriate environment variable based on key format
+    if api_key.starts_with("sk-") {
+        // OpenAI key format
+        cmd.env("OPENAI_API_KEY", &api_key);
+    } else {
+        // GMS key format
+        cmd.env("GMS_KEY", &api_key);
+    }
 
     #[cfg(target_os = "windows")]
     {
