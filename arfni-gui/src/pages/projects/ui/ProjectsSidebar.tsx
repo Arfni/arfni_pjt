@@ -1,13 +1,14 @@
-import { Laptop, Server, Package, Settings } from 'lucide-react';
+import { Laptop, Server, Package, Settings, HelpCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 interface ProjectsSidebarProps {
   selectedTab: 'local' | 'ec2' | 'plugins';
   onTabChange: (tab: 'local' | 'ec2' | 'plugins') => void;
+  onHelpClick: () => void;
 }
 
-export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarProps) {
+export function ProjectsSidebar({ selectedTab, onTabChange, onHelpClick }: ProjectsSidebarProps) {
   const { t } = useTranslation('projects');
   const navigate = useNavigate();
 
@@ -60,8 +61,18 @@ export function ProjectsSidebar({ selectedTab, onTabChange }: ProjectsSidebarPro
         </button>
       </div>
 
-      {/* Settings Button at Bottom */}
+      {/* Help and Settings Buttons at Bottom */}
       <div className="px-3 py-3 border-t border-gray-200 flex flex-col items-center gap-3">
+        {/* Help Button */}
+        <button
+          onClick={onHelpClick}
+          className="w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-gray-100"
+        >
+          <HelpCircle className="w-8 h-8 text-gray-600" />
+          <span className="text-xs font-medium text-gray-700">{t('sidebar.help')}</span>
+        </button>
+
+        {/* Settings Button */}
         <button
           onClick={() => navigate('/settings')}
           className="w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-gray-100"

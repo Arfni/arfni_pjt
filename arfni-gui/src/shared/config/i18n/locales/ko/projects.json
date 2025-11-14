@@ -25,8 +25,8 @@
     "createFirst": "새 프로젝트를 생성하여 시작하세요",
     "loadError": "프로젝트 목록을 불러오는데 실패했습니다",
     "serverRequired": "먼저 원격 서버를 선택하거나 추가해주세요",
-    "selectServerPrompt": "프로젝트를 보려면 원격 서버를 선택해야 합니다",
-    "selectServerTitle": "원격 서버 선택",
+    "selectServerPrompt": "프로젝트 생성을 위해 서버를 추가하거나 선택해주세요",
+    "selectServerTitle": "선택된 원격 서버가 없습니다",
     "connectionSuccess": "연결 성공",
     "connectionFailed": "연결 실패",
     "retry": "재시도",
@@ -251,6 +251,45 @@
     "local": "로컬",
     "ec2": "원격",
     "plugins": "플러그인",
+    "help": "도움말",
     "settings": "설정"
+  },
+  "tutorial": {
+    "local": {
+      "slide1": {
+        "title": "도커 설치",
+        "desc": "로컬 인프라 실행을 위해 Docker Desktop을 설치하세요"
+      },
+      "slide2": {
+        "title": "인프라 설계",
+        "desc": "블록을 연결하여 인프라 아키텍처를 설계하세요"
+      },
+      "slide3": {
+        "title": "상세 설정 입력",
+        "desc": "인프라의 상세 설정값을 입력하세요"
+      },
+      "slide4": {
+        "title": "원클릭 배포",
+        "desc": "모든 인프라를 클릭 한 번으로 배포하세요"
+      }
+    },
+    "remote": {
+      "slide1": {
+        "title": "원격 서버 추가",
+        "desc": "인프라 배포를 위한 원격 서버를 추가하세요"
+      },
+      "slide2": {
+        "title": "인프라 설계",
+        "desc": "블록을 연결하여 인프라 아키텍처를 설계하세요"
+      },
+      "slide3": {
+        "title": "상세 설정 입력",
+        "desc": "인프라의 상세 설정값을 입력하세요"
+      },
+      "slide4": {
+        "title": "배포 및 모니터링",
+        "desc": "원클릭 배포 후 인프라를 모니터링하세요"
+      }
+    }
   }
 }

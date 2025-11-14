@@ -32,6 +32,12 @@ export function ServerSelectionModal({
   if (!isOpen) return null;
 
   const handleServerClick = async (server: EC2Server) => {
+    // 이미 선택된 서버를 클릭하면 선택 해제
+    if (server.id === selectedServerId) {
+      onSelectServer('');
+      return;
+    }
+
     // SSH 연결 테스트
     setConnectingServerId(server.id);
     setConnectionError(null);

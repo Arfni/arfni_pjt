@@ -25,8 +25,8 @@
     "createFirst": "Create a new project to get started",
     "loadError": "Failed to load project list",
     "serverRequired": "Please select or add a Remote server first",
-    "selectServerPrompt": "You need to select a Remote server to view projects",
-    "selectServerTitle": "Select a Remote Server",
+    "selectServerPrompt": "Add or Select a Remote server to create projects",
+    "selectServerTitle": "No Remote Server Selected",
     "connectionSuccess": "Connection successful",
     "connectionFailed": "Connection failed",
     "retry": "Retry",
@@ -251,6 +251,45 @@
     "local": "Local",
     "ec2": "Remote",
     "plugins": "Plugins",
+    "help": "Help",
     "settings": "Settings"
+  },
+  "tutorial": {
+    "local": {
+      "slide1": {
+        "title": "Install Docker",
+        "desc": "Install Docker Desktop to run local infrastructure"
+      },
+      "slide2": {
+        "title": "Design Your Infrastructure",
+        "desc": "Connect blocks to design your infrastructure architecture"
+      },
+      "slide3": {
+        "title": "Configure Settings",
+        "desc": "Enter detailed configuration values for your infrastructure"
+      },
+      "slide4": {
+        "title": "One-Click Deploy",
+        "desc": "Deploy your entire infrastructure with a single click"
+      }
+    },
+    "remote": {
+      "slide1": {
+        "title": "Add Remote Server",
+        "desc": "Add your remote server for infrastructure deployment"
+      },
+      "slide2": {
+        "title": "Design Your Infrastructure",
+        "desc": "Connect blocks to design your infrastructure architecture"
+      },
+      "slide3": {
+        "title": "Configure Settings",
+        "desc": "Enter detailed configuration values for your infrastructure"
+      },
+      "slide4": {
+        "title": "Deploy and Monitor",
+        "desc": "Deploy with one click and monitor your infrastructure"
+      }
+    }
   }
 }

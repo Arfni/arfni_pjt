@@ -9,6 +9,7 @@ import { ProjectsSidebar } from './ProjectsSidebar';
 import { ProjectCard } from './ProjectCard';
 import { CreateProjectModal } from './CreateProjectModal';
 import { PluginManager } from './PluginManager';
+import { TutorialSlide } from './TutorialSlide';
 import { useAppDispatch } from '@app/hooks';
 import { addNode } from '@features/canvas/model/canvasSlice';
 import { useTranslation } from 'react-i18next';
@@ -72,6 +73,9 @@ export default function ProjectsPage() {
 
   // Canvas 미리보기 데이터
   const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
+
+  // 튜토리얼 상태 관리
+  const [showTutorial, setShowTutorial] = useState<boolean>(false);
 
   // 환경별 프로젝트 목록 로드 함수
   const loadProjects = useCallback(async (environment: 'local' | 'ec2', serverId?: string) => {
@@ -322,6 +326,7 @@ export default function ProjectsPage() {
       <ProjectsSidebar
         selectedTab={selectedTab}
         onTabChange={setSelectedTab}
+        onHelpClick={() => setShowTutorial(true)}
       />
 
       {/* Main Content */}
@@ -519,9 +524,9 @@ export default function ProjectsPage() {
           // 서버 목록 새로고침
           const servers = await ec2ServerCommands.getAllServers();
           setEc2Servers(servers);
-          // 선택된 서버가 삭제되었으면 첫 번째 서버로 변경
-          if (servers.length > 0 && !servers.find(s => s.id === selectedEC2ServerId)) {
-            setSelectedEC2ServerId(servers[0].id);
+          // 선택된 서버가 삭제되었으면 선택 해제
+          if (!servers.find(s => s.id === selectedEC2ServerId)) {
+            setSelectedEC2ServerId('');
           }
         }}
       />
@@ -542,6 +547,21 @@ export default function ProjectsPage() {
         }}
         editServer={editingServer}
       />
+
+      {/* Tutorial Modal */}
+      {showTutorial && (
+        <TutorialSlide
+          type={selectedTab === 'local' ? 'local' : 'remote'}
+          onClose={() => {
+            setShowTutorial(false);
+            localStorage.setItem('tutorialCompleted', 'true');
+          }}
+          onSkip={() => {
+            setShowTutorial(false);
+            localStorage.setItem('tutorialCompleted', 'true');
+          }}
+        />
+      )}
     </div>
   );
 }
