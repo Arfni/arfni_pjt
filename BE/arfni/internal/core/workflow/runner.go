@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -191,9 +192,30 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 
 			stream.Info(fmt.Sprintf("Detected build type: %s", buildType))
 
+			// Prepare buildConfig with port information
+			buildConfig := service.Spec.BuildConfig
+			if buildConfig == nil {
+				buildConfig = make(map[string]interface{})
+			}
+
+			// Extract container port from ports mapping (e.g., "3003:3003" -> "3003")
+			if len(service.Spec.Ports) > 0 {
+				// Parse first port mapping to extract container port
+				portMapping := service.Spec.Ports[0]
+				// Handle formats: "3003:3003", "3003", "0.0.0.0:3003:3003"
+				parts := strings.Split(portMapping, ":")
+				if len(parts) >= 2 {
+					// Get the container port (last part)
+					buildConfig["port"] = parts[len(parts)-1]
+				} else if len(parts) == 1 {
+					// Just a single port number
+					buildConfig["port"] = parts[0]
+				}
+			}
+
 			// Generate Dockerfile with buildConfig and pluginsDir
 			if err := WriteDockerfileWithBundled(r.projectDir, buildContext, buildType,
-			                         service.Spec.BuildConfig, r.pluginsDir, r.bundledPluginsDir); err != nil {
+			                         buildConfig, r.pluginsDir, r.bundledPluginsDir); err != nil {
 				return fmt.Errorf("failed to write Dockerfile for '%s': %w", name, err)
 			}
 
