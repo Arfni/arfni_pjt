@@ -8,7 +8,7 @@
 
 Double-click the **Arfni 1.0.0 Setup** icon to begin installation.
 
-![화면 캡처 2025-11-11 172645.png](/images/%ED%99%94%EB%A9%B4_%EC%BA%A1%EC%B2%98_2025-11-11_172645.png)
+![화면 캡처 2025-11-11 172645.png](/Docs/images/%ED%99%94%EB%A9%B4_%EC%BA%A1%EC%B2%98_2025-11-11_172645.png)
 
 ---
 
@@ -18,7 +18,7 @@ When the setup wizard opens, click **Next** to continue.
 
 It is recommended to close all other applications before starting installation.
 
-![image.png](/images/image.png)
+![image.png](/Docs/images/image.png)
 
 ---
 
@@ -28,7 +28,7 @@ Read through the license agreement carefully.
 
 If you agree to the terms, select **I Agree** to proceed.
 
-![image.png](/images/image%201.png)
+![image.png](/Docs/images/image%201.png)
 
 ---
 
@@ -40,7 +40,7 @@ You can use the default path or click **Browse** to choose another location.
 
 Click **Install** to start the installation.
 
-![image.png](/images/image%202.png)
+![image.png](/Docs/images/image%202.png)
 
 ---
 
@@ -52,7 +52,7 @@ Once the installation is complete, you’ll see the confirmation screen:
 
 Click **Finish** to close the setup wizard.
 
-![image.png](/images/image%203.png)
+![image.png](/Docs/images/image%203.png)
 
 # 2. Features
 
@@ -66,7 +66,7 @@ Before starting deployment, ensure Docker Desktop is installed on your local mac
 
 In the local environment, click **Create New Project** to start the deployment process.
 
-![image.png](/images/image%204.png)
+![image.png](/Docs/images/image%204.png)
 
 ---
 
@@ -74,9 +74,9 @@ In the local environment, click **Create New Project** to start the deployment p
 
 Configure the project name and the path where the project will be created.
 
-![image.png](/images/image%205.png)
+![image.png](/Docs/images/image%205.png)
 
-![local_3.png](/images/local_3.png)
+![local_3.png](/Docs/images/local_3.png)
 
 ---
 
@@ -86,7 +86,7 @@ Check the folder at the specified path. The `.arfni` folder and `stack.yaml` fil
 
 ---
 
-![image.png](/images/image%206.png)
+![image.png](/Docs/images/image%206.png)
 
 ---
 
@@ -94,9 +94,9 @@ Check the folder at the specified path. The `.arfni` folder and `stack.yaml` fil
 
 Create an `apps` folder and place your deployment files inside it. Each folder name should match the blocks used in the canvas.
 
-![image.png](/images/image%207.png)
+![image.png](/Docs/images/image%207.png)
 
-![local_3.png](/images/local_3%201.png)
+![local_3.png](/Docs/images/local_3%201.png)
 
 ---
 
@@ -104,7 +104,7 @@ Create an `apps` folder and place your deployment files inside it. Each folder n
 
 Return to the canvas screen and drag & drop blocks according to the elements you want to deploy, placing them on the canvas.
 
-![image.png](/images/image%208.png)
+![image.png](/Docs/images/image%208.png)
 
 ---
 
@@ -112,9 +112,9 @@ Return to the canvas screen and drag & drop blocks according to the elements you
 
 Click on each block to configure its properties. Set ports, environment configurations, and environment variables according to your architecture.
 
-![image.png](/images/image%209.png)
+![image.png](/Docs/images/image%209.png)
 
-![local_6.png](/images/local_6.png)
+![local_6.png](/Docs/images/local_6.png)
 
 ---
 
@@ -122,7 +122,7 @@ Click on each block to configure its properties. Set ports, environment configur
 
 You can view the automatically updated `stack.yaml` file in the slide panel at the bottom. The file automatically saves when there are no changes for 2 seconds. After placing blocks and completing environment configuration, verify the `stack.yaml` file to prepare for deployment.
 
-![image.png](/images/image%2010.png)
+![image.png](/Docs/images/image%2010.png)
 
 ---
 
@@ -130,9 +130,9 @@ You can view the automatically updated `stack.yaml` file in the slide panel at t
 
 Click the **Deploy** button in the upper right corner to start deployment.
 
-![local_8_1.png](/images/local_8_1.png)
+![local_8_1.png](/Docs/images/local_8_1.png)
 
-![image.png](/images/image%2011.png)
+![image.png](/Docs/images/image%2011.png)
 
 ---
 
@@ -151,7 +151,7 @@ When you click the Deploy button, automatic deployment begins through 5 stages:
 > Tip: You can stop the deployment at any time by clicking the Stop Deployment button.
 > 
 
-![image.png](/images/image%2012.png)
+![image.png](/Docs/images/image%2012.png)
 
 ### Automatic File Generation
 
@@ -161,7 +161,7 @@ If required like `Dockerfile` or `docker-compose.yml` files are missing, they wi
 
 The system will utilize existing images and deployments when available. If there are changes or new requirements, it will rebuild and install accordingly.
 
-![local_9_2.png](/images/local_9_2.png)
+![local_9_2.png](/Docs/images/local_9_2.png)
 
 ### Deployment Completion
 
@@ -170,7 +170,7 @@ Once deployment is complete, a popup window will display:
 - Which services were deployed
 - What endpoints are available
 
-![local_9_3.png](/images/local_9_3.png)
+![local_9_3.png](/Docs/images/local_9_3.png)
 
 ## Notes
 
@@ -178,7 +178,7 @@ Once deployment is complete, a popup window will display:
 - If Docker Desktop is already installed, the system will automatically launch it
 - If automatic launch fails, please start Docker Desktop manually - deployment will proceed automatically once it's running
 
-![image.png](/images/image%2013.png)
+![image.png](/Docs/images/image%2013.png)
 
 ## (2) Remote Deployment
 
@@ -196,7 +196,7 @@ Before starting remote deployment, ensure:
 
 In **Remote Projects**, click Select Server to choose your target server for remote deployment.
 
-![image.png](/images/image%2014.png)
+![image.png](/Docs/images/image%2014.png)
 
 ### 1) Adding a New Server
 
@@ -204,7 +204,7 @@ If you don't have a server registered, you'll need to add one. Click **Add New S
 
 . 
 
-![image.png](/images/image%2015.png)
+![image.png](/Docs/images/image%2015.png)
 
 Configure the following settings:
 
@@ -213,20 +213,20 @@ Configure the following settings:
 - **Username** - SSH username
 - **PEM Key Path** - Path to your SSH key file
 
-![스크린샷 2025-11-12 133252.png](/images/%EC%8A%A4%ED%81%AC%EB%A6%B0%EC%83%B7_2025-11-12_133252.png)
+![스크린샷 2025-11-12 133252.png](/Docs/images/%EC%8A%A4%ED%81%AC%EB%A6%B0%EC%83%B7_2025-11-12_133252.png)
 
 After completing the configuration:
 
 1. Click **Test SSH Connection** to verify the connection
 2. Click **Add Server** to save the server information
 
-![스크린샷 2025-11-12 133636.png](/images/%EC%8A%A4%ED%81%AC%EB%A6%B0%EC%83%B7_2025-11-12_133636.png)
+![스크린샷 2025-11-12 133636.png](/Docs/images/%EC%8A%A4%ED%81%AC%EB%A6%B0%EC%83%B7_2025-11-12_133636.png)
 
 **Managing Servers:**
 
 Click on a saved server to manage projects on that server, then proceed with **Create New Project**.
 
-![스크린샷 2025-11-12 130505.png](/images/%EC%8A%A4%ED%81%AC%EB%A6%B0%EC%83%B7_2025-11-12_130505.png)
+![스크린샷 2025-11-12 130505.png](/Docs/images/%EC%8A%A4%ED%81%AC%EB%A6%B0%EC%83%B7_2025-11-12_130505.png)
 
 ---
 
@@ -234,9 +234,9 @@ Click on a saved server to manage projects on that server, then proceed with **C
 
 Click **Create New Project** and configure the project name and the path where the project will be created on the remote server.
 
-![remote_2_2_create.png](/images/remote_2_2_create.png)
+![remote_2_2_create.png](/Docs/images/remote_2_2_create.png)
 
-![image.png](/images/image%2016.png)
+![image.png](/Docs/images/image%2016.png)
 
 ---
 
@@ -244,7 +244,7 @@ Click **Create New Project** and configure the project name and the path where t
 
 Check the folder at the specified path. The `.arfni` folder and `stack.yaml` file will be automatically generated for deployment and canvas recording.
 
-![remote_3.png](/images/remote_3.png)
+![remote_3.png](/Docs/images/remote_3.png)
 
 ---
 
@@ -252,9 +252,9 @@ Check the folder at the specified path. The `.arfni` folder and `stack.yaml` fil
 
 Create an `apps` folder and place your deployment files inside it. Each folder name should match the blocks used in the canvas.
 
-![local_4.png](/images/local_4.png)
+![local_4.png](/Docs/images/local_4.png)
 
-![remote_4_2.png](/images/remote_4_2.png)
+![remote_4_2.png](/Docs/images/remote_4_2.png)
 
 ---
 
@@ -272,7 +272,7 @@ gunicorn
 
 Return to the canvas screen and drag & drop blocks according to the elements you want to deploy, placing them on the canvas.
 
-![remote_5_1.png](/images/remote_5_1.png)
+![remote_5_1.png](/Docs/images/remote_5_1.png)
 
 ---
 
@@ -282,15 +282,15 @@ Return to the canvas screen and drag & drop blocks according to the elements you
 
 Click on each block to configure its properties. Set ports, environment configurations, and environment variables according to your architecture.
 
-![remote_6_1.png](/images/remote_6_1.png)
+![remote_6_1.png](/Docs/images/remote_6_1.png)
 
-![remote_6_2.png](/images/remote_6_2.png)
+![remote_6_2.png](/Docs/images/remote_6_2.png)
 
 ### 2) Select Monitoring Option
 
 For remote servers, you can choose a monitoring option. Click the **?** button for detailed information about each option.
 
-![remote_6_2_1.png](/images/remote_6_2_1.png)
+![remote_6_2_1.png](/Docs/images/remote_6_2_1.png)
 
 **Monitoring Options:**
 
@@ -300,7 +300,7 @@ For remote servers, you can choose a monitoring option. Click the **?** button f
     - Grafana runs locally to reduce memory load on the remote server
 - **No Monitoring** - No monitoring tools deployed. Suitable for development or when monitoring isn't needed.
 
-![remote_6_2_2.png](/images/remote_6_2_2.png)
+![remote_6_2_2.png](/Docs/images/remote_6_2_2.png)
 
 ---
 
@@ -308,7 +308,7 @@ For remote servers, you can choose a monitoring option. Click the **?** button f
 
 You can view the automatically updated `stack.yaml` file in the slide panel at the bottom. The file automatically saves when there are no changes for 2 seconds. After placing blocks and completing environment configuration, verify the `stack.yaml` file to prepare for deployment.
 
-![remote_7.png](/images/remote_7.png)
+![remote_7.png](/Docs/images/remote_7.png)
 
 ---
 
@@ -316,7 +316,7 @@ You can view the automatically updated `stack.yaml` file in the slide panel at t
 
 Click the **Deploy** button in the upper right corner to start deployment.
 
-![local_8_2.png](/images/local_8_2.png)
+![local_8_2.png](/Docs/images/local_8_2.png)
 
 ---
 
@@ -335,7 +335,7 @@ When you click the Deploy button, automatic deployment begins through 5 stages:
 > Tip: You can stop the deployment at any time by clicking the Stop Deployment button.
 > 
 
-![remote_9_1.png](/images/remote_9_1.png)
+![remote_9_1.png](/Docs/images/remote_9_1.png)
 
 ### Automatic File Generation
 
@@ -355,7 +355,7 @@ Once deployment is complete, a popup window will display:
 > Note: Arfni uses Docker for deployment.
 > 
 
-![remote_9_2_1.png](/images/remote_9_2_1.png)
+![remote_9_2_1.png](/Docs/images/remote_9_2_1.png)
 
 ---
 
@@ -363,23 +363,23 @@ Once deployment is complete, a popup window will display:
 
 After deployment, click **Check Server Status** or return to the main screen and click **Project Status** on the deployed canvas to view the server status dashboard
 
-![remote_10.png](/images/remote_10.png)
+![remote_10.png](/Docs/images/remote_10.png)
 
-![remote_10.png](/images/remote_10%201.png)
+![remote_10.png](/Docs/images/remote_10%201.png)
 
 ### Terminal
 
 Click the **Connect** button to establish an SSH connection. You can conveniently execute commands and perform tasks through the GUI interface.
 
-![스크린샷 2025-11-12 131812.png](/images/%EC%8A%A4%ED%81%AC%EB%A6%B0%EC%83%B7_2025-11-12_131812.png)
+![스크린샷 2025-11-12 131812.png](/Docs/images/%EC%8A%A4%ED%81%AC%EB%A6%B0%EC%83%B7_2025-11-12_131812.png)
 
-![화면 캡처 2025-11-12 132022.png](/images/%ED%99%94%EB%A9%B4_%EC%BA%A1%EC%B2%98_2025-11-12_132022.png)
+![화면 캡처 2025-11-12 132022.png](/Docs/images/%ED%99%94%EB%A9%B4_%EC%BA%A1%EC%B2%98_2025-11-12_132022.png)
 
 ### Container
 
 View all containers currently running on the remote server. Use the control buttons to start, stop, or delete containers conveniently.
 
-![image.png](/images/image%2017.png)
+![image.png](/Docs/images/image%2017.png)
 
 ### Monitor
 
@@ -391,9 +391,9 @@ Click **Open Dashboard** to access monitoring (available for All-in-One and Hybr
 - If Docker Desktop is already installed, the system will automatically launch it
 - If automatic launch fails, please start Docker Desktop manually - the process will continue automatically
 
-![image.png](/images/image%2018.png)
+![image.png](/Docs/images/image%2018.png)
 
-![remote_10_6.png](/images/remote_10_6.png)
+![remote_10_6.png](/Docs/images/remote_10_6.png)
 
 **Dashboard Features:**
 
@@ -401,9 +401,9 @@ Click **Open Dashboard** to access monitoring (available for All-in-One and Hybr
 - Opens automatically in web view
 - No complex configuration needed - start monitoring immediately
 
-![remote_10_7.png](/images/remote_10_7.png)
+![remote_10_7.png](/Docs/images/remote_10_7.png)
 
-![remote_10_8.png](/images/remote_10_8.png)
+![remote_10_8.png](/Docs/images/remote_10_8.png)
 
 ## (3) **Arfni AI Features Guide**
 
@@ -417,11 +417,11 @@ Before using AI features, you must configure an API key in Settings.
 
 Navigate to **Settings** → **API Keys** to manage your API keys.
 
-![image.png](/images/image%2019.png)
+![image.png](/Docs/images/image%2019.png)
 
 ---
 
-![image.png](/images/image%2020.png)
+![image.png](/Docs/images/image%2020.png)
 
 ### 2️⃣ Add API Key
 
@@ -433,7 +433,7 @@ Click **Add API Key** to open the input dialog.
 - **Key Name** - A friendly name for identification
 - **API Key** - Your actual API key
 
-![image.png](/images/image%2021.png)
+![image.png](/Docs/images/image%2021.png)
 
 **Supported Providers:**
 
@@ -443,11 +443,11 @@ Click **Add API Key** to open the input dialog.
 > Note: Currently, only OpenAI API and GMS Key are functional.
 > 
 
-![image.png](/images/image%2022.png)
+![image.png](/Docs/images/image%2022.png)
 
 ### 3️⃣ Select Active Key
 
-![image.png](/images/image%2023.png)
+![image.png](/Docs/images/image%2023.png)
 
 If you have multiple API keys saved:
 
@@ -455,7 +455,7 @@ If you have multiple API keys saved:
 2. Click the **Apply** button to activate it
 3. The active key will be marked with **Active** status
 
-![image.png](/images/image%2024.png)
+![image.png](/Docs/images/image%2024.png)
 
 ---
 
@@ -469,9 +469,9 @@ The **Estimate** feature provides server resource recommendations based on the b
 
 Arrange blocks on the canvas with your desired architecture, including monitoring systems and Docker configurations. To use, Click Ai button.
 
-![image.png](/images/image%2025.png)
+![image.png](/Docs/images/image%2025.png)
 
-![image.png](/images/image%2026.png)
+![image.png](/Docs/images/image%2026.png)
 
 ### 2️⃣ Understand Recommendation Tiers
 
@@ -484,13 +484,13 @@ Based on your deployed blocks and `stack.yaml` configuration, the system uses pr
 > Pricing Reference: Calculations are based on AWS EC2 pricing in the Seoul region as of January 15, 2025.
 > 
 
-![image.png](/images/image%2027.png)
+![image.png](/Docs/images/image%2027.png)
 
 ### 3️⃣ Analyze Project
 
 Click **Analyze Project & Recommend Server** to send a request to the AI.
 
-![image.png](/images/image%2028.png)
+![image.png](/Docs/images/image%2028.png)
 
 ### 4️⃣ Review Recommendations
 
@@ -502,9 +502,9 @@ The system analyzes your deployed services and recommends AWS infrastructure cos
 2. **Step 2** - AI-based instance recommendations
 3. **Step 3** - Actual cost calculatio
 
-![image.png](/images/image%2029.png)
+![image.png](/Docs/images/image%2029.png)
 
-![image.png](/images/image%2030.png)
+![image.png](/Docs/images/image%2030.png)
 
 **Additional Features:**
 
@@ -526,21 +526,21 @@ The **Optimize** feature provides AI-driven recommendations based on actual data
 
 Click **Project Status** or **Check Server Status** after deployment to navigate to the Project Status dashboard.
 
-![image.png](/images/image%2031.png)
+![image.png](/Docs/images/image%2031.png)
 
 ### 2️⃣ Start Optimization Analysis
 
 1. Click the **Optimize** button to open the AI analysis interface
 
-![image.png](/images/image%2032.png)
+![image.png](/Docs/images/image%2032.png)
 
-![image.png](/images/image%2033.png)
+![image.png](/Docs/images/image%2033.png)
 
 2. Click **Start Analysis** to invoke the AI
 
 **Requirement:** This feature is only available for servers deployed with **All-in-One** or **Hybrid** monitoring modes, as server metrics data must be transmitted to the AI.
 
-![image.png](/images/image%2034.png)
+![image.png](/Docs/images/image%2034.png)
 
 ### 3️⃣ Review Analysis Results
 
@@ -548,7 +548,7 @@ Click **Project Status** or **Check Server Status** after deployment to navigate
 
 After loading, you'll receive a response based on real metric information:
 
-![image.png](/images/image%2035.png)
+![image.png](/Docs/images/image%2035.png)
 
 **Collected Metrics:**
 
@@ -557,7 +557,7 @@ After loading, you'll receive a response based on real metric information:
 - **Disk** - Used disk space (GB) and utilization (%)
 - **Instance Type** - Current EC2 instance type
 
-![image.png](/images/image%2036.png)
+![image.png](/Docs/images/image%2036.png)
 
 These metrics allow you to:
 
@@ -572,7 +572,7 @@ Based on the transmitted information, a comprehensive report will be generated f
 > ⚠️ Important Disclaimer: These are estimates only. Actual deployment conditions involve many variables that may cause inaccuracies. These recommendations are advisory, not definitive answers. Arfni does not assume responsibility for excessive cost occurrences.
 > 
 
-![image.png](/images/image%2037.png)
+![image.png](/Docs/images/image%2037.png)
 
 ---
 
