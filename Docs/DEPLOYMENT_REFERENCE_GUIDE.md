@@ -1,8 +1,6 @@
-# 배포 리드미 작성
+# Version Release
 
-# 버전 릴리스
-
-1.0.0 V
+![latest release](https://img.shields.io/github/v/release/Arfni/arfni-exe)
 
 # **1. Installation**
 
