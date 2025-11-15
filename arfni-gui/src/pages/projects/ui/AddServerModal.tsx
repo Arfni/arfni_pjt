@@ -191,7 +191,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4"
+        className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -209,7 +209,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-6 py-4">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700 break-words">
               {error}
             </div>
           )}
@@ -277,7 +277,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
                   value={pemPath}
                   readOnly
                   placeholder={t('server.pemKeyPlaceholder')}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 truncate"
                   required
                 />
                 <button
