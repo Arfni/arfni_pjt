@@ -116,6 +116,7 @@ fn main() {
       commands::project::open_project_by_path,
       commands::project::save_stack_yaml,
       commands::project::read_stack_yaml,
+      commands::project::read_file_content,
       commands::project::load_canvas_state,
       commands::project::get_all_projects,
       commands::project::get_projects_by_environment,
@@ -143,6 +144,7 @@ fn main() {
       commands::deployment::check_docker_running,
       commands::deployment::test_ssh_connection,
       commands::deployment::start_monitoring,
+      commands::deployment::smart_deploy,
 
       // 파일 감시 명령어
       commands::file_watcher::watch_stack_yaml,
@@ -191,6 +193,9 @@ fn main() {
       commands::cicd::authenticate_github,
       commands::cicd::fetch_github_repositories,
       commands::cicd::setup_cicd,
+      commands::cicd::update_workflow_file,
+      commands::cicd::setup_complete_cicd,
+      commands::cicd::check_cicd_status,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

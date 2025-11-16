@@ -5,20 +5,80 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/arfni/arfni/internal/core/plugin"
+	"gopkg.in/yaml.v3"
 )
+
+// loadFastAPIDependencies loads required dependencies from FastAPI plugin.yaml
+func loadFastAPIDependencies(bundledPluginsDir string) ([]plugin.Dependency, error) {
+	// Try to find FastAPI plugin.yaml
+	pluginYamlPath := filepath.Join(bundledPluginsDir, "framework", "fastapi", "plugin.yaml")
+
+	// Check if file exists
+	if _, err := os.Stat(pluginYamlPath); os.IsNotExist(err) {
+		// Fallback to hardcoded values if plugin.yaml not found
+		return []plugin.Dependency{
+			{Name: "uvicorn", Version: "0.30.6"},
+			{Name: "gunicorn", Version: "22.0.0"},
+		}, nil
+	}
+
+	// Read and parse plugin.yaml
+	data, err := os.ReadFile(pluginYamlPath)
+	if err != nil {
+		// Fallback to hardcoded values
+		return []plugin.Dependency{
+			{Name: "uvicorn", Version: "0.30.6"},
+			{Name: "gunicorn", Version: "22.0.0"},
+		}, nil
+	}
+
+	var metadata plugin.PluginMetadata
+	if err := yaml.Unmarshal(data, &metadata); err != nil {
+		// Fallback to hardcoded values
+		return []plugin.Dependency{
+			{Name: "uvicorn", Version: "0.30.6"},
+			{Name: "gunicorn", Version: "22.0.0"},
+		}, nil
+	}
+
+	if len(metadata.Dependencies.Required) > 0 {
+		return metadata.Dependencies.Required, nil
+	}
+
+	// Fallback to hardcoded values if no dependencies in yaml
+	return []plugin.Dependency{
+		{Name: "uvicorn", Version: "0.30.6"},
+		{Name: "gunicorn", Version: "22.0.0"},
+	}, nil
+}
 
 // FixFastAPIRequirements automatically adds missing uvicorn and gunicorn to requirements.txt
 // for FastAPI projects to ensure successful deployment
 func FixFastAPIRequirements(projectDir, buildContext string) error {
+	return FixFastAPIRequirementsWithPlugins(projectDir, buildContext, "")
+}
+
+// FixFastAPIRequirementsWithPlugins fixes requirements.txt using plugin configuration
+func FixFastAPIRequirementsWithPlugins(projectDir, buildContext, bundledPluginsDir string) error {
 	reqPath := filepath.Join(projectDir, buildContext, "requirements.txt")
+
+	// Load dependencies from plugin.yaml or use fallback
+	dependencies, _ := loadFastAPIDependencies(bundledPluginsDir)
 
 	// Read the requirements.txt file
 	content, err := os.ReadFile(reqPath)
 	if err != nil {
 		// If requirements.txt doesn't exist, create it with necessary packages
 		if os.IsNotExist(err) {
-			defaultContent := "fastapi==0.115.0\nuvicorn==0.30.6\ngunicorn==22.0.0\n"
-			err = os.WriteFile(reqPath, []byte(defaultContent), 0644)
+			var defaultContent strings.Builder
+			defaultContent.WriteString("fastapi==0.115.0\n")
+			for _, dep := range dependencies {
+				defaultContent.WriteString(fmt.Sprintf("%s==%s\n", dep.Name, dep.Version))
+			}
+
+			err = os.WriteFile(reqPath, []byte(defaultContent.String()), 0644)
 			if err != nil {
 				return fmt.Errorf("failed to create requirements.txt: %w", err)
 			}
@@ -32,34 +92,23 @@ func FixFastAPIRequirements(projectDir, buildContext string) error {
 	contentStr := strings.ToLower(string(content))
 	lines := strings.Split(string(content), "\n")
 
-	// Check for package existence (case-insensitive)
-	hasUvicorn := containsPackage(contentStr, "uvicorn")
-	hasGunicorn := containsPackage(contentStr, "gunicorn")
-
 	// Track if we modified the file
 	modified := false
 
-	// Add missing packages
-	if !hasUvicorn {
-		// Remove empty lines at the end before adding
-		for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
-			lines = lines[:len(lines)-1]
-		}
-		lines = append(lines, "uvicorn==0.30.6")
-		modified = true
-		fmt.Println("✓ Added uvicorn==0.30.6 to requirements.txt")
-	}
-
-	if !hasGunicorn {
-		// Remove empty lines at the end before adding (if not already done)
-		if !modified {
-			for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
-				lines = lines[:len(lines)-1]
+	// Check and add each required dependency
+	for _, dep := range dependencies {
+		if !containsPackage(contentStr, dep.Name) {
+			// Remove empty lines at the end before adding
+			if !modified {
+				for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+					lines = lines[:len(lines)-1]
+				}
 			}
+			depLine := fmt.Sprintf("%s==%s", dep.Name, dep.Version)
+			lines = append(lines, depLine)
+			modified = true
+			fmt.Printf("✓ Added %s to requirements.txt\n", depLine)
 		}
-		lines = append(lines, "gunicorn==22.0.0")
-		modified = true
-		fmt.Println("✓ Added gunicorn==22.0.0 to requirements.txt")
 	}
 
 	// Save the modified file if changes were made

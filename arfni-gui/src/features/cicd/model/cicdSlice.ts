@@ -118,6 +118,64 @@ export const setupCICD = createAsyncThunk<
   }
 );
 
+export const updateWorkflowFile = createAsyncThunk<
+  CICDConfiguration,
+  { config: CICDConfiguration }
+>(
+  'cicd/updateWorkflow',
+  async ({ config }, { getState, rejectWithValue }) => {
+    try {
+      const state = getState() as RootState;
+      const { accessToken } = state.cicd;
+      if (!accessToken) throw new Error('No access token');
+
+      const { invoke } = await import('@tauri-apps/api/core');
+      const params = {
+        config: config,
+        accessToken: accessToken,
+      };
+      console.log('[CICD] Calling update_workflow_file with params:', params);
+      await invoke<string>('update_workflow_file', params);
+      return config;
+    } catch (error) {
+      return rejectWithValue(String(error));
+    }
+  }
+);
+
+export const setupCompleteCICD = createAsyncThunk<
+  CICDConfiguration,
+  { config: CICDConfiguration; sshKey: string; projectId: string; ec2ServerId: string }
+>(
+  'cicd/setupComplete',
+  async ({ config, sshKey, projectId, ec2ServerId }, { getState, rejectWithValue }) => {
+    try {
+      const state = getState() as RootState;
+      const { accessToken } = state.cicd;
+      if (!accessToken) throw new Error('No access token');
+
+      const { invoke } = await import('@tauri-apps/api/core');
+      const params = {
+        config: config,
+        sshKey: sshKey,
+        projectId: projectId,
+        ec2ServerId: ec2ServerId,
+        accessToken: accessToken,
+      };
+      console.log('[CICD] Starting complete CI/CD setup with params:', params);
+      console.log('[CICD] Project ID:', projectId, 'EC2 Server ID:', ec2ServerId);
+
+      await invoke<string>('setup_complete_cicd', params);
+
+      console.log('[CICD] ✅ Complete CI/CD setup finished successfully');
+      return config;
+    } catch (error) {
+      console.error('[CICD] Complete setup failed:', error);
+      return rejectWithValue(String(error));
+    }
+  }
+);
+
 const cicdSlice = createSlice({
   name: 'cicd',
   initialState,
@@ -199,6 +257,32 @@ const cicdSlice = createSlice({
         state.isSettingUp = false;
       })
       .addCase(setupCICD.rejected, (state, action) => {
+        state.error = action.payload as string;
+        state.isSettingUp = false;
+      })
+      .addCase(updateWorkflowFile.pending, (state) => {
+        state.isSettingUp = true;
+        state.error = null;
+      })
+      .addCase(updateWorkflowFile.fulfilled, (state, action) => {
+        state.configuration = action.payload;
+        state.isSettingUp = false;
+      })
+      .addCase(updateWorkflowFile.rejected, (state, action) => {
+        state.error = action.payload as string;
+        state.isSettingUp = false;
+      })
+      // setupCompleteCICD cases
+      .addCase(setupCompleteCICD.pending, (state) => {
+        state.isSettingUp = true;
+        state.error = null;
+      })
+      .addCase(setupCompleteCICD.fulfilled, (state, action) => {
+        state.isSettingUp = false;
+        state.configuration = action.payload;
+        state.setupStep = 1; // Reset to initial step
+      })
+      .addCase(setupCompleteCICD.rejected, (state, action) => {
         state.error = action.payload as string;
         state.isSettingUp = false;
       });

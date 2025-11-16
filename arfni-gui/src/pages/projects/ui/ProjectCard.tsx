@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Server, Loader2, Trash2, Laptop, Github, Rocket } from 'lucide-react';
+import { Calendar, Server, Loader2, Trash2, Laptop, Github, CheckCircle } from 'lucide-react';
 import { Project, CanvasNode, CanvasEdge, projectCommands } from '@shared/api/tauri/commands';
 import { CanvasPreview } from './CanvasPreview';
 import { useAppDispatch } from '@app/hooks';
@@ -36,10 +36,9 @@ interface ProjectCardProps {
   isPinned: boolean;
   onDelete: (project: Project, e: React.MouseEvent) => Promise<void>;
   onTogglePin: (projectId: string, e: React.MouseEvent) => void;
-  onSetupCICD?: (project: Project) => void;
 }
 
-export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDelete, onTogglePin, onSetupCICD }: ProjectCardProps) {
+export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDelete, onTogglePin }: ProjectCardProps) {
   const { t } = useTranslation('projects');
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -174,32 +173,23 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
             <span>{t('card.created')} {new Date(project.created_at).toLocaleDateString()}</span>
           </div>
           {project.github_repo_url && (
-            <div className="flex items-center gap-2 text-gray-700">
-              <Github className="w-3 h-3" />
-              <span className="truncate" title={project.github_repo_url}>
-                {project.github_repo_url.replace('https://github.com/', '')}
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-gray-700 flex-1 min-w-0">
+                <Github className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate" title={project.github_repo_url}>
+                  {project.github_repo_url.replace('https://github.com/', '')}
+                </span>
+              </div>
+              {/* CI/CD 설정 상태 표시 - stack.yaml이 있으면 CI/CD 설정 가능 상태로 표시 */}
+              {project.stack_yaml_path && (
+                <div className="flex items-center gap-1 text-green-600 ml-2" title={t('card.cicdReady')}>
+                  <CheckCircle className="w-3 h-3" />
+                  <span className="text-xs">CI/CD</span>
+                </div>
+              )}
             </div>
           )}
         </div>
-
-        {/* CI/CD Setup Button - GitHub 프로젝트만 */}
-        {project.github_repo_url && onSetupCICD && (
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSetupCICD(project);
-              }}
-              disabled={isDeleting}
-              className="w-full px-4 py-2.5 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 transition-all font-medium flex items-center justify-center gap-2"
-              style={{ borderRadius: '10px' }}
-            >
-              <Rocket className="w-4 h-4" />
-              Setup CI/CD Pipeline
-            </button>
-          </div>
-        )}
 
         <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
           {project.environment === 'ec2' && (

@@ -175,7 +175,10 @@ export function Toolbar() {
     setIsDeploying(true);
     dispatch(startDeployment());
 
-    if (isDirty) {
+    // GitHub 프로젝트의 경우 stack.yaml이 반드시 필요하므로 항상 저장
+    const needsStackYaml = currentProject.environment === 'ec2' && currentProject.github_repo_url;
+
+    if (isDirty || needsStackYaml) {
       try {
         console.log('[Deploy] Saving stack.yaml...');
         let ec2Server = null;
@@ -217,21 +220,10 @@ export function Toolbar() {
           },
         })).unwrap();
         dispatch(setDirty(false));
-        console.log('[Deploy] stack.yaml saved');
+        console.log('[Deploy] stack.yaml saved to database');
 
-        // If GitHub project, commit and push to GitHub
-        if (currentProject.github_repo_url) {
-          try {
-            console.log('[Deploy] Committing stack.yaml to GitHub...');
-            await projectCommands.commitAndPushStackYaml(currentProject.id, yamlContent);
-            console.log('[Deploy] stack.yaml committed to GitHub');
-          } catch (commitError) {
-            console.error('[Deploy] GitHub commit failed:', commitError);
-            alert(`GitHub 커밋 실패: ${commitError}`);
-            setIsDeploying(false);
-            return;
-          }
-        }
+        // For GitHub projects with CI/CD, smartDeploy will handle committing files to GitHub
+        // No need to commit via EC2 git commands here
       } catch (error) {
         alert(`저장 실패: ${error}`);
         setIsDeploying(false);
@@ -262,9 +254,21 @@ export function Toolbar() {
     // Start deployment
     console.log('[Deploy] Starting deployment...');
     try {
-      const stackYamlPath = `${currentProject.path}/stack.yaml`;
-      const result = await deploymentCommands.deployStack(currentProject.path, stackYamlPath, currentProject.id);
-      if (result.status === 'deploying') {
+      let result;
+
+      // GitHub 프로젝트와 로컬 프로젝트를 구분하여 처리
+      if (currentProject.github_repo_url && currentProject.environment === 'ec2') {
+        // GitHub 프로젝트는 smartDeploy 직접 호출 (stack.yaml 경로 체크 불필요)
+        console.log('[Deploy] Using smartDeploy for GitHub project');
+        result = await deploymentCommands.smartDeploy(currentProject.id);
+      } else {
+        // 로컬 프로젝트는 기존 deploy_stack 사용
+        console.log('[Deploy] Using deployStack for local project');
+        const stackYamlPath = `${currentProject.path}/stack.yaml`;
+        result = await deploymentCommands.deployStack(currentProject.path, stackYamlPath, currentProject.id);
+      }
+
+      if (result.status === 'deploying' || result.status === 'success') {
         console.log('[Deploy] Navigating to deployment page');
         navigate('/deployment', { replace: true });
       }

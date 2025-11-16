@@ -134,16 +134,17 @@ export function useAutoSave(debounceMs: number = 2000) {
           canvasData
         );
 
-        // GitHub 프로젝트인 경우 자동으로 커밋
-        if (currentProject.github_repo_url && currentProject.id) {
-          try {
-            console.log('[GitHub] Committing stack.yaml to GitHub...');
-            await projectCommands.commitStackYamlToGithub(currentProject.id, yamlContent);
-            console.log('[GitHub] ✅ stack.yaml committed to GitHub');
-          } catch (err) {
-            console.error('[GitHub] Failed to commit to GitHub (continuing):', err);
-          }
-        }
+        // GitHub 커밋은 Deploy 버튼을 눌렀을 때만 수행 (cicd.rs에서 처리)
+        // 저장할 때마다 커밋하지 않음
+        // if (currentProject.github_repo_url && currentProject.id) {
+        //   try {
+        //     console.log('[GitHub] Committing stack.yaml to GitHub...');
+        //     await projectCommands.commitStackYamlToGithub(currentProject.id, yamlContent);
+        //     console.log('[GitHub] ✅ stack.yaml committed to GitHub');
+        //   } catch (err) {
+        //     console.error('[GitHub] Failed to commit to GitHub (continuing):', err);
+        //   }
+        // }
 
         // 4. 성공 처리
         dispatch(setDirty(false));

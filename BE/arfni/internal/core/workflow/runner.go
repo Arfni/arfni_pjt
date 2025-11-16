@@ -196,7 +196,7 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 			if buildType == "fastapi" {
 				fmt.Println("[FastAPI] Checking requirements.txt for necessary dependencies...")
 				stream.Info("Checking FastAPI requirements...")
-				if err := FixFastAPIRequirements(r.projectDir, buildContext); err != nil {
+				if err := FixFastAPIRequirementsWithPlugins(r.projectDir, buildContext, r.bundledPluginsDir); err != nil {
 					// Log warning but continue - don't fail the deployment
 					fmt.Printf("[FastAPI] Warning: Could not auto-fix requirements.txt: %v\n", err)
 					stream.Info(fmt.Sprintf("Warning: Could not auto-fix requirements.txt: %v", err))

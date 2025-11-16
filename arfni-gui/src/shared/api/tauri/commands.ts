@@ -279,6 +279,11 @@ export const deploymentCommands = {
     return await invoke('deploy_stack', { projectPath, stackYamlPath, projectId });
   },
 
+  // 스마트 배포 (GitHub 프로젝트의 경우 CI/CD 자동 설정)
+  smartDeploy: async (projectId: string): Promise<DeploymentStatus> => {
+    return await invoke('smart_deploy', { projectId });
+  },
+
   // 배포 중단
   stopDeployment: async (): Promise<void> => {
     return await invoke('stop_deployment');

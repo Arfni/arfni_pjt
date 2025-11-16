@@ -1161,37 +1161,54 @@ pub async fn commit_stack_yaml_to_github(
 
     println!("[GitHub Commit] stack.yaml uploaded to EC2");
 
-    // Git 명령어들
-    let commands = vec![
-        format!("cd {} && git config user.email 'arfni@example.com'", remote_path),
-        format!("cd {} && git config user.name 'ARFNI'", remote_path),
-        format!("cd {} && git add stack.yaml", remote_path),
-        format!("cd {} && git diff --staged --quiet || git commit -m 'Update stack.yaml via ARFNI'", remote_path),
-        format!("cd {} && git push origin {}", remote_path, branch),
-    ];
+    // Git 명령어들을 하나의 스크립트로 결합 (더 안정적)
+    let git_script = format!(
+        r#"
+        cd {} || exit 1
+        git config user.email "arfni@example.com"
+        git config user.name "ARFNI"
+        git pull origin {} --no-edit
+        git add stack.yaml
+        git diff --cached --exit-code || git commit --no-edit --no-gpg-sign -m "Update stack.yaml via ARFNI"
+        git push origin {}
+        "#,
+        remote_path, branch, branch
+    );
 
-    // SSH로 Git 명령어 실행
-    for (i, cmd) in commands.iter().enumerate() {
-        println!("[GitHub Commit] Executing git command {}/{}", i + 1, commands.len());
+    // SSH로 Git 스크립트 실행 (한 번에 실행)
+    println!("[GitHub Commit] Executing git commands...");
 
-        let output = std::process::Command::new("ssh")
-            .args(&[
-                "-i", &pem_path,
-                "-o", "StrictHostKeyChecking=no",
-                "-o", "UserKnownHostsFile=/dev/null",
-                &format!("{}@{}", user, host),
-                cmd,
-            ])
-            .output()
-            .map_err(|e| format!("SSH 명령 실행 실패: {}", e))?;
+    let output = std::process::Command::new("ssh")
+        .args(&[
+            "-i", &pem_path,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "ServerAliveInterval=60",  // 연결 유지
+            "-o", "ServerAliveCountMax=3",    // 타임아웃 방지
+            &format!("{}@{}", user, host),
+            "bash",  // bash로 스크립트 실행
+            "-c",
+            &git_script,
+        ])
+        .output()
+        .map_err(|e| format!("SSH 명령 실행 실패: {}", e))?;
 
-        // git commit 명령은 변경사항이 없으면 실패할 수 있으므로 무시
-        if !output.status.success() && !cmd.contains("git commit") {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Git 명령 실패: {}", stderr));
+    // 디버깅을 위해 출력 로그
+    if !output.stdout.is_empty() {
+        println!("[GitHub Commit] stdout: {}", String::from_utf8_lossy(&output.stdout));
+    }
+    if !output.stderr.is_empty() {
+        println!("[GitHub Commit] stderr: {}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    // 실행 결과 확인
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // git diff --cached --exit-code는 변경사항이 없으면 0을 반환하므로
+        // push 관련 에러만 실제 에러로 처리
+        if stderr.contains("failed to push") || stderr.contains("rejected") {
+            return Err(format!("Git push 실패: {}", stderr));
         }
-
-        println!("[GitHub Commit] Git command {} completed", i + 1);
     }
 
     println!("[GitHub Commit] ✅ stack.yaml committed and pushed to GitHub");
@@ -1408,12 +1425,18 @@ pub async fn commit_and_push_stack_yaml(
     let push_url = format!("https://{}@github.com/{}.git", access_token, repo_path);
 
     let commands = vec![
+        // Git 설정 - merge 전략 설정
+        format!("cd {} && git config pull.rebase false", remote_path),
+        // Git fetch 먼저 (원격 상태 확인)
+        format!("cd {} && git fetch {} {}", remote_path, push_url, branch),
+        // Git reset --hard로 원격과 동기화 (로컬 변경사항 버리고 원격 것으로 덮어쓰기)
+        format!("cd {} && git reset --hard FETCH_HEAD", remote_path),
         // stack.yaml 파일 업데이트
         format!("cat > {}/stack.yaml << 'EOF'\n{}\nEOF", remote_path, yaml_content),
         // Git add
         format!("cd {} && git add stack.yaml", remote_path),
-        // Git commit
-        format!("cd {} && git commit -m 'Update stack.yaml from deployment'", remote_path),
+        // Git commit (변경사항이 있을 때만)
+        format!("cd {} && git diff --cached --quiet || git commit -m 'Update stack.yaml from deployment'", remote_path),
         // Git push
         format!("cd {} && git push {} {}", remote_path, push_url, branch),
     ];
@@ -1463,4 +1486,11 @@ pub async fn commit_and_push_stack_yaml(
 
     println!("[GitHub Commit] ✅ stack.yaml committed and pushed successfully");
     Ok(format!("stack.yaml committed to GitHub for project '{}'", project_name))
+}
+
+/// Read file content (useful for reading PEM keys)
+#[tauri::command]
+pub fn read_file_content(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read file {}: {}", path, e))
 }

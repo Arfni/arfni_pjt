@@ -9,16 +9,12 @@ import { ProjectsSidebar } from './ProjectsSidebar';
 import { ProjectCard } from './ProjectCard';
 import { CreateProjectModal } from './CreateProjectModal';
 import { PluginManager } from './PluginManager';
-import { CICDSetupModal } from '../../deployment/ui/CICDSetupModal';
-import { useAppDispatch } from '@app/hooks';
-import { addNode } from '@features/canvas/model/canvasSlice';
 import { useTranslation } from 'react-i18next';
 
 export default function ProjectsPage() {
   const { t } = useTranslation('projects');
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useAppDispatch();
 
   // sessionStorage에서 현재 세션의 선택 상태 복원 (앱 재시작 시 초기화됨)
   const [selectedTab, setSelectedTab] = useState<'local' | 'ec2' | 'plugins'>(() => {
@@ -73,10 +69,6 @@ export default function ProjectsPage() {
 
   // Canvas 미리보기 데이터
   const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
-
-  // CI/CD Setup Modal
-  const [showCICDSetup, setShowCICDSetup] = useState(false);
-  const [cicdProject, setCicdProject] = useState<Project | null>(null);
 
   // 환경별 프로젝트 목록 로드 함수
   const loadProjects = useCallback(async (environment: 'local' | 'ec2', serverId?: string) => {
@@ -200,30 +192,6 @@ export default function ProjectsPage() {
     }
   }, [deletingProjectPath]);
 
-  // CI/CD Setup 핸들러
-  const handleSetupCICD = useCallback(async (project: Project) => {
-    // EC2 서버 정보 가져오기
-    if (!project.ec2_server_id) {
-      alert('EC2 server not found for this project');
-      return;
-    }
-
-    try {
-      const server = await ec2ServerCommands.getServerById(project.ec2_server_id);
-      if (!server) {
-        alert('EC2 server not found');
-        return;
-      }
-
-      // EC2 서버 정보와 함께 프로젝트 저장
-      setCicdProject({ ...project, _ec2Server: server });
-      setShowCICDSetup(true);
-    } catch (err) {
-      console.error('Failed to load EC2 server:', err);
-      alert(`Failed to load EC2 server: ${err}`);
-    }
-  }, []);
-
   // 폴더 선택 핸들러
   const handleSelectFolder = useCallback(async () => {
     const selected = await open({
@@ -321,7 +289,7 @@ export default function ProjectsPage() {
     } finally {
       setCreating(false);
     }
-  }, [newProjectName, newProjectPath, newProjectWorkdir, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch, t]);
+  }, [newProjectName, newProjectPath, newProjectWorkdir, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, t]);
 
   // GitHub 레포지토리에서 프로젝트 생성
   const handleCreateFromGitHub = useCallback(async (repoUrl: string, repoName: string, branch: string, accessToken: string, workdir: string) => {
@@ -554,7 +522,6 @@ export default function ProjectsPage() {
                     isPinned={pinnedProjects.has(project.id)}
                     onDelete={handleDeleteProject}
                     onTogglePin={togglePin}
-                    onSetupCICD={handleSetupCICD}
                   />
                 ))}
             </div>
@@ -635,22 +602,6 @@ export default function ProjectsPage() {
         }}
         editServer={editingServer}
       />
-
-      {/* CI/CD Setup Modal */}
-      {cicdProject && (cicdProject as any)._ec2Server && (
-        <CICDSetupModal
-          isOpen={showCICDSetup}
-          onClose={() => {
-            setShowCICDSetup(false);
-            setCicdProject(null);
-          }}
-          ec2Host={(cicdProject as any)._ec2Server.host}
-          ec2User={(cicdProject as any)._ec2Server.user}
-          ec2SshKey={(cicdProject as any)._ec2Server.pem_path}
-          projectName={cicdProject.name}
-          repoSelectionOnly={false}
-        />
-      )}
     </div>
   );
 }

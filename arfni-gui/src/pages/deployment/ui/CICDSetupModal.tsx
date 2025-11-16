@@ -20,6 +20,7 @@ import {
   authenticateGitHub,
   fetchRepositories,
   setupCICD,
+  setupCompleteCICD,
   resetCICD,
   nextStep,
   previousStep,
@@ -41,6 +42,8 @@ import {
   type CICDConfiguration,
 } from '@features/cicd/model/cicdSlice';
 
+import type { Project } from '@shared/api/tauri/commands';
+
 interface CICDSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -48,6 +51,7 @@ interface CICDSetupModalProps {
   ec2User: string;
   ec2SshKey: string;
   projectName?: string;
+  project?: Project; // Add full project object
   repoSelectionOnly?: boolean;
   onRepoSelected?: (repoUrl: string, repoName: string, branch: string, accessToken: string) => void;
 }
@@ -59,6 +63,7 @@ export function CICDSetupModal({
   ec2User,
   ec2SshKey,
   projectName,
+  project,
   repoSelectionOnly = false,
   onRepoSelected,
 }: CICDSetupModalProps) {
@@ -187,10 +192,27 @@ export function CICDSetupModal({
     if (!configuration) return;
 
     try {
-      await dispatch(setupCICD({ config: configuration, sshKey: ec2SshKey })).unwrap();
+      // Check if this is an EC2 project
+      if (project?.id && project?.environment === 'ec2' && project?.ec2_server_id) {
+        // Use the new complete setup flow
+        console.log('[CICD] Using complete CI/CD setup flow (Clone → stack.yaml → Workflow → Secrets)');
+        await dispatch(setupCompleteCICD({
+          config: configuration,
+          sshKey: ec2SshKey,
+          projectId: project.id,
+          ec2ServerId: project.ec2_server_id
+        })).unwrap();
+      } else {
+        // Fallback to old flow for local projects or when project info is missing
+        console.log('[CICD] Using basic setup flow (no EC2 clone)');
+        console.log(`[CICD] Project: ${project?.id}, Environment: ${project?.environment}, EC2 Server: ${project?.ec2_server_id}`);
+        await dispatch(setupCICD({ config: configuration, sshKey: ec2SshKey })).unwrap();
+      }
+
       onClose();
     } catch (err) {
       // Error is handled by the slice
+      console.error('[CICD] Setup failed:', err);
     }
   };
 

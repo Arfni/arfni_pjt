@@ -288,7 +288,8 @@
     "emptyCanvas": "Empty Canvas",
     "folderNotFound": "Project folder not found:\n\n{{projectPath}}\n\nThe folder seems to have been deleted or moved.\n\nWould you like to remove the project from the list?",
     "folderNotFoundTitle": "Project Folder Not Found",
-    "removeProject": "Remove Project"
+    "removeProject": "Remove Project",
+    "cicdReady": "CI/CD Ready"
   },
   "sidebar": {
     "local": "Local",
