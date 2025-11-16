@@ -1,0 +1,329 @@
+{
+  "title": {
+    "page": "Canvas",
+    "nodePalette": "노드 팔레트",
+    "propertyPanel": "속성",
+    "yamlEditor": "YAML 편집기"
+  },
+  "toolbar": {
+    "cicd": "CI/CD",
+    "githubYml": "Github YML",
+    "autoAlignment": "자동 정렬",
+    "export": "내보내기",
+    "deploy": "배포",
+    "stop": "중지",
+    "settings": "설정",
+    "ai": "AI",
+    "home": "홈으로",
+    "exportCanvas": "캔버스 내보내기",
+    "save": "저장",
+    "help": "도움말",
+    "monitoring": "모니터링:",
+    "mode": {
+      "allInOne": "올인원",
+      "hybrid": "하이브리드",
+      "noMonitoring": "모니터링 없음"
+    },
+    "monitoringHelp": {
+      "allInOne": "모든 모니터링 도구(Prometheus, Grafana 등)가 하나의 서버에서 실행됩니다. 간단하고 비용 효율적입니다.",
+      "hybrid": "모니터링 도구가 여러 서버에 분산됩니다. 성능과 비용의 균형을 맞춥니다.",
+      "noMonitoring": "모니터링 도구가 배포되지 않습니다. 개발용 또는 모니터링이 필요하지 않을 때 사용합니다."
+    }
+  },
+  "nodes": {
+    "service": "서비스",
+    "database": "데이터베이스",
+    "target": "대상",
+    "addNode": "노드 추가",
+    "deleteNode": "노드 삭제",
+    "duplicateNode": "노드 복제",
+    "categories": {
+      "services": "서비스",
+      "databases": "데이터베이스",
+      "targets": "대상",
+      "custom": "사용자 정의"
+    }
+  },
+  "properties": {
+    "title": "속성",
+    "noNodeSelected": "선택된 노드 없음",
+    "selectNodePrompt": "속성을 편집하려면 노드를 선택하세요",
+    "basicInfo": "기본 정보",
+    "nodeName": "노드 이름",
+    "nodeType": "노드 유형",
+    "configuration": "설정",
+    "advanced": "고급",
+    "connections": "연결",
+    "save": "저장",
+    "cancel": "취소",
+    "reset": "초기화",
+    "sections": {
+      "basicInfo": "기본 정보",
+      "storage": "스토리지 & 볼륨",
+      "resourceLimits": "리소스 제한",
+      "environmentVariables": "환경 변수",
+      "healthCheck": "헬스 체크",
+      "configuration": "구성",
+      "buildConfiguration": "빌드 구성",
+      "networkPorts": "네트워크 & 포트",
+      "dependencies": "의존성",
+      "advancedSettings": "고급 설정"
+    },
+    "labels": {
+      "serviceName": "서비스 이름",
+      "portMapping": "포트 매핑",
+      "hostPort": "호스트 포트",
+      "containerPort": "컨테이너 포트",
+      "buildPath": "빌드 경로",
+      "volumeMounts": "볼륨 마운트",
+      "memoryLimit": "메모리 제한 (MB)",
+      "cpuLimit": "CPU 제한",
+      "name": "이름",
+      "type": "유형",
+      "host": "호스트",
+      "user": "사용자",
+      "sshKey": "SSH 키",
+      "workingDirectory": "작업 디렉토리",
+      "monitoringMode": "모니터링 모드",
+      "containerHealthCheck": "컨테이너 헬스 체크"
+    },
+    "placeholders": {
+      "serviceName": "my-service",
+      "targetName": "대상 이름",
+      "ec2Host": "ec2-host.amazonaws.com",
+      "defaultUser": "ubuntu",
+      "sshKeyPath": "/path/to/key.pem",
+      "workingDirectory": "/home/ubuntu",
+      "buildPath": "./",
+      "envKey": "KEY",
+      "envValue": "값",
+      "envValueUpper": "VALUE"
+    },
+    "errors": {
+      "unknownServiceType": "알 수 없는 서비스 유형",
+      "noPluginFound": "이 서비스에 대한 플러그인을 찾을 수 없습니다. 플러그인이 올바르게 설치되었는지 확인하세요.",
+      "unknownConfig": "알 수 없는 서비스 구성"
+    },
+    "info": {
+      "targetProperties": "대상 속성",
+      "monitoringModes": {
+        "title": "모니터링 모드:",
+        "allInOne": "올인원: Prometheus, Grafana, Loki가 하나의 컨테이너에",
+        "hybrid": "하이브리드: 각 서비스가 별도의 컨테이너에",
+        "noMonitoring": "모니터링 없음: 서비스만 배포, 모니터링 스택 없음"
+      }
+    },
+    "targetTypes": {
+      "ec2": "원격 (SSH)",
+      "dockerDesktop": "Docker Desktop"
+    },
+    "monitoringModeOptions": {
+      "allInOne": "올인원 (단일 컨테이너)",
+      "hybrid": "하이브리드 (분리된 컨테이너)",
+      "noMonitoring": "모니터링 없음"
+    },
+    "fields": {
+      "name": {
+        "label": "서비스 이름",
+        "description": "이 서비스의 고유 식별자"
+      },
+      "kind": {
+        "label": "종류",
+        "description": "서비스 유형 (일반적으로 docker.container)"
+      },
+      "target": {
+        "label": "대상 환경",
+        "description": "이 서비스가 배포될 위치"
+      },
+      "build": {
+        "label": "빌드 경로",
+        "description": "빌드 컨텍스트 경로"
+      },
+      "image": {
+        "label": "Docker 이미지",
+        "description": "사용할 Docker 이미지 (빌드 대신 사용)"
+      },
+      "dockerfile": {
+        "label": "Dockerfile 경로",
+        "description": "사용자 정의 Dockerfile 경로"
+      },
+      "ports": {
+        "label": "포트",
+        "description": "포트 매핑 (호스트:컨테이너)"
+      },
+      "volumes": {
+        "label": "볼륨",
+        "description": "영구 데이터를 위한 볼륨 마운트"
+      },
+      "env": {
+        "label": "환경 변수",
+        "description": "런타임 환경 변수"
+      },
+      "health": {
+        "label": "헬스 체크",
+        "description": "컨테이너 상태 모니터링 구성"
+      },
+      "dependsOn": {
+        "label": "의존성",
+        "description": "이 서비스보다 먼저 시작되어야 하는 서비스"
+      },
+      "command": {
+        "label": "명령어 재정의",
+        "description": "기본 컨테이너 명령어 재정의"
+      },
+      "entrypoint": {
+        "label": "엔트리포인트 재정의",
+        "description": "기본 엔트리포인트 재정의"
+      },
+      "workingDir": {
+        "label": "작업 디렉토리",
+        "description": "컨테이너 내 작업 디렉토리 설정"
+      },
+      "user": {
+        "label": "사용자",
+        "description": "특정 사용자로 컨테이너 실행"
+      },
+      "restart": {
+        "label": "재시작 정책",
+        "description": "컨테이너 재시작 동작"
+      },
+      "privileged": {
+        "label": "특권 모드",
+        "description": "특권 모드로 컨테이너 실행"
+      },
+      "networks": {
+        "label": "네트워크",
+        "description": "연결할 네트워크"
+      },
+      "memoryLimit": {
+        "label": "메모리 제한 (MB)",
+        "description": "최대 메모리 할당"
+      },
+      "cpuLimit": {
+        "label": "CPU 제한",
+        "description": "CPU 코어 제한"
+      }
+    },
+    "fieldOptions": {
+      "target": {
+        "local": "로컬",
+        "ec2": "원격"
+      },
+      "restart": {
+        "no": "없음",
+        "always": "항상",
+        "onFailure": "실패 시",
+        "unlessStopped": "중지되지 않는 한"
+      }
+    }
+  },
+  "yaml": {
+    "title": "YAML 편집기",
+    "preview": "미리보기",
+    "edit": "편집",
+    "validate": "검증",
+    "format": "포맷",
+    "download": "다운로드",
+    "validationSuccess": "YAML이 유효합니다",
+    "validationFailed": "YAML 검증 실패",
+    "formatSuccess": "YAML이 성공적으로 포맷되었습니다",
+    "parseError": "YAML 파싱 실패",
+    "copyToClipboard": "클립보드에 복사",
+    "downloadYaml": "YAML 다운로드",
+    "copiedSuccess": "✓ 클립보드에 복사되었습니다!",
+    "noProject": "# 프로젝트를 먼저 생성하세요\n# New 버튼을 클릭하여 새 프로젝트를 만드세요",
+    "yamlError": "# 오류: {{error}}\n# Canvas가 비어있거나 유효하지 않습니다"
+  },
+  "export": {
+    "title": "프로젝트 내보내기",
+    "format": "내보내기 형식",
+    "dockerCompose": "Docker Compose",
+    "kubernetes": "Kubernetes",
+    "terraform": "Terraform",
+    "includeConfig": "설정 파일 포함",
+    "includeSecrets": "비밀 정보 포함 (권장하지 않음)",
+    "destination": "대상",
+    "browse": "찾아보기...",
+    "exporting": "내보내는 중...",
+    "exportSuccess": "내보내기 성공!",
+    "exportFailed": "내보내기 실패",
+    "successMessage": "프로젝트가 성공적으로 내보내졌습니다",
+    "location": "위치:",
+    "openFolder": "폴더 열기",
+    "openFile": "파일 열기"
+  },
+  "ai": {
+    "title": "AI 어시스턴트",
+    "generate": "아키텍처 생성",
+    "optimize": "설정 최적화",
+    "suggest": "개선사항 제안",
+    "prompt": "구축하고 싶은 것을 설명하세요...",
+    "generating": "생성 중...",
+    "examples": {
+      "title": "예시:",
+      "webapp": "React 프론트엔드와 Node.js 백엔드가 있는 웹 애플리케이션",
+      "microservices": "API 게이트웨이가 있는 마이크로서비스 아키텍처",
+      "dataProcessing": "Kafka와 Spark를 사용한 데이터 처리 파이프라인"
+    }
+  },
+  "messages": {
+    "openProjectFirst": "먼저 프로젝트를 생성하거나 열어주세요",
+    "dockerNotInstalled": "Docker가 설치되어 있지 않거나 실행 중이지 않습니다",
+    "savingChanges": "변경사항 저장 중...",
+    "changesSaved": "변경사항이 성공적으로 저장되었습니다",
+    "saveFailed": "변경사항 저장 실패",
+    "deploymentStarted": "배포가 시작되었습니다",
+    "deploymentFailed": "배포 시작 실패",
+    "invalidConfiguration": "유효하지 않은 설정이 감지되었습니다",
+    "confirmDelete": "이 노드를 정말 삭제하시겠습니까?",
+    "confirmClearCanvas": "Canvas를 정말 지우시겠습니까?"
+  },
+  "page": {
+    "loadingProject": "프로젝트를 불러오는 중...",
+    "loadingError": "프로젝트를 열 수 없습니다: {{error}}",
+    "toggleBlocksPalette": {
+      "show": "블록 표시",
+      "hide": "블록 숨기기"
+    },
+    "toggleProperties": {
+      "show": "속성 표시",
+      "hide": "속성 숨기기"
+    }
+  },
+  "autoSave": {
+    "saving": "저장 중...",
+    "saved": "✓ 저장됨"
+  },
+  "nodeDefaults": {
+    "localDocker": "로컬 Docker",
+    "dockerLocal": "Docker 로컬",
+    "postgres": "PostgreSQL",
+    "ec2": "원격"
+  },
+  "blocks": {
+    "title": "블록",
+    "tabs": {
+      "db": "DB",
+      "runtime": "런타임",
+      "infra": "인프라",
+      "monitor": "모니터링"
+    },
+    "searchPlaceholder": "블록 검색...",
+    "loading": "플러그인 로딩 중...",
+    "noBlocksFound": "블록을 찾을 수 없습니다"
+  },
+  "volumeEditor": {
+    "volumeNumber": "볼륨 #{{number}}",
+    "remove": "삭제",
+    "hostPath": "호스트 경로",
+    "hostPathPlaceholder": "./data",
+    "containerPath": "컨테이너 경로",
+    "containerPathPlaceholder": "/var/lib/data",
+    "addNewVolume": "새 볼륨 추가",
+    "addButton": "+ 볼륨 추가"
+  },
+  "keyValueEditor": {
+    "remove": "삭제",
+    "addVariable": "+ 변수 추가"
+  }
+}

@@ -1,18 +1,20 @@
 import { useAppSelector } from '@app/hooks';
 import { selectSelectedNode } from '@features/canvas/model/canvasSlice';
 import { DynamicPropertyForm } from '@features/canvas/ui/DynamicPropertyForm';
+import { useTranslation } from 'react-i18next';
 
 export function PropertyPanel() {
   const selectedNode = useAppSelector(selectSelectedNode);
+  const { t } = useTranslation('canvas');
 
   return (
     <div className="h-full bg-white flex flex-col">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200">
-        <h2 className="text-base font-semibold text-gray-800">Properties</h2>
+        <h2 className="text-base font-semibold text-gray-800">{t('properties.title')}</h2>
         {selectedNode && (
           <p className="text-xs text-gray-500 mt-1">
-            {selectedNode.data.name || 'Unnamed'} Configuration
+            {selectedNode.data.name || 'Unnamed'} {t('properties.configuration')}
           </p>
         )}
       </div>
@@ -24,7 +26,7 @@ export function PropertyPanel() {
         ) : (
           <div className="flex items-center justify-center h-full p-4 text-gray-400">
             <div className="text-center">
-              <p className="text-sm">Select a node to edit properties</p>
+              <p className="text-sm">{t('properties.selectNodePrompt')}</p>
             </div>
           </div>
         )}

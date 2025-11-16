@@ -85,6 +85,7 @@ type CostEstimationRequest struct {
 	Services       []ServiceInfo `json:"services"`
 	Region         string        `json:"region"`
 	DeploymentType string        `json:"deployment_type"` // "simple" (Docker on EC2) or "production" (AWS managed services)
+	Language       string        `json:"language,omitempty"` // "en" or "ko", defaults to "en"
 }
 
 // ServiceInfo from canvas

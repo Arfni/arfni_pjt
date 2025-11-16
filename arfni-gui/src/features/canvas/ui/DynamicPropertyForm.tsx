@@ -6,6 +6,7 @@ import { HealthCheckEditor } from '../../../shared/ui/form/HealthCheckEditor';
 import { VolumeArrayEditor } from '../../../shared/ui/form/VolumeArrayEditor';
 import { TargetPropertyForm } from './TargetPropertyForm';
 import { pluginService } from '@services/pluginLoader';
+import { useTranslation } from 'react-i18next';
 
 interface DynamicPropertyFormProps {
   node: CustomNode;
@@ -13,6 +14,7 @@ interface DynamicPropertyFormProps {
 
 export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation('canvas');
 
   // Target 노드인 경우 TargetPropertyForm 사용
   if (node.type === 'target') {
@@ -33,8 +35,8 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
   if (!plugin) {
     return (
       <div style={{ padding: '1rem' }}>
-        <p>Unknown service type: {serviceType}</p>
-        <p>No plugin found for this service. Please ensure the plugin is properly installed.</p>
+        <p>{t('properties.errors.unknownServiceType')}: {serviceType}</p>
+        <p>{t('properties.errors.noPluginFound')}</p>
       </div>
     );
   }
@@ -96,22 +98,22 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
         {/* Basic Information */}
         <details open>
           <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            Basic Information
+            {t('properties.sections.basicInfo')}
           </summary>
           <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <FormField label="Service Name" required>
+            <FormField label={t('properties.labels.serviceName')} required>
               <Input
                 value={data.name}
                 onChange={(e) => updateField('name', e.target.value)}
-                placeholder="my-service"
+                placeholder={t('properties.placeholders.serviceName')}
               />
             </FormField>
 
             {/* Port Mapping */}
-            <FormField label="Port Mapping">
+            <FormField label={t('properties.labels.portMapping')}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '0.5rem', alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500 }}>Host Port</label>
+                  <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500 }}>{t('properties.labels.hostPort')}</label>
                   <Input
                     type="text"
                     value={data.ports?.[0]?.split(':')[0] || ''}
@@ -125,7 +127,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 </div>
                 <div style={{ paddingTop: '1.2rem', fontSize: '1.2rem', fontWeight: 'bold', color: '#9ca3af' }}>:</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500 }}>Container Port</label>
+                  <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500 }}>{t('properties.labels.containerPort')}</label>
                   <Input
                     type="text"
                     value={data.ports?.[0]?.split(':')[1] || ''}
@@ -146,7 +148,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
         {/* Storage & Volumes */}
         <details open>
           <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            Storage & Volumes
+            {t('properties.sections.storage')}
           </summary>
           <div style={{ paddingLeft: '0.5rem' }}>
             <VolumeArrayEditor
@@ -176,7 +178,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 return [];
               })()}
               onChange={(volumes) => updateField('volumes', volumes)}
-              label="Volume Mounts"
+              label={t('properties.labels.volumeMounts')}
             />
           </div>
         </details>
@@ -184,10 +186,10 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
         {/* Resource Limits */}
         <details open>
           <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            Resource Limits
+            {t('properties.sections.resourceLimits')}
           </summary>
           <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <FormField label="Memory Limit (MB)">
+            <FormField label={t('properties.labels.memoryLimit')}>
               <Input
                 type="number"
                 value={(data as any).memoryLimit || 512}
@@ -195,7 +197,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 placeholder="512"
               />
             </FormField>
-            <FormField label="CPU Limit">
+            <FormField label={t('properties.labels.cpuLimit')}>
               <Input
                 type="number"
                 step="0.1"
@@ -210,13 +212,13 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
         {/* Environment Variables */}
         <details open>
           <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            Environment Variables
+            {t('properties.sections.environmentVariables')}
           </summary>
           <div style={{ paddingLeft: '0.5rem' }}>
             <KeyValueEditor
               entries={(() => {
-                // If user has defined env vars, use only those (don't merge with template)
-                if (data.env && Object.keys(data.env).length > 0) {
+                // If user has explicitly set env (even if empty), use that
+                if (data.env !== undefined) {
                   return data.env;
                 }
 
@@ -238,8 +240,8 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 return allEnv;
               })()}
               onChange={updateAllEnv}
-              keyPlaceholder="KEY"
-              valuePlaceholder="Value"
+              keyPlaceholder={t('properties.placeholders.envKey')}
+              valuePlaceholder={t('properties.placeholders.envValue')}
             />
           </div>
         </details>
@@ -247,7 +249,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
         {/* Health Check */}
         <details>
           <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            Health Check
+            {t('properties.sections.healthCheck')}
           </summary>
           <div style={{ paddingLeft: '0.5rem' }}>
             <HealthCheckEditor
@@ -271,7 +273,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 return null;
               })()}
               onChange={(health) => updateField('health', health)}
-              label="Container Health Check"
+              label={t('properties.labels.containerHealthCheck')}
             />
           </div>
         </details>
@@ -289,22 +291,22 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
         {/* Basic Information */}
         <details open>
           <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            Basic Information
+            {t('properties.sections.basicInfo')}
           </summary>
           <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <FormField label="Service Name" required>
+            <FormField label={t('properties.labels.serviceName')} required>
               <Input
                 value={data.name}
                 onChange={(e) => updateField('name', e.target.value)}
-                placeholder="my-service"
+                placeholder={t('properties.placeholders.serviceName')}
               />
             </FormField>
 
             {/* Port Mapping */}
-            <FormField label="Port Mapping">
+            <FormField label={t('properties.labels.portMapping')}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '0.5rem', alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500 }}>Host Port</label>
+                  <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500 }}>{t('properties.labels.hostPort')}</label>
                   <Input
                     type="text"
                     value={data.ports?.[0]?.split(':')[0] || '8000'}
@@ -318,7 +320,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 </div>
                 <div style={{ paddingTop: '1.2rem', fontSize: '1.2rem', fontWeight: 'bold', color: '#9ca3af' }}>:</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500 }}>Container Port</label>
+                  <label style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500 }}>{t('properties.labels.containerPort')}</label>
                   <Input
                     type="text"
                     value={data.ports?.[0]?.split(':')[1] || '8000'}
@@ -334,11 +336,11 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
             </FormField>
 
             {/* Plugin Build Path */}
-            <FormField label="Build Path">
+            <FormField label={t('properties.labels.buildPath')}>
               <Input
                 value={serviceData.build || './'}
                 onChange={(e) => updateField('build', e.target.value)}
-                placeholder="./"
+                placeholder={t('properties.placeholders.buildPath')}
               />
             </FormField>
           </div>
@@ -347,7 +349,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
         {/* Plugin-specific Properties */}
         <details open>
           <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            {plugin?.manifest?.displayName || serviceType} Configuration
+            {plugin?.manifest?.displayName || serviceType} {t('properties.sections.configuration')}
           </summary>
           <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {pluginPropertyForm.map((field: any) => {
@@ -403,7 +405,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
         {/* Storage & Volumes */}
         <details>
           <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            Storage & Volumes
+            {t('properties.sections.storage')}
           </summary>
           <div style={{ paddingLeft: '0.5rem' }}>
             <VolumeArrayEditor
@@ -433,7 +435,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 return [];
               })()}
               onChange={(volumes) => updateField('volumes', volumes)}
-              label="Volume Mounts"
+              label={t('properties.labels.volumeMounts')}
             />
           </div>
         </details>
@@ -441,14 +443,36 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
         {/* Environment Variables */}
         <details open>
           <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            Environment Variables
+            {t('properties.sections.environmentVariables')}
           </summary>
           <div style={{ paddingLeft: '0.5rem' }}>
             <KeyValueEditor
-              entries={data.env || {}}
+              entries={(() => {
+                // If user has explicitly set env (even if empty), use that
+                if (data.env !== undefined) {
+                  return data.env;
+                }
+
+                // Otherwise, use plugin template as initial values
+                const allEnv: Record<string, string> = {};
+
+                const plugin = pluginService.getPluginByNodeType(serviceType);
+                if (plugin?.manifest.contributes?.services) {
+                  const serviceTemplate = plugin.manifest.contributes.services[serviceType];
+                  // Support both 'env' and 'environment' keys
+                  const envVars = serviceTemplate?.spec?.env || serviceTemplate?.spec?.environment;
+                  if (envVars) {
+                    Object.entries(envVars).forEach(([key, value]) => {
+                      allEnv[key] = String(value);
+                    });
+                  }
+                }
+
+                return allEnv;
+              })()}
               onChange={updateAllEnv}
-              keyPlaceholder="KEY"
-              valuePlaceholder="VALUE"
+              keyPlaceholder={t('properties.placeholders.envKey')}
+              valuePlaceholder={t('properties.placeholders.envValueUpper')}
             />
           </div>
         </details>
@@ -456,7 +480,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
         {/* Health Check - New Editor */}
         <details>
           <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            Health Check
+            {t('properties.sections.healthCheck')}
           </summary>
           <div style={{ paddingLeft: '0.5rem' }}>
             <HealthCheckEditor
@@ -480,7 +504,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
                 return null;
               })()}
               onChange={(health) => updateField('health', health)}
-              label="Container Health Check"
+              label={t('properties.labels.containerHealthCheck')}
             />
           </div>
         </details>
@@ -492,7 +516,7 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
   // No plugin found - should never reach here due to early return above
   return (
     <div style={{ padding: '1rem' }}>
-      <p>Unknown service configuration</p>
+      <p>{t('properties.errors.unknownConfig')}</p>
     </div>
   );
 }

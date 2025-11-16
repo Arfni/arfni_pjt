@@ -1,0 +1,8 @@
+{
+  "title": "Download Confirmation",
+  "description": "Download the selected program to your PC.",
+  "buttons": {
+    "cancel": "Cancel",
+    "confirm": "Download"
+  }
+}

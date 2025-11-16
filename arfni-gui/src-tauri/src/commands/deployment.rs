@@ -706,7 +706,8 @@ fn find_go_binary(app: &AppHandle) -> Result<String, String> {
 
     // 4. Resource 경로들 시도 (배포 환경) - 개발 경로 이후에 확인
     let resource_patterns = vec![
-        format!("bin/{}", binary_name),  // Resource/bin/arfni-go.exe (resources/bin/* 매핑)
+        format!("resources/bin/{}", binary_name),  // Resource/resources/bin/arfni-go.exe (array 방식은 구조 유지)
+        format!("bin/{}", binary_name),  // Resource/bin/arfni-go.exe (fallback)
         binary_name.clone(),  // Resource/arfni-go.exe (fallback)
     ];
 

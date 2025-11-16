@@ -32,67 +32,6 @@ inputs:
     default: "3.12"
     scope: build
 
-  port:
-    description: "Application port"
-    type: number
-    required: false
-    env_var: PORT
-    default: 8000
-    scope: both
-
-  app_module:
-    description: "FastAPI app module"
-    type: text
-    required: false
-    default: "main:app"
-    scope: both
-
-  workers:
-    description: "Number of Gunicorn workers"
-    type: number
-    required: false
-    env_var: WORKERS
-    default: 4
-    scope: runtime
-
-  requirements_file:
-    description: "Requirements file path"
-    type: text
-    required: false
-    default: "requirements.txt"
-    scope: build
-
-  reload:
-    description: "Enable auto-reload (development only)"
-    type: select
-    required: false
-    options:
-      - "false"
-      - "true"
-    default: "false"
-    scope: runtime
-
-  database_url:
-    description: "Database connection URL"
-    type: text
-    required: false
-    env_var: DATABASE_URL
-    default: ""
-    scope: runtime
-
-  log_level:
-    description: "Logging level"
-    type: select
-    required: false
-    options:
-      - "debug"
-      - "info"
-      - "warning"
-      - "error"
-    default: "info"
-    scope: runtime
-    env_var: LOG_LEVEL
-
 contributes:
   services:
     fastapi:

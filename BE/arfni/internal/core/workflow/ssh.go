@@ -15,15 +15,24 @@ import (
 
 // SSHClient는 EC2 SSH 연결을 관리합니다
 type SSHClient struct {
-	target     stack.Target
-	projectDir string
+	target       stack.Target
+	projectDir   string
+	arfniIgnore  *ArfniIgnore
 }
 
 // NewSSHClient는 새로운 SSH 클라이언트를 생성합니다
 func NewSSHClient(target stack.Target, projectDir string) *SSHClient {
+	// Load .arfniignore file (creates default if not exists)
+	arfniIgnore, err := LoadArfniIgnore(projectDir)
+	if err != nil {
+		// If loading fails, use nil and fall back to default patterns
+		arfniIgnore = nil
+	}
+
 	return &SSHClient{
-		target:     target,
-		projectDir: projectDir,
+		target:       target,
+		projectDir:   projectDir,
+		arfniIgnore:  arfniIgnore,
 	}
 }
 
@@ -77,6 +86,12 @@ func (c *SSHClient) UploadDirectory(stream *events.Stream, localDir, remoteDir s
 	// 각 항목을 개별적으로 업로드
 	for _, entry := range entries {
 		localPath := filepath.Join(localDir, entry.Name())
+
+		// .arfniignore 패턴에 매칭되는 항목은 건너뛰기
+		if c.arfniIgnore != nil && c.arfniIgnore.ShouldIgnore(localPath) {
+			stream.Info(fmt.Sprintf("Skipping ignored item: %s", entry.Name()))
+			continue
+		}
 
 		args := []string{
 			"-i", c.target.SSHKey,

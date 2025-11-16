@@ -1,0 +1,91 @@
+{
+  "title": {
+    "page": "Deployment",
+    "inProgress": "Deployment in Progress...",
+    "complete": "Deployment Complete",
+    "failed": "Deployment Failed",
+    "stopped": "Deployment Stopped"
+  },
+  "stages": {
+    "prepare": "Preflight",
+    "generate": "Generate",
+    "build": "Build",
+    "start": "Deploy",
+    "postProcess": "Health"
+  },
+  "stageDescriptions": {
+    "prepare": "Preparing deployment environment",
+    "generate": "Generating configuration files",
+    "build": "Building container images",
+    "start": "Starting containers",
+    "postProcess": "Running health checks"
+  },
+  "buttons": {
+    "stop": "Stop Deployment",
+    "restart": "Restart Deployment",
+    "backToCanvas": "Back to Canvas",
+    "serverStatus": "Check Server Status",
+    "goToCanvas": "Go to Canvas",
+    "goHome": "Go to Home",
+    "goToProjectHome": "Project Home",
+    "viewLogs": "View Logs"
+  },
+  "tabs": {
+    "containers": "Containers",
+    "logs": "Logs"
+  },
+  "messages": {
+    "stopping": "Stopping deployment...",
+    "completedSuccessfully": "Deployment completed successfully",
+    "failedDuring": "Deployment failed during {{stage}} process",
+    "stoppedDuring": "Stopped deployment during {{stage}} process",
+    "deploymentStopped": "Deployment stopped",
+    "preparing": "Preparing deployment...",
+    "unknownError": "An unknown error occurred",
+    "startDeployment": "To start deployment, go to Canvas from Home and click Deploy button"
+  },
+  "containerStatus": {
+    "success": "Success",
+    "running": "Running",
+    "failed": "Failed",
+    "stopped": "Stopped",
+    "building": "Building",
+    "pending": "Pending",
+    "unknown": "Unknown"
+  },
+  "containers": {
+    "title": "Container List",
+    "noContainers": "No containers deployed yet",
+    "image": "Image:",
+    "build": "Build:",
+    "ports": "Ports:"
+  },
+  "success": {
+    "title": "Deployment Successful!",
+    "message": "All containers have been deployed successfully",
+    "nextSteps": "Next Steps",
+    "checkServices": "Check your services are running properly",
+    "viewMonitoring": "View monitoring dashboard for metrics",
+    "checkLogs": "Check logs if you encounter any issues",
+    "completedTitle": "Deployment Completed",
+    "completedMessage": "Deployment completed successfully.",
+    "duration": "Duration",
+    "services": "Services",
+    "endpoints": "Service Endpoints",
+    "confirm": "OK"
+  },
+  "failed": {
+    "title": "Deployment Failed",
+    "message": "An error occurred during deployment",
+    "errorDetails": "Error Details:",
+    "troubleshooting": "Troubleshooting:",
+    "checkLogs": "Check deployment logs for detailed error messages",
+    "verifyConfig": "Verify your configuration files are correct",
+    "ensureDocker": "Ensure Docker is running",
+    "tryAgain": "Try deploying again after fixing the issues",
+    "failedTitle": "Deployment Failed",
+    "failedMessage": "An error occurred during deployment.",
+    "recentLogs": "Recent Logs",
+    "confirm": "OK"
+  }
+}

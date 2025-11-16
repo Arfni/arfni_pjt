@@ -9,10 +9,13 @@ import { ProjectsSidebar } from './ProjectsSidebar';
 import { ProjectCard } from './ProjectCard';
 import { CreateProjectModal } from './CreateProjectModal';
 import { PluginManager } from './PluginManager';
+import { TutorialSlide } from './TutorialSlide';
 import { useAppDispatch } from '@app/hooks';
 import { addNode } from '@features/canvas/model/canvasSlice';
+import { useTranslation } from 'react-i18next';
 
 export default function ProjectsPage() {
+  const { t } = useTranslation('projects');
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
@@ -54,6 +57,7 @@ export default function ProjectsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectPath, setNewProjectPath] = useState('');
+  const [newProjectWorkdir, setNewProjectWorkdir] = useState('arfni-deploy');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -69,6 +73,9 @@ export default function ProjectsPage() {
 
   // Canvas 미리보기 데이터
   const [canvasPreviews, setCanvasPreviews] = useState<Record<string, { nodes: CanvasNode[], edges: CanvasEdge[] }>>({});
+
+  // 튜토리얼 상태 관리
+  const [showTutorial, setShowTutorial] = useState<boolean>(false);
 
   // 환경별 프로젝트 목록 로드 함수
   const loadProjects = useCallback(async (environment: 'local' | 'ec2', serverId?: string) => {
@@ -111,11 +118,11 @@ export default function ProjectsPage() {
       setCanvasPreviews(previews);
     } catch (err) {
       console.error('프로젝트 목록 불러오기 실패:', err);
-      setError('프로젝트 목록을 불러오는데 실패했습니다.');
+      setError(t('messages.loadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   // 프로젝트 삭제
   const handleDeleteProject = useCallback(async (project: Project, e: React.MouseEvent) => {
@@ -124,24 +131,24 @@ export default function ProjectsPage() {
 
     // 삭제 방식 선택
     const deleteCompletely = await confirm(
-      `"${project.name}" 프로젝트를 삭제하시겠습니까?`,
+      t('delete.confirmMessage', { projectName: project.name }),
       {
-        title: '프로젝트 삭제',
+        title: t('delete.confirmTitle'),
         kind: 'warning',
-        okLabel: '프로젝트 파일 영구 삭제',
-        cancelLabel: '목록에서만 삭제',
+        okLabel: t('delete.permanentDelete'),
+        cancelLabel: t('delete.removeFromListOnly'),
       }
     );
 
     if (deleteCompletely) {
       // 완전 삭제 선택 - 확인 다이얼로그
       const finalConfirm = await confirm(
-        `"${project.name}" 프로젝트의 모든 파일이 영구적으로 삭제됩니다.\n\n경로: ${project.path}\n\n이 작업은 되돌릴 수 없습니다. 정말 삭제하시겠습니까?`,
+        t('delete.finalConfirmMessage', { projectName: project.name, projectPath: project.path }),
         {
-          title: '프로젝트 삭제',
+          title: t('delete.finalConfirmTitle'),
           kind: 'warning',
-          okLabel: '삭제',
-          cancelLabel: '취소',
+          okLabel: t('delete.confirmOkLabel'),
+          cancelLabel: t('delete.confirmCancelLabel'),
         }
       );
 
@@ -157,19 +164,19 @@ export default function ProjectsPage() {
         setProjects((prev) => prev.filter((p) => p.id !== project.id));
       } catch (err) {
         console.error('프로젝트 삭제 실패:', err);
-        alert(`프로젝트 삭제에 실패했습니다: ${err}`);
+        alert(t('messages.deleteProjectFailed', { error: String(err) }));
       } finally {
         setDeletingProjectPath(null);
       }
     } else {
       // 목록에서만 삭제 선택 - 확인 다이얼로그
       const confirmRemove = await confirm(
-        `"${project.name}" 프로젝트를 DB와 목록에서 제거하시겠습니까?\n\n※ 프로젝트 파일은 삭제되지 않습니다.`,
+        t('delete.removeConfirmMessage', { projectName: project.name }),
         {
-          title: 'DB에서 프로젝트 제거',
+          title: t('delete.removeConfirmTitle'),
           kind: 'info',
-          okLabel: '제거',
-          cancelLabel: '취소',
+          okLabel: t('delete.removeOkLabel'),
+          cancelLabel: t('delete.confirmCancelLabel'),
         }
       );
 
@@ -185,7 +192,7 @@ export default function ProjectsPage() {
         setProjects((prev) => prev.filter((p) => p.id !== project.id));
       } catch (err) {
         console.error('프로젝트 제거 실패:', err);
-        alert(`프로젝트 제거에 실패했습니다: ${err}`);
+        alert(t('messages.removeProjectFailed', { error: String(err) }));
       } finally {
         setDeletingProjectPath(null);
       }
@@ -197,7 +204,7 @@ export default function ProjectsPage() {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: '프로젝트 폴더 선택',
+      title: t('messages.selectFolderTitle'),
     });
 
     if (selected && typeof selected === 'string') {
@@ -233,15 +240,19 @@ export default function ProjectsPage() {
 
     // 필수 필드 검증
     if (!newProjectName.trim()) {
-      setCreateError('Please enter Project Name');
+      setCreateError(t('messages.enterProjectName'));
       return;
     }
     if (!newProjectPath.trim()) {
-      setCreateError('Please select Project Path');
+      setCreateError(t('messages.selectProjectPath'));
       return;
     }
     if (selectedTab === 'ec2' && !selectedEC2ServerId) {
-      setCreateError('Please select EC2 Server');
+      setCreateError(t('messages.selectEC2Server'));
+      return;
+    }
+    if (selectedTab === 'ec2' && !newProjectWorkdir.trim()) {
+      setCreateError(t('messages.enterWorkdir'));
       return;
     }
 
@@ -252,7 +263,9 @@ export default function ProjectsPage() {
         newProjectName.trim(),
         newProjectPath.trim(),
         environment, // 현재 선택된 탭 (local or ec2)
-        environment === 'ec2' ? selectedEC2ServerId : undefined
+        environment === 'ec2' ? selectedEC2ServerId : undefined,
+        undefined, // description
+        environment === 'ec2' ? newProjectWorkdir.trim() : undefined
       );
       console.log('프로젝트 생성 완료:', project);
 
@@ -260,6 +273,7 @@ export default function ProjectsPage() {
       setShowCreateModal(false);
       setNewProjectName('');
       setNewProjectPath('');
+      setNewProjectWorkdir('arfni-deploy');
       setCreateError(null);
 
       // 프로젝트 목록 새로고침
@@ -275,11 +289,11 @@ export default function ProjectsPage() {
       navigate('/canvas', { state: { project } });
     } catch (err) {
       console.error('프로젝트 생성 실패:', err);
-      setCreateError(`Failed to create project: ${err}`);
+      setCreateError(t('messages.createProjectFailed', { error: String(err) }));
     } finally {
       setCreating(false);
     }
-  }, [newProjectName, newProjectPath, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch]);
+  }, [newProjectName, newProjectPath, newProjectWorkdir, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch, t]);
 
   // 탭 상태를 sessionStorage에 저장
   useEffect(() => {
@@ -312,20 +326,22 @@ export default function ProjectsPage() {
       <ProjectsSidebar
         selectedTab={selectedTab}
         onTabChange={setSelectedTab}
+        onHelpClick={() => setShowTutorial(true)}
       />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col px-6 py-3 overflow-hidden min-h-0">
+      <main className="flex-1 flex flex-col pt-6 pb-0 overflow-hidden min-h-0">
         {selectedTab === 'plugins' ? (
           <PluginManager className="flex-1" />
         ) : (
           <>
-        <div className="mb-3 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-2xl font-semibold text-gray-900">
-            {selectedTab === 'local' ? 'Local' : 'EC2'} Projects
-          </h2>
+        <div className="mt-2 mb-6 flex-shrink-0">
+          <div className="px-6 flex items-center justify-between">
+            <h2 className="text-3xl font-semibold text-gray-900">
+              {selectedTab === 'local' ? t('title.local') : t('title.ec2')}
+            </h2>
 
-          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
             {/* EC2 Server Selection - Always render to prevent layout shift */}
             <button
               onClick={() => setShowServerModal(true)}
@@ -336,30 +352,50 @@ export default function ProjectsPage() {
               <span>
                 {selectedEC2ServerId && ec2Servers.find(s => s.id === selectedEC2ServerId)
                   ? ec2Servers.find(s => s.id === selectedEC2ServerId)!.name
-                  : 'Select Server'}
+                  : t('buttons.selectServer')}
               </span>
               <span className="text-gray-400">▼</span>
             </button>
 
             {/* Create Project Button */}
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-5 py-2 text-white rounded-lg text-sm font-medium transition-colors"
-              style={{ backgroundColor: '#4C65E2' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#3B52C9'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4C65E2'}
+              onClick={() => {
+                // Early return when disabled condition
+                if (selectedTab === 'ec2' && !selectedEC2ServerId) return;
+                setShowCreateModal(true);
+              }}
+              className={`px-5 py-2 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                selectedTab === 'ec2' && !selectedEC2ServerId ? 'opacity-50' : ''
+              }`}
+              style={{
+                backgroundColor: selectedTab === 'ec2' && !selectedEC2ServerId ? '#9CA3AF' : '#4C65E2'
+              }}
+              onMouseEnter={(e) => {
+                if (!(selectedTab === 'ec2' && !selectedEC2ServerId)) {
+                  e.currentTarget.style.backgroundColor = '#3B52C9';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!(selectedTab === 'ec2' && !selectedEC2ServerId)) {
+                  e.currentTarget.style.backgroundColor = '#4C65E2';
+                }
+              }}
             >
-              Create New Project
+              {t('buttons.createProject')}
             </button>
+            </div>
           </div>
         </div>
+
+        {/* Divider */}
+        <div className="border-b border-gray-200"></div>
 
         {/* 로딩 상태 */}
         {loading && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-500">Loading Projects...</p>
+              <p className="text-gray-500">{t('messages.loading')}</p>
             </div>
           </div>
         )}
@@ -374,7 +410,7 @@ export default function ProjectsPage() {
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
               >
-                Retry
+                {t('messages.retry')}
               </button>
             </div>
           </div>
@@ -385,14 +421,14 @@ export default function ProjectsPage() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <Server className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">Select an EC2 Server</h3>
-              <p className="text-gray-500 mb-6">You need to select an EC2 server to view projects</p>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">{t('messages.selectServerTitle')}</h3>
+              <p className="text-gray-500 mb-6">{t('messages.selectServerPrompt')}</p>
               <button
                 onClick={() => setShowServerModal(true)}
                 className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-colors"
                 style={{ backgroundColor: '#4C65E2' }}
               >
-                Select Server
+                {t('buttons.selectServer')}
               </button>
             </div>
           </div>
@@ -403,16 +439,16 @@ export default function ProjectsPage() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">No Projects Existing</h3>
-              <p className="text-gray-500 mb-6">Create a new project to get started</p>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">{t('messages.noProjects')}</h3>
+              <p className="text-gray-500 mb-6">{t('messages.createFirst')}</p>
             </div>
           </div>
         )}
 
         {/* 프로젝트 목록 */}
         {!loading && !error && projects.length > 0 && (
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
+          <div className="flex-1 overflow-y-auto min-h-0 pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-3 px-6">
               {projects
                 .sort((a, b) => {
                   // 핀된 프로젝트를 먼저 표시
@@ -446,6 +482,7 @@ export default function ProjectsPage() {
         selectedTab={selectedTab}
         newProjectName={newProjectName}
         newProjectPath={newProjectPath}
+        newProjectWorkdir={newProjectWorkdir}
         creating={creating}
         selectedEC2ServerId={selectedEC2ServerId}
         ec2Servers={ec2Servers}
@@ -454,9 +491,11 @@ export default function ProjectsPage() {
           setShowCreateModal(false);
           setNewProjectName('');
           setNewProjectPath('');
+          setNewProjectWorkdir('arfni-deploy');
           setCreateError(null);
         }}
         onNameChange={setNewProjectName}
+        onWorkdirChange={setNewProjectWorkdir}
         onSelectFolder={handleSelectFolder}
         onCreate={handleCreateProject}
       />
@@ -485,9 +524,9 @@ export default function ProjectsPage() {
           // 서버 목록 새로고침
           const servers = await ec2ServerCommands.getAllServers();
           setEc2Servers(servers);
-          // 선택된 서버가 삭제되었으면 첫 번째 서버로 변경
-          if (servers.length > 0 && !servers.find(s => s.id === selectedEC2ServerId)) {
-            setSelectedEC2ServerId(servers[0].id);
+          // 선택된 서버가 삭제되었으면 선택 해제
+          if (!servers.find(s => s.id === selectedEC2ServerId)) {
+            setSelectedEC2ServerId('');
           }
         }}
       />
@@ -508,6 +547,21 @@ export default function ProjectsPage() {
         }}
         editServer={editingServer}
       />
+
+      {/* Tutorial Modal */}
+      {showTutorial && (
+        <TutorialSlide
+          type={selectedTab === 'local' ? 'local' : 'remote'}
+          onClose={() => {
+            setShowTutorial(false);
+            localStorage.setItem('tutorialCompleted', 'true');
+          }}
+          onSkip={() => {
+            setShowTutorial(false);
+            localStorage.setItem('tutorialCompleted', 'true');
+          }}
+        />
+      )}
     </div>
   );
 }

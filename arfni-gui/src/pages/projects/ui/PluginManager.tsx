@@ -3,6 +3,7 @@ import { Package, Download, Trash2, CheckCircle, AlertCircle, Search, ExternalLi
 import { pluginService, type LoadedPlugin } from '@services/pluginLoader';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { appDataDir, join } from '@tauri-apps/api/path';
+import { useTranslation } from 'react-i18next';
 
 interface PluginManagerProps {
   className?: string;
@@ -40,6 +41,7 @@ interface CacheInfo {
 }
 
 export function PluginManager({ className = '' }: PluginManagerProps) {
+  const { t } = useTranslation('projects');
   const [bundledPlugins, setBundledPlugins] = useState<LoadedPlugin[]>([]);
   const [installedPlugins, setInstalledPlugins] = useState<LoadedPlugin[]>([]);
   const [registryPlugins, setRegistryPlugins] = useState<RegistryPlugin[]>([]);
@@ -63,7 +65,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       setBundledPlugins(pluginService.getBundledPlugins());
       setInstalledPlugins(pluginService.getInstalledPlugins());
     } catch (error) {
-      console.error('Failed to load plugins:', error);
+      console.error(t('plugins.errors.loadFailed'), error);
     }
   };
 
@@ -73,7 +75,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       setBundledPlugins(pluginService.getBundledPlugins());
       setInstalledPlugins(pluginService.getInstalledPlugins());
     } catch (error) {
-      console.error('Failed to reload plugins:', error);
+      console.error(t('plugins.errors.reloadFailed'), error);
     }
   };
 
@@ -83,7 +85,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       const info = await invoke<CacheInfo>('get_cache_info');
       setCacheInfo(info);
     } catch (error) {
-      console.error('Failed to load cache info:', error);
+      console.error(t('plugins.errors.loadCacheFailed'), error);
     }
   };
 
@@ -96,7 +98,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       setRegistryPlugins(registry.plugins);
       await loadCacheInfo(); // Update cache info after loading
     } catch (error) {
-      console.error('Failed to load plugin registry:', error);
+      console.error(t('plugins.errors.loadRegistryFailed'), error);
     } finally {
       setLoadingRegistry(false);
     }
@@ -110,9 +112,9 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       const registry: PluginRegistry = JSON.parse(registryJson);
       setRegistryPlugins(registry.plugins);
       await loadCacheInfo(); // Update cache info after refresh
-      console.log('✅ Registry refreshed successfully');
+      console.log(t('plugins.success.refreshed'));
     } catch (error) {
-      console.error('Failed to refresh plugin registry:', error);
+      console.error(t('plugins.errors.refreshFailed'), error);
     } finally {
       setRefreshing(false);
     }
@@ -127,7 +129,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       const manifestUrl = `https://raw.githubusercontent.com/Arfni/arfni-plugins/main/${plugin.path}/plugin.yaml`;
       const manifestResponse = await fetch(manifestUrl);
       if (!manifestResponse.ok) {
-        throw new Error('Failed to fetch plugin manifest');
+        throw new Error(t('plugins.errors.fetchManifestFailed'));
       }
       const manifestYaml = await manifestResponse.text();
 
@@ -139,13 +141,13 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
         manifestYaml: manifestYaml
       });
 
-      alert(`✅ ${result}`);
+      alert(t('plugins.success.installed', { message: result }));
 
       // Reload plugins after installation
       await reloadPlugins();
     } catch (error) {
-      console.error('Failed to install plugin:', error);
-      alert(`❌ Failed to install plugin: ${error}`);
+      console.error(t('plugins.errors.loadFailed'), error);
+      alert(t('plugins.errors.installFailed', { error: String(error) }));
     } finally {
       setInstalling(false);
     }
@@ -159,7 +161,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       // Parse GitHub URL (e.g., https://github.com/owner/repo/tree/branch/path)
       const urlMatch = installUrl.match(/github\.com\/([^\/]+)\/([^\/]+)(?:\/tree\/([^\/]+)\/(.+))?/);
       if (!urlMatch) {
-        throw new Error('Invalid GitHub URL format');
+        throw new Error(t('plugins.errors.invalidGitHubUrl'));
       }
 
       const [, owner, repo, branch = 'main', path = ''] = urlMatch;
@@ -168,7 +170,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
       const manifestUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}/plugin.yaml`;
       const manifestResponse = await fetch(manifestUrl);
       if (!manifestResponse.ok) {
-        throw new Error('Failed to fetch plugin manifest from GitHub');
+        throw new Error(t('plugins.errors.fetchManifestFromGitHub'));
       }
       const manifestYaml = await manifestResponse.text();
 
@@ -180,21 +182,21 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
         manifestYaml: manifestYaml
       });
 
-      alert(`✅ ${result}`);
+      alert(t('plugins.success.installed', { message: result }));
 
       // Reload plugins after installation
       await reloadPlugins();
       setInstallUrl('');
     } catch (error) {
-      console.error('Failed to install plugin:', error);
-      alert(`❌ Failed to install plugin: ${error}`);
+      console.error(t('plugins.errors.loadFailed'), error);
+      alert(t('plugins.errors.installFailed', { error: String(error) }));
     } finally {
       setInstalling(false);
     }
   };
 
   const handleUninstallPlugin = async (plugin: LoadedPlugin) => {
-    if (!confirm(`Are you sure you want to uninstall ${plugin.manifest.displayName || plugin.manifest.name}?`)) {
+    if (!confirm(t('plugins.confirm.uninstall', { pluginName: plugin.manifest.displayName || plugin.manifest.name }))) {
       return;
     }
 
@@ -205,13 +207,13 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
         pluginName: plugin.manifest.name
       });
 
-      alert(`✅ ${result}`);
+      alert(t('plugins.success.uninstalled', { message: result }));
 
       // Reload plugins after uninstallation
       await reloadPlugins();
     } catch (error) {
-      console.error('Failed to uninstall plugin:', error);
-      alert(`❌ Failed to uninstall plugin: ${error}`);
+      console.error(t('plugins.errors.loadFailed'), error);
+      alert(t('plugins.errors.uninstallFailed', { error: String(error) }));
     }
   };
 
@@ -245,8 +247,8 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* Header */}
-      <div className="p-6 border-b border-gray-200">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Plugin Management</h2>
+      <div className="mt-2 mb-6 px-6">
+        <h2 className="text-3xl font-semibold text-gray-900 mb-4">{t('plugins.management')}</h2>
 
         {/* Install from URL */}
         <div className="mb-4">
@@ -255,7 +257,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
               type="text"
               value={installUrl}
               onChange={(e) => setInstallUrl(e.target.value)}
-              placeholder="Enter GitHub repository URL (e.g., https://github.com/user/arfni-plugin-example)"
+              placeholder={t('plugins.installFromUrl')}
               className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={installing}
             />
@@ -267,12 +269,12 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
               {installing ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Installing...
+                  {t('plugins.installing')}
                 </>
               ) : (
                 <>
                   <Download className="w-4 h-4" />
-                  Install Plugin
+                  {t('plugins.installPlugin')}
                 </>
               )}
             </button>
@@ -287,7 +289,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search plugins..."
+              placeholder={t('plugins.searchPlugins')}
               className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -298,18 +300,21 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
           >
             {categories.map(cat => (
               <option key={cat} value={cat}>
-                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                {t(`plugins.category.${cat}`)}
               </option>
             ))}
           </select>
         </div>
       </div>
 
+      {/* Divider */}
+      <div className="border-b border-gray-200"></div>
+
       {/* Plugin Lists */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto py-6">
         {/* Bundled Plugins */}
-        <div className="mb-8">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Built-in Plugins</h3>
+        <div className="mb-8 px-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('plugins.builtInPlugins')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredBundledPlugins.map(plugin => (
               <PluginCard key={plugin.manifest.name} plugin={plugin} isBundled={true} />
@@ -317,14 +322,14 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
           </div>
           {filteredBundledPlugins.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              No bundled plugins found matching your search.
+              {t('plugins.empty.noBundled')}
             </div>
           )}
         </div>
 
         {/* Installed Plugins */}
-        <div className="mb-8">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Installed Plugins</h3>
+        <div className="mb-8 px-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('plugins.installedPlugins')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredInstalledPlugins.map(plugin => (
               <PluginCard
@@ -337,27 +342,30 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
           </div>
           {filteredInstalledPlugins.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              No installed plugins found. Install plugins from GitHub using the URL above.
+              {t('plugins.empty.noInstalled')}
             </div>
           )}
         </div>
 
         {/* Available Plugins from Registry */}
-        <div>
+        <div className="mb-8 px-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-800">Available Plugins from Registry</h3>
+              <h3 className="text-lg font-semibold text-gray-800">{t('plugins.availablePlugins')}</h3>
               {cacheInfo && cacheInfo.exists && (
                 <p className="text-sm text-gray-500 mt-1">
                   {cacheInfo.valid ? (
                     <>
-                      Last synced: {cacheInfo.age_hours !== null && cacheInfo.age_hours === 0 ? 'just now' : `${cacheInfo.age_hours} hour${cacheInfo.age_hours !== 1 ? 's' : ''} ago`}
-                      {' '}<span className="text-green-600">(cached)</span>
+                      {t('plugins.cache.lastSynced')} {cacheInfo.age_hours !== null && cacheInfo.age_hours === 0
+                        ? t('plugins.cache.justNow')
+                        : t('plugins.cache.hoursAgo', { hours: cacheInfo.age_hours, plural: cacheInfo.age_hours !== 1 ? 's' : '' })
+                      }
+                      {' '}<span className="text-green-600">{t('plugins.cache.cached')}</span>
                     </>
                   ) : (
                     <>
-                      Cache expired ({cacheInfo.age_hours} hours old)
-                      {' '}<span className="text-yellow-600">(stale)</span>
+                      {t('plugins.cache.expired', { hours: cacheInfo.age_hours })}
+                      {' '}<span className="text-yellow-600">{t('plugins.cache.stale')}</span>
                     </>
                   )}
                 </p>
@@ -367,16 +375,16 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
               onClick={handleRefreshRegistry}
               disabled={refreshing || loadingRegistry}
               className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md flex items-center gap-2 disabled:opacity-50"
-              title="Force refresh from GitHub (ignores cache)"
+              title={t('plugins.cache.forceRefreshTitle')}
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Force Refresh'}
+              {refreshing ? t('plugins.refreshing') : t('plugins.forceRefresh')}
             </button>
           </div>
           {loadingRegistry ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-gray-500 mt-4">Loading registry...</p>
+              <p className="text-gray-500 mt-4">{t('plugins.loadingRegistry')}</p>
             </div>
           ) : (
             <>
@@ -392,7 +400,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
               </div>
               {filteredRegistryPlugins.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  No registry plugins found matching your search.
+                  {t('plugins.empty.noRegistry')}
                 </div>
               )}
             </>
@@ -410,6 +418,7 @@ interface PluginCardProps {
 }
 
 function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
+  const { t } = useTranslation('projects');
   const [iconUrl, setIconUrl] = useState<string | null>(null);
 
   const categoryColors: Record<string, string> = {
@@ -443,13 +452,13 @@ function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
         const blob = new Blob([new Uint8Array(iconBytes)], { type: 'image/png' });
         setIconUrl(URL.createObjectURL(blob));
       } catch (error) {
-        console.error(`Failed to load plugin icon for ${plugin.manifest.name}:`, error);
+        console.error(t('plugins.errors.loadIconFailed', { pluginName: plugin.manifest.name }), error);
         setIconUrl(null);
       }
     };
 
     loadIconUrl();
-  }, [plugin, isBundled]);
+  }, [plugin, isBundled, t]);
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow">
@@ -473,7 +482,7 @@ function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
           <button
             onClick={onUninstall}
             className="p-1 hover:bg-red-50 rounded transition-colors"
-            title="Uninstall plugin"
+            title={t('plugins.uninstallPlugin')}
           >
             <Trash2 className="w-4 h-4 text-red-500" />
           </button>
@@ -484,14 +493,14 @@ function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
 
       <div className="flex items-center justify-between">
         <span className={`text-xs px-2 py-1 rounded-full ${categoryColors[plugin.manifest.category] || 'bg-gray-100 text-gray-800'}`}>
-          {plugin.manifest.category}
+          {t(`plugins.category.${plugin.manifest.category}`)}
         </span>
         <span className="text-xs text-gray-500">by {plugin.manifest.author}</span>
       </div>
 
       {plugin.manifest.provides?.service_kinds && (
         <div className="mt-3 pt-3 border-t border-gray-100">
-          <p className="text-xs text-gray-500">Provides:</p>
+          <p className="text-xs text-gray-500">{t('plugins.provides')}</p>
           <div className="flex flex-wrap gap-1 mt-1">
             {plugin.manifest.provides.service_kinds.map(kind => (
               <span key={kind} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
@@ -512,6 +521,7 @@ interface RegistryPluginCardProps {
 }
 
 function RegistryPluginCard({ plugin, onInstall, installing }: RegistryPluginCardProps) {
+  const { t } = useTranslation('projects');
   const [iconUrl, setIconUrl] = useState<string | null>(null);
   const [iconError, setIconError] = useState(false);
 
@@ -558,7 +568,7 @@ function RegistryPluginCard({ plugin, onInstall, installing }: RegistryPluginCar
         </div>
         <div className="flex items-center gap-2">
           {plugin.verified && (
-            <span title="Verified">
+            <span title={t('plugins.verified')}>
               <CheckCircle className="w-4 h-4 text-green-500" />
             </span>
           )}
@@ -567,7 +577,7 @@ function RegistryPluginCard({ plugin, onInstall, installing }: RegistryPluginCar
             target="_blank"
             rel="noopener noreferrer"
             className="p-1 hover:bg-gray-50 rounded transition-colors"
-            title="View on GitHub"
+            title={t('plugins.viewOnGitHub')}
           >
             <ExternalLink className="w-4 h-4 text-gray-500" />
           </a>
@@ -578,14 +588,14 @@ function RegistryPluginCard({ plugin, onInstall, installing }: RegistryPluginCar
 
       <div className="flex items-center justify-between mb-3">
         <span className={`text-xs px-2 py-1 rounded-full ${categoryColors[plugin.category] || 'bg-gray-100 text-gray-800'}`}>
-          {plugin.category}
+          {t(`plugins.category.${plugin.category}`)}
         </span>
         <span className="text-xs text-gray-500">by {plugin.author}</span>
       </div>
 
       {plugin.provides?.service_kinds && plugin.provides.service_kinds.length > 0 && (
         <div className="mb-3 pb-3 border-b border-gray-100">
-          <p className="text-xs text-gray-500">Provides:</p>
+          <p className="text-xs text-gray-500">{t('plugins.provides')}</p>
           <div className="flex flex-wrap gap-1 mt-1">
             {plugin.provides.service_kinds.map(kind => (
               <span key={kind} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
@@ -598,7 +608,7 @@ function RegistryPluginCard({ plugin, onInstall, installing }: RegistryPluginCar
 
       {plugin.tags && plugin.tags.length > 0 && (
         <div className="mb-3 pb-3 border-b border-gray-100">
-          <p className="text-xs text-gray-500">Tags:</p>
+          <p className="text-xs text-gray-500">{t('plugins.tags')}</p>
           <div className="flex flex-wrap gap-1 mt-1">
             {plugin.tags.slice(0, 4).map(tag => (
               <span key={tag} className="text-xs bg-gray-50 text-gray-600 px-2 py-0.5 rounded">
@@ -620,12 +630,12 @@ function RegistryPluginCard({ plugin, onInstall, installing }: RegistryPluginCar
         {installing ? (
           <>
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            Installing...
+            {t('plugins.installing')}
           </>
         ) : (
           <>
             <Download className="w-4 h-4" />
-            Install
+            {t('plugins.install')}
           </>
         )}
       </button>

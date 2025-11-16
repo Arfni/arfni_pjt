@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Server, Loader2, Plus, Edit2, Trash2 } from 'lucide-react';
 import { EC2Server, sshCommands, ec2ServerCommands } from '@shared/api/tauri/commands';
 import { confirm } from '@tauri-apps/plugin-dialog';
+import { useTranslation } from 'react-i18next';
 
 interface ServerSelectionModalProps {
   isOpen: boolean;
@@ -24,12 +25,19 @@ export function ServerSelectionModal({
   onEditServer,
   onServerDeleted,
 }: ServerSelectionModalProps) {
+  const { t } = useTranslation('projects');
   const [connectingServerId, setConnectingServerId] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleServerClick = async (server: EC2Server) => {
+    // 이미 선택된 서버를 클릭하면 선택 해제
+    if (server.id === selectedServerId) {
+      onSelectServer('');
+      return;
+    }
+
     // SSH 연결 테스트
     setConnectingServerId(server.id);
     setConnectionError(null);
@@ -56,7 +64,7 @@ export function ServerSelectionModal({
       onClose();
     } catch (error) {
       console.error('SSH 연결 실패:', error);
-      setConnectionError(`${server.name} 연결 실패: ${error}`);
+      setConnectionError(t('server.connectionFailed', { serverName: server.name, error: String(error) }));
     } finally {
       setConnectingServerId(null);
     }
@@ -66,12 +74,12 @@ export function ServerSelectionModal({
     e.stopPropagation();
 
     const confirmed = await confirm(
-      `"${server.name}" 서버를 삭제하시겠습니까?\n\nHost: ${server.host}\n\n이 작업은 되돌릴 수 없습니다.`,
+      t('server.deleteConfirmMessage', { serverName: server.name, host: server.host }),
       {
-        title: '서버 삭제',
+        title: t('server.deleteConfirmTitle'),
         kind: 'warning',
-        okLabel: '삭제',
-        cancelLabel: '취소',
+        okLabel: t('server.deleteOkLabel'),
+        cancelLabel: t('server.deleteCancelLabel'),
       }
     );
 
@@ -87,7 +95,7 @@ export function ServerSelectionModal({
       }
     } catch (error) {
       console.error('서버 삭제 실패:', error);
-      setConnectionError(`서버 삭제에 실패했습니다: ${error}`);
+      setConnectionError(t('server.deletionFailed', { error: String(error) }));
     }
   };
 
@@ -100,7 +108,7 @@ export function ServerSelectionModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800">Select EC2 Server</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{t('server.selectTitle')}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -120,8 +128,8 @@ export function ServerSelectionModal({
           {servers.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Server className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p>No servers available</p>
-              <p className="text-sm mt-1">Add a new server to get started</p>
+              <p>{t('server.noServersAvailable')}</p>
+              <p className="text-sm mt-1">{t('server.addNewServerPrompt')}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -149,7 +157,7 @@ export function ServerSelectionModal({
                         <p className="text-sm text-gray-500 mt-1">{server.user}@{server.host}</p>
                         {server.last_connected_at && (
                           <p className="text-xs text-gray-400 mt-1">
-                            Last connected: {new Date(server.last_connected_at).toLocaleString()}
+                            {t('server.lastConnected')} {new Date(server.last_connected_at).toLocaleString()}
                           </p>
                         )}
                       </div>
@@ -166,14 +174,14 @@ export function ServerSelectionModal({
                                 onEditServer(server);
                               }}
                               className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                              title="Edit Server"
+                              title={t('server.editServer')}
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={(e) => handleDeleteServer(server, e)}
                               className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                              title="Delete Server"
+                              title={t('server.deleteServer')}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -201,7 +209,7 @@ export function ServerSelectionModal({
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4C65E2'}
           >
             <Plus className="w-4 h-4" />
-            Add New Server
+            {t('server.addNewServer')}
           </button>
         </div>
       </div>

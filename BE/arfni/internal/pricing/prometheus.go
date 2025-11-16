@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"time"
@@ -379,7 +380,9 @@ func (ts *TimeSeriesData) CalculateStats() TimeSeriesStats {
 		diff := v - stats.Average
 		variance += diff * diff
 	}
-	stats.StdDev = float64(int(float64(variance) / float64(len(ts.Values)) * 100)) / 100
+	variance = variance / float64(len(ts.Values))
+	stdDev := math.Sqrt(variance)
+	stats.StdDev = float64(int(stdDev*100)) / 100 // Round to 2 decimal places
 
 	// Peak hours analysis (group by hour)
 	hourlyMax := make(map[int]float64)

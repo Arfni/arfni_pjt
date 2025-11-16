@@ -12,11 +12,17 @@ import enCommon from './locales/en/common.json';
 import enHero from './locales/en/hero.json';
 import enFeatures from './locales/en/features.json';
 import enIntegrations from './locales/en/integrations.json';
+import enDownload from './locales/en/download.json';
 
 import jaCommon from './locales/ja/common.json';
 import jaHero from './locales/ja/hero.json';
 import jaFeatures from './locales/ja/features.json';
 import jaIntegrations from './locales/ja/integrations.json';
+import jaDownload from './locales/ja/download.json';
+import koDownload from './locales/ko/download.json';
+import koDoc from './locales/ko/doc.json';
+import enDoc from './locales/en/doc.json';
+import jaDoc from './locales/ja/doc.json';
 
 const resources = {
   ko: {
@@ -24,18 +30,24 @@ const resources = {
     hero: koHero,
     features: koFeatures,
     integrations: koIntegrations,
+    download: koDownload,
+    doc: koDoc,
   },
   en: {
     common: enCommon,
     hero: enHero,
     features: enFeatures,
     integrations: enIntegrations,
+    download: enDownload,
+    doc: enDoc,
   },
   ja: {
     common: jaCommon,
     hero: jaHero,
     features: jaFeatures,
     integrations: jaIntegrations,
+    download: jaDownload,
+    doc: jaDoc,
   },
 };
 
@@ -46,7 +58,7 @@ i18n
     resources,
     fallbackLng: 'ko',
     defaultNS: 'common',
-    ns: ['common', 'hero', 'features', 'integrations'],
+    ns: ['common', 'hero', 'features', 'integrations', 'download', 'doc'],
 
     interpolation: {
       escapeValue: false,

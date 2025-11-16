@@ -1,0 +1,329 @@
+{
+  "title": {
+    "page": "Canvas",
+    "nodePalette": "Node Palette",
+    "propertyPanel": "Properties",
+    "yamlEditor": "YAML Editor"
+  },
+  "toolbar": {
+    "cicd": "CI/CD",
+    "githubYml": "Github YML",
+    "autoAlignment": "Auto Alignment",
+    "export": "Export",
+    "deploy": "Deploy",
+    "stop": "Stop",
+    "settings": "Settings",
+    "ai": "AI",
+    "home": "Home",
+    "exportCanvas": "Export Canvas",
+    "save": "Save",
+    "help": "Help",
+    "monitoring": "Monitoring:",
+    "mode": {
+      "allInOne": "All-in-One",
+      "hybrid": "Hybrid",
+      "noMonitoring": "No Monitoring"
+    },
+    "monitoringHelp": {
+      "allInOne": "All monitoring tools (Prometheus, Grafana, etc.) run on a single server. Simple and cost-effective.",
+      "hybrid": "Monitoring tools are distributed across multiple servers. Balances performance and cost.",
+      "noMonitoring": "No monitoring tools deployed. For development or when monitoring isn't needed."
+    }
+  },
+  "nodes": {
+    "service": "Service",
+    "database": "Database",
+    "target": "Target",
+    "addNode": "Add Node",
+    "deleteNode": "Delete Node",
+    "duplicateNode": "Duplicate Node",
+    "categories": {
+      "services": "Services",
+      "databases": "Databases",
+      "targets": "Targets",
+      "custom": "Custom"
+    }
+  },
+  "properties": {
+    "title": "Properties",
+    "noNodeSelected": "No node selected",
+    "selectNodePrompt": "Select a node to edit its properties",
+    "basicInfo": "Basic Information",
+    "nodeName": "Node Name",
+    "nodeType": "Node Type",
+    "configuration": "Configuration",
+    "advanced": "Advanced",
+    "connections": "Connections",
+    "save": "Save",
+    "cancel": "Cancel",
+    "reset": "Reset",
+    "sections": {
+      "basicInfo": "Basic Information",
+      "storage": "Storage & Volumes",
+      "resourceLimits": "Resource Limits",
+      "environmentVariables": "Environment Variables",
+      "healthCheck": "Health Check",
+      "configuration": "Configuration",
+      "buildConfiguration": "Build Configuration",
+      "networkPorts": "Network & Ports",
+      "dependencies": "Dependencies",
+      "advancedSettings": "Advanced Settings"
+    },
+    "labels": {
+      "serviceName": "Service Name",
+      "portMapping": "Port Mapping",
+      "hostPort": "Host Port",
+      "containerPort": "Container Port",
+      "buildPath": "Build Path",
+      "volumeMounts": "Volume Mounts",
+      "memoryLimit": "Memory Limit (MB)",
+      "cpuLimit": "CPU Limit",
+      "name": "Name",
+      "type": "Type",
+      "host": "Host",
+      "user": "User",
+      "sshKey": "SSH Key",
+      "workingDirectory": "Working Directory",
+      "monitoringMode": "Monitoring Mode",
+      "containerHealthCheck": "Container Health Check"
+    },
+    "placeholders": {
+      "serviceName": "my-service",
+      "targetName": "Target name",
+      "ec2Host": "ec2-host.amazonaws.com",
+      "defaultUser": "ubuntu",
+      "sshKeyPath": "/path/to/key.pem",
+      "workingDirectory": "/home/ubuntu",
+      "buildPath": "./",
+      "envKey": "KEY",
+      "envValue": "Value",
+      "envValueUpper": "VALUE"
+    },
+    "errors": {
+      "unknownServiceType": "Unknown service type",
+      "noPluginFound": "No plugin found for this service. Please ensure the plugin is properly installed.",
+      "unknownConfig": "Unknown service configuration"
+    },
+    "info": {
+      "targetProperties": "Target Properties",
+      "monitoringModes": {
+        "title": "Monitoring Modes:",
+        "allInOne": "All-in-One: Prometheus, Grafana, Loki in one container",
+        "hybrid": "Hybrid: Each service in separate containers",
+        "noMonitoring": "No Monitoring: Deploy services only, no monitoring stack"
+      }
+    },
+    "targetTypes": {
+      "ec2": "Remote (SSH)",
+      "dockerDesktop": "Docker Desktop"
+    },
+    "monitoringModeOptions": {
+      "allInOne": "All-in-One (Single Container)",
+      "hybrid": "Hybrid (Separate Containers)",
+      "noMonitoring": "No Monitoring"
+    },
+    "fields": {
+      "name": {
+        "label": "Service Name",
+        "description": "Unique identifier for this service"
+      },
+      "kind": {
+        "label": "Kind",
+        "description": "Service type (usually docker.container)"
+      },
+      "target": {
+        "label": "Target Environment",
+        "description": "Where this service should be deployed"
+      },
+      "build": {
+        "label": "Build Path",
+        "description": "Path to the build context"
+      },
+      "image": {
+        "label": "Docker Image",
+        "description": "Docker image to use (alternative to build)"
+      },
+      "dockerfile": {
+        "label": "Dockerfile Path",
+        "description": "Custom Dockerfile path"
+      },
+      "ports": {
+        "label": "Ports",
+        "description": "Port mappings (host:container)"
+      },
+      "volumes": {
+        "label": "Volumes",
+        "description": "Volume mounts for persistent data"
+      },
+      "env": {
+        "label": "Environment Variables",
+        "description": "Runtime environment variables"
+      },
+      "health": {
+        "label": "Health Check",
+        "description": "Container health monitoring configuration"
+      },
+      "dependsOn": {
+        "label": "Dependencies",
+        "description": "Services that must start before this one"
+      },
+      "command": {
+        "label": "Command Override",
+        "description": "Override the default container command"
+      },
+      "entrypoint": {
+        "label": "Entrypoint Override",
+        "description": "Override the default entrypoint"
+      },
+      "workingDir": {
+        "label": "Working Directory",
+        "description": "Set the working directory in the container"
+      },
+      "user": {
+        "label": "User",
+        "description": "Run container as specific user"
+      },
+      "restart": {
+        "label": "Restart Policy",
+        "description": "Container restart behavior"
+      },
+      "privileged": {
+        "label": "Privileged Mode",
+        "description": "Run container in privileged mode"
+      },
+      "networks": {
+        "label": "Networks",
+        "description": "Networks to attach to"
+      },
+      "memoryLimit": {
+        "label": "Memory Limit (MB)",
+        "description": "Maximum memory allocation"
+      },
+      "cpuLimit": {
+        "label": "CPU Limit",
+        "description": "CPU cores limit"
+      }
+    },
+    "fieldOptions": {
+      "target": {
+        "local": "Local",
+        "ec2": "Remote"
+      },
+      "restart": {
+        "no": "No",
+        "always": "Always",
+        "onFailure": "On Failure",
+        "unlessStopped": "Unless Stopped"
+      }
+    }
+  },
+  "yaml": {
+    "title": "YAML Editor",
+    "preview": "Preview",
+    "edit": "Edit",
+    "validate": "Validate",
+    "format": "Format",
+    "download": "Download",
+    "validationSuccess": "YAML is valid",
+    "validationFailed": "YAML validation failed",
+    "formatSuccess": "YAML formatted successfully",
+    "parseError": "Failed to parse YAML",
+    "copyToClipboard": "Copy to clipboard",
+    "downloadYaml": "Download YAML",
+    "copiedSuccess": "✓ Copied to clipboard!",
+    "noProject": "# Please create a project first\n# Click the New button to create a new project",
+    "yamlError": "# Error: {{error}}\n# Canvas is empty or invalid"
+  },
+  "export": {
+    "title": "Export Project",
+    "format": "Export Format",
+    "dockerCompose": "Docker Compose",
+    "kubernetes": "Kubernetes",
+    "terraform": "Terraform",
+    "includeConfig": "Include Configuration Files",
+    "includeSecrets": "Include Secrets (Not Recommended)",
+    "destination": "Destination",
+    "browse": "Browse...",
+    "exporting": "Exporting...",
+    "exportSuccess": "Export successful!",
+    "exportFailed": "Export failed",
+    "successMessage": "Project has been exported successfully",
+    "location": "Location:",
+    "openFolder": "Open Folder",
+    "openFile": "Open File"
+  },
+  "ai": {
+    "title": "AI Assistant",
+    "generate": "Generate Architecture",
+    "optimize": "Optimize Configuration",
+    "suggest": "Suggest Improvements",
+    "prompt": "Describe what you want to build...",
+    "generating": "Generating...",
+    "examples": {
+      "title": "Examples:",
+      "webapp": "A web application with React frontend and Node.js backend",
+      "microservices": "Microservices architecture with API gateway",
+      "dataProcessing": "Data processing pipeline with Kafka and Spark"
+    }
+  },
+  "messages": {
+    "openProjectFirst": "Please create or open a project first",
+    "dockerNotInstalled": "Docker is not installed or not running",
+    "savingChanges": "Saving changes...",
+    "changesSaved": "Changes saved successfully",
+    "saveFailed": "Failed to save changes",
+    "deploymentStarted": "Deployment started",
+    "deploymentFailed": "Failed to start deployment",
+    "invalidConfiguration": "Invalid configuration detected",
+    "confirmDelete": "Are you sure you want to delete this node?",
+    "confirmClearCanvas": "Are you sure you want to clear the canvas?"
+  },
+  "page": {
+    "loadingProject": "Loading project...",
+    "loadingError": "Unable to open project: {{error}}",
+    "toggleBlocksPalette": {
+      "show": "Show Blocks",
+      "hide": "Hide Blocks"
+    },
+    "toggleProperties": {
+      "show": "Show Properties",
+      "hide": "Hide Properties"
+    }
+  },
+  "autoSave": {
+    "saving": "Saving...",
+    "saved": "✓ Saved"
+  },
+  "nodeDefaults": {
+    "localDocker": "Local Docker",
+    "dockerLocal": "Docker Local",
+    "postgres": "PostgreSQL",
+    "ec2": "Remote"
+  },
+  "blocks": {
+    "title": "Blocks",
+    "tabs": {
+      "db": "DB",
+      "runtime": "Runtime",
+      "infra": "Infra",
+      "monitor": "Monitor"
+    },
+    "searchPlaceholder": "Block Search...",
+    "loading": "Loading plugins...",
+    "noBlocksFound": "No blocks found"
+  },
+  "volumeEditor": {
+    "volumeNumber": "Volume #{{number}}",
+    "remove": "Remove",
+    "hostPath": "Host Path",
+    "hostPathPlaceholder": "./data",
+    "containerPath": "Container Path",
+    "containerPathPlaceholder": "/var/lib/data",
+    "addNewVolume": "Add New Volume",
+    "addButton": "+ Add Volume"
+  },
+  "keyValueEditor": {
+    "remove": "Remove",
+    "addVariable": "+ Add Variable"
+  }
+}

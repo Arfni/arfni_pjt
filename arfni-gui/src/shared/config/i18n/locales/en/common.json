@@ -1,0 +1,123 @@
+{
+  "buttons": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "open": "Open",
+    "export": "Export",
+    "import": "Import",
+    "upload": "Upload",
+    "download": "Download",
+    "apply": "Apply",
+    "reset": "Reset",
+    "clear": "Clear"
+  },
+  "status": {
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "success": "Success",
+    "failed": "Failed",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info",
+    "pending": "Pending",
+    "running": "Running",
+    "stopped": "Stopped",
+    "building": "Building",
+    "ready": "Ready"
+  },
+  "messages": {
+    "confirmDelete": "Are you sure you want to delete?",
+    "unsavedChanges": "You have unsaved changes. Do you want to continue?",
+    "operationSuccess": "Operation completed successfully",
+    "operationFailed": "Operation failed",
+    "noData": "No data available",
+    "noResults": "No results found",
+    "selectOption": "Please select an option"
+  },
+  "labels": {
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "status": "Status",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "actions": "Actions",
+    "settings": "Settings",
+    "image": "Image",
+    "build": "Build",
+    "ports": "Ports",
+    "command": "Command",
+    "containerId": "Container ID",
+    "created": "Created"
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalidFormat": "Invalid format",
+    "tooShort": "Too short",
+    "tooLong": "Too long"
+  },
+  "settings": {
+    "title": "Settings",
+    "backToProjects": "Back to Projects",
+    "sidebar": {
+      "general": "General",
+      "apiKeys": "API Keys"
+    },
+    "general": {
+      "language": {
+        "title": "Language",
+        "description": "Select your preferred language",
+        "english": "English",
+        "englishFull": "English (United States)",
+        "korean": "한국어",
+        "koreanFull": "Korean (대한민국)"
+      }
+    },
+    "apiKeys": {
+      "title": "API Keys",
+      "description": "Manage your API keys for different providers",
+      "note": "You can save multiple keys per provider. Only <b>one key</b> is active per provider.",
+      "addUpdate": "Add / Update API Key",
+      "provider": "Provider",
+      "label": "Key Name",
+      "apiKey": "API Key",
+      "labelPlaceholder": "e.g., dev / prod / personal",
+      "apiKeyPlaceholder": "sk-...",
+      "show": "Show",
+      "hide": "Hide",
+      "setActiveAfterSave": "Set as active after saving",
+      "savedKeys": "Saved Keys",
+      "active": "Active",
+      "updated": "Updated",
+      "lastUsed": "Last used",
+      "copyActive": "Copy Active",
+      "copyActiveKey": "Copy Active Key",
+      "addApiKey": "Add API Key",
+      "setActive": "Set Active",
+      "noKeys": "No saved keys."
+    },
+    "messages": {
+      "loadFailed": "Failed to load API keys: {{error}}",
+      "labelAndKeyRequired": "Label and API Key are required.",
+      "addUpdateFailed": "Failed to add/update: {{error}}",
+      "deleteConfirm": "Are you sure you want to delete? This cannot be undone.",
+      "deleteFailed": "Failed to delete: {{error}}",
+      "activateFailed": "Failed to set active: {{error}}",
+      "noActiveKey": "No active key found.",
+      "keyCopied": "Active key copied to clipboard.",
+      "getCopyFailed": "Failed to get key: {{error}}"
+    }
+  }
+}

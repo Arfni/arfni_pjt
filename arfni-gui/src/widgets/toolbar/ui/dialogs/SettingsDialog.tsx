@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ec2ServerCommands } from '@shared/api/tauri/commands';
+import { useTranslation } from 'react-i18next';
 
 interface SettingsDialogProps {
   show: boolean;
@@ -15,6 +16,7 @@ export function SettingsDialog({
   currentProject,
   onOpenProjectFolder,
 }: SettingsDialogProps) {
+  const { t } = useTranslation('dialogs');
   const [settingsTab, setSettingsTab] = useState<'projectPath' | 'activePort'>('projectPath');
   const [portSearchQuery, setPortSearchQuery] = useState('');
   const [activePorts, setActivePorts] = useState<number[]>([]);
@@ -59,7 +61,7 @@ export function SettingsDialog({
       <div className="bg-white rounded-lg shadow-xl w-[800px] h-[600px] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-2xl font-bold text-gray-800">Setting</h2>
+          <h2 className="text-2xl font-bold text-gray-800">{t('settings.title')}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -76,7 +78,7 @@ export function SettingsDialog({
             <div className="relative mb-4">
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder={t('settings.search')}
                 className="w-full px-3 py-2 border rounded-lg text-sm pr-8"
               />
               <svg className="w-4 h-4 absolute right-3 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -93,7 +95,7 @@ export function SettingsDialog({
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                Project Path
+                {t('settings.projectPath')}
               </button>
               <button
                 onClick={() => handleSettingsTabChange('activePort')}
@@ -103,7 +105,7 @@ export function SettingsDialog({
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                Active Port
+                {t('settings.activePort')}
               </button>
             </div>
           </div>
@@ -112,7 +114,7 @@ export function SettingsDialog({
           <div className="flex-1 p-8 overflow-y-auto">
             {settingsTab === 'projectPath' && (
               <div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-6">Project Path</h3>
+                <h3 className="text-xl font-semibold text-gray-800 mb-6">{t('settings.projectPath')}</h3>
                 <div className="flex items-center gap-3">
                   <input
                     type="text"
@@ -123,7 +125,7 @@ export function SettingsDialog({
                   <button
                     onClick={onOpenProjectFolder}
                     className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="폴더 열기"
+                    title={t('settings.openFolder')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -136,18 +138,18 @@ export function SettingsDialog({
             {settingsTab === 'activePort' && (
               <div>
                 <h3 className="text-xl font-semibold text-gray-800 mb-6">
-                  Activate Port {currentProject?.environment === 'ec2' ? '(EC2)' : '(Local)'}
+                  {t('settings.activatePort')} {currentProject?.environment === 'ec2' ? '(EC2)' : '(Local)'}
                 </h3>
 
                 {/* Search */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('settings.search')}</label>
                   <div className="relative">
                     <input
                       type="text"
                       value={portSearchQuery}
                       onChange={(e) => setPortSearchQuery(e.target.value)}
-                      placeholder="Input Port Number..."
+                      placeholder={t('settings.inputPortNumber')}
                       className="w-full px-4 py-3 border rounded-lg pr-10"
                     />
                     <svg className="w-5 h-5 absolute right-3 top-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -157,9 +159,9 @@ export function SettingsDialog({
                   {portSearchQuery && (
                     <div className="mt-2">
                       {activePorts.includes(parseInt(portSearchQuery)) ? (
-                        <p className="text-green-600 font-medium">This port is activate!</p>
+                        <p className="text-green-600 font-medium">{t('settings.portActive')}</p>
                       ) : (
-                        <p className="text-red-600 font-medium">This port is unactivate!</p>
+                        <p className="text-red-600 font-medium">{t('settings.portInactive')}</p>
                       )}
                     </div>
                   )}
@@ -167,10 +169,10 @@ export function SettingsDialog({
 
                 {/* All Active Ports */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">All Active Port</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('settings.allActivePort')}</label>
                   <div className="border rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
                     <p className="text-gray-700 text-sm leading-relaxed break-all">
-                      {activePorts.length > 0 ? activePorts.join(', ') : '활성 포트가 없습니다.'}
+                      {activePorts.length > 0 ? activePorts.join(', ') : t('settings.noActivePorts')}
                     </p>
                   </div>
                 </div>

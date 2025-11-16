@@ -2,9 +2,47 @@ import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { FiDownload, FiGithub, FiArrowDown } from 'react-icons/fi';
 import { Container, Button } from '../../../shared/ui';
-import { DOWNLOAD_LINKS, SOCIAL_LINKS } from '../../../shared/config';
+import { SOCIAL_LINKS } from '../../../shared/config';
+import { useEffect, useState } from "react";
+import { DownloadConfirmModal } from '../DownloadModal.tsx/DownloadConfirmModal';
 
 export const Hero = () => {
+  const [version, setVersion] = useState("loading");
+const [isModalOpen, setIsModalOpen] = useState(false);
+  useEffect(() => {
+    fetch("https://api.github.com/repos/Arfni/arfni-exe/releases/latest") // public/version.json
+      .then((res) => res.json())
+      .then((json) => {
+        setVersion(
+          json.tag_name
+        );
+      })
+  }, []);
+
+
+
+  const handleDownload=()=>{
+    setIsModalOpen(true);
+  };
+  
+  const confirmDownload = () => {
+    setIsModalOpen(false);
+
+    const cleanVersion = version.startsWith("v") ? version.substring(1) : version;
+
+    window.open(
+      `https://github.com/Arfni/arfni_pjt/releases/download/${cleanVersion}/Setup.exe`,
+      "_blank"
+    );
+  };
+
+  const cancelDownload = () => {
+    setIsModalOpen(false);
+  };
+
+
+
+
   const { t } = useTranslation('hero');
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -72,12 +110,25 @@ export const Hero = () => {
             >
               <Button
                 size="lg"
-                className="group"
-                onClick={() => window.open(DOWNLOAD_LINKS.windows, '_blank')}
+                className="group px-8 min-w-[260px]"
+                onClick={handleDownload}
               >
-                <FiDownload className="mr-2 group-hover:animate-bounce" />
-                {t('buttons.download')}
+                <FiDownload
+                  size={20} 
+                  className="mr-2 flex-shrink-0 group-hover:animate-bounce"
+                />
+                <span className="whitespace-nowrap">
+                  {version + ' ver ' + t('buttons.download')}
+                </span>
               </Button>
+
+              <DownloadConfirmModal
+                open={isModalOpen}
+                onConfirm={confirmDownload}
+                onCancel={cancelDownload}
+                />
+
+
               <Button
                 variant="outline"
                 size="lg"
@@ -87,13 +138,6 @@ export const Hero = () => {
                 {t('buttons.github')}
               </Button>
             </motion.div>
-
-            <motion.p
-              variants={itemVariants}
-              className="mt-4 text-sm text-gray-500"
-            >
-              {t('platformNote')}
-            </motion.p>
           </div>
 
           {/* Illustration */}
