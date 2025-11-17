@@ -159,9 +159,8 @@ export function Toolbar() {
         },
       })).unwrap();
       dispatch(setDirty(false));
-      alert('stack.yaml이 저장되었습니다!');
     } catch (error) {
-      alert(`저장 실패: ${error}`);
+      console.error('저장 실패:', error);
     }
   }, [currentProject, nodes, edges, dispatch]);
 
