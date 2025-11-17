@@ -7,26 +7,25 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
 
-// OptimizationAnalyzer analyzes actual usage and provides optimization recommendations
-type OptimizationAnalyzer struct {
+// AnalysisEngine analyzes actual usage and provides analysis recommendations
+type AnalysisEngine struct {
 	prometheus *PrometheusClient
 	pricing    *AWSPricing
 	openai     *OpenAIClient
 }
 
-// NewOptimizationAnalyzer creates a new optimization analyzer
-func NewOptimizationAnalyzer(prometheusURL string) (*OptimizationAnalyzer, error) {
+// NewAnalysisEngine creates a new analysis engine
+func NewAnalysisEngine(prometheusURL string) (*AnalysisEngine, error) {
 	pricing, err := GetPricingDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load pricing database: %w", err)
 	}
 
-	return &OptimizationAnalyzer{
+	return &AnalysisEngine{
 		prometheus: NewPrometheusClient(prometheusURL),
 		pricing:    pricing,
 		openai:     NewOpenAIClient(),
@@ -49,8 +48,8 @@ type ActualUsageMetrics struct {
 	MemoryStats *TimeSeriesStats `json:"memory_stats,omitempty"`
 }
 
-// OptimizationReport contains analysis results and recommendations
-type OptimizationReport struct {
+// AnalysisReport contains analysis results and recommendations
+type AnalysisReport struct {
 	ActualUsage         ActualUsageMetrics  `json:"actual_usage"`
 	CostAnalysis        CostAnalysis        `json:"cost_analysis"`
 	PerformanceAnalysis PerformanceAnalysis `json:"performance_analysis"`
@@ -96,7 +95,7 @@ type PerformanceAnalysis struct {
 	HealthStatus     string   `json:"health_status"` // "healthy", "warning", "critical"
 }
 
-// Recommendation represents a single optimization recommendation
+// Recommendation represents a single analysis recommendation
 type Recommendation struct {
 	Priority    string  `json:"priority"` // "high", "medium", "low"
 	Category    string  `json:"category"` // "cost", "performance", "stability"
@@ -106,8 +105,8 @@ type Recommendation struct {
 	Savings     float64 `json:"savings,omitempty"` // Monthly savings in USD
 }
 
-// Analyze collects metrics and generates optimization report
-func (a *OptimizationAnalyzer) Analyze(language string) (*OptimizationReport, error) {
+// Analyze collects metrics and generates analysis report
+func (a *AnalysisEngine) Analyze(language string) (*AnalysisReport, error) {
 	// Default to English if not specified
 	if language == "" {
 		language = "en"
@@ -131,7 +130,7 @@ func (a *OptimizationAnalyzer) Analyze(language string) (*OptimizationReport, er
 	// Generate recommendations
 	recommendations := a.generateRecommendations(metrics, costAnalysis, perfAnalysis, downtimeAnalysis, language)
 
-	return &OptimizationReport{
+	return &AnalysisReport{
 		ActualUsage:         *metrics,
 		CostAnalysis:        costAnalysis,
 		PerformanceAnalysis: perfAnalysis,
@@ -141,7 +140,7 @@ func (a *OptimizationAnalyzer) Analyze(language string) (*OptimizationReport, er
 }
 
 // collectMetrics gathers all metrics from Prometheus
-func (a *OptimizationAnalyzer) collectMetrics() (*ActualUsageMetrics, error) {
+func (a *AnalysisEngine) collectMetrics() (*ActualUsageMetrics, error) {
 	metrics := &ActualUsageMetrics{}
 
 	// CPU usage (current)
@@ -195,8 +194,8 @@ func (a *OptimizationAnalyzer) collectMetrics() (*ActualUsageMetrics, error) {
 	return metrics, nil
 }
 
-// analyzeCosts compares current costs with potential optimizations
-func (a *OptimizationAnalyzer) analyzeCosts(metrics *ActualUsageMetrics) CostAnalysis {
+// analyzeCosts compares current costs with potential analysiss
+func (a *AnalysisEngine) analyzeCosts(metrics *ActualUsageMetrics) CostAnalysis {
 	analysis := CostAnalysis{
 		CurrentInstanceType: metrics.InstanceType,
 	}
@@ -226,7 +225,7 @@ func (a *OptimizationAnalyzer) analyzeCosts(metrics *ActualUsageMetrics) CostAna
 }
 
 // findOptimalInstance finds the most cost-effective instance for current usage
-func (a *OptimizationAnalyzer) findOptimalInstance(metrics *ActualUsageMetrics) string {
+func (a *AnalysisEngine) findOptimalInstance(metrics *ActualUsageMetrics) string {
 	// Required memory with 30% headroom
 	requiredMemoryGB := (metrics.MemoryUsedMB / 1024) * 1.3
 
@@ -255,7 +254,7 @@ func (a *OptimizationAnalyzer) findOptimalInstance(metrics *ActualUsageMetrics) 
 }
 
 // analyzePerformance identifies performance bottlenecks
-func (a *OptimizationAnalyzer) analyzePerformance(metrics *ActualUsageMetrics) PerformanceAnalysis {
+func (a *AnalysisEngine) analyzePerformance(metrics *ActualUsageMetrics) PerformanceAnalysis {
 	analysis := PerformanceAnalysis{
 		Bottlenecks: make([]string, 0),
 	}
@@ -296,7 +295,7 @@ func (a *OptimizationAnalyzer) analyzePerformance(metrics *ActualUsageMetrics) P
 }
 
 // analyzeDowntime analyzes server uptime and downtime events
-func (a *OptimizationAnalyzer) analyzeDowntime(language string) *DowntimeAnalysis {
+func (a *AnalysisEngine) analyzeDowntime(language string) *DowntimeAnalysis {
 	analysis := &DowntimeAnalysis{
 		DowntimeEvents: make([]DowntimeEventSummary, 0),
 	}
@@ -369,7 +368,7 @@ func (a *OptimizationAnalyzer) analyzeDowntime(language string) *DowntimeAnalysi
 }
 
 // estimateDowntimeCause estimates the cause of downtime based on metrics before it occurred
-func (a *OptimizationAnalyzer) estimateDowntimeCause(metrics *MetricsSnapshot, language string) string {
+func (a *AnalysisEngine) estimateDowntimeCause(metrics *MetricsSnapshot, language string) string {
 	if metrics == nil {
 		if language == "ko" {
 			return "메트릭 데이터 없음"
@@ -411,7 +410,7 @@ func (a *OptimizationAnalyzer) estimateDowntimeCause(metrics *MetricsSnapshot, l
 }
 
 // generateRecommendations creates actionable recommendations
-func (a *OptimizationAnalyzer) generateRecommendations(
+func (a *AnalysisEngine) generateRecommendations(
 	metrics *ActualUsageMetrics,
 	costAnalysis CostAnalysis,
 	perfAnalysis PerformanceAnalysis,
@@ -453,7 +452,7 @@ func (a *OptimizationAnalyzer) generateRecommendations(
 		})
 	}
 
-	// Cost optimization - only if instance type is known
+	// Cost analysis - only if instance type is known
 	if metrics.InstanceType != "" && metrics.InstanceType != "unknown" {
 		if costAnalysis.PotentialSavings > 5 {
 			optimalInstance := a.findOptimalInstance(metrics)
@@ -496,7 +495,7 @@ func (a *OptimizationAnalyzer) generateRecommendations(
 				Title:       "Low Resource Utilization Detected",
 				Description: fmt.Sprintf("CPU (%.1f%%) and memory (%.1f%%) usage are very low. Resources appear underutilized.",
 					metrics.CPUUsagePercent, metrics.MemoryUsagePercent),
-				Impact:      "Cannot provide specific cost optimization recommendations without knowing current instance type. Check your EC2 console to identify the instance and consider downsizing.",
+				Impact:      "Cannot provide specific cost analysis recommendations without knowing current instance type. Check your EC2 console to identify the instance and consider downsizing.",
 			})
 		}
 	}
@@ -530,8 +529,8 @@ func (a *OptimizationAnalyzer) generateRecommendations(
 	return recommendations
 }
 
-// getAIRecommendations gets AI-powered optimization recommendations
-func (a *OptimizationAnalyzer) getAIRecommendations(
+// getAIRecommendations gets AI-powered analysis recommendations
+func (a *AnalysisEngine) getAIRecommendations(
 	metrics *ActualUsageMetrics,
 	costAnalysis CostAnalysis,
 	perfAnalysis PerformanceAnalysis,
@@ -736,7 +735,7 @@ JSON 형식으로 응답:
 			perfAnalysis.Bottlenecks,
 		)
 
-		systemPrompt = `You are an AWS cost optimization expert. Analyze actual usage patterns and provide optimization recommendations.
+		systemPrompt = `You are an AWS cost analysis expert. Analyze actual usage patterns and provide analysis recommendations.
 
 CRITICAL REQUIREMENTS:
 1. Always cite specific numbers from time series data (최소, 평균, 최대, P50, P95, P99)
@@ -753,7 +752,7 @@ CRITICAL REQUIREMENTS:
 나쁜 예시 (너무 짧음 - 사용하지 마세요):
 "CPU와 메모리 사용률이 낮습니다. 다운사이징을 권장합니다."`
 	} else {
-		prompt = fmt.Sprintf(`Analyze AWS EC2 instance usage patterns and provide optimization recommendations.
+		prompt = fmt.Sprintf(`Analyze AWS EC2 instance usage patterns and provide analysis recommendations.
 
 [Current Usage - Real-time]
 - CPU Usage: %.1f%%
@@ -799,7 +798,7 @@ Respond in JSON format:
 			perfAnalysis.Bottlenecks,
 		)
 
-		systemPrompt = `You are an AWS cost optimization expert. Analyze actual usage patterns and provide optimization recommendations.
+		systemPrompt = `You are an AWS cost analysis expert. Analyze actual usage patterns and provide analysis recommendations.
 
 CRITICAL REQUIREMENTS:
 1. Always cite specific numbers from time series data (min, avg, max, P50, P95, P99)

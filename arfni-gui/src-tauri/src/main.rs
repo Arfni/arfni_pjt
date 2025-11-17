@@ -165,10 +165,10 @@ fn main() {
       commands::port_check::list_listening_ports,
       commands::port_check::list_ec2_listening_ports,
 
-      
+
       // 비용 예측 명령어
       commands::pricing::estimate_cost,
-      commands::pricing::optimize,
+      commands::pricing::analyze,
 
 
       // 시스템 명령어
