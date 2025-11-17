@@ -4,7 +4,7 @@ PRAGMA foreign_keys = OFF;
 -- api_keys 테이블이 없으면 생성 (평문 api_key 버전)
 CREATE TABLE IF NOT EXISTS api_keys (
     id            TEXT PRIMARY KEY NOT NULL,
-    provider      TEXT NOT NULL CHECK(provider IN ('openai','anthropic','google','etc')),
+    provider      TEXT NOT NULL CHECK(provider IN ('OpenAI','anthropic','google','etc')),
     label         TEXT NOT NULL,
     api_key       TEXT NOT NULL,
     created_at    TEXT NOT NULL,
