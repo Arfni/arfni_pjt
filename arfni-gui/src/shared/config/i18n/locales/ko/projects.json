@@ -220,7 +220,8 @@
       "proxy": "프록시",
       "cicd": "CI/CD",
       "orchestration": "오케스트레이션",
-      "monitoring": "모니터링"
+      "monitoring": "모니터링",
+      "custom": "커스텀"
     },
     "cache": {
       "lastSynced": "마지막 동기화:",
@@ -234,12 +235,17 @@
     "empty": {
       "noBundled": "검색 결과와 일치하는 내장 플러그인이 없습니다.",
       "noInstalled": "설치된 플러그인이 없습니다. 위의 URL을 사용하여 GitHub에서 플러그인을 설치하세요.",
-      "noRegistry": "검색 결과와 일치하는 레지스트리 플러그인이 없습니다."
+      "noRegistry": "검색 결과와 일치하는 레지스트리 플러그인이 없습니다.",
+      "noCustom": "커스텀 플러그인이 없습니다. 로컬 디렉토리에서 커스텀 플러그인을 추가하세요."
     },
     "confirm": {
-      "uninstall": "{{pluginName}}을(를) 제거하시겠습니까?"
+      "title": "플러그인 삭제",
+      "uninstall": "{{pluginName}}을(를) 제거하시겠습니까?",
+      "yes": "삭제",
+      "no": "취소"
     },
     "success": {
+      "title": "성공",
       "installed": "✅ {{message}}",
       "uninstalled": "✅ {{message}}",
       "refreshed": "✅ 레지스트리가 성공적으로 새로고침되었습니다"
