@@ -181,6 +181,7 @@ fn main() {
       // 시스템 명령어
       commands::system::open_downloads_folder,
       commands::system::open_folder_in_explorer,
+      commands::system::path_exists,
 
       //api_key
       commands::keys::add_api_key,

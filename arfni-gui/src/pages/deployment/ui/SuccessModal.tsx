@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Check, Clock, ExternalLink, Rocket } from 'lucide-react';
 import { CICDSetupModal } from './CICDSetupModal';
 
@@ -24,6 +24,7 @@ interface SuccessModalProps {
     pemPath: string;
   };
   projectName?: string;
+  projectPath?: string;
 }
 
 const formatDuration = (seconds: number | null) => {
@@ -42,8 +43,39 @@ export function SuccessModal({
   isEC2Deployment = false,
   ec2Server,
   projectName,
+  projectPath,
 }: SuccessModalProps) {
   const [showCICDSetup, setShowCICDSetup] = useState(false);
+  const [isGitProject, setIsGitProject] = useState(false);
+
+  // Check if project is a Git repository
+  React.useEffect(() => {
+    const checkGitRepo = async () => {
+      if (!projectPath) {
+        console.log('[CICD] No project path provided');
+        setIsGitProject(false);
+        return;
+      }
+
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const gitPath = `${projectPath}/.git`;
+        console.log('[CICD] Checking for .git folder at:', gitPath);
+
+        // Use Tauri's fs exists command
+        const hasGit = await invoke<boolean>('path_exists', { path: gitPath });
+        console.log('[CICD] Has .git folder:', hasGit);
+        setIsGitProject(hasGit);
+      } catch (error) {
+        console.error('[CICD] Failed to check git repository:', error);
+        setIsGitProject(false);
+      }
+    };
+
+    if (isOpen) {
+      checkGitRepo();
+    }
+  }, [isOpen, projectPath]);
 
   if (!isOpen) return null;
 
@@ -76,8 +108,8 @@ export function SuccessModal({
           </div>
         </div>
 
-        {/* CI/CD Setup Prompt */}
-        {isEC2Deployment && ec2Server && (
+        {/* CI/CD Setup Prompt - Only show for EC2 deployments with Git repositories */}
+        {isEC2Deployment && ec2Server && isGitProject && (
           <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">

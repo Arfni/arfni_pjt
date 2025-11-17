@@ -407,6 +407,7 @@ export function DeploymentPage() {
             pemPath: ec2Server.pem_path
           } : undefined}
           projectName={currentProject?.name}
+          projectPath={currentProject?.path}
         />
 
         {/* 배포 실패 모달 */}

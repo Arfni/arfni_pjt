@@ -158,7 +158,13 @@ class PluginService {
 
       const manifest = yaml.load(manifestContent) as PluginManifest;
 
-      if (!manifest.name || !manifest.contributes?.canvas) {
+      // Skip if no name or no contributes section
+      if (!manifest.name || !manifest.contributes) {
+        return;
+      }
+
+      // Plugin must have either canvas or services to be useful
+      if (!manifest.contributes.canvas && !manifest.contributes.services) {
         return;
       }
 
@@ -264,21 +270,19 @@ class PluginService {
       // Handle plugins with contributes.canvas (bundled plugins)
       const canvas = plugin.manifest.contributes?.canvas;
       if (canvas) {
-        // Skip hidden plugins (e.g., monitoring plugins that shouldn't appear in canvas)
-        if (canvas.hidden) {
-          continue;
+        // Don't add to node templates if hidden, but plugin is still loaded and usable
+        if (!canvas.hidden) {
+          const template: NodeTemplate = {
+            type: canvas.nodeType,
+            label: canvas.label,
+            description: canvas.description,
+            icon: plugin.iconPath,
+            category: canvas.category,
+            plugin
+          };
+
+          this.nodeTemplates.push(template);
         }
-
-        const template: NodeTemplate = {
-          type: canvas.nodeType,
-          label: canvas.label,
-          description: canvas.description,
-          icon: plugin.iconPath,
-          category: canvas.category,
-          plugin
-        };
-
-        this.nodeTemplates.push(template);
         continue;
       }
 
@@ -359,10 +363,21 @@ class PluginService {
   }
 
   getPluginByNodeType(nodeType: string): LoadedPlugin | undefined {
-    // Search through node templates instead of plugins directly
-    // This handles both contributes.canvas and frameworks-based plugins
+    // First try to find in node templates (visible plugins)
     const template = this.nodeTemplates.find(t => t.type === nodeType);
-    return template?.plugin;
+    if (template) {
+      return template.plugin;
+    }
+
+    // If not found in templates, search directly in plugins (for hidden plugins like monitoring)
+    // Check if any plugin has this nodeType in their canvas config
+    for (const plugin of this.plugins.values()) {
+      if (plugin.manifest.contributes?.canvas?.nodeType === nodeType) {
+        return plugin;
+      }
+    }
+
+    return undefined;
   }
 
   getAllPlugins(): LoadedPlugin[] {

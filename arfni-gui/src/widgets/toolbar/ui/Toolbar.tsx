@@ -63,7 +63,7 @@ export function Toolbar() {
 
   const isEC2Project = currentProject?.environment === 'ec2';
   const ec2TargetNode = isEC2Project && targetNodes.length > 0 ? targetNodes[0] : null;
-  const currentMonitoringMode = currentProject?.mode || 'all-in-one';
+  const currentMonitoringMode = currentProject?.mode || 'no-monitoring';
 
   const handleMonitoringModeChange = useCallback(async (newMode: string) => {
     if (!currentProject?.id) return;
