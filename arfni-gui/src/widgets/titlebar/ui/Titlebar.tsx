@@ -38,7 +38,7 @@ export const Titlebar = () => {
 
   return (
     <div
-      className="h-12 flex items-center justify-between select-none border-b border-blue-600"
+      className="h-12 flex-shrink-0 flex items-center justify-between select-none border-b border-blue-600"
       style={{ backgroundColor: '#4C65E2' }}
       data-tauri-drag-region
     >

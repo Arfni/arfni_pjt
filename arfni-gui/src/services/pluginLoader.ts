@@ -24,6 +24,7 @@ export interface PluginManifest {
       label: string;
       description: string;
       category: 'database' | 'runtime' | 'infra' | 'monitor';
+      hidden?: boolean;
       ports?: Array<{
         name: string;
         port: number;
@@ -263,6 +264,11 @@ class PluginService {
       // Handle plugins with contributes.canvas (bundled plugins)
       const canvas = plugin.manifest.contributes?.canvas;
       if (canvas) {
+        // Skip hidden plugins (e.g., monitoring plugins that shouldn't appear in canvas)
+        if (canvas.hidden) {
+          continue;
+        }
+
         const template: NodeTemplate = {
           type: canvas.nodeType,
           label: canvas.label,
