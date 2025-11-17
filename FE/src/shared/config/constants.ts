@@ -9,7 +9,7 @@ export const NAVIGATION_ITEMS = [
 ] as const;
 
 export const SOCIAL_LINKS = {
-  github: 'https://github.com/Arfni/arfni-exe',
+  github: 'https://github.com/Arfni/arfni_pjt',
   twitter: 'https://twitter.com/arfni',
   discord: 'https://discord.gg/arfni',
 } as const;
