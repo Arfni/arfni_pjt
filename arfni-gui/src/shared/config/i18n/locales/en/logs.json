@@ -4,11 +4,7 @@
     "terminal": "Terminal",
     "containers": "Container",
     "monitor": "Monitor",
-<<<<<<< HEAD
-    "optimize": "Analysis",
-=======
     "analyze": "Analyze",
->>>>>>> develop
     "monitoring": "Monitoring Dashboard"
   },
   "terminal": {
@@ -85,10 +81,13 @@
     "openButton": "Open Dashboard",
     "openInNewTab": "Open in New Screen",
     "loading": "Loading monitoring configuration...",
+    "loadingConfig": "Loading configuration... {{percentage}}%",
+    "checkingStatus": "Checking status... {{percentage}}%",
+    "startingStack": "Starting monitoring stack... {{percentage}}%",
     "starting": "Starting monitoring stack...",
     "startingContainers": "Starting Docker containers...",
     "waitingForGrafana": "Monitoring stack started. Waiting for Grafana to be ready...",
-    "preparingGrafana": "Preparing Grafana... ({{current}}/{{max}}s)",
+    "preparingGrafana": "Preparing Grafana... {{percentage}}%",
     "timeoutError": "Monitoring startup timed out. Please check your Docker setup and try again.",
     "connectionFailed": "Monitoring Connection Failed",
     "notReady": "Monitoring stack started but Grafana is not ready. Please try again later.",
@@ -104,15 +103,9 @@
     "startCommand1": "Command 1:",
     "startCommand2": "Or Command 2:"
   },
-<<<<<<< HEAD
-  "optimize": {
-    "title": "Server Analysis",
-    "startAnalysis": "Start Server Analysis",
-=======
   "analyze": {
     "title": "Server Optimization Analysis",
     "startAnalysis": "Start Server Optimization Analysis",
->>>>>>> develop
     "description": "Analyze Prometheus metrics to identify cost savings and performance improvement opportunities",
     "startButton": "Start Analysis",
     "reanalyze": "Re-analyze",

@@ -41,27 +41,32 @@ export default function MonitoringPage() {
 
       try {
         // 1. 모니터링 설정 로드
+        setIsStarting(true);
+        setStartupMessage(t('monitoring.loadingConfig', { percentage: 5 }));
+
         const monitoringConfig = await invoke<MonitoringConfig>('get_monitoring_config', {
           projectPath: project.path
         });
         setConfig(monitoringConfig);
+        setStartupMessage(t('monitoring.loadingConfig', { percentage: 10 }));
 
         // 2. Grafana가 실행 중인지 확인
+        setStartupMessage(t('monitoring.checkingStatus', { percentage: 15 }));
         const isRunning = await invoke<boolean>('check_monitoring_running', {
           grafanaUrl: monitoringConfig.grafana_url
         });
+        setStartupMessage(t('monitoring.checkingStatus', { percentage: 20 }));
 
         if (!isRunning) {
           // 3. 실행 중이 아니면 자동으로 시작
-          setIsStarting(true);
-          setStartupMessage(t('monitoring.starting'));
+          setStartupMessage(t('monitoring.startingStack', { percentage: 30 }));
 
           const startResult = await invoke<string>('start_monitoring_stack', {
             projectPath: project.path
           });
 
           console.log(startResult);
-          setStartupMessage(t('monitoring.waitingForGrafana'));
+          setStartupMessage(t('monitoring.startingStack', { percentage: 40 }));
 
           // 4. Grafana가 준비될 때까지 대기 (최대 30초)
           let attempts = 0;
@@ -80,7 +85,9 @@ export default function MonitoringPage() {
             }
 
             attempts++;
-            setStartupMessage(t('monitoring.preparingGrafana', { current: attempts, max: maxAttempts }));
+            // 40%에서 시작해서 100%까지 (60% 범위)
+            const percentage = 40 + Math.round((attempts / maxAttempts) * 60);
+            setStartupMessage(t('monitoring.preparingGrafana', { percentage }));
           }
 
           if (attempts >= maxAttempts) {

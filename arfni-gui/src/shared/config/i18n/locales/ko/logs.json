@@ -4,11 +4,7 @@
     "terminal": "터미널",
     "containers": "컨테이너",
     "monitor": "모니터링",
-<<<<<<< HEAD
-    "optimize": "분석",
-=======
     "analyze": "서버 분석",
->>>>>>> develop
     "monitoring": "모니터링 대시보드"
   },
   "terminal": {
@@ -85,10 +81,13 @@
     "openButton": "대시보드 열기",
     "openInNewTab": "새 창에서 열기",
     "loading": "모니터링 설정 로딩 중...",
+    "loadingConfig": "설정 로드 중... {{percentage}}%",
+    "checkingStatus": "상태 확인 중... {{percentage}}%",
+    "startingStack": "모니터링 스택 시작 중... {{percentage}}%",
     "starting": "모니터링 스택 시작 중...",
     "startingContainers": "Docker 컨테이너 시작 중...",
     "waitingForGrafana": "모니터링 스택 시작됨. Grafana 준비 대기 중...",
-    "preparingGrafana": "Grafana 준비 중... ({{current}}/{{max}}초)",
+    "preparingGrafana": "Grafana 준비 중... {{percentage}}%",
     "timeoutError": "모니터링 시작 시간 초과. Docker 설정을 확인하고 다시 시도하세요.",
     "connectionFailed": "모니터링 연결 실패",
     "notReady": "모니터링 스택이 시작되었지만 Grafana가 준비되지 않았습니다. 나중에 다시 시도해주세요.",
@@ -104,13 +103,9 @@
     "startCommand1": "명령어 1:",
     "startCommand2": "또는 명령어 2:"
   },
-<<<<<<< HEAD
-  "optimize": {
-=======
   "analyze": {
->>>>>>> develop
-    "title": "서버 분석",
-    "startAnalysis": "서버 분석 시작",
+    "title": "서버 최적화 분석",
+    "startAnalysis": "서버 최적화 분석 시작",
     "description": "Prometheus 메트릭을 분석하여 비용 절감 및 성능 개선 기회를 찾습니다",
     "startButton": "분석 시작",
     "reanalyze": "재분석",
