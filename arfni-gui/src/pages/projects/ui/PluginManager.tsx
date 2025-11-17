@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Package, Download, Trash2, CheckCircle, AlertCircle, Search, ExternalLink, RefreshCw } from 'lucide-react';
 import { pluginService, type LoadedPlugin } from '@services/pluginLoader';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -42,6 +43,7 @@ interface CacheInfo {
 
 export function PluginManager({ className = '' }: PluginManagerProps) {
   const { t } = useTranslation('projects');
+  const navigate = useNavigate();
   const [bundledPlugins, setBundledPlugins] = useState<LoadedPlugin[]>([]);
   const [installedPlugins, setInstalledPlugins] = useState<LoadedPlugin[]>([]);
   const [customPlugins, setCustomPlugins] = useState<LoadedPlugin[]>([]);
@@ -381,7 +383,17 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
 
         {/* Custom Plugins */}
         <div className="mb-8 px-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('plugins.customPlugins')}</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-800">{t('plugins.customPlugins')}</h3>
+            <button
+              onClick={() => navigate('/plugin-test')}
+              className="px-3 py-1 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md flex items-center gap-2"
+              title={t('plugins.tutorial.buttonTitle') || '플러그인 개발 튜토리얼'}
+            >
+              <Package className="w-4 h-4" />
+              {t('plugins.tutorial.button') || '플러그인 개발 가이드'}
+            </button>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredCustomPlugins.map(plugin => (
               <PluginCard
