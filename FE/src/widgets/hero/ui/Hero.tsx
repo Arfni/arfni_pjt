@@ -10,7 +10,7 @@ export const Hero = () => {
   const [version, setVersion] = useState("loading");
 const [isModalOpen, setIsModalOpen] = useState(false);
   useEffect(() => {
-    fetch("https://api.github.com/repos/Arfni/arfni-exe/releases/latest") // public/version.json
+    fetch("https://api.github.com/repos/Arfni/arfni_pjt/releases/latest") // public/version.json
       .then((res) => res.json())
       .then((json) => {
         setVersion(
