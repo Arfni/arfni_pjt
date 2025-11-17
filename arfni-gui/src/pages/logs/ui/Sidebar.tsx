@@ -99,7 +99,7 @@ export function Sidebar({
             className="w-12 h-12 flex items-center justify-center rounded"
             style={{ backgroundColor: selectedView === 'monitor' ? '#4C65E2' : '#9CA3AF' }}
           >
-            <BarChart3 className="w-8 h-8 text-white" />
+            <Activity className="w-8 h-8 text-white" />
           </div>
           <span className="text-xs font-medium text-gray-700">{t('title.monitor')}</span>
         </button>
@@ -116,7 +116,7 @@ export function Sidebar({
             className="w-12 h-12 flex items-center justify-center rounded"
             style={{ backgroundColor: selectedView === 'analyze' ? '#4C65E2' : '#9CA3AF' }}
           >
-            <Sparkles className="w-8 h-8 text-white" />
+            <BarChart3 className="w-8 h-8 text-white" />
           </div>
           <span className="text-xs font-medium text-gray-700">{t('title.analyze')}</span>
         </button>
