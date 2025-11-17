@@ -76,7 +76,7 @@ function MiniMapNode({ x, y, width, height }: any) {
 }
 
 function CanvasEditorInner() {
-  const { t } = useTranslation('canvas');
+  const { t, i18n } = useTranslation('canvas');
   const dispatch = useAppDispatch();
   const nodes = useAppSelector(selectNodes);
   const edges = useAppSelector(selectEdges);
@@ -401,7 +401,7 @@ function CanvasEditorInner() {
       )}
       {!isSaving && lastSaved && (
         <div className="absolute top-4 right-4 bg-white border border-green-300 text-green-700 px-3 py-1.5 rounded-lg shadow-md z-10 text-sm">
-          {t('autoSave.saved')} {lastSaved.toLocaleTimeString()}
+          {t('autoSave.saved')} {lastSaved.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit', hour12: true })}
         </div>
       )}
     </div>
