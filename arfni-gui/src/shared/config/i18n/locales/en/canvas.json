@@ -255,7 +255,7 @@
   "ai": {
     "title": "AI Assistant",
     "generate": "Generate Architecture",
-    "optimize": "Optimize Configuration",
+    "analyze": "Analyze Configuration",
     "suggest": "Suggest Improvements",
     "prompt": "Describe what you want to build...",
     "generating": "Generating...",

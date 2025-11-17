@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-interface OptimizeViewProps {
+interface AnalyzeViewProps {
   prometheusUrl?: string;
 }
 
@@ -50,20 +50,45 @@ interface Recommendation {
   savings?: number;
 }
 
-interface OptimizationReport {
+interface MetricsSnapshot {
+  timestamp: string;
+  cpu_percent: number;
+  memory_percent: number;
+  disk_percent: number;
+}
+
+interface DowntimeEventSummary {
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  metrics_before?: MetricsSnapshot;
+  estimated_cause: string;
+}
+
+interface DowntimeAnalysis {
+  is_online: boolean;
+  total_downtime_minutes: number;
+  downtime_events: DowntimeEventSummary[];
+  uptime_percent: number;
+  most_recent_downtime?: DowntimeEventSummary;
+  estimated_cause?: string;
+}
+
+interface AnalysisReport {
   actual_usage: ActualUsageMetrics;
   cost_analysis: CostAnalysis;
   performance_analysis: PerformanceAnalysis;
+  downtime_analysis?: DowntimeAnalysis;
   recommendations: Recommendation[];
 }
 
-export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: OptimizeViewProps) {
+export function AnalyzeView({ prometheusUrl = 'http://localhost:9090' }: AnalyzeViewProps) {
   const { t, i18n } = useTranslation('logs');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<OptimizationReport | null>(null);
+  const [result, setResult] = useState<AnalysisReport | null>(null);
 
-  const handleOptimize = async () => {
+  const handleAnalyze = async () => {
     setResult(null);
     setLoading(true);
     setError(null);
@@ -73,7 +98,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
       const currentLanguage = i18n.language;
       const languageCode = currentLanguage.split('-')[0];
 
-      const report = await invoke<OptimizationReport>('optimize', {
+      const report = await invoke<AnalysisReport>('analyze', {
         prometheusUrl,
         language: languageCode,
       });
@@ -119,19 +144,19 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
           <div className="text-center">
             <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 mb-2">
-              {t('optimize.startAnalysis')}
+              {t('analyze.startAnalysis')}
             </h3>
             <p className="text-gray-500 mb-6">
-              {t('optimize.description')}
+              {t('analyze.description')}
             </p>
             <button
-              onClick={handleOptimize}
+              onClick={handleAnalyze}
               className="text-white px-6 py-3 rounded-lg font-medium transition-colors"
               style={{ backgroundColor: '#4C65E2' }}
               onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
               onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
-              {t('optimize.startButton')}
+              {t('analyze.startButton')}
             </button>
           </div>
         )}
@@ -139,7 +164,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
         {loading && (
           <div className="text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-b-4 mx-auto mb-4" style={{ borderBottomColor: '#4C65E2' }}></div>
-            <p className="text-gray-600">{t('optimize.analyzing')}</p>
+            <p className="text-gray-600">{t('analyze.analyzing')}</p>
           </div>
         )}
 
@@ -148,13 +173,13 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-semibold text-red-800 mb-1">{t('optimize.analysisFailed')}</h4>
+                <h4 className="font-semibold text-red-800 mb-1">{t('analyze.analysisFailed')}</h4>
                 <p className="text-red-700 text-sm whitespace-pre-wrap">{error}</p>
                 <button
-                  onClick={handleOptimize}
+                  onClick={handleAnalyze}
                   className="mt-3 text-red-700 hover:text-red-800 font-medium text-sm underline"
                 >
-                  {t('optimize.retry')}
+                  {t('analyze.retry')}
                 </button>
               </div>
             </div>
@@ -166,40 +191,40 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
             {/* Title Section */}
             <div className="mb-2 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('optimize.title')}</h2>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('analyze.title')}</h2>
                 <p className="text-gray-600">
-                  {t('optimize.aiRecommendations')}
+                  {t('analyze.aiRecommendations')}
                 </p>
               </div>
               <button
-                onClick={handleOptimize}
+                onClick={handleAnalyze}
                 disabled={loading}
                 className="text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex-shrink-0"
                 style={{ backgroundColor: '#4C65E2' }}
                 onMouseEnter={(e) => !loading && (e.currentTarget.style.opacity = '0.9')}
                 onMouseLeave={(e) => !loading && (e.currentTarget.style.opacity = '1')}
               >
-                {t('optimize.reanalyze')}
+                {t('analyze.reanalyze')}
               </button>
             </div>
 
             {/* Glossary Section */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
-                📖 {t('optimize.glossary.title')}
+                📖 {t('analyze.glossary.title')}
               </h4>
               <div className="grid md:grid-cols-3 gap-3 text-sm text-blue-700">
                 <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <div className="font-semibold text-blue-900 mb-1">{t('optimize.glossary.p50Title')}</div>
-                  <div className="text-xs">{t('optimize.glossary.p50Description')}</div>
+                  <div className="font-semibold text-blue-900 mb-1">{t('analyze.glossary.p50Title')}</div>
+                  <div className="text-xs">{t('analyze.glossary.p50Description')}</div>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <div className="font-semibold text-blue-900 mb-1">{t('optimize.glossary.p95Title')}</div>
-                  <div className="text-xs">{t('optimize.glossary.p95Description')}</div>
+                  <div className="font-semibold text-blue-900 mb-1">{t('analyze.glossary.p95Title')}</div>
+                  <div className="text-xs">{t('analyze.glossary.p95Description')}</div>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <div className="font-semibold text-blue-900 mb-1">{t('optimize.glossary.p99Title')}</div>
-                  <div className="text-xs">{t('optimize.glossary.p99Description')}</div>
+                  <div className="font-semibold text-blue-900 mb-1">{t('analyze.glossary.p99Title')}</div>
+                  <div className="text-xs">{t('analyze.glossary.p99Description')}</div>
                 </div>
               </div>
             </div>
@@ -209,7 +234,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <Cpu className="w-5 h-5 text-purple-600" />
-                  {t('optimize.actualUsage.title')}
+                  {t('analyze.actualUsage.title')}
                 </h3>
                 <div className="bg-purple-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm">
                   {result.actual_usage.instance_type || result.cost_analysis.current_instance_type}
@@ -217,13 +242,13 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <div className="text-sm text-gray-500 mb-1">{t('optimize.actualUsage.cpu')}</div>
+                  <div className="text-sm text-gray-500 mb-1">{t('analyze.actualUsage.cpu')}</div>
                   <div className="text-2xl font-bold text-gray-800">
                     {result.actual_usage.cpu_usage_percent.toFixed(1)}%
                   </div>
                 </div>
                 <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <div className="text-sm text-gray-500 mb-1">{t('optimize.actualUsage.memory')}</div>
+                  <div className="text-sm text-gray-500 mb-1">{t('analyze.actualUsage.memory')}</div>
                   <div className="text-2xl font-bold text-gray-800">
                     {result.actual_usage.memory_usage_percent.toFixed(1)}%
                   </div>
@@ -232,7 +257,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
                   </div>
                 </div>
                 <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <div className="text-sm text-gray-500 mb-1">{t('optimize.actualUsage.disk')}</div>
+                  <div className="text-sm text-gray-500 mb-1">{t('analyze.actualUsage.disk')}</div>
                   <div className="text-2xl font-bold text-gray-800">
                     {result.actual_usage.disk_usage_percent.toFixed(1)}%
                   </div>
@@ -241,7 +266,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
                   </div>
                 </div>
                 <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <div className="text-sm text-gray-500 mb-1">{t('optimize.actualUsage.health')}</div>
+                  <div className="text-sm text-gray-500 mb-1">{t('analyze.actualUsage.health')}</div>
                   <div className={`text-xl font-bold ${getHealthStatusColor(result.performance_analysis.health_status)}`}>
                     {result.performance_analysis.health_status.toUpperCase()}
                   </div>
@@ -249,22 +274,84 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
               </div>
             </div>
 
+            {/* Downtime Analysis */}
+            {result.downtime_analysis && (
+              <div className={`rounded-lg p-6 border ${
+                result.downtime_analysis.is_online
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-lg font-semibold flex items-center gap-2 ${
+                    result.downtime_analysis.is_online ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    <Database className="w-5 h-5" />
+                    {t('analyze.downtime.title')}
+                  </h3>
+                  <div className={`px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm ${
+                    result.downtime_analysis.is_online
+                      ? 'bg-green-600 text-white'
+                      : 'bg-red-600 text-white'
+                  }`}>
+                    {result.downtime_analysis.is_online ? t('analyze.downtime.online') : t('analyze.downtime.offline')}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="text-sm text-gray-500 mb-1">{t('analyze.downtime.uptime')}</div>
+                    <div className="text-2xl font-bold text-gray-800">
+                      {result.downtime_analysis.uptime_percent.toFixed(2)}%
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="text-sm text-gray-500 mb-1">{t('analyze.downtime.totalDowntime')}</div>
+                    <div className="text-2xl font-bold text-gray-800">
+                      {result.downtime_analysis.total_downtime_minutes.toFixed(1)} {t('analyze.downtime.minutes')}
+                    </div>
+                  </div>
+                </div>
+
+                {result.downtime_analysis.most_recent_downtime && (
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="font-semibold text-gray-800 mb-2">{t('analyze.downtime.recentEvent')}</div>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div><span className="font-medium">{t('analyze.downtime.startTime')}:</span> {result.downtime_analysis.most_recent_downtime.start_time}</div>
+                      <div><span className="font-medium">{t('analyze.downtime.endTime')}:</span> {result.downtime_analysis.most_recent_downtime.end_time}</div>
+                      <div><span className="font-medium">{t('analyze.downtime.duration')}:</span> {result.downtime_analysis.most_recent_downtime.duration_minutes.toFixed(1)} {t('analyze.downtime.minutes')}</div>
+                      <div className="pt-2 border-t border-gray-200 mt-2">
+                        <span className="font-medium">{t('analyze.downtime.estimatedCause')}:</span>
+                        <div className="mt-1 text-gray-700">{result.downtime_analysis.most_recent_downtime.estimated_cause}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!result.downtime_analysis.is_online && result.downtime_analysis.estimated_cause && (
+                  <div className="bg-red-100 rounded-lg p-4 border border-red-200 mt-4">
+                    <div className="font-semibold text-red-800 mb-1">{t('analyze.downtime.serverDown')}</div>
+                    <div className="text-sm text-red-700">{result.downtime_analysis.estimated_cause}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Cost Analysis */}
             {result.cost_analysis.potential_savings > 0 && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-3 flex items-center gap-2 text-green-800">
                   <TrendingDown className="w-5 h-5" />
-                  {t('optimize.costSavings.title')}
+                  {t('analyze.costSavings.title')}
                 </h3>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <div className="text-sm text-green-700 mb-1">{t('optimize.costSavings.currentCost')}</div>
+                    <div className="text-sm text-green-700 mb-1">{t('analyze.costSavings.currentCost')}</div>
                     <div className="text-3xl font-bold text-green-900">
                       ${result.cost_analysis.current_monthly_cost.toFixed(2)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-green-700 mb-1">{t('optimize.costSavings.potentialSavings')}</div>
+                    <div className="text-sm text-green-700 mb-1">{t('analyze.costSavings.potentialSavings')}</div>
                     <div className="text-3xl font-bold text-green-600">
                       ${result.cost_analysis.potential_savings.toFixed(2)}
                       <span className="text-lg ml-2">
@@ -281,7 +368,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
               <div className="bg-red-50 border border-red-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-3 flex items-center gap-2 text-red-800">
                   <AlertTriangle className="w-5 h-5" />
-                  {t('optimize.bottlenecks.title')}
+                  {t('analyze.bottlenecks.title')}
                 </h3>
                 <ul className="space-y-2">
                   {result.performance_analysis.bottlenecks.map((bottleneck, idx) => (
@@ -298,7 +385,7 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
             <div>
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Database className="w-5 h-5 text-purple-600" />
-                {t('optimize.recommendations.title')}
+                {t('analyze.recommendations.title')}
               </h3>
               <div className="space-y-3">
                 {result.recommendations
@@ -330,11 +417,11 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
                         </div>
                         {rec.savings && rec.savings > 0 && (
                           <div className="text-right flex-shrink-0">
-                            <div className="text-xs opacity-75">{t('optimize.recommendations.savings')}</div>
+                            <div className="text-xs opacity-75">{t('analyze.recommendations.savings')}</div>
                             <div className="text-xl font-bold">
                               ${rec.savings.toFixed(2)}
                             </div>
-                            <div className="text-xs opacity-75">{t('optimize.recommendations.perMonth')}</div>
+                            <div className="text-xs opacity-75">{t('analyze.recommendations.perMonth')}</div>
                           </div>
                         )}
                       </div>

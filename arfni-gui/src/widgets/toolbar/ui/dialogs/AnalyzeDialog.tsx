@@ -11,7 +11,7 @@ import {
   TrendingDown
 } from 'lucide-react';
 
-interface OptimizeDialogProps {
+interface AnalyzeDialogProps {
   show: boolean;
   onClose: () => void;
   prometheusUrl?: string; // Optional prometheus URL (default: localhost:9090)
@@ -54,35 +54,35 @@ interface Recommendation {
   savings?: number;
 }
 
-interface OptimizationReport {
+interface AnalysisReport {
   actual_usage: ActualUsageMetrics;
   cost_analysis: CostAnalysis;
   performance_analysis: PerformanceAnalysis;
   recommendations: Recommendation[];
 }
 
-export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhost:9090' }: OptimizeDialogProps) {
+export function AnalyzeDialog({ show, onClose, prometheusUrl = 'http://localhost:9090' }: AnalyzeDialogProps) {
   const { i18n } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<OptimizationReport | null>(null);
+  const [result, setResult] = useState<AnalysisReport | null>(null);
 
-  const handleOptimize = async () => {
+  const handleAnalyze = async () => {
     setLoading(true);
     setError(null);
 
     try {
       const currentLanguage = i18n.language;
-      console.log('[OptimizeDialog] Current language from i18n:', currentLanguage);
+      console.log('[AnalyzeDialog] Current language from i18n:', currentLanguage);
 
       // Normalize language code (ko-KR -> ko, en-US -> en)
       const languageCode = currentLanguage.split('-')[0];
-      console.log('[OptimizeDialog] Normalized language code:', languageCode);
+      console.log('[AnalyzeDialog] Normalized language code:', languageCode);
 
       // Debug: Show alert to confirm language
       alert(`Language: ${currentLanguage}, Normalized: ${languageCode}`);
 
-      const report = await invoke<OptimizationReport>('optimize', {
+      const report = await invoke<AnalysisReport>('analyze', {
         prometheusUrl,
         language: languageCode,
       });
@@ -158,7 +158,7 @@ export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhos
                 Prometheus 메트릭을 분석하여 비용 절감 및 성능 개선 방안을 제안합니다
               </p>
               <button
-                onClick={handleOptimize}
+                onClick={handleAnalyze}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
               >
                 [TEST] 분석 시작
@@ -181,7 +181,7 @@ export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhos
                   <h4 className="font-semibold text-red-800 mb-1">분석 실패</h4>
                   <p className="text-red-700 text-sm whitespace-pre-wrap">{error}</p>
                   <button
-                    onClick={handleOptimize}
+                    onClick={handleAnalyze}
                     className="mt-3 text-red-700 hover:text-red-800 font-medium text-sm underline"
                   >
                     다시 시도
@@ -356,7 +356,7 @@ export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhos
               {/* Re-analyze Button */}
               <div className="text-center pt-4">
                 <button
-                  onClick={handleOptimize}
+                  onClick={handleAnalyze}
                   disabled={loading}
                   className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
                 >

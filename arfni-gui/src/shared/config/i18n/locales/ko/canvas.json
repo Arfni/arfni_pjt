@@ -255,7 +255,7 @@
   "ai": {
     "title": "AI 어시스턴트",
     "generate": "아키텍처 생성",
-    "optimize": "설정 최적화",
+    "analyze": "설정 최적화",
     "suggest": "개선사항 제안",
     "prompt": "구축하고 싶은 것을 설명하세요...",
     "generating": "생성 중...",

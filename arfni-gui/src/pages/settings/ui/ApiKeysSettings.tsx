@@ -27,7 +27,7 @@ export function ApiKeysSettings({ isActive, onHasChanges, onApplyRequested }: Ap
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<string | null>(null);
 
   // Add API key form
-  const [provider, setProvider] = useState<ProviderType>('openai');
+  const [provider, setProvider] = useState<ProviderType>('OpenAI');
   const [label, setLabel] = useState('');
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [setActive, setSetActive] = useState(true);
@@ -83,7 +83,7 @@ export function ApiKeysSettings({ isActive, onHasChanges, onApplyRequested }: Ap
     setApiKeyInput('');
     setSetActive(true);
     setShowApiKeyInput(false);
-    setProvider('openai');
+    setProvider('OpenAI');
   };
 
   // Add or update API key

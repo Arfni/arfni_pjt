@@ -380,6 +380,48 @@ pub async fn test_prometheus_connection(
     Ok(response.status().is_success())
 }
 
+/// 서버 상태 확인 (up 메트릭 조회)
+#[command]
+pub async fn check_server_status(
+    prometheus_url: String,
+) -> Result<bool, String> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/api/v1/query", prometheus_url);
+
+    let response = client
+        .get(&url)
+        .query(&[("query", "up")])
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to check server status: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Prometheus API error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    // Extract the metric value
+    if let Some(result) = json["data"]["result"].as_array() {
+        if let Some(first_result) = result.first() {
+            if let Some(value) = first_result["value"].as_array() {
+                if value.len() >= 2 {
+                    if let Some(status_str) = value[1].as_str() {
+                        let status: f64 = status_str.parse().unwrap_or(0.0);
+                        return Ok(status == 1.0);
+                    }
+                }
+            }
+        }
+    }
+
+    Err("No server status data available".to_string())
+}
+
 /// Docker Desktop 실행 확인 및 자동 시작
 async fn ensure_docker_running() -> Result<(), String> {
     #[cfg(target_os = "windows")]

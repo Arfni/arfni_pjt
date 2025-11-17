@@ -163,6 +163,7 @@ fn main() {
       commands::monitoring::get_all_metrics,
       commands::monitoring::get_monitoring_config,
       commands::monitoring::test_prometheus_connection,
+      commands::monitoring::check_server_status,
       commands::monitoring::start_monitoring_stack,
       commands::monitoring::check_monitoring_running,
       commands::monitoring::stop_monitoring_stack,
@@ -172,10 +173,10 @@ fn main() {
       commands::port_check::list_listening_ports,
       commands::port_check::list_ec2_listening_ports,
 
-      
+
       // 비용 예측 명령어
       commands::pricing::estimate_cost,
-      commands::pricing::optimize,
+      commands::pricing::analyze,
 
 
       // 시스템 명령어
