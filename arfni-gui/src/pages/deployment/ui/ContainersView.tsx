@@ -70,7 +70,7 @@ export function ContainersView({
   };
 
   return (
-    <div className="bg-gray-50 p-6 h-[24rem] overflow-y-auto">
+    <div className="bg-gray-50 p-6 h-full">
       {/* 컨테이너 목록 */}
       {containers.length > 0 && (
         <div className="mb-6">

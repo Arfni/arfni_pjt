@@ -60,7 +60,13 @@
     "cancel": "Cancel",
     "createSuccess": "Project created successfully",
     "createFailed": "Failed to create project",
-    "specialCharactersError": "Project name cannot contain special characters"
+    "specialCharactersError": "Project name cannot contain special characters",
+    "settingUp": "Setting up project...",
+    "mayTakeMoments": "This may take a few moments",
+    "workingDirectory": "Working Directory (on EC2)",
+    "workdirPlaceholder": "arfni-deploy",
+    "workdirDescription": "Directory on EC2 where project will be deployed (e.g., arfni-deploy)",
+    "continue": "Continue"
   },
   "delete": {
     "confirmTitle": "Delete Project",
@@ -280,6 +286,11 @@
     "settings": "Settings"
   },
   "tutorial": {
+    "buttons": {
+      "previous": "Previous",
+      "next": "Next",
+      "getStarted": "Get Started"
+    },
     "local": {
       "slide1": {
         "title": "Install Docker",

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, Clock, ExternalLink, Rocket } from 'lucide-react';
 import { CICDSetupModal } from './CICDSetupModal';
+import { useTranslation } from 'react-i18next';
 
 interface SuccessModalProps {
   isOpen: boolean;
@@ -43,6 +44,7 @@ export function SuccessModal({
   ec2Server,
   projectName,
 }: SuccessModalProps) {
+  const { t } = useTranslation('deployment');
   const [showCICDSetup, setShowCICDSetup] = useState(false);
 
   if (!isOpen) return null;
@@ -56,8 +58,8 @@ export function SuccessModal({
               <Check className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Deployment Completed</h2>
-              <p className="text-gray-600">Deployment completed successfully.</p>
+              <h2 className="text-2xl font-bold text-gray-900">{t('success.completedTitle')}</h2>
+              <p className="text-gray-600">{t('success.completedMessage')}</p>
             </div>
           </div>
 
@@ -66,12 +68,12 @@ export function SuccessModal({
           <div className="bg-gray-100 rounded p-4">
             <div className="flex items-center gap-2 text-gray-600 mb-1">
               <Clock className="w-4 h-4" />
-              <span className="text-sm">Duration</span>
+              <span className="text-sm">{t('success.duration')}</span>
             </div>
             <div className="text-2xl font-bold text-gray-900">{formatDuration(duration)}</div>
           </div>
           <div className="bg-gray-100 rounded p-4">
-            <div className="text-gray-600 text-sm mb-1">Services</div>
+            <div className="text-gray-600 text-sm mb-1">{t('success.services')}</div>
             <div className="text-2xl font-bold text-gray-900">{stats.serviceCount}</div>
           </div>
         </div>
@@ -84,16 +86,15 @@ export function SuccessModal({
                 <Rocket className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-blue-900 mb-2">Setup Continuous Deployment</h3>
+                <h3 className="text-lg font-bold text-blue-900 mb-2">{t('success.cicd.title')}</h3>
                 <p className="text-sm text-blue-800 mb-3">
-                  Automate future deployments by setting up CI/CD. Every push to your repository
-                  will automatically deploy to your EC2 instance.
+                  {t('success.cicd.description')}
                 </p>
                 <button
                   onClick={() => setShowCICDSetup(true)}
                   className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
                 >
-                  Setup CI/CD Pipeline
+                  {t('success.cicd.setupButton')}
                 </button>
               </div>
             </div>
@@ -103,7 +104,7 @@ export function SuccessModal({
         {/* 엔드포인트 */}
         {endpoints.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Service Endpoints</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">{t('success.endpoints')}</h3>
             <div className="space-y-2">
               {endpoints.map((endpoint, index) => (
                 <div key={index} className="bg-gray-100 rounded p-3 border border-gray-200">
@@ -144,7 +145,7 @@ export function SuccessModal({
             onClick={onClose}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
           >
-            OK
+            {t('success.confirm')}
           </button>
         </div>
       </div>

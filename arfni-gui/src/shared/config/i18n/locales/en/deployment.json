@@ -72,7 +72,12 @@
     "duration": "Duration",
     "services": "Services",
     "endpoints": "Service Endpoints",
-    "confirm": "OK"
+    "confirm": "OK",
+    "cicd": {
+      "title": "Setup Continuous Deployment",
+      "description": "Automate future deployments by setting up CI/CD. Every push to your repository will automatically deploy to your EC2 instance.",
+      "setupButton": "Setup CI/CD Pipeline"
+    }
   },
   "failed": {
     "title": "Deployment Failed",

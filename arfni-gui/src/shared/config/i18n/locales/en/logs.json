@@ -4,7 +4,7 @@
     "terminal": "Terminal",
     "containers": "Container",
     "monitor": "Monitor",
-    "optimize": "Optimize",
+    "optimize": "Analysis",
     "monitoring": "Monitoring Dashboard"
   },
   "terminal": {
@@ -101,8 +101,8 @@
     "startCommand2": "Or Command 2:"
   },
   "optimize": {
-    "title": "Server Optimization Analysis",
-    "startAnalysis": "Start Server Optimization Analysis",
+    "title": "Server Analysis",
+    "startAnalysis": "Start Server Analysis",
     "description": "Analyze Prometheus metrics to identify cost savings and performance improvement opportunities",
     "startButton": "Start Analysis",
     "reanalyze": "Re-analyze",

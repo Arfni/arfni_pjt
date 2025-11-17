@@ -4,7 +4,7 @@
     "terminal": "터미널",
     "containers": "컨테이너",
     "monitor": "모니터링",
-    "optimize": "최적화",
+    "optimize": "분석",
     "monitoring": "모니터링 대시보드"
   },
   "terminal": {
@@ -101,8 +101,8 @@
     "startCommand2": "또는 명령어 2:"
   },
   "optimize": {
-    "title": "서버 최적화 분석",
-    "startAnalysis": "서버 최적화 분석 시작",
+    "title": "서버 분석",
+    "startAnalysis": "서버 분석 시작",
     "description": "Prometheus 메트릭을 분석하여 비용 절감 및 성능 개선 기회를 찾습니다",
     "startButton": "분석 시작",
     "reanalyze": "재분석",

@@ -26,7 +26,7 @@ const getLogColor = (level: string) => {
 
 export function LogsView({ logs, logEndRef }: LogsViewProps) {
   return (
-    <div className="bg-gray-50 p-4 font-mono text-sm h-[24rem] overflow-y-auto">
+    <div className="bg-gray-50 p-4 font-mono text-sm h-full">
       {logs.length === 0 ? (
         <div className="text-gray-500 text-center mt-4">로그를 기다리는 중...</div>
       ) : (

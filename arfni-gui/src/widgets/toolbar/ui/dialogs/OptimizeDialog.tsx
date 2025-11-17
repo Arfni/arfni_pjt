@@ -131,7 +131,7 @@ export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhos
             <div className="flex items-center gap-3">
               <BarChart3 className="w-8 h-8" />
               <div>
-                <h2 className="text-2xl font-bold">서버 최적화 분석</h2>
+                <h2 className="text-2xl font-bold">서버 분석</h2>
                 <p className="text-purple-100 text-sm mt-1">
                   실제 사용 메트릭 기반 AI 추천
                 </p>
@@ -152,7 +152,7 @@ export function OptimizeDialog({ show, onClose, prometheusUrl = 'http://localhos
             <div className="text-center py-12">
               <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                서버 최적화 분석을 시작하세요
+                서버 분석을 시작하세요
               </h3>
               <p className="text-gray-500 mb-6">
                 Prometheus 메트릭을 분석하여 비용 절감 및 성능 개선 방안을 제안합니다

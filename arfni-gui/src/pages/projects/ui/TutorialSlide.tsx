@@ -159,7 +159,7 @@ export const TutorialSlide: React.FC<TutorialSlideProps> = ({ type = 'local', on
               }`}
             >
               <ChevronLeft className="w-5 h-5" />
-              <span className="font-medium">Previous</span>
+              <span className="font-medium">{t('tutorial.buttons.previous')}</span>
             </button>
 
             <button
@@ -170,7 +170,7 @@ export const TutorialSlide: React.FC<TutorialSlideProps> = ({ type = 'local', on
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#4C65E2')}
             >
               <span className="font-medium">
-                {currentSlide === totalSlides - 1 ? 'Get Started' : 'Next'}
+                {currentSlide === totalSlides - 1 ? t('tutorial.buttons.getStarted') : t('tutorial.buttons.next')}
               </span>
               {currentSlide < totalSlides - 1 && <ChevronRight className="w-5 h-5" />}
             </button>

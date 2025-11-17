@@ -60,7 +60,13 @@
     "cancel": "취소",
     "createSuccess": "프로젝트가 성공적으로 생성되었습니다",
     "createFailed": "프로젝트 생성에 실패했습니다",
-    "specialCharactersError": "프로젝트 이름에 특수 문자를 사용할 수 없습니다"
+    "specialCharactersError": "프로젝트 이름에 특수 문자를 사용할 수 없습니다",
+    "settingUp": "프로젝트 설정 중...",
+    "mayTakeMoments": "잠시만 기다려주세요",
+    "workingDirectory": "작업 디렉토리 (EC2)",
+    "workdirPlaceholder": "arfni-deploy",
+    "workdirDescription": "프로젝트가 배포될 EC2의 디렉토리 (예: arfni-deploy)",
+    "continue": "계속"
   },
   "delete": {
     "confirmTitle": "프로젝트 삭제",
@@ -280,6 +286,11 @@
     "settings": "설정"
   },
   "tutorial": {
+    "buttons": {
+      "previous": "이전",
+      "next": "다음",
+      "getStarted": "시작하기"
+    },
     "local": {
       "slide1": {
         "title": "도커 설치",

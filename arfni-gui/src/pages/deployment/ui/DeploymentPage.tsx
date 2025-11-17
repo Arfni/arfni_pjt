@@ -285,11 +285,11 @@ export function DeploymentPage() {
   // 배포 진행 중 UI
   if (status === 'deploying' || status === 'success' || status === 'failed' || status === 'stopped') {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="h-screen flex flex-col bg-white overflow-hidden">
         {/* 컨텐츠 */}
-        <div className="p-6">
+        <div className="flex-1 p-6 flex flex-col overflow-hidden">
           {activeTab === 'log' ? (
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-6xl w-full mx-auto flex flex-col flex-1 overflow-hidden">
               {/* 제목 */}
               <h1 className="text-3xl font-bold text-gray-900 mt-4 mb-8">{getDeploymentTitle()}</h1>
 
@@ -304,8 +304,8 @@ export function DeploymentPage() {
               />
 
               {/* Containers/Logs 탭 */}
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between border-b border-gray-200 bg-white">
+              <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col flex-1 min-h-0">
+                <div className="flex-shrink-0 flex items-center justify-between border-b border-gray-200 bg-white">
                   <div className="flex">
                     <button
                       onClick={() => setActiveLogTab('logs')}
@@ -351,39 +351,20 @@ export function DeploymentPage() {
                 </div>
 
                 {/* 탭 컨텐츠 */}
-                {activeLogTab === 'containers' ? (
-                  <ContainersView
-                    currentStage={currentStage}
-                    serviceCount={stats.serviceCount}
-                    containerCount={stats.containerCount}
-                    endpoints={endpoints}
-                    containers={containers}
-                    deploymentStatus={status}
-                  />
-                ) : (
-                  <LogsView logs={logs} logEndRef={logEndRef} />
-                )}
-              </div>
-
-              {/* 하단 네비게이션 버튼 */}
-              <div className="flex justify-end gap-3 mt-8 mb-8">
-                <button
-                  onClick={handleBackToCanvas}
-                  className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 rounded-lg font-semibold shadow-lg transition-colors"
-                >
-                  {t('buttons.backToCanvas')}
-                </button>
-                <button
-                  onClick={handleNavigateToStatus}
-                  disabled={currentProject?.environment === 'ec2' && status !== 'success'}
-                  className={`px-6 py-3 rounded-lg font-semibold shadow-lg transition-colors ${
-                    currentProject?.environment === 'ec2' && status !== 'success'
-                      ? 'bg-gray-300 text-gray-500'
-                      : 'bg-blue-600 enabled:hover:bg-blue-700 text-white'
-                  }`}
-                >
-                  {currentProject?.environment === 'ec2' ? t('buttons.serverStatus') : t('buttons.goToProjectHome')}
-                </button>
+                <div className="flex-1 overflow-auto">
+                  {activeLogTab === 'containers' ? (
+                    <ContainersView
+                      currentStage={currentStage}
+                      serviceCount={stats.serviceCount}
+                      containerCount={stats.containerCount}
+                      endpoints={endpoints}
+                      containers={containers}
+                      deploymentStatus={status}
+                    />
+                  ) : (
+                    <LogsView logs={logs} logEndRef={logEndRef} />
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -391,6 +372,29 @@ export function DeploymentPage() {
               Canvas 뷰는 개발 예정입니다.
             </div>
           )}
+        </div>
+
+        {/* 하단 네비게이션 버튼 - 고정 위치 */}
+        <div className="flex-shrink-0 border-t border-gray-200 bg-white p-6">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-end gap-3">
+            <button
+              onClick={handleBackToCanvas}
+              className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 rounded-lg font-semibold shadow-lg transition-colors"
+            >
+              {t('buttons.backToCanvas')}
+            </button>
+            <button
+              onClick={handleNavigateToStatus}
+              disabled={currentProject?.environment === 'ec2' && status !== 'success'}
+              className={`px-6 py-3 rounded-lg font-semibold shadow-lg transition-colors ${
+                currentProject?.environment === 'ec2' && status !== 'success'
+                  ? 'bg-gray-300 text-gray-500'
+                  : 'bg-blue-600 enabled:hover:bg-blue-700 text-white'
+              }`}
+            >
+              {currentProject?.environment === 'ec2' ? t('buttons.serverStatus') : t('buttons.goToProjectHome')}
+            </button>
+          </div>
         </div>
 
         {/* 배포 성공 모달 */}

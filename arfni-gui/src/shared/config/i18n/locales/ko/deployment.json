@@ -72,7 +72,12 @@
     "duration": "소요 시간",
     "services": "서비스",
     "endpoints": "서비스 엔드포인트",
-    "confirm": "확인"
+    "confirm": "확인",
+    "cicd": {
+      "title": "지속적 배포 설정",
+      "description": "CI/CD를 설정하여 향후 배포를 자동화하세요. 리포지토리에 푸시할 때마다 EC2 인스턴스에 자동으로 배포됩니다.",
+      "setupButton": "CI/CD 파이프라인 설정"
+    }
   },
   "failed": {
     "title": "배포 실패",
