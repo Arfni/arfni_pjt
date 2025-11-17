@@ -4,8 +4,8 @@ import { Project, EC2Server } from '@shared/api/tauri/commands';
 import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
-  selectedView: 'containers' | 'terminal' | 'monitor' | 'optimize';
-  onViewChange: (view: 'containers' | 'terminal' | 'monitor' | 'optimize') => void;
+  selectedView: 'containers' | 'terminal' | 'monitor' | 'analyze';
+  onViewChange: (view: 'containers' | 'terminal' | 'monitor' | 'analyze') => void;
   onContainersRefresh: () => void;
   onTunnelOpen: () => Promise<void>;
   onNavigateToMonitoring: () => void;
@@ -30,8 +30,8 @@ export function Sidebar({
     onContainersRefresh();
   };
 
-  const handleOptimizeClick = async () => {
-    onViewChange('optimize');
+  const handleAnalyzeClick = async () => {
+    onViewChange('analyze');
 
     // Auto-open tunnel if EC2 and not already open
     if (project?.environment === 'ec2' && !tunnelOpen) {
@@ -104,21 +104,21 @@ export function Sidebar({
           <span className="text-xs font-medium text-gray-700">{t('title.monitor')}</span>
         </button>
 
-        {/* Optimize */}
+        {/* Analyze */}
         <button
-          onClick={handleOptimizeClick}
+          onClick={handleAnalyzeClick}
           className={`w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
-            selectedView === 'optimize' ? 'bg-blue-50' : 'hover:bg-gray-100'
+            selectedView === 'analyze' ? 'bg-blue-50' : 'hover:bg-gray-100'
           }`}
-          title="Optimize"
+          title="Analyze"
         >
           <div
             className="w-12 h-12 flex items-center justify-center rounded"
-            style={{ backgroundColor: selectedView === 'optimize' ? '#4C65E2' : '#9CA3AF' }}
+            style={{ backgroundColor: selectedView === 'analyze' ? '#4C65E2' : '#9CA3AF' }}
           >
             <Sparkles className="w-8 h-8 text-white" />
           </div>
-          <span className="text-xs font-medium text-gray-700">{t('title.optimize')}</span>
+          <span className="text-xs font-medium text-gray-700">{t('title.analyze')}</span>
         </button>
       </div>
     </aside>

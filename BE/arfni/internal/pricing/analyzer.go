@@ -11,21 +11,21 @@ import (
 	"time"
 )
 
-// OptimizationAnalyzer analyzes actual usage and provides optimization recommendations
-type OptimizationAnalyzer struct {
+// AnalysisEngine analyzes actual usage and provides analysis recommendations
+type AnalysisEngine struct {
 	prometheus *PrometheusClient
 	pricing    *AWSPricing
 	openai     *OpenAIClient
 }
 
-// NewOptimizationAnalyzer creates a new optimization analyzer
-func NewOptimizationAnalyzer(prometheusURL string) (*OptimizationAnalyzer, error) {
+// NewAnalysisEngine creates a new analysis engine
+func NewAnalysisEngine(prometheusURL string) (*AnalysisEngine, error) {
 	pricing, err := GetPricingDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load pricing database: %w", err)
 	}
 
-	return &OptimizationAnalyzer{
+	return &AnalysisEngine{
 		prometheus: NewPrometheusClient(prometheusURL),
 		pricing:    pricing,
 		openai:     NewOpenAIClient(),
@@ -48,12 +48,32 @@ type ActualUsageMetrics struct {
 	MemoryStats *TimeSeriesStats `json:"memory_stats,omitempty"`
 }
 
-// OptimizationReport contains analysis results and recommendations
-type OptimizationReport struct {
-	ActualUsage        ActualUsageMetrics      `json:"actual_usage"`
-	CostAnalysis       CostAnalysis            `json:"cost_analysis"`
-	PerformanceAnalysis PerformanceAnalysis     `json:"performance_analysis"`
-	Recommendations    []Recommendation        `json:"recommendations"`
+// AnalysisReport contains analysis results and recommendations
+type AnalysisReport struct {
+	ActualUsage         ActualUsageMetrics  `json:"actual_usage"`
+	CostAnalysis        CostAnalysis        `json:"cost_analysis"`
+	PerformanceAnalysis PerformanceAnalysis `json:"performance_analysis"`
+	DowntimeAnalysis    *DowntimeAnalysis   `json:"downtime_analysis,omitempty"`
+	Recommendations     []Recommendation    `json:"recommendations"`
+}
+
+// DowntimeAnalysis contains server downtime information
+type DowntimeAnalysis struct {
+	IsOnline            bool                   `json:"is_online"`
+	TotalDowntime       float64                `json:"total_downtime_minutes"`
+	DowntimeEvents      []DowntimeEventSummary `json:"downtime_events"`
+	UptimePercent       float64                `json:"uptime_percent"`
+	MostRecentDowntime  *DowntimeEventSummary  `json:"most_recent_downtime,omitempty"`
+	EstimatedCause      string                 `json:"estimated_cause,omitempty"`
+}
+
+// DowntimeEventSummary represents a downtime event with cause analysis
+type DowntimeEventSummary struct {
+	StartTime       string           `json:"start_time"`
+	EndTime         string           `json:"end_time"`
+	DurationMinutes float64          `json:"duration_minutes"`
+	MetricsBefore   *MetricsSnapshot `json:"metrics_before,omitempty"`
+	EstimatedCause  string           `json:"estimated_cause"`
 }
 
 // CostAnalysis compares estimated vs actual costs
@@ -75,7 +95,7 @@ type PerformanceAnalysis struct {
 	HealthStatus     string   `json:"health_status"` // "healthy", "warning", "critical"
 }
 
-// Recommendation represents a single optimization recommendation
+// Recommendation represents a single analysis recommendation
 type Recommendation struct {
 	Priority    string  `json:"priority"` // "high", "medium", "low"
 	Category    string  `json:"category"` // "cost", "performance", "stability"
@@ -85,8 +105,8 @@ type Recommendation struct {
 	Savings     float64 `json:"savings,omitempty"` // Monthly savings in USD
 }
 
-// Analyze collects metrics and generates optimization report
-func (a *OptimizationAnalyzer) Analyze(language string) (*OptimizationReport, error) {
+// Analyze collects metrics and generates analysis report
+func (a *AnalysisEngine) Analyze(language string) (*AnalysisReport, error) {
 	// Default to English if not specified
 	if language == "" {
 		language = "en"
@@ -104,19 +124,23 @@ func (a *OptimizationAnalyzer) Analyze(language string) (*OptimizationReport, er
 	// Analyze performance
 	perfAnalysis := a.analyzePerformance(metrics)
 
-	// Generate recommendations
-	recommendations := a.generateRecommendations(metrics, costAnalysis, perfAnalysis, language)
+	// Analyze downtime
+	downtimeAnalysis := a.analyzeDowntime(language)
 
-	return &OptimizationReport{
+	// Generate recommendations
+	recommendations := a.generateRecommendations(metrics, costAnalysis, perfAnalysis, downtimeAnalysis, language)
+
+	return &AnalysisReport{
 		ActualUsage:         *metrics,
 		CostAnalysis:        costAnalysis,
 		PerformanceAnalysis: perfAnalysis,
+		DowntimeAnalysis:    downtimeAnalysis,
 		Recommendations:     recommendations,
 	}, nil
 }
 
 // collectMetrics gathers all metrics from Prometheus
-func (a *OptimizationAnalyzer) collectMetrics() (*ActualUsageMetrics, error) {
+func (a *AnalysisEngine) collectMetrics() (*ActualUsageMetrics, error) {
 	metrics := &ActualUsageMetrics{}
 
 	// CPU usage (current)
@@ -170,8 +194,8 @@ func (a *OptimizationAnalyzer) collectMetrics() (*ActualUsageMetrics, error) {
 	return metrics, nil
 }
 
-// analyzeCosts compares current costs with potential optimizations
-func (a *OptimizationAnalyzer) analyzeCosts(metrics *ActualUsageMetrics) CostAnalysis {
+// analyzeCosts compares current costs with potential analysiss
+func (a *AnalysisEngine) analyzeCosts(metrics *ActualUsageMetrics) CostAnalysis {
 	analysis := CostAnalysis{
 		CurrentInstanceType: metrics.InstanceType,
 	}
@@ -201,7 +225,7 @@ func (a *OptimizationAnalyzer) analyzeCosts(metrics *ActualUsageMetrics) CostAna
 }
 
 // findOptimalInstance finds the most cost-effective instance for current usage
-func (a *OptimizationAnalyzer) findOptimalInstance(metrics *ActualUsageMetrics) string {
+func (a *AnalysisEngine) findOptimalInstance(metrics *ActualUsageMetrics) string {
 	// Required memory with 30% headroom
 	requiredMemoryGB := (metrics.MemoryUsedMB / 1024) * 1.3
 
@@ -230,9 +254,9 @@ func (a *OptimizationAnalyzer) findOptimalInstance(metrics *ActualUsageMetrics) 
 }
 
 // analyzePerformance identifies performance bottlenecks
-func (a *OptimizationAnalyzer) analyzePerformance(metrics *ActualUsageMetrics) PerformanceAnalysis {
+func (a *AnalysisEngine) analyzePerformance(metrics *ActualUsageMetrics) PerformanceAnalysis {
 	analysis := PerformanceAnalysis{
-		Bottlenecks: []string{},
+		Bottlenecks: make([]string, 0),
 	}
 
 	// Check CPU bottleneck (>80% usage)
@@ -270,14 +294,130 @@ func (a *OptimizationAnalyzer) analyzePerformance(metrics *ActualUsageMetrics) P
 	return analysis
 }
 
+// analyzeDowntime analyzes server uptime and downtime events
+func (a *AnalysisEngine) analyzeDowntime(language string) *DowntimeAnalysis {
+	analysis := &DowntimeAnalysis{
+		DowntimeEvents: make([]DowntimeEventSummary, 0),
+	}
+
+	// Check current server status
+	isOnline, err := a.prometheus.GetServerStatus()
+	if err != nil {
+		// If we can't get status, assume offline
+		analysis.IsOnline = false
+		if language == "ko" {
+			analysis.EstimatedCause = "서버 상태를 확인할 수 없습니다. Prometheus 연결을 확인하세요."
+		} else {
+			analysis.EstimatedCause = "Unable to check server status. Check Prometheus connection."
+		}
+		return analysis
+	}
+	analysis.IsOnline = isOnline
+
+	// Get downtime history (last 24 hours)
+	downtimeEvents, totalDowntime, err := a.prometheus.GetDowntimeHistory()
+	if err != nil {
+		// Cannot get downtime history - inform user
+		analysis.UptimePercent = 0.0 // Set to 0 to indicate no data
+		if language == "ko" {
+			analysis.EstimatedCause = "다운타임 히스토리를 가져올 수 없습니다. Prometheus 메트릭을 확인하세요."
+		} else {
+			analysis.EstimatedCause = "Unable to retrieve downtime history. Check Prometheus metrics."
+		}
+		return analysis
+	}
+
+	// Calculate uptime percentage
+	totalMinutes := 24.0 * 60.0
+	downtimeMinutes := totalDowntime.Minutes()
+	analysis.TotalDowntime = downtimeMinutes
+	analysis.UptimePercent = ((totalMinutes - downtimeMinutes) / totalMinutes) * 100
+
+	// Analyze each downtime event
+	for _, event := range downtimeEvents {
+		eventSummary := DowntimeEventSummary{
+			StartTime:       event.StartTime.Format("2006-01-02 15:04:05"),
+			EndTime:         event.EndTime.Format("2006-01-02 15:04:05"),
+			DurationMinutes: event.Duration.Minutes(),
+		}
+
+		// Get metrics before downtime to estimate cause
+		metricsBefore, err := a.prometheus.GetMetricsBeforeDowntime(event.StartTime)
+		if err == nil {
+			eventSummary.MetricsBefore = metricsBefore
+			eventSummary.EstimatedCause = a.estimateDowntimeCause(metricsBefore, language)
+		} else {
+			if language == "ko" {
+				eventSummary.EstimatedCause = "원인 분석 데이터 부족"
+			} else {
+				eventSummary.EstimatedCause = "Insufficient data for cause analysis"
+			}
+		}
+
+		analysis.DowntimeEvents = append(analysis.DowntimeEvents, eventSummary)
+	}
+
+	// Set most recent downtime
+	if len(analysis.DowntimeEvents) > 0 {
+		mostRecent := analysis.DowntimeEvents[len(analysis.DowntimeEvents)-1]
+		analysis.MostRecentDowntime = &mostRecent
+		analysis.EstimatedCause = mostRecent.EstimatedCause
+	}
+
+	return analysis
+}
+
+// estimateDowntimeCause estimates the cause of downtime based on metrics before it occurred
+func (a *AnalysisEngine) estimateDowntimeCause(metrics *MetricsSnapshot, language string) string {
+	if metrics == nil {
+		if language == "ko" {
+			return "메트릭 데이터 없음"
+		}
+		return "No metrics data"
+	}
+
+	// Check for OOM (Out of Memory)
+	if metrics.MemoryPercent > 95 {
+		if language == "ko" {
+			return fmt.Sprintf("메모리 부족(OOM)으로 인한 비정상 종료 가능성 (다운 직전 메모리: %.1f%%)", metrics.MemoryPercent)
+		}
+		return fmt.Sprintf("Likely abnormal termination due to Out-of-Memory (Memory before down: %.1f%%)", metrics.MemoryPercent)
+	}
+
+	// Check for CPU overload
+	if metrics.CPUPercent > 95 {
+		if language == "ko" {
+			return fmt.Sprintf("CPU 과부하로 인한 비정상 종료 가능성 (다운 직전 CPU: %.1f%%)", metrics.CPUPercent)
+		}
+		return fmt.Sprintf("Likely abnormal termination due to CPU overload (CPU before down: %.1f%%)", metrics.CPUPercent)
+	}
+
+	// Check for disk full
+	if metrics.DiskPercent > 98 {
+		if language == "ko" {
+			return fmt.Sprintf("디스크 공간 부족으로 인한 장애 (다운 직전 디스크: %.1f%%)", metrics.DiskPercent)
+		}
+		return fmt.Sprintf("Likely failure due to disk space shortage (Disk before down: %.1f%%)", metrics.DiskPercent)
+	}
+
+	// Normal shutdown or network issue
+	if language == "ko" {
+		return fmt.Sprintf("정상적인 종료 또는 네트워크 문제 (다운 직전: CPU %.1f%%, 메모리 %.1f%%, 디스크 %.1f%%)",
+			metrics.CPUPercent, metrics.MemoryPercent, metrics.DiskPercent)
+	}
+	return fmt.Sprintf("Normal shutdown or network issue (Before down: CPU %.1f%%, Memory %.1f%%, Disk %.1f%%)",
+		metrics.CPUPercent, metrics.MemoryPercent, metrics.DiskPercent)
+}
+
 // generateRecommendations creates actionable recommendations
-func (a *OptimizationAnalyzer) generateRecommendations(
+func (a *AnalysisEngine) generateRecommendations(
 	metrics *ActualUsageMetrics,
 	costAnalysis CostAnalysis,
 	perfAnalysis PerformanceAnalysis,
+	downtimeAnalysis *DowntimeAnalysis,
 	language string,
 ) []Recommendation {
-	var recommendations []Recommendation
+	recommendations := make([]Recommendation, 0)
 
 	// Critical performance issues first
 	if perfAnalysis.HealthStatus == "critical" {
@@ -312,7 +452,7 @@ func (a *OptimizationAnalyzer) generateRecommendations(
 		})
 	}
 
-	// Cost optimization - only if instance type is known
+	// Cost analysis - only if instance type is known
 	if metrics.InstanceType != "" && metrics.InstanceType != "unknown" {
 		if costAnalysis.PotentialSavings > 5 {
 			optimalInstance := a.findOptimalInstance(metrics)
@@ -355,7 +495,7 @@ func (a *OptimizationAnalyzer) generateRecommendations(
 				Title:       "Low Resource Utilization Detected",
 				Description: fmt.Sprintf("CPU (%.1f%%) and memory (%.1f%%) usage are very low. Resources appear underutilized.",
 					metrics.CPUUsagePercent, metrics.MemoryUsagePercent),
-				Impact:      "Cannot provide specific cost optimization recommendations without knowing current instance type. Check your EC2 console to identify the instance and consider downsizing.",
+				Impact:      "Cannot provide specific cost analysis recommendations without knowing current instance type. Check your EC2 console to identify the instance and consider downsizing.",
 			})
 		}
 	}
@@ -383,17 +523,18 @@ func (a *OptimizationAnalyzer) generateRecommendations(
 	}
 
 	// Add OpenAI-powered recommendations
-	aiRecommendations := a.getAIRecommendations(metrics, costAnalysis, perfAnalysis, language)
+	aiRecommendations := a.getAIRecommendations(metrics, costAnalysis, perfAnalysis, downtimeAnalysis, language)
 	recommendations = append(recommendations, aiRecommendations...)
 
 	return recommendations
 }
 
-// getAIRecommendations gets AI-powered optimization recommendations
-func (a *OptimizationAnalyzer) getAIRecommendations(
+// getAIRecommendations gets AI-powered analysis recommendations
+func (a *AnalysisEngine) getAIRecommendations(
 	metrics *ActualUsageMetrics,
 	costAnalysis CostAnalysis,
 	perfAnalysis PerformanceAnalysis,
+	downtimeAnalysis *DowntimeAnalysis,
 	language string,
 ) []Recommendation {
 	if a.openai.APIKey == "" {
@@ -485,21 +626,84 @@ Memory 24-hour Analysis:
 	var prompt string
 	var systemPrompt string
 
+	// Build downtime information string
+	var downtimeInfo string
+	if downtimeAnalysis != nil {
+		if language == "ko" {
+			if downtimeAnalysis.IsOnline {
+				downtimeInfo = fmt.Sprintf(`
+[서버 가용성 - 지난 24시간]
+- 현재 상태: 온라인
+- 가동률(Uptime): %.2f%%
+- 총 다운타임: %.1f분`, downtimeAnalysis.UptimePercent, downtimeAnalysis.TotalDowntime)
+
+				if downtimeAnalysis.MostRecentDowntime != nil {
+					downtimeInfo += fmt.Sprintf(`
+- 최근 다운타임: %s ~ %s (%.1f분)
+- 추정 원인: %s`,
+						downtimeAnalysis.MostRecentDowntime.StartTime,
+						downtimeAnalysis.MostRecentDowntime.EndTime,
+						downtimeAnalysis.MostRecentDowntime.DurationMinutes,
+						downtimeAnalysis.MostRecentDowntime.EstimatedCause)
+				} else {
+					downtimeInfo += "\n- 최근 24시간 동안 다운타임 없음"
+				}
+			} else {
+				downtimeInfo = fmt.Sprintf(`
+[서버 가용성 - 지난 24시간]
+- 현재 상태: 오프라인
+- 추정 원인: %s`, downtimeAnalysis.EstimatedCause)
+			}
+		} else {
+			if downtimeAnalysis.IsOnline {
+				downtimeInfo = fmt.Sprintf(`
+[Server Availability - Last 24 hours]
+- Current Status: Online
+- Uptime: %.2f%%
+- Total Downtime: %.1f minutes`, downtimeAnalysis.UptimePercent, downtimeAnalysis.TotalDowntime)
+
+				if downtimeAnalysis.MostRecentDowntime != nil {
+					downtimeInfo += fmt.Sprintf(`
+- Recent Downtime: %s ~ %s (%.1f min)
+- Estimated Cause: %s`,
+						downtimeAnalysis.MostRecentDowntime.StartTime,
+						downtimeAnalysis.MostRecentDowntime.EndTime,
+						downtimeAnalysis.MostRecentDowntime.DurationMinutes,
+						downtimeAnalysis.MostRecentDowntime.EstimatedCause)
+				} else {
+					downtimeInfo += "\n- No downtime in the last 24 hours"
+				}
+			} else {
+				downtimeInfo = fmt.Sprintf(`
+[Server Availability - Last 24 hours]
+- Current Status: Offline
+- Estimated Cause: %s`, downtimeAnalysis.EstimatedCause)
+			}
+		}
+	} else {
+		if language == "ko" {
+			downtimeInfo = "\n[서버 가용성] 데이터 없음"
+		} else {
+			downtimeInfo = "\n[Server Availability] No data"
+		}
+	}
+
 	if language == "ko" {
 		prompt = fmt.Sprintf(`AWS EC2 인스턴스의 실제 사용 패턴을 분석하여 최적화 방안을 제시해주세요.
 
-📊 현재 사용량 (실시간):
+[현재 사용량 - 실시간]
 - CPU 사용률: %.1f%%
 - 메모리 사용량: %.0f MB (%.1f%%)
 - 디스크 사용량: %.1f GB (%.1f%%)
 - 네트워크 트래픽 (24h): %.1f MB 수신 / %.1f MB 송신
 - 인스턴스 타입: %s
 - 시스템 상태: %s
-
-📈 사용 패턴 분석 (지난 24시간):
 %s
 
-💰 비용 정보:
+[사용 패턴 분석 - 지난 24시간]
+%s
+
+[비용 정보]
 - 현재 월간 비용: $%.2f
 - 데이터 전송 비용: $%.2f/월
 - 성능 병목: %v
@@ -524,13 +728,14 @@ JSON 형식으로 응답:
 			metrics.NetworkOutboundMB,
 			metrics.InstanceType,
 			perfAnalysis.HealthStatus,
+			downtimeInfo,
 			usagePattern,
 			costAnalysis.CurrentMonthlyCost,
 			costAnalysis.ActualDataTransfer,
 			perfAnalysis.Bottlenecks,
 		)
 
-		systemPrompt = `You are an AWS cost optimization expert. Analyze actual usage patterns and provide optimization recommendations.
+		systemPrompt = `You are an AWS cost analysis expert. Analyze actual usage patterns and provide analysis recommendations.
 
 CRITICAL REQUIREMENTS:
 1. Always cite specific numbers from time series data (최소, 평균, 최대, P50, P95, P99)
@@ -547,20 +752,21 @@ CRITICAL REQUIREMENTS:
 나쁜 예시 (너무 짧음 - 사용하지 마세요):
 "CPU와 메모리 사용률이 낮습니다. 다운사이징을 권장합니다."`
 	} else {
-		prompt = fmt.Sprintf(`Analyze AWS EC2 instance usage patterns and provide optimization recommendations.
+		prompt = fmt.Sprintf(`Analyze AWS EC2 instance usage patterns and provide analysis recommendations.
 
-📊 Current Usage (Real-time):
+[Current Usage - Real-time]
 - CPU Usage: %.1f%%
 - Memory Usage: %.0f MB (%.1f%%)
 - Disk Usage: %.1f GB (%.1f%%)
 - Network Traffic (24h): %.1f MB in / %.1f MB out
 - Instance Type: %s
 - System Status: %s
-
-📈 Usage Pattern Analysis (Last 24 hours):
 %s
 
-💰 Cost Information:
+[Usage Pattern Analysis - Last 24 hours]
+%s
+
+[Cost Information]
 - Current Monthly Cost: $%.2f
 - Data Transfer Cost: $%.2f/month
 - Performance Bottlenecks: %v
@@ -585,13 +791,14 @@ Respond in JSON format:
 			metrics.NetworkOutboundMB,
 			metrics.InstanceType,
 			perfAnalysis.HealthStatus,
+			downtimeInfo,
 			usagePattern,
 			costAnalysis.CurrentMonthlyCost,
 			costAnalysis.ActualDataTransfer,
 			perfAnalysis.Bottlenecks,
 		)
 
-		systemPrompt = `You are an AWS cost optimization expert. Analyze actual usage patterns and provide optimization recommendations.
+		systemPrompt = `You are an AWS cost analysis expert. Analyze actual usage patterns and provide analysis recommendations.
 
 CRITICAL REQUIREMENTS:
 1. Always cite specific numbers from time series data (min, avg, max, P50, P95, P99)

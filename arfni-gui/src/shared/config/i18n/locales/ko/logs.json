@@ -4,7 +4,11 @@
     "terminal": "터미널",
     "containers": "컨테이너",
     "monitor": "모니터링",
+<<<<<<< HEAD
     "optimize": "분석",
+=======
+    "analyze": "서버 분석",
+>>>>>>> develop
     "monitoring": "모니터링 대시보드"
   },
   "terminal": {
@@ -100,7 +104,11 @@
     "startCommand1": "명령어 1:",
     "startCommand2": "또는 명령어 2:"
   },
+<<<<<<< HEAD
   "optimize": {
+=======
+  "analyze": {
+>>>>>>> develop
     "title": "서버 분석",
     "startAnalysis": "서버 분석 시작",
     "description": "Prometheus 메트릭을 분석하여 비용 절감 및 성능 개선 기회를 찾습니다",
@@ -136,6 +144,20 @@
     },
     "bottlenecks": {
       "title": "성능 병목 현상"
+    },
+    "downtime": {
+      "title": "서버 가용성",
+      "online": "온라인",
+      "offline": "오프라인",
+      "uptime": "가동률 (24시간)",
+      "totalDowntime": "총 다운타임",
+      "minutes": "분",
+      "recentEvent": "최근 다운타임 이벤트",
+      "startTime": "시작 시간",
+      "endTime": "종료 시간",
+      "duration": "지속 시간",
+      "estimatedCause": "추정 원인",
+      "serverDown": "서버 오프라인"
     },
     "recommendations": {
       "title": "AI 권장사항",

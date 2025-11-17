@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
 import { ec2ServerCommands, EC2Server, Project } from '@shared/api/tauri/commands';
-import { OptimizeView } from './OptimizeView';
+import { AnalyzeView } from './AnalyzeView';
 import { MonitoringView } from './MonitoringView';
 import { Sidebar } from './Sidebar';
 import { TerminalView } from './TerminalView';
@@ -18,7 +18,7 @@ export default function LogPage() {
   const navigate = useNavigate();
   const projectFromStore = useSelector(selectCurrentProject);
   const location = useLocation();
-  const locationState = location.state as { project?: Project; selectedView?: 'containers' | 'terminal' | 'monitor' | 'optimize' } | undefined;
+  const locationState = location.state as { project?: Project; selectedView?: 'containers' | 'terminal' | 'monitor' | 'analyze' } | undefined;
   const project = locationState?.project ?? projectFromStore;
   const [ec2Server, setEc2Server] = useState<EC2Server | null>(null);
 
@@ -47,7 +47,7 @@ export default function LogPage() {
   const [deletingContainerId, setDeletingContainerId] = useState<string | null>(null);
 
   // 좌측 사이드바 뷰 상태 (location state에서 selectedView가 있으면 사용, 없으면 기본값 'terminal')
-  const [selectedView, setSelectedView] = useState<'containers' | 'terminal' | 'monitor' | 'optimize'>(
+  const [selectedView, setSelectedView] = useState<'containers' | 'terminal' | 'monitor' | 'analyze'>(
     locationState?.selectedView ?? 'terminal'
   );
 
@@ -452,9 +452,9 @@ export default function LogPage() {
           />
         )}
 
-        {/* Optimize View - Only show when optimize is selected */}
-        {selectedView === 'optimize' && (
-          <OptimizeView
+        {/* Analyze View - Only show when analyze is selected */}
+        {selectedView === 'analyze' && (
+          <AnalyzeView
             prometheusUrl={tunnelOpen ? 'http://localhost:9091' : 'http://localhost:9090'}
           />
         )}

@@ -30,8 +30,8 @@ func main() {
 		runMonitoring(os.Args[2:])
 	case "estimate-cost", "estimate":
 		runCostEstimation(os.Args[2:])
-	case "optimize":
-		runOptimize(os.Args[2:])
+	case "analyze":
+		runAnalyze(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -53,7 +53,7 @@ func printUsage() {
 	fmt.Println("  deploy         Deploy services (alias: run)")
 	fmt.Println("  monitor        Start monitoring (alias: monitoring)")
 	fmt.Println("  estimate-cost  Estimate AWS costs (alias: estimate)")
-	fmt.Println("  optimize       Analyze actual usage and optimize costs")
+	fmt.Println("  analyze        Analyze actual usage and optimize costs")
 	fmt.Println("  help           Show this help message")
 	fmt.Println()
 	fmt.Println("Deploy Options:")
@@ -82,7 +82,7 @@ func printUsage() {
 	fmt.Println("          simple: Docker containers on single EC2 (cost-effective)")
 	fmt.Println("          production: AWS managed services - RDS, ElastiCache (high availability)")
 	fmt.Println()
-	fmt.Println("Optimize Options:")
+	fmt.Println("Analyze Options:")
 	fmt.Println("  -prometheus string")
 	fmt.Println("        Prometheus URL (default: http://localhost:9090)")
 	fmt.Println()
@@ -92,8 +92,8 @@ func printUsage() {
 	fmt.Println("  arfni-go.exe estimate-cost -f stack.yaml -users 100 -traffic low")
 	fmt.Println("  arfni-go.exe estimate-cost -f stack.yaml -users 100 -traffic low -deployment simple")
 	fmt.Println("  arfni-go.exe estimate-cost -f stack.yaml -users 1000 -traffic high -deployment production")
-	fmt.Println("  arfni-go.exe optimize")
-	fmt.Println("  arfni-go.exe optimize -prometheus http://localhost:9090")
+	fmt.Println("  arfni-go.exe analyze")
+	fmt.Println("  arfni-go.exe analyze -prometheus http://localhost:9090")
 	fmt.Println()
 }
 
@@ -627,27 +627,27 @@ func detectServiceType(name string, svc Service) string {
 	return "backend"
 }
 
-// ========== Optimize Command ==========
+// ========== Analyze Command ==========
 
-func runOptimize(args []string) {
-	fs := flag.NewFlagSet("optimize", flag.ExitOnError)
+func runAnalyze(args []string) {
+	fs := flag.NewFlagSet("analyze", flag.ExitOnError)
 	prometheusURL := fs.String("prometheus", "http://localhost:9090", "Prometheus server URL")
 	language := fs.String("language", "en", "Language for recommendations (en or ko)")
 	fs.Parse(args)
 
 	fmt.Println()
 	fmt.Println("================================================")
-	fmt.Println("  Arfni - Cost Optimization Analysis")
+	fmt.Println("  Arfni - Cost Analysis")
 	fmt.Println("================================================")
 	fmt.Println()
 	fmt.Printf("Prometheus URL:    %s\n", *prometheusURL)
 	fmt.Printf("Language:          %s\n", *language)
 	fmt.Println()
 
-	// Initialize optimization analyzer
-	analyzer, err := pricing.NewOptimizationAnalyzer(*prometheusURL)
+	// Initialize analysis engine
+	analyzer, err := pricing.NewAnalysisEngine(*prometheusURL)
 	if err != nil {
-		fmt.Printf("[ERROR] Failed to initialize optimizer: %v\n", err)
+		fmt.Printf("[ERROR] Failed to initialize analyzer: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -756,6 +756,11 @@ func runOptimize(args []string) {
 	printRecommendations("low", lowPriority)
 
 	// Output JSON for GUI integration
-	jsonOutput, _ := json.Marshal(report)
-	fmt.Printf("__OPTIMIZATION_REPORT__%s\n", string(jsonOutput))
+	jsonOutput, err := json.Marshal(report)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] Failed to marshal JSON: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("__ANALYSIS_REPORT__%s\n", string(jsonOutput))
 }

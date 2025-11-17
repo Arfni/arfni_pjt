@@ -4,7 +4,11 @@
     "terminal": "Terminal",
     "containers": "Container",
     "monitor": "Monitor",
+<<<<<<< HEAD
     "optimize": "Analysis",
+=======
+    "analyze": "Analyze",
+>>>>>>> develop
     "monitoring": "Monitoring Dashboard"
   },
   "terminal": {
@@ -100,9 +104,15 @@
     "startCommand1": "Command 1:",
     "startCommand2": "Or Command 2:"
   },
+<<<<<<< HEAD
   "optimize": {
     "title": "Server Analysis",
     "startAnalysis": "Start Server Analysis",
+=======
+  "analyze": {
+    "title": "Server Optimization Analysis",
+    "startAnalysis": "Start Server Optimization Analysis",
+>>>>>>> develop
     "description": "Analyze Prometheus metrics to identify cost savings and performance improvement opportunities",
     "startButton": "Start Analysis",
     "reanalyze": "Re-analyze",
@@ -136,6 +146,20 @@
     },
     "bottlenecks": {
       "title": "Performance Bottlenecks"
+    },
+    "downtime": {
+      "title": "Server Availability",
+      "online": "Online",
+      "offline": "Offline",
+      "uptime": "Uptime (24h)",
+      "totalDowntime": "Total Downtime",
+      "minutes": "min",
+      "recentEvent": "Recent Downtime Event",
+      "startTime": "Start Time",
+      "endTime": "End Time",
+      "duration": "Duration",
+      "estimatedCause": "Estimated Cause",
+      "serverDown": "Server Offline"
     },
     "recommendations": {
       "title": "AI Recommendations",

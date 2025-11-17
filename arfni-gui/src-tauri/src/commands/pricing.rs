@@ -94,6 +94,7 @@ pub struct PerformanceAnalysis {
     pub cpu_bottleneck: bool,
     pub memory_bottleneck: bool,
     pub disk_bottleneck: bool,
+    #[serde(default)]
     pub bottlenecks: Vec<String>,
     pub health_status: String,
 }
@@ -110,10 +111,44 @@ pub struct Recommendation {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct OptimizationReport {
+pub struct MetricsSnapshot {
+    pub timestamp: String,
+    pub cpu_percent: f64,
+    pub memory_percent: f64,
+    pub disk_percent: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DowntimeEventSummary {
+    pub start_time: String,
+    pub end_time: String,
+    pub duration_minutes: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metrics_before: Option<MetricsSnapshot>,
+    pub estimated_cause: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DowntimeAnalysis {
+    pub is_online: bool,
+    pub total_downtime_minutes: f64,
+    #[serde(default)]
+    pub downtime_events: Vec<DowntimeEventSummary>,
+    pub uptime_percent: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub most_recent_downtime: Option<DowntimeEventSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_cause: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AnalysisReport {
     pub actual_usage: ActualUsageMetrics,
     pub cost_analysis: CostAnalysis,
     pub performance_analysis: PerformanceAnalysis,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub downtime_analysis: Option<DowntimeAnalysis>,
+    #[serde(default)]
     pub recommendations: Vec<Recommendation>,
 }
 
@@ -189,11 +224,11 @@ pub async fn estimate_cost(
 }
 
 #[tauri::command]
-pub async fn optimize(
+pub async fn analyze(
     db: State<'_, Database>,
     prometheus_url: Option<String>,
     language: Option<String>,
-) -> Result<OptimizationReport, String> {
+) -> Result<AnalysisReport, String> {
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -211,7 +246,7 @@ pub async fn optimize(
     let prometheus = prometheus_url.unwrap_or_else(|| "http://localhost:9090".to_string());
 
     // DEBUG: Print language value before using it
-    eprintln!("[RUST DEBUG] optimize called with language: {:?}", language);
+    eprintln!("[RUST DEBUG] analyze called with language: {:?}", language);
 
     // Use default language if not provided
     let lang = language.unwrap_or_else(|| "en".to_string());
@@ -220,7 +255,7 @@ pub async fn optimize(
 
     // Build command
     let mut cmd = Command::new(&exe_path);
-    cmd.arg("optimize")
+    cmd.arg("analyze")
         .arg("-prometheus")
         .arg(&prometheus)
         .arg("-language")
@@ -242,25 +277,25 @@ pub async fn optimize(
 
     // Execute command
     let output = cmd.output()
-        .map_err(|e| format!("Failed to execute optimize command: {}", e))?;
+        .map_err(|e| format!("Failed to execute analyze command: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Optimize command failed: {}", stderr));
+        return Err(format!("Analyze command failed: {}", stderr));
     }
 
     // Parse output
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Find JSON output (starts with __OPTIMIZATION_REPORT__)
-    let json_marker = "__OPTIMIZATION_REPORT__";
+    // Find JSON output (starts with __ANALYSIS_REPORT__)
+    let json_marker = "__ANALYSIS_REPORT__";
     if let Some(json_start) = stdout.find(json_marker) {
         let json_str = &stdout[json_start + json_marker.len()..];
-        let result: OptimizationReport = serde_json::from_str(json_str)
-            .map_err(|e| format!("Failed to parse optimization result: {}", e))?;
+        let result: AnalysisReport = serde_json::from_str(json_str)
+            .map_err(|e| format!("Failed to parse analysis result: {}", e))?;
         Ok(result)
     } else {
-        Err("No optimization report found in output".to_string())
+        Err("No analysis report found in output".to_string())
     }
 }
 
