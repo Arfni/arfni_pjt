@@ -1,0 +1,151 @@
+{
+  "pluginTutorial": {
+    "title": "Custom Plugin Testing Guide",
+    "description": "Learn how to test locally developed ARFNI plugins in the GUI and submit them to the repository.",
+    "tabs": {
+      "guide": "Step-by-Step Guide",
+      "checklist": "Testing Checklist",
+      "issues": "Common Issues",
+      "import": "Add Plugin"
+    },
+    "steps": {
+      "step1": {
+        "title": "Prepare Plugin Folder",
+        "description": "Prepare your plugin folder locally",
+        "intro": "Prepare the following files in your plugin folder:",
+        "folderStructure": "Folder Structure Example",
+        "requiredFiles": "Required Files",
+        "requiredList": {
+          "item1": "plugin.yaml - Plugin metadata and configuration",
+          "item2": "icon.png - Plugin icon (128x128px recommended)",
+          "item3": "README.md - Usage instructions and description"
+        },
+        "optionalFiles": "Optional Files",
+        "optionalList": {
+          "item1": "templates/ - Deployment template files",
+          "item2": "hooks/ - Lifecycle hook scripts",
+          "item3": "frameworks/ - Framework definitions"
+        },
+        "yamlNote": "plugin.yaml must contain at least these fields: name, version, category, description"
+      },
+      "step2": {
+        "title": "Add Plugin in ARFNI GUI",
+        "description": "Use the Add Plugin feature in the GUI",
+        "step1": "1. Click the 'Add Plugin' tab at the top",
+        "step2": "2. Select your plugin folder with 'Select Folder' button",
+        "step3": "3. Click 'Add Plugin' button",
+        "step4": "4. Confirm success message",
+        "note": "The plugin will be automatically loaded without restarting the GUI."
+      },
+      "step3": {
+        "title": "Verify in Plugin List",
+        "description": "Check if the added plugin appears in the list",
+        "step1": "1. Navigate to Projects page",
+        "step2": "2. Click Plugin Manager",
+        "step3": "3. Find 'Custom Plugins' section",
+        "step4": "4. Check plugin information (icon, name, version, description)",
+        "tip": "Custom Plugins are marked with a pink badge."
+      },
+      "step4": {
+        "title": "Test in Canvas",
+        "description": "Create a project and use your plugin",
+        "step1": "1. Create a new project",
+        "step2": "2. Open Canvas page",
+        "step3": "3. Find your plugin in the left palette",
+        "step4": "4. Drag and drop onto canvas",
+        "step5": "5. Enter configuration values in the right properties panel",
+        "step6": "6. Connect with other nodes (if applicable)",
+        "tip": "Verify that property input fields display correctly and accept values."
+      },
+      "step5": {
+        "title": "Deployment and Execution Test",
+        "description": "Test your plugin in actual deployment environment",
+        "step1": "1. Click 'Generate' button to create files",
+        "step2": "2. Check generated files (docker-compose.yml, etc.)",
+        "step3": "3. Start deployment with 'Deploy' button",
+        "step4": "4. Check logs in Deployment page",
+        "step5": "5. Verify container running status",
+        "step6": "6. Test application access (if applicable)",
+        "errorCheck": "Make sure to check deployment logs for any errors."
+      },
+      "step6": {
+        "title": "Submit to Repository",
+        "description": "Share your plugin with the community after testing",
+        "steps": {
+          "fork": "1. Fork the arfni-plugins repository",
+          "addPlugin": "2. Add your plugin to the appropriate category folder",
+          "updateReadme": "3. Update the README.md",
+          "createPR": "4. Create a Pull Request with:",
+          "prItems": {
+            "description": "• Plugin description and features",
+            "testing": "• Testing evidence (screenshots/videos)",
+            "breaking": "• Any breaking changes or dependencies"
+          }
+        }
+      }
+    },
+    "checklist": {
+      "title": "Plugin Testing Checklist",
+      "intro": "Before submitting your plugin, ensure all these items are checked:",
+      "structure": {
+        "title": "Basic Structure",
+        "item1": "plugin.yaml exists with all required fields",
+        "item2": "icon.png exists (128x128px recommended)",
+        "item3": "README.md clearly describes usage",
+        "item4": "All referenced files exist"
+      },
+      "functionality": {
+        "title": "GUI Testing",
+        "item1": "Plugin added successfully using 'Add Plugin' feature",
+        "item2": "Plugin visible in Plugin Manager's Custom Plugins",
+        "item3": "Icon displays correctly",
+        "item4": "Plugin information displays correctly"
+      },
+      "validation": {
+        "title": "Canvas Testing",
+        "item1": "Plugin appears in left palette",
+        "item2": "Can drag and drop onto canvas",
+        "item3": "Properties panel renders correctly",
+        "item4": "Can connect with other nodes (if applicable)"
+      },
+      "testing": {
+        "title": "Deployment Testing",
+        "item1": "Files generated with Generate feature",
+        "item2": "Deployment completes successfully",
+        "item3": "Container runs normally",
+        "item4": "Application works correctly"
+      }
+    },
+    "issues": {
+      "title": "Common Issues & Solutions",
+      "pluginNotAppearing": {
+        "title": "Plugin not appearing in list",
+        "item1": "• Verify plugin.yaml file exists in the folder",
+        "item2": "• Check if plugin.yaml has the name field",
+        "item3": "• Confirm success message appeared when adding plugin",
+        "item4": "• Refresh Plugin Manager or restart GUI"
+      },
+      "templateIssues": {
+        "title": "Files not generating correctly",
+        "item1": "• Check if file paths in templates/ folder are correct",
+        "item2": "• Verify Go template syntax is correct ({{ .VariableName }})",
+        "item3": "• Check if variable names match environment variables in plugin.yaml"
+      },
+      "hookFailures": {
+        "title": "Deployment fails",
+        "item1": "• Check error messages in Deployment page logs",
+        "item2": "• Verify docker-compose.yml was generated correctly",
+        "item3": "• Check for port conflicts",
+        "item4": "• Ensure all required environment variables are set"
+      },
+      "help": {
+        "title": "Need Help?",
+        "intro": "If you encounter issues during plugin testing:",
+        "item1": "Check README documentation in arfni-plugins repository",
+        "item2": "Review existing plugins for reference (Django, PostgreSQL, etc.)",
+        "item3": "Open an issue in arfni-plugins repository",
+        "item4": "Join ARFNI community discussions"
+      }
+    }
+  }
+}

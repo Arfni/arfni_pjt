@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Package, Download, Trash2, CheckCircle, AlertCircle, Search, ExternalLink, RefreshCw } from 'lucide-react';
 import { pluginService, type LoadedPlugin } from '@services/pluginLoader';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -42,8 +43,10 @@ interface CacheInfo {
 
 export function PluginManager({ className = '' }: PluginManagerProps) {
   const { t } = useTranslation('projects');
+  const navigate = useNavigate();
   const [bundledPlugins, setBundledPlugins] = useState<LoadedPlugin[]>([]);
   const [installedPlugins, setInstalledPlugins] = useState<LoadedPlugin[]>([]);
+  const [customPlugins, setCustomPlugins] = useState<LoadedPlugin[]>([]);
   const [registryPlugins, setRegistryPlugins] = useState<RegistryPlugin[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -63,7 +66,10 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
     try {
       await pluginService.loadPlugins();
       setBundledPlugins(pluginService.getBundledPlugins());
-      setInstalledPlugins(pluginService.getInstalledPlugins());
+      const allInstalled = pluginService.getInstalledPlugins();
+      // Separate custom plugins from other installed plugins by folder location
+      setCustomPlugins(allInstalled.filter(p => p.isCustomPlugin));
+      setInstalledPlugins(allInstalled.filter(p => !p.isCustomPlugin));
     } catch (error) {
       console.error(t('plugins.errors.loadFailed'), error);
     }
@@ -73,7 +79,10 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
     try {
       await pluginService.reloadPlugins();
       setBundledPlugins(pluginService.getBundledPlugins());
-      setInstalledPlugins(pluginService.getInstalledPlugins());
+      const allInstalled = pluginService.getInstalledPlugins();
+      // Separate custom plugins from other installed plugins by folder location
+      setCustomPlugins(allInstalled.filter(p => p.isCustomPlugin));
+      setInstalledPlugins(allInstalled.filter(p => !p.isCustomPlugin));
     } catch (error) {
       console.error(t('plugins.errors.reloadFailed'), error);
     }
@@ -196,18 +205,34 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
   };
 
   const handleUninstallPlugin = async (plugin: LoadedPlugin) => {
-    if (!confirm(t('plugins.confirm.uninstall', { pluginName: plugin.manifest.displayName || plugin.manifest.name }))) {
-      return;
-    }
-
     try {
+      // Use Tauri dialog API instead of browser confirm
+      const { ask, message } = await import('@tauri-apps/plugin-dialog');
+
+      const confirmed = await ask(
+        t('plugins.confirm.uninstall', { pluginName: plugin.manifest.displayName || plugin.manifest.name }),
+        {
+          title: t('plugins.confirm.title'),
+          kind: 'warning',
+          okLabel: t('plugins.confirm.yes'),
+          cancelLabel: t('plugins.confirm.no')
+        }
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
       // Call Tauri command to uninstall plugin
       const { invoke } = await import('@tauri-apps/api/core');
       const result = await invoke<string>('uninstall_plugin', {
         pluginName: plugin.manifest.name
       });
 
-      alert(t('plugins.success.uninstalled', { message: result }));
+      await message(t('plugins.success.uninstalled', { message: result }), {
+        title: t('plugins.success.title'),
+        kind: 'info'
+      });
 
       // Reload plugins after uninstallation
       await reloadPlugins();
@@ -217,7 +242,7 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
     }
   };
 
-  const categories = ['all', 'database', 'framework', 'cache', 'proxy', 'cicd', 'orchestration', 'monitoring'];
+  const categories = ['all', 'database', 'framework', 'cache', 'proxy', 'cicd', 'orchestration', 'monitoring', 'custom'];
 
   const filteredBundledPlugins = bundledPlugins.filter(plugin => {
     const displayName = plugin.manifest.displayName || plugin.manifest.name || '';
@@ -234,6 +259,15 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
     const matchesSearch = displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || plugin.manifest.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const filteredCustomPlugins = customPlugins.filter(plugin => {
+    const displayName = plugin.manifest.displayName || plugin.manifest.name || '';
+    const description = plugin.manifest.description || '';
+    const matchesSearch = displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || selectedCategory === 'custom';
     return matchesSearch && matchesCategory;
   });
 
@@ -347,6 +381,36 @@ export function PluginManager({ className = '' }: PluginManagerProps) {
           )}
         </div>
 
+        {/* Custom Plugins */}
+        <div className="mb-8 px-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-800">{t('plugins.customPlugins')}</h3>
+            <button
+              onClick={() => navigate('/plugin-test')}
+              className="px-3 py-1 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md flex items-center gap-2"
+              title={t('plugins.tutorial.buttonTitle') || '플러그인 개발 튜토리얼'}
+            >
+              <Package className="w-4 h-4" />
+              {t('plugins.tutorial.button') || '플러그인 개발 가이드'}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredCustomPlugins.map(plugin => (
+              <PluginCard
+                key={plugin.manifest.name}
+                plugin={plugin}
+                isBundled={false}
+                onUninstall={() => handleUninstallPlugin(plugin)}
+              />
+            ))}
+          </div>
+          {filteredCustomPlugins.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              {t('plugins.empty.noCustom')}
+            </div>
+          )}
+        </div>
+
         {/* Available Plugins from Registry */}
         <div className="mb-8 px-6">
           <div className="flex items-center justify-between mb-4">
@@ -429,6 +493,7 @@ function PluginCard({ plugin, isBundled, onUninstall }: PluginCardProps) {
     cicd: 'bg-yellow-100 text-yellow-800',
     orchestration: 'bg-indigo-100 text-indigo-800',
     monitoring: 'bg-red-100 text-red-800',
+    custom: 'bg-pink-100 text-pink-800',
   };
 
   useEffect(() => {
@@ -533,6 +598,7 @@ function RegistryPluginCard({ plugin, onInstall, installing }: RegistryPluginCar
     cicd: 'bg-yellow-100 text-yellow-800',
     orchestration: 'bg-indigo-100 text-indigo-800',
     monitoring: 'bg-red-100 text-red-800',
+    custom: 'bg-pink-100 text-pink-800',
   };
 
   useEffect(() => {

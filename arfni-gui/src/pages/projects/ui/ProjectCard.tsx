@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Server, Loader2, Trash2, Laptop } from 'lucide-react';
+import { Calendar, Server, Loader2, Trash2, Laptop, Github, CheckCircle } from 'lucide-react';
 import { Project, CanvasNode, CanvasEdge, projectCommands } from '@shared/api/tauri/commands';
 import { CanvasPreview } from './CanvasPreview';
 import { useAppDispatch } from '@app/hooks';
 import { openProject, clearError } from '@features/project';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
+import { useState } from 'react';
 
 // Star Icon Component
 const StarIcon = ({ filled, onClick, className }: { filled: boolean; onClick?: (e: React.MouseEvent) => void; className?: string }) => (
@@ -171,6 +172,23 @@ export function ProjectCard({ project, canvasPreview, isDeleting, isPinned, onDe
             <Calendar className="w-3 h-3" />
             <span>{t('card.created')} {new Date(project.created_at).toLocaleDateString()}</span>
           </div>
+          {project.github_repo_url && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-gray-700 flex-1 min-w-0">
+                <Github className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate" title={project.github_repo_url}>
+                  {project.github_repo_url.replace('https://github.com/', '')}
+                </span>
+              </div>
+              {/* CI/CD 설정 상태 표시 - stack.yaml이 있으면 CI/CD 설정 가능 상태로 표시 */}
+              {project.stack_yaml_path && (
+                <div className="flex items-center gap-1 text-green-600 ml-2" title={t('card.cicdReady')}>
+                  <CheckCircle className="w-3 h-3" />
+                  <span className="text-xs">CI/CD</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">

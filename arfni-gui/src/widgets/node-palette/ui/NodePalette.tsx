@@ -168,14 +168,14 @@ export function NodePalette() {
       </div>
 
       {/* Block List */}
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div className="flex-1 overflow-y-auto px-3 pt-2 pb-10">
         {isLoading ? (
           <div className="text-center py-8">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <div className="text-sm text-gray-500 mt-2">{t('blocks.loading')}</div>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 pb-2">
             {filteredNodes.map((node) => {
               const isSelected = selectedTemplate?.type === node.type;
               return (

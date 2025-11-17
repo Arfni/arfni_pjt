@@ -33,7 +33,8 @@ export function CanvasPage() {
       dispatch(openProject(passedProject.path))
         .unwrap()
         .catch((error) => {
-          alert(t('page.loadingError', { error: String(error) }));
+          console.error('프로젝트 열기 실패:', error);
+          alert(`프로젝트를 열 수 없습니다: ${JSON.stringify(error)}`);
           navigate('/projects');
         });
     }

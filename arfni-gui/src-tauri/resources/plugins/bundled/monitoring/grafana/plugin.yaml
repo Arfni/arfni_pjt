@@ -39,6 +39,7 @@ contributes:
     label: Grafana
     description: "Visualization platform"
     category: infra
+    hidden: true
     ports:
       - name: http
         port: 3001

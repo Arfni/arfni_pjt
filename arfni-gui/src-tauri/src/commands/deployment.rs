@@ -71,11 +71,15 @@ pub async fn deploy_stack(
     app: AppHandle,
     project_path: String,
     stack_yaml_path: String,
+    project_id: Option<String>,
 ) -> Result<DeploymentStatus, String> {
     // 이미 배포가 진행 중인지 확인
     if DEPLOYMENT_RUNNING.load(Ordering::SeqCst) {
         return Err("이미 배포가 진행 중입니다".to_string());
     }
+
+    // deploy_stack은 로컬 프로젝트 배포만 담당
+    // GitHub 프로젝트는 프론트엔드에서 smartDeploy 직접 호출
 
     // Go 백엔드 실행 파일 경로 찾기 (플래그 설정 전에 먼저 확인)
     let go_binary_path = match find_go_binary(&app) {
@@ -923,4 +927,1166 @@ pub async fn start_monitoring(
     println!("✅ Monitoring process started with PID: {}", pid);
 
     Ok(format!("모니터링이 시작되었습니다 (PID: {})", pid))
+}
+
+// GitHub API helper functions
+
+/// Parse GitHub repo URL to extract owner and repo name
+fn parse_github_repo(url: &str) -> Result<(String, String), String> {
+    // Handle both HTTPS and SSH formats
+    // HTTPS: https://github.com/owner/repo.git
+    // SSH: git@github.com:owner/repo.git
+
+    let cleaned = url.trim_end_matches(".git");
+
+    if let Some(parts) = cleaned.strip_prefix("https://github.com/") {
+        let segments: Vec<&str> = parts.split('/').collect();
+        if segments.len() >= 2 {
+            return Ok((segments[0].to_string(), segments[1].to_string()));
+        }
+    } else if let Some(parts) = cleaned.strip_prefix("git@github.com:") {
+        let segments: Vec<&str> = parts.split('/').collect();
+        if segments.len() >= 2 {
+            return Ok((segments[0].to_string(), segments[1].to_string()));
+        }
+    }
+
+    Err(format!("Invalid GitHub URL format: {}", url))
+}
+
+/// Check if GitHub Actions workflow file exists
+async fn check_workflow_exists(
+    owner: &str,
+    repo: &str,
+    token: &str,
+) -> Result<bool, String> {
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/contents/.github/workflows/deploy.yml",
+        owner, repo
+    );
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", "arfni-gui")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to check workflow file: {}", e))?;
+
+    Ok(response.status().is_success())
+}
+
+/// Trigger GitHub Actions workflow dispatch
+async fn trigger_workflow_dispatch(
+    owner: &str,
+    repo: &str,
+    branch: &str,
+    token: &str,
+) -> Result<(), String> {
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/actions/workflows/deploy.yml/dispatches",
+        owner, repo
+    );
+
+    let body = serde_json::json!({
+        "ref": branch,
+    });
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", "arfni-gui")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to trigger workflow: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("Workflow trigger failed: {}", error_text));
+    }
+
+    Ok(())
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct WorkflowRun {
+    id: u64,
+    status: String,
+    conclusion: Option<String>,
+    created_at: String,
+}
+
+#[derive(serde::Deserialize)]
+struct WorkflowRunsResponse {
+    workflow_runs: Vec<WorkflowRun>,
+}
+
+/// Get recent workflow runs
+async fn get_recent_workflow_run(
+    owner: &str,
+    repo: &str,
+    branch: &str,
+    token: &str,
+    created_after: &str,
+) -> Result<Option<WorkflowRun>, String> {
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/actions/workflows/deploy.yml/runs?branch={}&per_page=5",
+        owner, repo, branch
+    );
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", "arfni-gui")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get workflow runs: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Failed to get workflow runs: {}", response.status()));
+    }
+
+    let runs: WorkflowRunsResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse workflow runs: {}", e))?;
+
+    // Find the most recent run created after our trigger time
+    for run in runs.workflow_runs {
+        if run.created_at.as_str() >= created_after {
+            return Ok(Some(run));
+        }
+    }
+
+    Ok(None)
+}
+
+/// Download workflow run logs
+async fn download_workflow_logs(
+    owner: &str,
+    repo: &str,
+    run_id: u64,
+    token: &str,
+) -> Result<String, String> {
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/actions/runs/{}/logs",
+        owner, repo, run_id
+    );
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", "arfni-gui")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download logs: {}", e))?;
+
+    if !response.status().is_success() {
+        return Ok(String::new());
+    }
+
+    response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read logs: {}", e))
+}
+
+/// GitHub 프로젝트를 GitHub Actions Workflow로 배포
+async fn deploy_github_project_via_workflow(
+    app: AppHandle,
+    _project_id: String,
+    project_name: String,
+    branch: String,
+    github_repo_url: String,
+    github_access_token: String,
+) -> Result<DeploymentStatus, String> {
+    println!("[GitHub Deploy] Starting workflow deployment for project: {}", project_name);
+
+    // Parse GitHub repo URL
+    let (owner, repo) = parse_github_repo(&github_repo_url)?;
+    println!("[GitHub Deploy] Repository: {}/{}", owner, repo);
+
+    // 배포 시작 플래그 설정
+    DEPLOYMENT_RUNNING.store(true, Ordering::SeqCst);
+
+    // 배포 시작 이벤트 전송
+    app.emit("deployment-started", DeploymentStatus {
+        status: "deploying".to_string(),
+        message: Some("배포를 시작합니다...".to_string()),
+        outputs: None,
+    }).unwrap_or(());
+
+    // Step 1: Check if workflow file exists
+    app.emit("deployment-log", DeploymentLog {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: "info".to_string(),
+        message: "🔍 Checking CI/CD workflow configuration...".to_string(),
+        data: None,
+    }).unwrap_or(());
+
+    let workflow_exists = check_workflow_exists(&owner, &repo, &github_access_token).await
+        .map_err(|e| {
+            DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+            e
+        })?;
+
+    if !workflow_exists {
+        DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "error".to_string(),
+            message: "❌ CI/CD workflow not configured.".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "📋 To deploy this GitHub project, you need to setup CI/CD first:".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "   1. Go back to Projects page".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "   2. Click 'Setup CI/CD' button on your project card".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "   3. Complete the 5-step CI/CD configuration wizard".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "   4. After setup completes, return here and deploy again".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "💡 This is a one-time setup. Once configured, future deployments will work automatically.".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app.emit("deployment-failed", DeploymentStatus {
+            status: "failed".to_string(),
+            message: Some("CI/CD가 설정되지 않았습니다. Projects 페이지에서 'Setup CI/CD' 버튼을 클릭하세요.".to_string()),
+            outputs: None,
+        }).unwrap_or(());
+
+        return Err("CI/CD workflow not configured. Please run 'Setup CI/CD' from the project card.".to_string());
+    }
+
+    app.emit("deployment-log", DeploymentLog {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: "success".to_string(),
+        message: "✅ Workflow configuration found".to_string(),
+        data: None,
+    }).unwrap_or(());
+
+    // Step 2: Trigger workflow
+    app.emit("deployment-log", DeploymentLog {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: "info".to_string(),
+        message: format!("🚀 Triggering GitHub Actions workflow (branch: {})...", branch),
+        data: None,
+    }).unwrap_or(());
+
+    let trigger_time = chrono::Utc::now().to_rfc3339();
+
+    trigger_workflow_dispatch(&owner, &repo, &branch, &github_access_token).await
+        .map_err(|e| {
+            DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+            app.emit("deployment-log", DeploymentLog {
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                level: "error".to_string(),
+                message: format!("❌ Failed to trigger workflow: {}", e),
+                data: None,
+            }).unwrap_or(());
+            e
+        })?;
+
+    app.emit("deployment-log", DeploymentLog {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: "success".to_string(),
+        message: "✅ Workflow triggered successfully".to_string(),
+        data: None,
+    }).unwrap_or(());
+
+    // Step 3: Monitor workflow in background thread
+    let app_clone = app.clone();
+    let owner_clone = owner.clone();
+    let repo_clone = repo.clone();
+    let branch_clone = branch.clone();
+    let token_clone = github_access_token.clone();
+
+    tokio::spawn(async move {
+        // Wait a bit for workflow to appear in the API
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+        app_clone.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "info".to_string(),
+            message: "⏳ Waiting for workflow to start...".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        let mut last_status = String::new();
+        let mut log_fetched = false;
+
+        // Poll for workflow run (max 2 minutes)
+        for _ in 0..24 {
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+            if let Ok(Some(run)) = get_recent_workflow_run(
+                &owner_clone,
+                &repo_clone,
+                &branch_clone,
+                &token_clone,
+                &trigger_time,
+            ).await {
+
+                if run.status != last_status {
+                    last_status = run.status.clone();
+
+                    let message = match run.status.as_str() {
+                        "queued" => "📋 Workflow queued...",
+                        "in_progress" => "🔄 Workflow running...",
+                        "completed" => {
+                            match run.conclusion.as_deref() {
+                                Some("success") => "✅ Workflow completed successfully!",
+                                Some("failure") => "❌ Workflow failed!",
+                                Some("cancelled") => "⚠️ Workflow cancelled",
+                                _ => "⏹️ Workflow completed",
+                            }
+                        },
+                        _ => &format!("Status: {}", run.status),
+                    };
+
+                    let level = if run.status == "completed" {
+                        if run.conclusion.as_deref() == Some("success") {
+                            "success"
+                        } else {
+                            "error"
+                        }
+                    } else {
+                        "info"
+                    };
+
+                    app_clone.emit("deployment-log", DeploymentLog {
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        level: level.to_string(),
+                        message: message.to_string(),
+                        data: None,
+                    }).unwrap_or(());
+                }
+
+                // If completed, fetch logs and finish
+                if run.status == "completed" {
+                    if !log_fetched {
+                        log_fetched = true;
+
+                        app_clone.emit("deployment-log", DeploymentLog {
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                            level: "info".to_string(),
+                            message: "📥 Fetching workflow logs...".to_string(),
+                            data: None,
+                        }).unwrap_or(());
+
+                        if let Ok(logs) = download_workflow_logs(&owner_clone, &repo_clone, run.id, &token_clone).await {
+                            if !logs.is_empty() {
+                                // Send truncated logs (last 100 lines)
+                                let log_lines: Vec<&str> = logs.lines().collect();
+                                let start = if log_lines.len() > 100 { log_lines.len() - 100 } else { 0 };
+
+                                for line in &log_lines[start..] {
+                                    if !line.trim().is_empty() {
+                                        app_clone.emit("deployment-log", DeploymentLog {
+                                            timestamp: chrono::Utc::now().to_rfc3339(),
+                                            level: "info".to_string(),
+                                            message: line.to_string(),
+                                            data: None,
+                                        }).unwrap_or(());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+
+                    if run.conclusion.as_deref() == Some("success") {
+                        app_clone.emit("deployment-completed", DeploymentStatus {
+                            status: "success".to_string(),
+                            message: Some("배포가 성공적으로 완료되었습니다".to_string()),
+                            outputs: None,
+                        }).unwrap_or(());
+                    } else {
+                        app_clone.emit("deployment-failed", DeploymentStatus {
+                            status: "failed".to_string(),
+                            message: Some(format!("배포 실패: {}", run.conclusion.unwrap_or_default())),
+                            outputs: None,
+                        }).unwrap_or(());
+                    }
+
+                    return;
+                }
+            }
+        }
+
+        // Timeout
+        DEPLOYMENT_RUNNING.store(false, Ordering::SeqCst);
+        app_clone.emit("deployment-log", DeploymentLog {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: "warning".to_string(),
+            message: "⚠️ Workflow monitoring timeout. Check GitHub Actions for status.".to_string(),
+            data: None,
+        }).unwrap_or(());
+
+        app_clone.emit("deployment-completed", DeploymentStatus {
+            status: "unknown".to_string(),
+            message: Some("워크플로우 모니터링 시간 초과. GitHub Actions에서 상태를 확인하세요.".to_string()),
+            outputs: None,
+        }).unwrap_or(());
+    });
+
+    Ok(DeploymentStatus {
+        status: "deploying".to_string(),
+        message: Some("GitHub Actions 워크플로우 실행 중...".to_string()),
+        outputs: None,
+    })
+}
+
+/// Smart deployment handler that detects project type and deploys accordingly
+#[tauri::command]
+pub async fn smart_deploy(
+    app: AppHandle,
+    project_id: String,
+) -> Result<DeploymentStatus, String> {
+    use crate::db::Database;
+    use tauri::State;
+
+    println!("[Smart Deploy] Starting smart deployment for project: {}", project_id);
+
+    // Get project info from database
+    let db_state: State<'_, Database> = app.state();
+    let project = {
+        let conn = db_state.get_conn();
+        let conn = conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT id, name, path, environment, ec2_server_id, stack_yaml_path,
+                    github_repo_url, github_branch, github_access_token
+             FROM projects WHERE id = ?1"
+        ).map_err(|e| format!("Failed to prepare query: {}", e))?;
+
+        #[derive(Debug)]
+        struct ProjectInfo {
+            _id: String,
+            name: String,
+            path: String,
+            environment: String,
+            ec2_server_id: Option<String>,
+            stack_yaml_path: Option<String>,
+            github_repo_url: Option<String>,
+            github_branch: Option<String>,
+            github_access_token: Option<String>,
+        }
+
+        stmt.query_row(rusqlite::params![&project_id], |row| {
+            Ok(ProjectInfo {
+                _id: row.get(0)?,
+                name: row.get(1)?,
+                path: row.get(2)?,
+                environment: row.get(3)?,
+                ec2_server_id: row.get(4)?,
+                stack_yaml_path: row.get(5)?,
+                github_repo_url: row.get(6)?,
+                github_branch: row.get(7)?,
+                github_access_token: row.get(8)?,
+            })
+        }).map_err(|e| format!("Failed to get project: {}", e))?
+    };
+
+    println!("[Smart Deploy] Project: {}, Environment: {}, GitHub: {:?}",
+             project.name, project.environment, project.github_repo_url);
+
+    // Store branch name before move
+    let github_branch = project.github_branch.clone().unwrap_or("main".to_string());
+
+    // Determine deployment type
+    let deployment_type = match (project.environment.as_str(), &project.github_repo_url) {
+        ("ec2", Some(repo_url)) if !repo_url.is_empty() => {
+            println!("[Smart Deploy] Detected: GitHub + EC2 project");
+
+            // Check if CI/CD is already configured
+            if let Some(access_token) = &project.github_access_token {
+                let cicd_configured = crate::commands::cicd::check_cicd_status(
+                    repo_url.clone(),
+                    access_token.clone()
+                ).await.unwrap_or(false);
+
+                // Get EC2 server info (needed for both cases)
+                if let Some(ec2_server_id) = project.ec2_server_id {
+                    if !cicd_configured {
+                        println!("[Smart Deploy] CI/CD not configured, setting up automatically...");
+                        // GitHub 프로젝트는 DB에 저장된 Canvas 데이터에서 stack.yaml 읽기
+                        // (프론트엔드에서 이미 저장했음)
+                        println!("[Smart Deploy] Reading stack.yaml from database for GitHub project");
+
+                        // Read stack.yaml from projects table
+                        let stack_yaml_content = {
+                            let conn = db_state.get_conn();
+                            let conn = conn.lock().unwrap();
+
+                            conn.query_row(
+                                "SELECT stack_yaml FROM projects WHERE id = ?1",
+                                rusqlite::params![&project_id],
+                                |row| row.get::<_, String>(0)
+                            ).ok()
+                        };
+
+                        // Parse stack.yaml to get docker service name
+                        let docker_service = if let Some(ref yaml) = stack_yaml_content {
+                            // Simple parsing to find first service name
+                            yaml.lines()
+                                .skip_while(|line| !line.starts_with("services:"))
+                                .skip(1) // Skip "services:" line
+                                .find(|line| line.trim().ends_with(":"))
+                                .and_then(|line| line.trim().strip_suffix(":"))
+                                .map(|s| s.to_string())
+                                .unwrap_or("spring".to_string())
+                        } else {
+                            println!("[Smart Deploy] No stack.yaml in DB, using default service name 'spring'");
+                            "spring".to_string()
+                        };
+
+                        // Auto-setup CI/CD
+                        let config = crate::commands::cicd::CICDConfiguration {
+                            platform: "github".to_string(),
+                            repository_url: repo_url.clone(),
+                            branch: github_branch.clone(),
+                            framework: "springboot".to_string(), // GitHub 프로젝트는 기본값 사용
+                            java_version: Some("17".to_string()),
+                            node_version: None,
+                            python_version: None,
+                            ec2_host: get_ec2_host(&app, &ec2_server_id)?,
+                            ec2_user: get_ec2_user(&app, &ec2_server_id)?,
+                            deploy_root: "/home/ubuntu/cicdtest".to_string(),
+                            docker_service,
+                        };
+
+                        let ssh_key = get_ec2_ssh_key(&app, &ec2_server_id)?;
+
+                        crate::commands::cicd::setup_complete_cicd(
+                            app.clone(),
+                            config,
+                            ssh_key,
+                            project_id.clone(),
+                            ec2_server_id,
+                            access_token.clone(),
+                            stack_yaml_content,          // 사용자의 stack.yaml 전달
+                            None,      // docker_compose_content - let setup_complete_cicd generate it
+                            None,      // dockerfiles - let setup_complete_cicd generate it
+                        ).await.map_err(|e| format!("Failed to setup CI/CD: {}", e))?;
+
+                        println!("[Smart Deploy] CI/CD setup completed!");
+                    } else {
+                        // CI/CD already configured, commit all files (stack.yaml + docker files) to GitHub
+                        println!("[Smart Deploy] CI/CD already configured, committing all files to GitHub...");
+
+                        // Read stack.yaml from database (source of truth for CI/CD projects)
+                        println!("[Smart Deploy] Reading stack.yaml from database for GitHub project");
+
+                        let stack_yaml_content = {
+                            let conn = db_state.get_conn();
+                            let conn = conn.lock().unwrap();
+
+                            // Read stack.yaml from projects table
+                            conn.query_row(
+                                "SELECT stack_yaml FROM projects WHERE id = ?1",
+                                rusqlite::params![&project_id],
+                                |row| row.get::<_, String>(0)
+                            ).ok()
+                        };
+
+                        if let Some(ref yaml_content) = stack_yaml_content {
+                            println!("[Smart Deploy] ✅ Read stack.yaml from database");
+
+                            // Commit stack.yaml + docker-compose.yml + Dockerfiles to GitHub
+                            crate::commands::cicd::update_docker_files_only(
+                                app.clone(),
+                                repo_url.clone(),
+                                github_branch.clone(),
+                                access_token.clone(),
+                                yaml_content.clone()
+                            ).await.map_err(|e| format!("Failed to update Docker files: {}", e))?;
+
+                            println!("[Smart Deploy] ✅ All files committed to GitHub successfully");
+                        } else {
+                            return Err("Could not read stack.yaml from database. Please save your canvas first.".to_string());
+                        }
+                    }
+                }
+
+                // Deploy via GitHub Actions
+                "github_actions"
+            } else {
+                "docker_compose" // Fallback to Docker Compose
+            }
+        }
+        ("local", _) => {
+            println!("[Smart Deploy] Detected: Local project");
+            "docker_compose"
+        }
+        _ => {
+            println!("[Smart Deploy] Detected: Default Docker Compose deployment");
+            "docker_compose"
+        }
+    };
+
+    // Execute deployment based on type
+    match deployment_type {
+        "github_actions" => {
+            println!("[Smart Deploy] Deploying via GitHub Actions...");
+            // GitHub Actions deployment: trigger workflow via API
+            trigger_github_workflow(
+                project.github_repo_url.as_ref().unwrap().clone(),
+                github_branch,
+                project.github_access_token.unwrap()
+            ).await
+        }
+        "docker_compose" => {
+            println!("[Smart Deploy] Deploying via Docker Compose...");
+            // Return error for local deployment in smart_deploy
+            // This should not happen as smart_deploy is for GitHub projects only
+            Err("Local deployment should use deploy_stack directly, not smart_deploy".to_string())
+        }
+        _ => Err("Unknown deployment type".to_string())
+    }
+}
+
+// Helper functions
+async fn read_ec2_file_via_ssh(
+    host: &str,
+    user: &str,
+    ssh_key: &str,
+    file_path: &str,
+) -> Result<String, String> {
+    use std::fs;
+    use std::path::PathBuf;
+    use tokio::process::Command;
+
+    // Write SSH key to temp file
+    let temp_key_path = std::env::temp_dir().join(format!("arfni_key_{}.pem", chrono::Utc::now().timestamp_millis()));
+    fs::write(&temp_key_path, ssh_key)
+        .map_err(|e| format!("Failed to write temp SSH key: {}", e))?;
+
+    // Set permissions (Unix only)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&temp_key_path, fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("Failed to set key permissions: {}", e))?;
+    }
+
+    // Read file from EC2
+    let output = Command::new("ssh")
+        .args(&[
+            "-i", temp_key_path.to_str().unwrap(),
+            "-o", "StrictHostKeyChecking=no",
+            &format!("{}@{}", user, host),
+            &format!("cat {}", file_path)
+        ])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to execute SSH command: {}", e))?;
+
+    // Cleanup temp key
+    let _ = fs::remove_file(&temp_key_path);
+
+    if output.status.success() {
+        String::from_utf8(output.stdout)
+            .map_err(|e| format!("Failed to parse output: {}", e))
+    } else {
+        Err(format!("SSH command failed: {}", String::from_utf8_lossy(&output.stderr)))
+    }
+}
+
+fn extract_repo_name(repo_url: &str) -> Result<String, String> {
+    // Extract repo name from URL (e.g., "https://github.com/user/repo" -> "repo")
+    let parts: Vec<&str> = repo_url.trim_end_matches('/').split('/').collect();
+    parts.last()
+        .map(|name| name.replace(".git", ""))
+        .ok_or_else(|| "Failed to extract repo name from URL".to_string())
+}
+
+fn detect_framework(project_path: &str) -> String {
+    // Check for Spring Boot
+    if std::path::Path::new(&format!("{}/build.gradle", project_path)).exists() ||
+       std::path::Path::new(&format!("{}/pom.xml", project_path)).exists() {
+        return "springboot".to_string();
+    }
+
+    // Check for Node.js
+    if std::path::Path::new(&format!("{}/package.json", project_path)).exists() {
+        return "nodejs".to_string();
+    }
+
+    // Default
+    "springboot".to_string()
+}
+
+fn get_ec2_host(app: &AppHandle, server_id: &str) -> Result<String, String> {
+    use crate::db::Database;
+    use tauri::State;
+
+    let db_state: State<'_, Database> = app.state();
+    let conn = db_state.get_conn();
+    let conn = conn.lock().unwrap();
+
+    conn.query_row(
+        "SELECT host FROM ec2_servers WHERE id = ?1",
+        rusqlite::params![server_id],
+        |row| row.get(0)
+    ).map_err(|e| format!("Failed to get EC2 host: {}", e))
+}
+
+fn get_ec2_user(app: &AppHandle, server_id: &str) -> Result<String, String> {
+    use crate::db::Database;
+    use tauri::State;
+
+    let db_state: State<'_, Database> = app.state();
+    let conn = db_state.get_conn();
+    let conn = conn.lock().unwrap();
+
+    conn.query_row(
+        "SELECT user FROM ec2_servers WHERE id = ?1",
+        rusqlite::params![server_id],
+        |row| row.get(0)
+    ).map_err(|e| format!("Failed to get EC2 user: {}", e))
+}
+
+fn get_ec2_ssh_key(app: &AppHandle, server_id: &str) -> Result<String, String> {
+    use crate::db::Database;
+    use tauri::State;
+
+    let db_state: State<'_, Database> = app.state();
+    let conn = db_state.get_conn();
+    let conn = conn.lock().unwrap();
+
+    // First get pem_path
+    let pem_path: String = conn.query_row(
+        "SELECT pem_path FROM ec2_servers WHERE id = ?1",
+        rusqlite::params![server_id],
+        |row| row.get(0)
+    ).map_err(|e| format!("Failed to get EC2 pem_path: {}", e))?;
+
+    // Read the PEM file
+    std::fs::read_to_string(&pem_path)
+        .map_err(|e| format!("Failed to read PEM file {}: {}", pem_path, e))
+}
+
+// GitHub Actions 워크플로우 트리거
+async fn trigger_github_workflow(
+    repo_url: String,
+    branch: String,
+    access_token: String,
+) -> Result<DeploymentStatus, String> {
+    // GitHub API를 통해 워크플로우 디스패치
+    let repo_path = repo_url
+        .trim_end_matches('/')
+        .split('/')
+        .rev()
+        .take(2)
+        .collect::<Vec<&str>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<&str>>()
+        .join("/")
+        .replace(".git", "");
+
+    let dispatch_url = format!("https://api.github.com/repos/{}/actions/workflows/deploy.yml/dispatches", repo_path);
+
+    let client = reqwest::Client::new();
+    let response = client.post(&dispatch_url)
+        .header("Accept", "application/vnd.github+json")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("User-Agent", "Arfni-GUI")
+        .json(&serde_json::json!({
+            "ref": branch
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to trigger workflow: {}", e))?;
+
+    if response.status().is_success() {
+        Ok(DeploymentStatus {
+            status: "success".to_string(),
+            message: Some(format!("GitHub Actions workflow triggered successfully for branch '{}'", branch)),
+            outputs: None,
+        })
+    } else {
+        let status = response.status();
+        let error_text = response.text().await.unwrap_or_default();
+        Err(format!("Failed to trigger workflow: {} - {}", status, error_text))
+    }
+}
+
+/// stack.yaml을 docker-compose.yml로 변환 (Rust에서 직접 파싱)
+/// Returns: (docker-compose.yml content, Vec<(build_context, dockerfile_content)>)
+fn generate_docker_files_with_go_binary(
+    _app: &AppHandle,
+    _temp_dir: &std::path::Path,
+    stack_yaml_content: &str,
+) -> Result<(String, Vec<(String, String)>), String> {
+    println!("[Docker Generate] Converting stack.yaml to docker-compose.yml...");
+
+    // stack.yaml을 파싱해서 docker-compose.yml 생성
+    use serde_yaml::{Value, Mapping};
+
+    let stack: Value = serde_yaml::from_str(stack_yaml_content)
+        .map_err(|e| format!("Failed to parse stack.yaml: {}", e))?;
+
+    // services 추출
+    let services = stack.get("services")
+        .and_then(|v| v.as_mapping())
+        .ok_or("No services found in stack.yaml")?;
+
+    // docker-compose.yml 구조 생성
+    let mut compose = Mapping::new();
+    compose.insert(
+        Value::String("version".to_string()),
+        Value::String("3.8".to_string())
+    );
+
+    let mut dc_services = Mapping::new();
+
+    for (service_name, service_def) in services {
+        println!("[Docker Generate] Processing service: {:?}", service_name);
+        println!("[Docker Generate] Service definition: {:?}", service_def);
+
+        let mut dc_service = Mapping::new();
+
+        // Check if this is Kubernetes format (has 'spec') or Docker Compose format (no 'spec')
+        let source = if let Some(spec) = service_def.get("spec").and_then(|v| v.as_mapping()) {
+            println!("[Docker Generate] Found Kubernetes format (spec) for {}", service_name.as_str().unwrap_or("unknown"));
+            spec
+        } else if let Some(mapping) = service_def.as_mapping() {
+            println!("[Docker Generate] Found Docker Compose format (no spec) for {}", service_name.as_str().unwrap_or("unknown"));
+            mapping
+        } else {
+            println!("[Docker Generate] ⚠️ Unknown format for service {}", service_name.as_str().unwrap_or("unknown"));
+            continue;
+        };
+
+        // build 정보
+        if let Some(build) = source.get("build") {
+            if let Some(build_map) = build.as_mapping() {
+                // build is a mapping with context/dockerfile
+                let mut build_config = Mapping::new();
+                if let Some(context) = build_map.get("context") {
+                    build_config.insert(Value::String("context".to_string()), context.clone());
+                }
+                if let Some(dockerfile) = build_map.get("dockerfile") {
+                    build_config.insert(Value::String("dockerfile".to_string()), dockerfile.clone());
+                }
+                if !build_config.is_empty() {
+                    dc_service.insert(Value::String("build".to_string()), Value::Mapping(build_config));
+                }
+            } else {
+                // build is a string (build context path)
+                dc_service.insert(Value::String("build".to_string()), build.clone());
+            }
+        }
+
+        // image
+        if let Some(image) = source.get("image") {
+            dc_service.insert(Value::String("image".to_string()), image.clone());
+        }
+
+        // ports
+        if let Some(ports) = source.get("ports") {
+            dc_service.insert(Value::String("ports".to_string()), ports.clone());
+        }
+
+        // environment (Kubernetes uses 'env', Docker Compose uses 'environment')
+        if let Some(env) = source.get("env").or_else(|| source.get("environment")) {
+            dc_service.insert(Value::String("environment".to_string()), env.clone());
+        }
+
+        // volumes
+        if let Some(volumes) = source.get("volumes") {
+            dc_service.insert(Value::String("volumes".to_string()), volumes.clone());
+        }
+
+        // restart
+        if let Some(restart) = source.get("restart") {
+            dc_service.insert(Value::String("restart".to_string()), restart.clone());
+        }
+
+        // container_name (Docker Compose specific)
+        if let Some(container_name) = source.get("container_name") {
+            dc_service.insert(Value::String("container_name".to_string()), container_name.clone());
+        }
+
+        dc_services.insert(service_name.clone(), Value::Mapping(dc_service));
+    }
+
+    compose.insert(Value::String("services".to_string()), Value::Mapping(dc_services));
+
+    // YAML로 변환
+    let compose_yaml = serde_yaml::to_string(&compose)
+        .map_err(|e| format!("Failed to generate docker-compose.yml: {}", e))?;
+
+    println!("[Docker Generate] ✅ docker-compose.yml generated successfully");
+    println!("[Docker Generate] Content:\n{}", compose_yaml);
+
+    // Dockerfile 생성
+    let mut dockerfiles = Vec::new();
+
+    println!("[Docker Generate] Generating Dockerfiles...");
+
+    // 각 서비스에 대해 Dockerfile 생성
+    for (service_name, service_def) in services {
+        // Check if this service has a build configuration
+        let source = if let Some(spec) = service_def.get("spec").and_then(|v| v.as_mapping()) {
+            spec
+        } else if let Some(mapping) = service_def.as_mapping() {
+            mapping
+        } else {
+            continue;
+        };
+
+        // build 설정이 있는 경우에만 Dockerfile 생성
+        if let Some(build) = source.get("build") {
+            let build_context = if let Some(build_str) = build.as_str() {
+                build_str.to_string()
+            } else if let Some(build_map) = build.as_mapping() {
+                build_map.get("context")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(".")
+                    .to_string()
+            } else {
+                ".".to_string()
+            };
+
+            println!("[Docker Generate] Creating Dockerfile for service '{}' at context '{}'",
+                     service_name.as_str().unwrap_or("unknown"), build_context);
+
+            // 간단한 Spring Boot Dockerfile 생성
+            // TODO: 프레임워크별 템플릿 사용하도록 개선
+            let dockerfile_content = generate_springboot_dockerfile(&source);
+
+            dockerfiles.push((build_context, dockerfile_content));
+            println!("[Docker Generate] ✅ Dockerfile generated for '{}'", service_name.as_str().unwrap_or("unknown"));
+        }
+    }
+
+    println!("[Docker Generate] ✅ Generated {} Dockerfile(s)", dockerfiles.len());
+
+    Ok((compose_yaml, dockerfiles))
+}
+
+/// 디렉토리 내의 모든 Dockerfile을 찾아서 (build_context, content) 튜플로 반환
+fn find_all_dockerfiles(project_dir: &std::path::Path) -> Result<Vec<(String, String)>, String> {
+    use std::fs;
+    use std::path::Path;
+
+    let mut dockerfiles = Vec::new();
+
+    // Recursively search for Dockerfiles
+    fn search_dir(
+        dir: &Path,
+        base_dir: &Path,
+        dockerfiles: &mut Vec<(String, String)>,
+    ) -> Result<(), String> {
+        if !dir.is_dir() {
+            return Ok(());
+        }
+
+        let entries = fs::read_dir(dir)
+            .map_err(|e| format!("Failed to read directory {:?}: {}", dir, e))?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+            let path = entry.path();
+
+            if path.is_file() && path.file_name().and_then(|n| n.to_str()) == Some("Dockerfile") {
+                // Found a Dockerfile
+                let content = fs::read_to_string(&path)
+                    .map_err(|e| format!("Failed to read Dockerfile at {:?}: {}", path, e))?;
+
+                // Get build context (directory containing the Dockerfile, relative to project_dir)
+                if let Some(parent) = path.parent() {
+                    let build_context = parent
+                        .strip_prefix(base_dir)
+                        .map_err(|e| format!("Failed to get relative path: {}", e))?
+                        .to_string_lossy()
+                        .to_string();
+
+                    // Normalize path separators to forward slashes for consistency
+                    let build_context = build_context.replace("\\", "/");
+                    let build_context = if build_context.is_empty() { ".".to_string() } else { build_context };
+
+                    println!("[Find Dockerfiles] Found Dockerfile in: {}", build_context);
+                    dockerfiles.push((build_context, content));
+                }
+            } else if path.is_dir() {
+                // Skip .git and other hidden directories
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if !name.starts_with('.') {
+                        search_dir(&path, base_dir, dockerfiles)?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    search_dir(project_dir, project_dir, &mut dockerfiles)?;
+
+    Ok(dockerfiles)
+}
+
+/// Public wrapper for generate_docker_files_with_go_binary
+/// This is used by cicd.rs when Docker files are not provided
+pub fn generate_docker_files_with_go_binary_public(
+    app: &AppHandle,
+    temp_dir: &std::path::Path,
+    stack_yaml_content: &str,
+) -> Result<(String, Vec<(String, String)>), String> {
+    generate_docker_files_with_go_binary(app, temp_dir, stack_yaml_content)
+}
+
+/// Generate a Spring Boot Dockerfile from service configuration
+fn generate_springboot_dockerfile(source: &serde_yaml::Mapping) -> String {
+    // Extract configuration with defaults
+    let java_version = source.get("java_version")
+        .or_else(|| source.get("javaVersion"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("17");
+
+    let port = source.get("port")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(8080);
+
+    let profile = source.get("profile")
+        .and_then(|v| v.as_str())
+        .unwrap_or("production");
+
+    let jvm_opts = source.get("jvm_opts")
+        .or_else(|| source.get("jvmOpts"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("-Xmx512m -Xms256m");
+
+    // Generate Dockerfile content
+    format!(r#"# Multi-stage build for Spring Boot application
+# Build stage
+FROM eclipse-temurin:{}-jdk-jammy AS builder
+
+WORKDIR /build
+
+# Copy Gradle/Maven files first for better caching
+COPY gradlew* build.gradle* settings.gradle* gradle.properties* ./
+COPY gradle ./gradle 2>/dev/null || true
+COPY pom.xml ./pom.xml 2>/dev/null || true
+
+# Make gradlew executable if it exists
+RUN if [ -f gradlew ]; then chmod +x gradlew; fi
+
+# Download dependencies (this layer will be cached)
+RUN if [ -f gradlew ]; then \
+        ./gradlew dependencies --no-daemon || true; \
+    elif [ -f pom.xml ]; then \
+        ./mvnw dependency:go-offline || true; \
+    fi
+
+# Copy source code
+COPY src ./src
+
+# Build the application
+RUN if [ -f gradlew ]; then \
+        ./gradlew clean bootJar --no-daemon; \
+    elif [ -f pom.xml ]; then \
+        ./mvnw clean package -DskipTests; \
+    fi
+
+# Find the built JAR file
+RUN find build/libs -name "*.jar" -not -name "*-plain.jar" -exec cp {{}} app.jar \; 2>/dev/null || \
+    find target -name "*.jar" -exec cp {{}} app.jar \;
+
+# Runtime stage
+FROM eclipse-temurin:{}-jre-jammy
+
+WORKDIR /app
+
+# Create a non-root user
+RUN groupadd -r spring && useradd -r -g spring spring
+
+# Copy the JAR from build stage
+COPY --from=builder /build/app.jar ./app.jar
+
+# Set ownership
+RUN chown -R spring:spring /app
+
+# Switch to non-root user
+USER spring
+
+# Expose port
+EXPOSE {}
+
+# Set environment variables
+ENV SPRING_PROFILES_ACTIVE={}
+ENV JAVA_OPTS="{}"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:{}/actuator/health || exit 1
+
+# Run the application
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+"#, java_version, java_version, port, profile, jvm_opts, port)
 }

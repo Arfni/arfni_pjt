@@ -14,6 +14,9 @@ export interface Project {
   updated_at: string;
   stack_yaml_path?: string;
   description?: string;
+  github_repo_url?: string;
+  github_branch?: string;
+  github_access_token?: string;
 }
 
 // ============= EC2 서버 타입 (신규) =============
@@ -80,6 +83,9 @@ export const projectCommands = {
     environment: 'local' | 'ec2',
     ec2ServerId?: string,
     description?: string,
+    githubRepoUrl?: string,
+    githubBranch?: string,
+    githubAccessToken?: string,
     workdir?: string
   ): Promise<Project> => {
     return await invoke('create_project', {
@@ -88,6 +94,9 @@ export const projectCommands = {
       environment,
       ec2ServerId,
       description,
+      githubRepoUrl,
+      githubBranch,
+      githubAccessToken,
       workdir,
     });
   },
@@ -177,6 +186,26 @@ export const projectCommands = {
   deleteProjectFromDbOnly: async (projectId: string): Promise<void> => {
     return await invoke('delete_project_from_db_only', { projectId });
   },
+
+  // stack.yaml을 GitHub에 커밋/푸시
+  commitAndPushStackYaml: async (projectId: string, yamlContent: string): Promise<string> => {
+    return await invoke('commit_and_push_stack_yaml', { projectId, yamlContent });
+  },
+
+  // GitHub 레포지토리 EC2에 클론
+  cloneGithubRepoOnEc2: async (projectId: string, ec2ServerId: string): Promise<string> => {
+    return await invoke('clone_github_repo_on_ec2', { projectId, ec2ServerId });
+  },
+
+  // stack.yaml을 GitHub에 커밋
+  commitStackYamlToGithub: async (projectId: string, yamlContent: string): Promise<string> => {
+    return await invoke('commit_stack_yaml_to_github', { projectId, yamlContent });
+  },
+
+  // GitHub 프로젝트 전체 설정 (클론 + stack.yaml + workflow 생성 + 커밋)
+  setupGithubProjectWithCicd: async (projectId: string, ec2ServerId: string): Promise<string> => {
+    return await invoke('setup_github_project_with_cicd', { projectId, ec2ServerId });
+  },
 };
 
 // ============= EC2 서버 명령어 (신규) =============
@@ -246,8 +275,13 @@ export const deploymentCommands = {
   },
 
   // 배포 실행
-  deployStack: async (projectPath: string, stackYamlPath: string): Promise<DeploymentStatus> => {
-    return await invoke('deploy_stack', { projectPath, stackYamlPath });
+  deployStack: async (projectPath: string, stackYamlPath: string, projectId?: string): Promise<DeploymentStatus> => {
+    return await invoke('deploy_stack', { projectPath, stackYamlPath, projectId });
+  },
+
+  // 스마트 배포 (GitHub 프로젝트의 경우 CI/CD 자동 설정)
+  smartDeploy: async (projectId: string): Promise<DeploymentStatus> => {
+    return await invoke('smart_deploy', { projectId });
   },
 
   // 배포 중단
@@ -388,5 +422,9 @@ export const pluginCommands = {
 
   readPlugins: async (): Promise<any> => {
     return await invoke('read_plugins');
+  },
+
+  importCustomPlugin: async (folderPath: string): Promise<string> => {
+    return await invoke('import_custom_plugin', { folderPath });
   },
 };

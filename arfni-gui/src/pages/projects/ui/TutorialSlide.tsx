@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import local1 from '../../../assets/tutorials/local-1.png';
+import local2 from '../../../assets/tutorials/local-2.png';
+import local3 from '../../../assets/tutorials/local-3.png';
+import local4 from '../../../assets/tutorials/local-4.png';
+import remote1 from '../../../assets/tutorials/remote-1.png';
+import remote2 from '../../../assets/tutorials/remote-2.png';
+import remote3 from '../../../assets/tutorials/remote-3.png';
+import remote4 from '../../../assets/tutorials/remote-4.png';
 
 interface TutorialSlideProps {
   type?: 'local' | 'remote';
@@ -15,24 +23,29 @@ export const TutorialSlide: React.FC<TutorialSlideProps> = ({ type = 'local', on
 
   // Tutorial images based on selected tab
   const slideType = selectedTab;
+  const tutorialImages = {
+    local: [local1, local2, local3, local4],
+    remote: [remote1, remote2, remote3, remote4]
+  };
+
   const slides = [
     {
-      image: `/src/assets/tutorials/${slideType}-1.png`,
+      image: tutorialImages[slideType][0],
       title: t(`tutorial.${slideType}.slide1.title`),
       desc: t(`tutorial.${slideType}.slide1.desc`)
     },
     {
-      image: `/src/assets/tutorials/${slideType}-2.png`,
+      image: tutorialImages[slideType][1],
       title: t(`tutorial.${slideType}.slide2.title`),
       desc: t(`tutorial.${slideType}.slide2.desc`)
     },
     {
-      image: `/src/assets/tutorials/${slideType}-3.png`,
+      image: tutorialImages[slideType][2],
       title: t(`tutorial.${slideType}.slide3.title`),
       desc: t(`tutorial.${slideType}.slide3.desc`)
     },
     {
-      image: `/src/assets/tutorials/${slideType}-4.png`,
+      image: tutorialImages[slideType][3],
       title: t(`tutorial.${slideType}.slide4.title`),
       desc: t(`tutorial.${slideType}.slide4.desc`)
     },

@@ -99,12 +99,25 @@ export const saveStackYaml = createAsyncThunk(
     projectPath: string;
     yamlContent: string;
     canvasData: StackYamlData;
+    projectId?: string;
   }) => {
     await projectCommands.saveStackYaml(
       params.projectPath,
       params.yamlContent,
       params.canvasData
     );
+
+    // GitHub 프로젝트인 경우 자동으로 커밋
+    if (params.projectId) {
+      try {
+        console.log('[GitHub] Committing stack.yaml to GitHub...');
+        await projectCommands.commitStackYamlToGithub(params.projectId, params.yamlContent);
+        console.log('[GitHub] ✅ stack.yaml committed to GitHub');
+      } catch (err) {
+        // GitHub 커밋 실패해도 로컬 저장은 성공했으므로 에러는 로그만
+        console.error('[GitHub] Failed to commit to GitHub (continuing):', err);
+      }
+    }
 
     return new Date().toISOString();
   }

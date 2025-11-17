@@ -159,9 +159,8 @@ export function Toolbar() {
         },
       })).unwrap();
       dispatch(setDirty(false));
-      alert('stack.yaml이 저장되었습니다!');
     } catch (error) {
-      alert(`저장 실패: ${error}`);
+      console.error('저장 실패:', error);
     }
   }, [currentProject, nodes, edges, dispatch]);
 
@@ -170,8 +169,17 @@ export function Toolbar() {
       alert('먼저 프로젝트를 생성하거나 열어주세요.');
       return;
     }
-    if (isDirty) {
+
+    // Start loading immediately
+    setIsDeploying(true);
+    dispatch(startDeployment());
+
+    // GitHub 프로젝트의 경우 stack.yaml이 반드시 필요하므로 항상 저장
+    const needsStackYaml = currentProject.environment === 'ec2' && currentProject.github_repo_url;
+
+    if (isDirty || needsStackYaml) {
       try {
+        console.log('[Deploy] Saving stack.yaml...');
         let ec2Server = null;
         if (currentProject.environment === 'ec2' && currentProject.ec2_server_id) {
           ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
@@ -211,34 +219,99 @@ export function Toolbar() {
           },
         })).unwrap();
         dispatch(setDirty(false));
+        console.log('[Deploy] stack.yaml saved to database');
+
+        // For GitHub projects with CI/CD, smartDeploy will handle committing files to GitHub
+        // No need to commit via EC2 git commands here
       } catch (error) {
         alert(`저장 실패: ${error}`);
+        setIsDeploying(false);
         return;
       }
     }
+    // 포트 충돌 체크
+    try {
+      // 프로젝트에서 사용 중인 포트 수집
+      const usedPorts: number[] = [];
+      nodes.forEach(node => {
+        if (node.data.ports && Array.isArray(node.data.ports)) {
+          node.data.ports.forEach((portMapping: string) => {
+            const port = portMapping.split(':')[1];
+            if (port) {
+              usedPorts.push(parseInt(port));
+            }
+          });
+        }
+      });
+
+      // 활성 포트 조회
+      let activePorts: number[] = [];
+      if (currentProject.environment === 'ec2') {
+        if (currentProject.ec2_server_id) {
+          const ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
+          const params = {
+            host: ec2Server.host,
+            user: ec2Server.user,
+            pem_path: ec2Server.pem_path,
+          };
+          activePorts = await invoke<number[]>('list_ec2_listening_ports', { params });
+        }
+      } else {
+        activePorts = await invoke<number[]>('list_listening_ports');
+      }
+
+      // 포트 충돌 확인
+      const conflictPorts = usedPorts.filter(port => activePorts.includes(port));
+      if (conflictPorts.length > 0) {
+        alert(`포트 번호를 변경해주세요!\n충돌하는 포트: ${conflictPorts.join(', ')}`);
+        return;
+      }
+    } catch (error) {
+      console.error('포트 확인 실패:', error);
+    }
+
     if (currentProject.environment === 'local') {
       try {
         const hasDocker = await deploymentCommands.checkDocker();
         if (!hasDocker) {
           alert('Docker가 설치되어 있지 않습니다.');
+          setIsDeploying(false);
           return;
         }
         const isDockerRunning = await deploymentCommands.checkDockerRunning();
         if (!isDockerRunning) {
           alert('Docker가 실행되고 있지 않습니다.');
+          setIsDeploying(false);
           return;
         }
       } catch (error) {
         alert(`Docker 검증 실패: ${error}`);
+        setIsDeploying(false);
         return;
       }
     }
-    dispatch(startDeployment());
-    setIsDeploying(true);
+
+    // Start deployment
+    console.log('[Deploy] Starting deployment...');
     try {
-      const stackYamlPath = `${currentProject.path}/stack.yaml`;
-      const result = await deploymentCommands.deployStack(currentProject.path, stackYamlPath);
-      if (result.status === 'deploying') navigate('/deployment', { replace: true });
+      let result;
+
+      // GitHub 프로젝트와 로컬 프로젝트를 구분하여 처리
+      if (currentProject.github_repo_url && currentProject.environment === 'ec2') {
+        // GitHub 프로젝트는 smartDeploy 직접 호출 (stack.yaml 경로 체크 불필요)
+        console.log('[Deploy] Using smartDeploy for GitHub project');
+        result = await deploymentCommands.smartDeploy(currentProject.id);
+      } else {
+        // 로컬 프로젝트는 기존 deploy_stack 사용
+        console.log('[Deploy] Using deployStack for local project');
+        const stackYamlPath = `${currentProject.path}/stack.yaml`;
+        result = await deploymentCommands.deployStack(currentProject.path, stackYamlPath, currentProject.id);
+      }
+
+      if (result.status === 'deploying' || result.status === 'success') {
+        console.log('[Deploy] Navigating to deployment page');
+        navigate('/deployment', { replace: true });
+      }
     } catch (error) {
       alert(`배포 실패: ${error}`);
       setIsDeploying(false);

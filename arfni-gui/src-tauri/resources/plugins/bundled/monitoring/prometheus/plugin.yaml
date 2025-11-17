@@ -37,6 +37,7 @@ contributes:
     label: Prometheus
     description: "Monitoring system"
     category: infra
+    hidden: true
     ports:
       - name: http
         port: 9090

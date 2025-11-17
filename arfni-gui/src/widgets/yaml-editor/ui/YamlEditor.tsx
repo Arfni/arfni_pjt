@@ -123,7 +123,7 @@ export function YamlEditor() {
             ))}
           </div>
           {/* Content */}
-          <pre className="flex-1 px-3 py-3 text-gray-800 leading-5 whitespace-pre">
+          <pre className="flex-1 px-3 pt-3 pb-16 text-gray-800 leading-5 whitespace-pre">
             {yamlContent}
           </pre>
         </div>

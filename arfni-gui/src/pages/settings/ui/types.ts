@@ -17,5 +17,5 @@ export type AddKeyParams = {
   set_active: boolean;
 };
 
-export const PROVIDERS = ['openai', 'anthropic', 'google', 'etc'] as const;
+export const PROVIDERS = ['OpenAI', 'anthropic', 'google', 'etc'] as const;
 export type ProviderType = (typeof PROVIDERS)[number];

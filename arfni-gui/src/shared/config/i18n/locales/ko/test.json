@@ -1,0 +1,151 @@
+{
+  "pluginTutorial": {
+    "title": "커스텀 플러그인 테스트 가이드",
+    "description": "로컬에서 개발한 ARFNI 플러그인을 GUI에서 테스트하고 저장소에 제출하는 방법을 배워보세요.",
+    "tabs": {
+      "guide": "단계별 가이드",
+      "checklist": "테스트 체크리스트",
+      "issues": "일반적인 문제",
+      "import": "플러그인 추가"
+    },
+    "steps": {
+      "step1": {
+        "title": "플러그인 폴더 준비",
+        "description": "로컬에 플러그인 폴더를 준비하세요",
+        "intro": "플러그인 폴더에 다음 파일들을 준비하세요:",
+        "folderStructure": "폴더 구조 예시",
+        "requiredFiles": "필수 파일",
+        "requiredList": {
+          "item1": "plugin.yaml - 플러그인 메타데이터 및 설정",
+          "item2": "icon.png - 플러그인 아이콘 (128x128px 권장)",
+          "item3": "README.md - 사용 지침 및 설명"
+        },
+        "optionalFiles": "선택 파일",
+        "optionalList": {
+          "item1": "templates/ - 배포 템플릿 파일",
+          "item2": "hooks/ - 라이프사이클 훅 스크립트",
+          "item3": "frameworks/ - 프레임워크 정의"
+        },
+        "yamlNote": "plugin.yaml에는 최소한 다음 필드가 필요합니다: name, version, category, description"
+      },
+      "step2": {
+        "title": "ARFNI GUI에서 플러그인 추가",
+        "description": "GUI의 플러그인 추가 기능을 사용하세요",
+        "step1": "1. 상단의 '플러그인 추가' 탭 클릭",
+        "step2": "2. '폴더 선택' 버튼으로 플러그인 폴더 선택",
+        "step3": "3. '플러그인 추가' 버튼 클릭",
+        "step4": "4. 성공 메시지 확인",
+        "note": "플러그인이 자동으로 로드되며 GUI를 재시작할 필요가 없습니다."
+      },
+      "step3": {
+        "title": "플러그인 목록에서 확인",
+        "description": "추가된 플러그인이 목록에 나타나는지 확인하세요",
+        "step1": "1. Projects 페이지로 이동",
+        "step2": "2. Plugin Manager 클릭",
+        "step3": "3. 'Custom Plugins' 섹션 찾기",
+        "step4": "4. 플러그인 정보 확인 (아이콘, 이름, 버전, 설명)",
+        "tip": "Custom Plugins는 분홍색 배지로 표시됩니다."
+      },
+      "step4": {
+        "title": "캔버스에서 테스트",
+        "description": "프로젝트를 만들고 플러그인을 사용해보세요",
+        "step1": "1. 새 프로젝트 생성",
+        "step2": "2. Canvas 페이지 열기",
+        "step3": "3. 좌측 팔레트에서 플러그인 찾기",
+        "step4": "4. 캔버스에 드래그앤드롭",
+        "step5": "5. 우측 속성 패널에서 설정값 입력",
+        "step6": "6. 다른 노드와 연결 (해당하는 경우)",
+        "tip": "속성 입력 필드가 올바르게 표시되고 값을 입력할 수 있는지 확인하세요."
+      },
+      "step5": {
+        "title": "배포 및 실행 테스트",
+        "description": "실제 배포 환경에서 플러그인을 테스트하세요",
+        "step1": "1. 'Generate' 버튼 클릭하여 파일 생성",
+        "step2": "2. 생성된 파일 확인 (docker-compose.yml 등)",
+        "step3": "3. 'Deploy' 버튼으로 배포 시작",
+        "step4": "4. Deployment 페이지에서 로그 확인",
+        "step5": "5. 컨테이너 실행 상태 확인",
+        "step6": "6. 애플리케이션 접속 테스트 (해당하는 경우)",
+        "errorCheck": "배포 로그에서 에러가 없는지 반드시 확인하세요."
+      },
+      "step6": {
+        "title": "저장소에 제출",
+        "description": "테스트 완료 후 커뮤니티와 플러그인을 공유하세요",
+        "steps": {
+          "fork": "1. arfni-plugins 저장소를 Fork하세요",
+          "addPlugin": "2. 적절한 카테고리 폴더에 플러그인을 추가하세요",
+          "updateReadme": "3. README.md를 업데이트하세요",
+          "createPR": "4. 다음 내용과 함께 Pull Request를 생성하세요:",
+          "prItems": {
+            "description": "• 플러그인 설명 및 기능",
+            "testing": "• 테스트 증거 (스크린샷/비디오)",
+            "breaking": "• 주요 변경 사항 또는 의존성"
+          }
+        }
+      }
+    },
+    "checklist": {
+      "title": "플러그인 테스트 체크리스트",
+      "intro": "플러그인을 제출하기 전에 다음 항목들이 모두 확인되었는지 체크하세요:",
+      "structure": {
+        "title": "기본 구조",
+        "item1": "plugin.yaml이 존재하고 필수 필드가 모두 있음",
+        "item2": "icon.png가 존재함 (128x128px 권장)",
+        "item3": "README.md에 사용 방법이 명확히 작성됨",
+        "item4": "참조된 모든 파일이 존재함"
+      },
+      "functionality": {
+        "title": "GUI 테스트",
+        "item1": "플러그인이 '플러그인 추가' 기능으로 추가됨",
+        "item2": "Plugin Manager의 Custom Plugins에서 확인됨",
+        "item3": "아이콘이 정상적으로 표시됨",
+        "item4": "플러그인 정보가 올바르게 표시됨"
+      },
+      "validation": {
+        "title": "캔버스 테스트",
+        "item1": "좌측 팔레트에서 플러그인이 나타남",
+        "item2": "캔버스에 드래그앤드롭 가능",
+        "item3": "속성 패널이 올바르게 렌더링됨",
+        "item4": "다른 노드와 연결 가능 (해당하는 경우)"
+      },
+      "testing": {
+        "title": "배포 테스트",
+        "item1": "Generate 기능으로 파일이 생성됨",
+        "item2": "배포가 성공적으로 완료됨",
+        "item3": "컨테이너가 정상적으로 실행됨",
+        "item4": "애플리케이션이 정상 작동함"
+      }
+    },
+    "issues": {
+      "title": "일반적인 문제 및 해결책",
+      "pluginNotAppearing": {
+        "title": "플러그인이 목록에 나타나지 않음",
+        "item1": "• plugin.yaml 파일이 폴더에 존재하는지 확인",
+        "item2": "• plugin.yaml의 name 필드가 있는지 확인",
+        "item3": "• 플러그인 추가 시 성공 메시지가 나타났는지 확인",
+        "item4": "• Plugin Manager를 새로고침하거나 GUI 재시작"
+      },
+      "templateIssues": {
+        "title": "파일이 올바르게 생성되지 않음",
+        "item1": "• templates/ 폴더의 파일 경로가 올바른지 확인",
+        "item2": "• Go 템플릿 구문이 올바른지 확인 ({{ .VariableName }})",
+        "item3": "• 변수 이름이 plugin.yaml의 환경변수와 일치하는지 확인"
+      },
+      "hookFailures": {
+        "title": "배포가 실패함",
+        "item1": "• Deployment 페이지의 로그에서 에러 메시지 확인",
+        "item2": "• docker-compose.yml 파일이 올바르게 생성되었는지 확인",
+        "item3": "• 포트 충돌이 없는지 확인",
+        "item4": "• 필요한 환경변수가 모두 설정되었는지 확인"
+      },
+      "help": {
+        "title": "도움이 필요하신가요?",
+        "intro": "플러그인 테스트 중 문제가 발생하면:",
+        "item1": "arfni-plugins 저장소의 README 문서 확인",
+        "item2": "기존 플러그인을 참조 (Django, PostgreSQL 등)",
+        "item3": "arfni-plugins 저장소에 이슈 등록",
+        "item4": "ARFNI 커뮤니티 토론 참여"
+      }
+    }
+  }
+}

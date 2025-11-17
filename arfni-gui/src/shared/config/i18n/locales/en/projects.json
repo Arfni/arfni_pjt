@@ -157,7 +157,32 @@
     "title": "Plugin Manager",
     "installed": "Installed Plugins",
     "available": "Available Plugins",
+    "customPlugins": "Custom Plugins",
     "noPlugins": "No plugins installed",
+    "tutorial": {
+      "button": "Plugin Development Guide",
+      "buttonTitle": "View Plugin Development Tutorial"
+    },
+    "custom": {
+      "selectFolder": "Select Plugin Folder",
+      "addPlugin": "Add Plugin",
+      "tutorial": {
+        "pageTitle": "Import Custom Plugin",
+        "requirementsTitle": "Requirements",
+        "requirement1": "Plugin folder must contain a plugin.yaml file",
+        "requirement2": "Ensure the folder structure is correct",
+        "requirement3": "Plugin must conform to ARFNI plugin specifications",
+        "folderLabel": "Plugin Folder",
+        "notesTitle": "Notes",
+        "note1": "Plugin will be copied to the custom-plugins folder in the user data directory",
+        "note2": "You need to restart the app after adding a plugin",
+        "note3": "Invalid plugins may cause app errors"
+      },
+      "errors": {
+        "selectFailed": "Failed to select folder",
+        "noFolder": "Please select a plugin folder"
+      }
+    },
     "install": "Install",
     "uninstall": "Uninstall",
     "enable": "Enable",
