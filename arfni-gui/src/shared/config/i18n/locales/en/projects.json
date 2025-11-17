@@ -220,7 +220,8 @@
       "proxy": "Proxy",
       "cicd": "CI/CD",
       "orchestration": "Orchestration",
-      "monitoring": "Monitoring"
+      "monitoring": "Monitoring",
+      "custom": "Custom"
     },
     "cache": {
       "lastSynced": "Last synced:",
@@ -234,12 +235,17 @@
     "empty": {
       "noBundled": "No bundled plugins found matching your search.",
       "noInstalled": "No installed plugins found. Install plugins from GitHub using the URL above.",
-      "noRegistry": "No registry plugins found matching your search."
+      "noRegistry": "No registry plugins found matching your search.",
+      "noCustom": "No custom plugins found. Add your custom plugin from the local directory."
     },
     "confirm": {
-      "uninstall": "Are you sure you want to uninstall {{pluginName}}?"
+      "title": "Delete Plugin",
+      "uninstall": "Are you sure you want to uninstall {{pluginName}}?",
+      "yes": "Delete",
+      "no": "Cancel"
     },
     "success": {
+      "title": "Success",
       "installed": "✅ {{message}}",
       "uninstalled": "✅ {{message}}",
       "refreshed": "✅ Registry refreshed successfully"
