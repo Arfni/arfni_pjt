@@ -1,6 +1,7 @@
 use tauri::command;
 use std::process::Command;
 use std::path::Path;
+use std::fs;
 
 #[command]
 pub async fn open_downloads_folder() -> Result<(), String> {
@@ -67,4 +68,9 @@ pub async fn open_folder_in_explorer(path: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[command]
+pub fn path_exists(path: String) -> bool {
+    Path::new(&path).exists()
 }

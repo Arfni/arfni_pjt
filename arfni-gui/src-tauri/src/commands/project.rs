@@ -134,7 +134,7 @@ pub fn create_project(
         path: project_path.to_string_lossy().to_string(),
         environment: environment.clone(),
         ec2_server_id: ec2_server_id.clone(),
-        mode: if environment == "ec2" { Some("all-in-one".to_string()) } else { None },
+        mode: if environment == "ec2" { Some("no-monitoring".to_string()) } else { None },
         workdir: if environment == "ec2" {
             Some(workdir.unwrap_or_else(|| "arfni-deploy".to_string()))
         } else {

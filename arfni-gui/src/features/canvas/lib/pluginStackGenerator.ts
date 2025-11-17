@@ -30,6 +30,9 @@ export class PluginStackGenerator {
   static async generateStack(options: PluginStackGeneratorOptions): Promise<string> {
     const { nodes, edges, projectName, environment, ec2Server, mode, workdir, secrets = [] } = options;
 
+    // CRITICAL FIX: Filter out null edges to prevent "Cannot read properties of null" errors
+    const validEdges = edges.filter(e => e != null);
+
     // Build the stack structure
     const stack: any = {
       apiVersion: 'v0.1',
@@ -38,7 +41,7 @@ export class PluginStackGenerator {
 
     // Add metadata for EC2 projects
     if (environment === 'ec2') {
-      const monitoringMode = mode || 'all-in-one';
+      const monitoringMode = mode || 'no-monitoring';
       stack.metadata = {
         monitoring: {
           mode: monitoringMode
@@ -60,7 +63,7 @@ export class PluginStackGenerator {
     for (const node of nodes) {
       if (node.type === 'target') continue; // Skip target nodes
 
-      const service = await this.generateServiceFromNode(node, edges, nodes, defaultTarget, environment);
+      const service = await this.generateServiceFromNode(node, validEdges, nodes, defaultTarget, environment);
       if (service) {
         // Use sanitized node name as service key
         const serviceName = (node.data.name || node.type || 'service')
@@ -76,18 +79,24 @@ export class PluginStackGenerator {
 
     // Add monitoring services based on metadata.monitoring.mode
     if (environment === 'ec2') {
-      const monitoringMode = mode || 'all-in-one';
+      const monitoringMode = mode || 'no-monitoring';
 
       if (monitoringMode === 'all-in-one') {
         // Both prometheus and grafana on EC2
-        stack.services['prometheus'] = this.generateMonitoringService('prometheus', defaultTarget);
-        stack.services['grafana'] = this.generateMonitoringService('grafana', defaultTarget);
-        stack.services['node-exporter'] = this.generateMonitoringService('node-exporter', defaultTarget);
+        const prometheus = this.generateMonitoringService('prometheus', defaultTarget);
+        const grafana = this.generateMonitoringService('grafana', defaultTarget);
+        const nodeExporter = this.generateMonitoringService('node-exporter', defaultTarget);
+        if (prometheus) stack.services['prometheus'] = prometheus;
+        if (grafana) stack.services['grafana'] = grafana;
+        if (nodeExporter) stack.services['node-exporter'] = nodeExporter;
       } else if (monitoringMode === 'hybrid') {
         // Prometheus on EC2, Grafana on local
-        stack.services['prometheus'] = this.generateMonitoringService('prometheus', defaultTarget);
-        stack.services['grafana'] = this.generateMonitoringService('grafana', 'local');
-        stack.services['node-exporter'] = this.generateMonitoringService('node-exporter', defaultTarget);
+        const prometheus = this.generateMonitoringService('prometheus', defaultTarget);
+        const grafana = this.generateMonitoringService('grafana', 'local');
+        const nodeExporter = this.generateMonitoringService('node-exporter', defaultTarget);
+        if (prometheus) stack.services['prometheus'] = prometheus;
+        if (grafana) stack.services['grafana'] = grafana;
+        if (nodeExporter) stack.services['node-exporter'] = nodeExporter;
       }
       // If mode is 'no', don't add monitoring services
     }
@@ -177,7 +186,7 @@ export class PluginStackGenerator {
     const referencedTargets = new Set<string>();
 
     Object.values(services).forEach((service: any) => {
-      if (service.target) {
+      if (service && service.target) {
         referencedTargets.add(service.target);
       }
     });
@@ -532,7 +541,7 @@ export class PluginStackGenerator {
     }
 
     // Step 3: Add connection-based environment variables
-    const incomingEdges = edges.filter(e => e.target === node.id);
+    const incomingEdges = edges.filter(e => e && e.target === node.id);
 
     // Find connected database
     const databaseNode = incomingEdges
@@ -565,7 +574,7 @@ export class PluginStackGenerator {
     }
 
     // Step 4: Find and add API connections for frontend frameworks
-    const outgoingEdges = edges.filter(e => e.source === node.id);
+    const outgoingEdges = edges.filter(e => e && e.source === node.id);
     const apiNode = outgoingEdges
       .map(e => allNodes.find(n => n.id === e.target))
       .find(n => n && (n.type === 'service' || n.data.serviceType === 'springboot' || n.data.serviceType === 'django'));
@@ -659,7 +668,7 @@ export class PluginStackGenerator {
 
     // Add connected services
     const connections = edges.filter(edge =>
-      edge.source === node.id || edge.target === node.id
+      edge && (edge.source === node.id || edge.target === node.id)
     );
 
     // Find database connections
@@ -780,7 +789,7 @@ export class PluginStackGenerator {
     const dependencies: string[] = [];
 
     // Find edges where this node is the target (incoming connections)
-    const incomingEdges = edges.filter(edge => edge.target === nodeId);
+    const incomingEdges = edges.filter(edge => edge && edge.target === nodeId);
 
     incomingEdges.forEach(edge => {
       const sourceNode = allNodes.find(n => n.id === edge.source);

@@ -24,7 +24,7 @@ fn main() {
             db::migrate_from_json(app.handle(), &db)?;
 
             // 더미 EC2 서버 추가 (테스트용 - 서버가 없을 때만)
-            db::add_dummy_server_if_empty(&db)?;
+            // db::add_dummy_server_if_empty(&db)?;
 
             // 앱 상태로 DB 저장 (전역 접근 가능)
             app.manage(db);
@@ -182,6 +182,7 @@ fn main() {
       // 시스템 명령어
       commands::system::open_downloads_folder,
       commands::system::open_folder_in_explorer,
+      commands::system::path_exists,
 
       //api_key
       commands::keys::add_api_key,

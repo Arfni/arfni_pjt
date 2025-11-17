@@ -108,7 +108,7 @@ export function TargetPropertyForm({ node }: TargetPropertyFormProps) {
           {/* Monitoring Mode (EC2만 해당) */}
           <FormField label={t('properties.labels.monitoringMode')}>
             <Select
-              value={data.mode || 'all-in-one'}
+              value={data.mode || 'no-monitoring'}
               onChange={(e) => updateField('mode', e.target.value)}
             >
               <option value="all-in-one">{t('properties.monitoringModeOptions.allInOne')}</option>
