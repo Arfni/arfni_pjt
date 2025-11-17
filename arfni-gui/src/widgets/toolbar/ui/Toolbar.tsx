@@ -159,9 +159,8 @@ export function Toolbar() {
         },
       })).unwrap();
       dispatch(setDirty(false));
-      alert('stack.yaml이 저장되었습니다!');
     } catch (error) {
-      alert(`저장 실패: ${error}`);
+      console.error('저장 실패:', error);
     }
   }, [currentProject, nodes, edges, dispatch]);
 
@@ -230,6 +229,47 @@ export function Toolbar() {
         return;
       }
     }
+    // 포트 충돌 체크
+    try {
+      // 프로젝트에서 사용 중인 포트 수집
+      const usedPorts: number[] = [];
+      nodes.forEach(node => {
+        if (node.data.ports && Array.isArray(node.data.ports)) {
+          node.data.ports.forEach((portMapping: string) => {
+            const port = portMapping.split(':')[1];
+            if (port) {
+              usedPorts.push(parseInt(port));
+            }
+          });
+        }
+      });
+
+      // 활성 포트 조회
+      let activePorts: number[] = [];
+      if (currentProject.environment === 'ec2') {
+        if (currentProject.ec2_server_id) {
+          const ec2Server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
+          const params = {
+            host: ec2Server.host,
+            user: ec2Server.user,
+            pem_path: ec2Server.pem_path,
+          };
+          activePorts = await invoke<number[]>('list_ec2_listening_ports', { params });
+        }
+      } else {
+        activePorts = await invoke<number[]>('list_listening_ports');
+      }
+
+      // 포트 충돌 확인
+      const conflictPorts = usedPorts.filter(port => activePorts.includes(port));
+      if (conflictPorts.length > 0) {
+        alert(`포트 번호를 변경해주세요!\n충돌하는 포트: ${conflictPorts.join(', ')}`);
+        return;
+      }
+    } catch (error) {
+      console.error('포트 확인 실패:', error);
+    }
+
     if (currentProject.environment === 'local') {
       try {
         const hasDocker = await deploymentCommands.checkDocker();
