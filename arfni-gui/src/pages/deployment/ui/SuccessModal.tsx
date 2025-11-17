@@ -83,8 +83,10 @@ export function SuccessModal({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="max-w-2xl w-full bg-white rounded-lg p-8 shadow-xl border border-gray-200 mx-4">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="max-w-2xl w-full bg-white rounded-lg shadow-xl border border-gray-200 max-h-[80vh] flex flex-col">
+          {/* 콘텐츠 영역 */}
+          <div className="px-8 pt-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
               <Check className="w-7 h-7 text-white" />
@@ -137,29 +139,31 @@ export function SuccessModal({
         {endpoints.length > 0 && (
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">{t('success.endpoints')}</h3>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-60 overflow-y-auto">
               {endpoints.map((endpoint, index) => (
                 <div key={index} className="bg-gray-100 rounded p-3 border border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-gray-900 font-medium">{endpoint.name}</div>
-                      <div className="text-gray-600 text-sm">{endpoint.type}</div>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-900 font-medium">{endpoint.name}</span>
+                      <span className="text-gray-600 text-sm">• {endpoint.type}</span>
                     </div>
-                    {endpoint.status === 'pending' ? (
-                      <div className="text-gray-500 flex items-center gap-1">
-                        {endpoint.url}
-                      </div>
-                    ) : (
-                      <a
-                        href={endpoint.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                      >
-                        {endpoint.url}
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    )}
+                    <div>
+                      {endpoint.status === 'pending' ? (
+                        <div className="text-gray-500 text-sm break-all">
+                          {endpoint.url}
+                        </div>
+                      ) : (
+                        <a
+                          href={endpoint.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-700 text-sm inline-flex items-center gap-1 break-all"
+                        >
+                          <span className="break-all">{endpoint.url}</span>
+                          <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                        </a>
+                      )}
+                    </div>
                   </div>
                   {endpoint.note && (
                     <div className="mt-2 text-yellow-600 text-sm">
@@ -171,14 +175,17 @@ export function SuccessModal({
             </div>
           </div>
         )}
+          </div>
 
           {/* 확인 버튼 */}
+          <div className="px-8 pb-8 pt-4">
           <button
             onClick={onClose}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
           >
             {t('success.confirm')}
           </button>
+          </div>
         </div>
       </div>
 

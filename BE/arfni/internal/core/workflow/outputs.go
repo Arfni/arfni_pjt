@@ -76,7 +76,6 @@ func extractServiceEndpoints(name string, service stack.Service, st *stack.Stack
 			if endpointType == "monitoring" && (deploymentMode == "hybrid" || deploymentMode == "local") {
 				if name == "prometheus" || name == "grafana" {
 					status = "pending"
-					note = "Start monitoring via 'Monitoring Logs' to use this endpoint"
 				}
 			}
 
