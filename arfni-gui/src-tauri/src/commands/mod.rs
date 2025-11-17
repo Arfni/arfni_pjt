@@ -12,3 +12,4 @@ pub mod system;
 pub mod pricing;
 pub mod keys;
 pub mod cicd;
+pub mod github_command;

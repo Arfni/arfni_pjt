@@ -199,6 +199,9 @@ fn main() {
       commands::cicd::update_workflow_file,
       commands::cicd::setup_complete_cicd,
       commands::cicd::check_cicd_status,
+
+      //github 
+      commands::github_command::git_clone_full,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
