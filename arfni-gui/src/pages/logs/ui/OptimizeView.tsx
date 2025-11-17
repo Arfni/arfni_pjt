@@ -50,10 +50,35 @@ interface Recommendation {
   savings?: number;
 }
 
+interface MetricsSnapshot {
+  timestamp: string;
+  cpu_percent: number;
+  memory_percent: number;
+  disk_percent: number;
+}
+
+interface DowntimeEventSummary {
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  metrics_before?: MetricsSnapshot;
+  estimated_cause: string;
+}
+
+interface DowntimeAnalysis {
+  is_online: boolean;
+  total_downtime_minutes: number;
+  downtime_events: DowntimeEventSummary[];
+  uptime_percent: number;
+  most_recent_downtime?: DowntimeEventSummary;
+  estimated_cause?: string;
+}
+
 interface OptimizationReport {
   actual_usage: ActualUsageMetrics;
   cost_analysis: CostAnalysis;
   performance_analysis: PerformanceAnalysis;
+  downtime_analysis?: DowntimeAnalysis;
   recommendations: Recommendation[];
 }
 
@@ -248,6 +273,68 @@ export function OptimizeView({ prometheusUrl = 'http://localhost:9090' }: Optimi
                 </div>
               </div>
             </div>
+
+            {/* Downtime Analysis */}
+            {result.downtime_analysis && (
+              <div className={`rounded-lg p-6 border ${
+                result.downtime_analysis.is_online
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-lg font-semibold flex items-center gap-2 ${
+                    result.downtime_analysis.is_online ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    <Database className="w-5 h-5" />
+                    {t('optimize.downtime.title')}
+                  </h3>
+                  <div className={`px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm ${
+                    result.downtime_analysis.is_online
+                      ? 'bg-green-600 text-white'
+                      : 'bg-red-600 text-white'
+                  }`}>
+                    {result.downtime_analysis.is_online ? t('optimize.downtime.online') : t('optimize.downtime.offline')}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="text-sm text-gray-500 mb-1">{t('optimize.downtime.uptime')}</div>
+                    <div className="text-2xl font-bold text-gray-800">
+                      {result.downtime_analysis.uptime_percent.toFixed(2)}%
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="text-sm text-gray-500 mb-1">{t('optimize.downtime.totalDowntime')}</div>
+                    <div className="text-2xl font-bold text-gray-800">
+                      {result.downtime_analysis.total_downtime_minutes.toFixed(1)} {t('optimize.downtime.minutes')}
+                    </div>
+                  </div>
+                </div>
+
+                {result.downtime_analysis.most_recent_downtime && (
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="font-semibold text-gray-800 mb-2">{t('optimize.downtime.recentEvent')}</div>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div><span className="font-medium">{t('optimize.downtime.startTime')}:</span> {result.downtime_analysis.most_recent_downtime.start_time}</div>
+                      <div><span className="font-medium">{t('optimize.downtime.endTime')}:</span> {result.downtime_analysis.most_recent_downtime.end_time}</div>
+                      <div><span className="font-medium">{t('optimize.downtime.duration')}:</span> {result.downtime_analysis.most_recent_downtime.duration_minutes.toFixed(1)} {t('optimize.downtime.minutes')}</div>
+                      <div className="pt-2 border-t border-gray-200 mt-2">
+                        <span className="font-medium">{t('optimize.downtime.estimatedCause')}:</span>
+                        <div className="mt-1 text-gray-700">{result.downtime_analysis.most_recent_downtime.estimated_cause}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!result.downtime_analysis.is_online && result.downtime_analysis.estimated_cause && (
+                  <div className="bg-red-100 rounded-lg p-4 border border-red-200 mt-4">
+                    <div className="font-semibold text-red-800 mb-1">{t('optimize.downtime.serverDown')}</div>
+                    <div className="text-sm text-red-700">{result.downtime_analysis.estimated_cause}</div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Cost Analysis */}
             {result.cost_analysis.potential_savings > 0 && (

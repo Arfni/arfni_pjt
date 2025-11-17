@@ -94,6 +94,7 @@ pub struct PerformanceAnalysis {
     pub cpu_bottleneck: bool,
     pub memory_bottleneck: bool,
     pub disk_bottleneck: bool,
+    #[serde(default)]
     pub bottlenecks: Vec<String>,
     pub health_status: String,
 }
@@ -110,10 +111,44 @@ pub struct Recommendation {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct MetricsSnapshot {
+    pub timestamp: String,
+    pub cpu_percent: f64,
+    pub memory_percent: f64,
+    pub disk_percent: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DowntimeEventSummary {
+    pub start_time: String,
+    pub end_time: String,
+    pub duration_minutes: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metrics_before: Option<MetricsSnapshot>,
+    pub estimated_cause: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DowntimeAnalysis {
+    pub is_online: bool,
+    pub total_downtime_minutes: f64,
+    #[serde(default)]
+    pub downtime_events: Vec<DowntimeEventSummary>,
+    pub uptime_percent: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub most_recent_downtime: Option<DowntimeEventSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_cause: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OptimizationReport {
     pub actual_usage: ActualUsageMetrics,
     pub cost_analysis: CostAnalysis,
     pub performance_analysis: PerformanceAnalysis,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub downtime_analysis: Option<DowntimeAnalysis>,
+    #[serde(default)]
     pub recommendations: Vec<Recommendation>,
 }
 

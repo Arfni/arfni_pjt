@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 )
 
@@ -430,4 +431,209 @@ func (c *PrometheusClient) GetCPUUsageTimeSeries() (*TimeSeriesData, error) {
 func (c *PrometheusClient) GetMemoryUsageTimeSeries() (*TimeSeriesData, error) {
 	query := `100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))`
 	return c.QueryRange(query, 24*time.Hour, 30*time.Minute)
+}
+
+// GetServerStatus checks if the server is currently up (1 = up, 0 = down)
+func (c *PrometheusClient) GetServerStatus() (bool, error) {
+	// Try 1: Query up metric for node-exporter
+	query := `up`
+	results, err := c.Query(query)
+	if err == nil && len(results) > 0 {
+		// Find node-exporter target (check if any target is up)
+		for _, result := range results {
+			// Look for node-exporter job or any node metrics target
+			if jobName, ok := result.Labels["job"]; ok {
+				if jobName == "node-exporter" || jobName == "node" {
+					return result.Value == 1, nil
+				}
+			}
+		}
+		// If no specific job found, use first result (likely node-exporter)
+		return results[0].Value == 1, nil
+	}
+
+	// Try 2: Fallback - check if node metrics exist (node-exporter is running)
+	// If we can get any node metric, the server is up
+	fallbackQuery := `node_uname_info`
+	fallbackResults, fallbackErr := c.Query(fallbackQuery)
+	if fallbackErr == nil && len(fallbackResults) > 0 {
+		// node_uname_info exists, server is up
+		return true, nil
+	}
+
+	// Both methods failed
+	if err != nil {
+		return false, err
+	}
+	return false, fmt.Errorf("no server status data available")
+}
+
+// DowntimeEvent represents a single downtime period
+type DowntimeEvent struct {
+	StartTime time.Time
+	EndTime   time.Time
+	Duration  time.Duration
+}
+
+// GetDowntimeHistory gets server downtime events over the last 24 hours
+func (c *PrometheusClient) GetDowntimeHistory() ([]DowntimeEvent, time.Duration, error) {
+	// Try to query up metric
+	query := `up`
+	tsData, err := c.QueryRange(query, 24*time.Hour, 1*time.Minute)
+
+	// If up metric fails, fallback to checking node existence
+	if err != nil || len(tsData.Values) == 0 {
+		// Cannot get proper uptime data, but we can check if node metrics exist now
+		// This is a best-effort approach
+
+		// Check if node metrics exist (meaning server is currently up)
+		fallbackQuery := `node_uname_info`
+		fallbackResults, fallbackErr := c.Query(fallbackQuery)
+
+		if fallbackErr == nil && len(fallbackResults) > 0 {
+			// Server is currently up but we don't have uptime history
+			// Return empty downtime events (assuming 100% uptime)
+			return []DowntimeEvent{}, 0, nil
+		}
+
+		// Cannot determine server status at all
+		if err != nil {
+			return nil, 0, err
+		}
+		return nil, 0, fmt.Errorf("no uptime data available")
+	}
+
+	downtimes := make([]DowntimeEvent, 0)
+	var currentDowntime *DowntimeEvent
+	var totalDowntime time.Duration
+
+	for i, value := range tsData.Values {
+		timestamp := tsData.Timestamps[i]
+		isUp := value == 1
+
+		if !isUp && currentDowntime == nil {
+			// Downtime started
+			currentDowntime = &DowntimeEvent{
+				StartTime: timestamp,
+			}
+		} else if isUp && currentDowntime != nil {
+			// Downtime ended
+			currentDowntime.EndTime = timestamp
+			currentDowntime.Duration = currentDowntime.EndTime.Sub(currentDowntime.StartTime)
+			totalDowntime += currentDowntime.Duration
+			downtimes = append(downtimes, *currentDowntime)
+			currentDowntime = nil
+		}
+	}
+
+	// If still down at the end
+	if currentDowntime != nil {
+		currentDowntime.EndTime = time.Now()
+		currentDowntime.Duration = currentDowntime.EndTime.Sub(currentDowntime.StartTime)
+		totalDowntime += currentDowntime.Duration
+		downtimes = append(downtimes, *currentDowntime)
+	}
+
+	return downtimes, totalDowntime, nil
+}
+
+// GetMetricsBeforeDowntime gets server metrics right before a downtime event
+func (c *PrometheusClient) GetMetricsBeforeDowntime(downtimeStart time.Time) (*MetricsSnapshot, error) {
+	snapshot := &MetricsSnapshot{
+		Timestamp: downtimeStart,
+	}
+
+	// Query metrics from 5 minutes before downtime
+	queryTime := downtimeStart.Add(-5 * time.Minute)
+	timeParam := fmt.Sprintf("%d", queryTime.Unix())
+
+	// CPU usage before downtime
+	cpuQuery := `100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))`
+	cpuResults, err := c.queryAtTime(cpuQuery, timeParam)
+	if err == nil && len(cpuResults) > 0 {
+		snapshot.CPUPercent = cpuResults[0].Value
+	}
+
+	// Memory usage before downtime
+	memQuery := `100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))`
+	memResults, err := c.queryAtTime(memQuery, timeParam)
+	if err == nil && len(memResults) > 0 {
+		snapshot.MemoryPercent = memResults[0].Value
+	}
+
+	// Disk usage before downtime
+	diskQuery := `100 * (1 - (node_filesystem_avail_bytes{mountpoint=~"/host|/"} / node_filesystem_size_bytes{mountpoint=~"/host|/"}))`
+	diskResults, err := c.queryAtTime(diskQuery, timeParam)
+	if err == nil && len(diskResults) > 0 {
+		snapshot.DiskPercent = diskResults[0].Value
+	}
+
+	return snapshot, nil
+}
+
+// MetricsSnapshot represents metrics at a specific point in time
+type MetricsSnapshot struct {
+	Timestamp     time.Time
+	CPUPercent    float64
+	MemoryPercent float64
+	DiskPercent   float64
+}
+
+// queryAtTime executes a query at a specific timestamp
+func (c *PrometheusClient) queryAtTime(query string, timeParam string) ([]MetricValue, error) {
+	queryURL := fmt.Sprintf("%s/api/v1/query", c.BaseURL)
+
+	params := url.Values{}
+	params.Add("query", query)
+	params.Add("time", timeParam)
+
+	fullURL := fmt.Sprintf("%s?%s", queryURL, params.Encode())
+
+	resp, err := c.Client.Get(fullURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query Prometheus: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Prometheus API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var promResp PrometheusResponse
+	if err := json.Unmarshal(body, &promResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if promResp.Status != "success" {
+		return nil, fmt.Errorf("query failed: %s", promResp.Status)
+	}
+
+	var results []MetricValue
+	for _, result := range promResp.Data.Result {
+		if len(result.Value) < 2 {
+			continue
+		}
+
+		timestamp := int64(result.Value[0].(float64))
+		valueStr, ok := result.Value[1].(string)
+		if !ok {
+			continue
+		}
+
+		var value float64
+		fmt.Sscanf(valueStr, "%f", &value)
+
+		results = append(results, MetricValue{
+			Timestamp: time.Unix(timestamp, 0),
+			Value:     value,
+			Labels:    result.Metric,
+		})
+	}
+
+	return results, nil
 }

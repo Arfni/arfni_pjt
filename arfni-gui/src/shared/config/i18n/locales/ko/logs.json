@@ -137,6 +137,20 @@
     "bottlenecks": {
       "title": "성능 병목 현상"
     },
+    "downtime": {
+      "title": "서버 가용성",
+      "online": "온라인",
+      "offline": "오프라인",
+      "uptime": "가동률 (24시간)",
+      "totalDowntime": "총 다운타임",
+      "minutes": "분",
+      "recentEvent": "최근 다운타임 이벤트",
+      "startTime": "시작 시간",
+      "endTime": "종료 시간",
+      "duration": "지속 시간",
+      "estimatedCause": "추정 원인",
+      "serverDown": "서버 오프라인"
+    },
     "recommendations": {
       "title": "AI 권장사항",
       "priority": {

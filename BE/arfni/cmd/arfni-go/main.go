@@ -756,6 +756,11 @@ func runOptimize(args []string) {
 	printRecommendations("low", lowPriority)
 
 	// Output JSON for GUI integration
-	jsonOutput, _ := json.Marshal(report)
+	jsonOutput, err := json.Marshal(report)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] Failed to marshal JSON: %v\n", err)
+		os.Exit(1)
+	}
+
 	fmt.Printf("__OPTIMIZATION_REPORT__%s\n", string(jsonOutput))
 }

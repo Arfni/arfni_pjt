@@ -137,6 +137,20 @@
     "bottlenecks": {
       "title": "Performance Bottlenecks"
     },
+    "downtime": {
+      "title": "Server Availability",
+      "online": "Online",
+      "offline": "Offline",
+      "uptime": "Uptime (24h)",
+      "totalDowntime": "Total Downtime",
+      "minutes": "min",
+      "recentEvent": "Recent Downtime Event",
+      "startTime": "Start Time",
+      "endTime": "End Time",
+      "duration": "Duration",
+      "estimatedCause": "Estimated Cause",
+      "serverDown": "Server Offline"
+    },
     "recommendations": {
       "title": "AI Recommendations",
       "priority": {
