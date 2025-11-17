@@ -265,7 +265,10 @@ export default function ProjectsPage() {
         environment, // 현재 선택된 탭 (local or ec2)
         environment === 'ec2' ? selectedEC2ServerId : undefined,
         undefined, // description
-        environment === 'ec2' ? newProjectWorkdir.trim() : undefined
+        undefined, // githubRepoUrl
+        undefined, // githubBranch
+        undefined, // githubAccessToken
+        environment === 'ec2' ? newProjectWorkdir.trim() : undefined // workdir (9번째 파라미터)
       );
       console.log('프로젝트 생성 완료:', project);
 
@@ -294,6 +297,61 @@ export default function ProjectsPage() {
       setCreating(false);
     }
   }, [newProjectName, newProjectPath, newProjectWorkdir, selectedTab, selectedEC2ServerId, navigate, loadProjects, ec2Servers, dispatch, t]);
+
+  // GitHub 프로젝트 생성 핸들러
+  const handleCreateFromGitHub = useCallback(async (
+    repoUrl: string,
+    repoName: string,
+    branch: string,
+    accessToken: string,
+    workdir: string
+  ) => {
+    setCreateError(null);
+
+    // EC2 서버 선택 검증
+    if (!selectedEC2ServerId) {
+      setCreateError(t('messages.selectEC2Server'));
+      return;
+    }
+
+    setCreating(true);
+    try {
+      console.log('[GitHub Project] Creating project with workdir:', workdir);
+
+      // GitHub 프로젝트 생성
+      const project = await projectCommands.createProject(
+        newProjectName.trim() || repoName, // 프로젝트 이름 (미입력시 레포 이름 사용)
+        newProjectPath.trim(), // 로컬 경로
+        'ec2', // GitHub 프로젝트는 항상 EC2
+        selectedEC2ServerId,
+        undefined, // description
+        repoUrl,
+        branch,
+        accessToken,
+        workdir // workdir 전달
+      );
+
+      console.log('[GitHub Project] 프로젝트 생성 완료:', project);
+
+      // 모달 닫기 및 초기화
+      setShowCreateModal(false);
+      setNewProjectName('');
+      setNewProjectPath('');
+      setNewProjectWorkdir('arfni-deploy');
+      setCreateError(null);
+
+      // 프로젝트 목록 새로고침
+      loadProjects('ec2', selectedEC2ServerId);
+
+      // 빈 캔버스로 이동
+      navigate('/canvas', { state: { project } });
+    } catch (err) {
+      console.error('[GitHub Project] 생성 실패:', err);
+      setCreateError(t('messages.createProjectFailed', { error: String(err) }));
+    } finally {
+      setCreating(false);
+    }
+  }, [newProjectName, newProjectPath, newProjectWorkdir, selectedEC2ServerId, navigate, loadProjects, t]);
 
   // 탭 상태를 sessionStorage에 저장
   useEffect(() => {
@@ -498,6 +556,7 @@ export default function ProjectsPage() {
         onWorkdirChange={setNewProjectWorkdir}
         onSelectFolder={handleSelectFolder}
         onCreate={handleCreateProject}
+        onCreateFromGitHub={handleCreateFromGitHub}
       />
 
       {/* Server Selection Modal */}
