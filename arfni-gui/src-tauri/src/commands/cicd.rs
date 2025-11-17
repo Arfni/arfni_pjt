@@ -604,17 +604,18 @@ pub async fn setup_complete_cicd(
     println!("[CI/CD] Starting complete CI/CD setup...");
     println!("[CI/CD] Step 1/4: Cloning repository to EC2...");
 
-    // Step 1: Clone repository to EC2 FIRST
-    {
-        let db_state: State<'_, Database> = app.state();
-        crate::commands::project::clone_github_repo_on_ec2(
-            db_state.clone(),
-            project_id.clone(),
-            ec2_server_id.clone()
-        ).await.map_err(|e| format!("Failed to clone repo to EC2: {}", e))?;
+    // Step 1: Clone repository to EC2 FIRST - Temporarily disabled
+    // {
+    //     let db_state: State<'_, Database> = app.state();
+    //     crate::commands::project::clone_github_repo_on_ec2(
+    //         db_state.clone(),
+    //         project_id.clone(),
+    //         ec2_server_id.clone()
+    //     ).await.map_err(|e| format!("Failed to clone repo to EC2: {}", e))?;
 
-        println!("[CI/CD] ✅ Repository cloned to EC2 successfully");
-    }
+    //     println!("[CI/CD] ✅ Repository cloned to EC2 successfully");
+    // }
+    println!("[CI/CD] ⚠️ GitHub clone disabled - feature temporarily unavailable");
 
     // Step 2: Use user's stack.yaml (or create a default one if not provided)
     println!("[CI/CD] Step 2/4: Preparing stack.yaml...");

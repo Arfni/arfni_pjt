@@ -116,7 +116,7 @@ fn main() {
       commands::project::open_project_by_path,
       commands::project::save_stack_yaml,
       commands::project::read_stack_yaml,
-      commands::project::read_file_content,
+      // commands::project::read_file_content,  // Temporarily disabled - GitHub feature unstable
       commands::project::load_canvas_state,
       commands::project::get_all_projects,
       commands::project::get_projects_by_environment,
@@ -129,10 +129,11 @@ fn main() {
       commands::project::write_file,
       commands::project::delete_project_from_db_only,
       commands::project::close_project,
-      commands::project::clone_github_repo_on_ec2,
-      commands::project::commit_stack_yaml_to_github,
-      commands::project::setup_github_project_with_cicd,
-      commands::project::commit_and_push_stack_yaml,
+      // GitHub-related commands temporarily disabled due to instability
+      // commands::project::clone_github_repo_on_ec2,
+      // commands::project::commit_stack_yaml_to_github,
+      // commands::project::setup_github_project_with_cicd,
+      // commands::project::commit_and_push_stack_yaml,
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,
