@@ -106,6 +106,7 @@ fn main() {
       commands::plugin::list_bundled_plugins,
       commands::plugin::read_bundled_plugin_manifest,
       commands::plugin::read_plugin_icon,
+      commands::plugin::import_custom_plugin,
       commands::plugin_check::list_targets,
       commands::plugin_check::read_plugins,
 
@@ -115,6 +116,7 @@ fn main() {
       commands::project::open_project_by_path,
       commands::project::save_stack_yaml,
       commands::project::read_stack_yaml,
+      commands::project::read_file_content,
       commands::project::load_canvas_state,
       commands::project::get_all_projects,
       commands::project::get_projects_by_environment,
@@ -127,6 +129,10 @@ fn main() {
       commands::project::write_file,
       commands::project::delete_project_from_db_only,
       commands::project::close_project,
+      commands::project::clone_github_repo_on_ec2,
+      commands::project::commit_stack_yaml_to_github,
+      commands::project::setup_github_project_with_cicd,
+      commands::project::commit_and_push_stack_yaml,
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,
@@ -138,6 +144,7 @@ fn main() {
       commands::deployment::check_docker_running,
       commands::deployment::test_ssh_connection,
       commands::deployment::start_monitoring,
+      commands::deployment::smart_deploy,
 
       // 파일 감시 명령어
       commands::file_watcher::watch_stack_yaml,
@@ -181,6 +188,14 @@ fn main() {
       commands::keys::set_active_api_key,
       commands::keys::get_active_api_key,
       commands::keys::deactivate_all_api_keys,
+
+      // CI/CD 명령어
+      commands::cicd::authenticate_github,
+      commands::cicd::fetch_github_repositories,
+      commands::cicd::setup_cicd,
+      commands::cicd::update_workflow_file,
+      commands::cicd::setup_complete_cicd,
+      commands::cicd::check_cicd_status,
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

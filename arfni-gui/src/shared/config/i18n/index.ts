@@ -10,6 +10,7 @@ import enLogs from './locales/en/logs.json';
 import enCanvas from './locales/en/canvas.json';
 import enDialogs from './locales/en/dialogs.json';
 import enErrors from './locales/en/errors.json';
+import enTest from './locales/en/test.json';
 
 // Import Korean translations
 import koCommon from './locales/ko/common.json';
@@ -19,6 +20,7 @@ import koLogs from './locales/ko/logs.json';
 import koCanvas from './locales/ko/canvas.json';
 import koDialogs from './locales/ko/dialogs.json';
 import koErrors from './locales/ko/errors.json';
+import koTest from './locales/ko/test.json';
 
 const resources = {
   en: {
@@ -29,6 +31,7 @@ const resources = {
     canvas: enCanvas,
     dialogs: enDialogs,
     errors: enErrors,
+    test: enTest,
   },
   ko: {
     common: koCommon,
@@ -38,6 +41,7 @@ const resources = {
     canvas: koCanvas,
     dialogs: koDialogs,
     errors: koErrors,
+    test: koTest,
   },
 };
 
@@ -48,7 +52,7 @@ i18n
     resources,
     fallbackLng: 'en',
     defaultNS: 'common',
-    ns: ['common', 'deployment', 'projects', 'logs', 'canvas', 'dialogs', 'errors'],
+    ns: ['common', 'deployment', 'projects', 'logs', 'canvas', 'dialogs', 'errors', 'test'],
     interpolation: {
       escapeValue: false, // React already escapes values
     },

@@ -32,6 +32,15 @@ inputs:
     default: "3.12"
     scope: build
 
+dependencies:
+  required:
+    - name: uvicorn
+      version: "0.30.6"
+      description: "ASGI server for development and production"
+    - name: gunicorn
+      version: "22.0.0"
+      description: "Production WSGI server with Uvicorn worker support"
+
 contributes:
   services:
     fastapi:

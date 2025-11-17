@@ -1,8 +1,10 @@
 use notify::{Watcher, RecursiveMode, Event};
 use std::path::Path;
 use std::sync::mpsc::channel;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, State};
 use std::time::Duration;
+use crate::db::Database;
+use rusqlite::params;
 
 #[derive(Clone, serde::Serialize)]
 struct FileChangePayload {
@@ -12,7 +14,29 @@ struct FileChangePayload {
 
 /// stack.yaml 파일 변경 감지 시작
 #[tauri::command]
-pub fn watch_stack_yaml(app: AppHandle, project_path: String) -> Result<(), String> {
+pub fn watch_stack_yaml(app: AppHandle, db: State<Database>, project_path: String) -> Result<(), String> {
+    // DB에서 프로젝트가 GitHub 프로젝트인지 확인
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT github_repo_url FROM projects WHERE path = ?1"
+    ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
+
+    let github_url: Option<String> = stmt
+        .query_row(params![&project_path], |row| row.get(0))
+        .ok()
+        .flatten();
+
+    drop(stmt);
+    drop(conn);
+
+    // GitHub 프로젝트인 경우 파일 감시를 스킵 (로컬에 파일이 없음)
+    if github_url.is_some() {
+        println!("[watch_stack_yaml] Skipping file watcher for GitHub project: {}", project_path);
+        return Ok(());
+    }
+
     let stack_yaml_path = Path::new(&project_path).join("stack.yaml");
 
     if !stack_yaml_path.exists() {

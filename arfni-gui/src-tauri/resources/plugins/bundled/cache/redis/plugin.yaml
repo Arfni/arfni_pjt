@@ -31,14 +31,15 @@ contributes:
           - "6379:6379"
         environment:
           REDIS_PASSWORD: "{{redis_password}}"
-        command: >-
-          sh -c '
-          if [ -n "$REDIS_PASSWORD" ]; then
-            redis-server --requirepass "$REDIS_PASSWORD"
-          else
-            redis-server
-          fi
-          '
+        command:
+          - sh
+          - -c
+          - |
+            if [ -n "$REDIS_PASSWORD" ]; then
+              redis-server --requirepass "$REDIS_PASSWORD"
+            else
+              redis-server
+            fi
         volumes:
           - "redis_data:/data"
         healthcheck:

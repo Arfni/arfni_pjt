@@ -21,10 +21,23 @@ type DetectionConfig struct {
 	} `yaml:"file_content_patterns"`
 }
 
+// Dependency represents a required package dependency
+type Dependency struct {
+	Name        string `yaml:"name"`
+	Version     string `yaml:"version"`
+	Description string `yaml:"description"`
+}
+
+// Dependencies represents the dependencies section in plugin.yaml
+type Dependencies struct {
+	Required []Dependency `yaml:"required"`
+}
+
 // PluginMetadata represents minimal plugin.yaml structure for detection
 type PluginMetadata struct {
-	Name      string           `yaml:"name"`
-	Detection DetectionConfig `yaml:"detection"`
+	Name         string           `yaml:"name"`
+	Detection    DetectionConfig  `yaml:"detection"`
+	Dependencies Dependencies     `yaml:"dependencies"`
 }
 
 // DetectionRule holds a plugin's detection logic
@@ -37,22 +50,31 @@ type DetectionRule struct {
 // LoadDetectionRules loads detection rules from all plugin.yaml files in given directories
 func LoadDetectionRules(pluginDirs ...string) ([]DetectionRule, error) {
 	var rules []DetectionRule
+	debugMode := os.Getenv("ARFNI_DEBUG") == "true"
 
-	fmt.Fprintf(os.Stderr, "[detector] Loading detection rules from %d directories\n", len(pluginDirs))
+	if debugMode {
+		fmt.Fprintf(os.Stderr, "[detector] Loading detection rules from %d directories\n", len(pluginDirs))
+	}
 
 	for i, dir := range pluginDirs {
 		if dir == "" {
-			fmt.Fprintf(os.Stderr, "[detector] Skipping empty directory at index %d\n", i)
+			if debugMode {
+				fmt.Fprintf(os.Stderr, "[detector] Skipping empty directory at index %d\n", i)
+			}
 			continue
 		}
 
 		// Check if directory exists
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "[detector] Directory does not exist: %s\n", dir)
+			if debugMode {
+				fmt.Fprintf(os.Stderr, "[detector] Directory does not exist: %s\n", dir)
+			}
 			continue
 		}
 
-		fmt.Fprintf(os.Stderr, "[detector] Scanning directory: %s\n", dir)
+		if debugMode {
+			fmt.Fprintf(os.Stderr, "[detector] Scanning directory: %s\n", dir)
+		}
 		pluginCount := 0
 
 		// Walk through plugin directories
@@ -63,38 +85,51 @@ func LoadDetectionRules(pluginDirs ...string) ([]DetectionRule, error) {
 
 			// Look for plugin.yaml files
 			if !info.IsDir() && (info.Name() == "plugin.yaml" || info.Name() == "plugin.yml") {
-				fmt.Fprintf(os.Stderr, "[detector] Found plugin.yaml: %s\n", path)
+				if debugMode {
+					fmt.Fprintf(os.Stderr, "[detector] Found plugin.yaml: %s\n", path)
+				}
 				rule, err := loadPluginDetection(path)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "[detector] Failed to load plugin: %v\n", err)
+					if debugMode {
+						fmt.Fprintf(os.Stderr, "[detector] Failed to load plugin: %v\n", err)
+					}
 					// Skip plugins with invalid detection config
 					return nil
 				}
 				if rule != nil && rule.Config.Enabled {
 					rules = append(rules, *rule)
 					pluginCount++
-					fmt.Fprintf(os.Stderr, "[detector] ✅ Loaded plugin '%s' with priority %d\n",
-						rule.PluginName, rule.Priority)
+					if debugMode {
+						fmt.Fprintf(os.Stderr, "[detector] ✅ Loaded plugin '%s' with priority %d\n",
+							rule.PluginName, rule.Priority)
+					}
 				} else if rule != nil && !rule.Config.Enabled {
-					fmt.Fprintf(os.Stderr, "[detector] ⏭️  Skipped plugin '%s' (detection disabled)\n", rule.PluginName)
+					if debugMode {
+						fmt.Fprintf(os.Stderr, "[detector] ⏭️  Skipped plugin '%s' (detection disabled)\n", rule.PluginName)
+					}
 				}
 			}
 			return nil
 		})
 
-		fmt.Fprintf(os.Stderr, "[detector] Loaded %d plugin(s) from %s\n", pluginCount, dir)
+		if debugMode {
+			fmt.Fprintf(os.Stderr, "[detector] Loaded %d plugin(s) from %s\n", pluginCount, dir)
+		}
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to walk plugin directory %s: %w", dir, err)
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "[detector] Total %d detection rules loaded\n", len(rules))
-
 	// Sort by priority (higher priority first)
 	sort.SliceStable(rules, func(i, j int) bool {
 		return rules[i].Priority > rules[j].Priority
 	})
+
+	// Only show the total count in debug mode
+	if debugMode {
+		fmt.Fprintf(os.Stderr, "[detector] Total %d detection rules loaded\n", len(rules))
+	}
 
 	return rules, nil
 }

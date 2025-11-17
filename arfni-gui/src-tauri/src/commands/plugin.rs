@@ -957,3 +957,165 @@ pub async fn read_plugin_icon(
   fs::read(&icon_path)
     .map_err(|e| format!("Failed to read icon file at {:?}: {}", icon_path, e))
 }
+
+/// Copy entire directory recursively
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+  fs::create_dir_all(dst)
+    .map_err(|e| format!("Failed to create directory {:?}: {}", dst, e))?;
+
+  let entries = fs::read_dir(src)
+    .map_err(|e| format!("Failed to read source directory {:?}: {}", src, e))?;
+
+  for entry in entries {
+    let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+    let path = entry.path();
+    let file_name = entry.file_name();
+    let dest_path = dst.join(&file_name);
+
+    if path.is_dir() {
+      copy_dir_recursive(&path, &dest_path)?;
+    } else {
+      fs::copy(&path, &dest_path)
+        .map_err(|e| format!("Failed to copy file {:?} to {:?}: {}", path, dest_path, e))?;
+    }
+  }
+
+  Ok(())
+}
+
+/// Import a custom plugin from a local folder
+#[tauri::command]
+pub async fn import_custom_plugin(
+  app: AppHandle,
+  folder_path: String,
+) -> Result<String, String> {
+  let source_path = PathBuf::from(&folder_path);
+
+  // Validate source folder exists
+  if !source_path.exists() {
+    return Err("선택한 폴더가 존재하지 않습니다.".to_string());
+  }
+
+  if !source_path.is_dir() {
+    return Err("선택한 경로는 폴더가 아닙니다.".to_string());
+  }
+
+  // Check for plugin.yaml
+  let manifest_path = source_path.join("plugin.yaml");
+  if !manifest_path.exists() {
+    return Err("선택한 폴더에 plugin.yaml 파일이 없습니다.\n유효한 플러그인 폴더를 선택해주세요.".to_string());
+  }
+
+  // Read and parse manifest
+  let manifest_content = fs::read_to_string(&manifest_path)
+    .map_err(|e| format!("plugin.yaml 읽기 실패: {}", e))?;
+
+  let manifest: serde_yaml::Value = serde_yaml::from_str(&manifest_content)
+    .map_err(|e| format!("plugin.yaml 파싱 실패: {}", e))?;
+
+  // Extract plugin name
+  let plugin_name = manifest.get("name")
+    .and_then(|v| v.as_str())
+    .ok_or_else(|| "plugin.yaml에 'name' 필드가 없습니다.".to_string())?;
+
+  // Check if plugin name collides with bundled plugins
+  // Dynamically scan bundled plugins to build the list of reserved names
+  let bundled_plugins_dir = if cfg!(debug_assertions) {
+    // Development mode
+    let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir.join("resources").join("plugins").join("bundled")
+  } else {
+    // Production mode
+    let resource_dir = app.path()
+      .resource_dir()
+      .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+    resource_dir.join("resources").join("plugins").join("bundled")
+  };
+
+  // Scan all bundled plugin names
+  let mut bundled_plugin_names: Vec<String> = Vec::new();
+  let categories = vec!["database", "framework", "cache", "proxy", "cicd", "orchestration", "monitoring"];
+
+  for category in categories {
+    let category_path = bundled_plugins_dir.join(category);
+    if category_path.exists() && category_path.is_dir() {
+      if let Ok(entries) = fs::read_dir(&category_path) {
+        for entry in entries.flatten() {
+          let plugin_dir = entry.path();
+          if plugin_dir.is_dir() {
+            let manifest_path = plugin_dir.join("plugin.yaml");
+            if manifest_path.exists() {
+              if let Ok(content) = fs::read_to_string(&manifest_path) {
+                if let Ok(bundled_manifest) = serde_yaml::from_str::<serde_yaml::Value>(&content) {
+                  if let Some(name) = bundled_manifest.get("name").and_then(|v| v.as_str()) {
+                    bundled_plugin_names.push(name.to_lowercase());
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Check for collision with bundled plugin names
+  if bundled_plugin_names.contains(&plugin_name.to_lowercase()) {
+    return Err(format!(
+      "'{}' 플러그인 이름은 이미 사용 중입니다.\n다른 이름을 사용해주세요.\n\n예시: my-{}, custom-{}, {}-custom",
+      plugin_name, plugin_name, plugin_name, plugin_name
+    ));
+  }
+
+  // Get app data directory
+  let app_data_dir = app.path()
+    .app_data_dir()
+    .map_err(|e| format!("앱 데이터 디렉토리 가져오기 실패: {}", e))?;
+
+  // Create custom plugin directory: AppData/plugins/installed/custom/{plugin_name}
+  let custom_plugins_dir = app_data_dir.join("plugins").join("installed").join("custom");
+  fs::create_dir_all(&custom_plugins_dir)
+    .map_err(|e| format!("커스텀 플러그인 디렉토리 생성 실패: {}", e))?;
+
+  let plugin_dir = custom_plugins_dir.join(plugin_name);
+
+  // Check if plugin already exists
+  if plugin_dir.exists() {
+    return Err(format!("'{}' 플러그인이 이미 존재합니다.\n기존 플러그인을 먼저 삭제해주세요.", plugin_name));
+  }
+
+  // Copy entire plugin folder
+  copy_dir_recursive(&source_path, &plugin_dir)?;
+
+  // Update installed_plugins.json
+  let plugin_info = PluginInfo {
+    name: plugin_name.to_string(),
+    version: manifest.get("version")
+      .and_then(|v| v.as_str())
+      .unwrap_or("1.0.0")
+      .to_string(),
+    github_url: None,
+    installed_at: chrono::Local::now().to_rfc3339(),
+    is_bundled: false,
+  };
+
+  let plugins_json_path = app_data_dir.join("installed_plugins.json");
+  let mut plugins: Vec<PluginInfo> = if plugins_json_path.exists() {
+    let json_str = fs::read_to_string(&plugins_json_path)
+      .map_err(|e| format!("installed_plugins.json 읽기 실패: {}", e))?;
+    serde_json::from_str(&json_str).unwrap_or_default()
+  } else {
+    Vec::new()
+  };
+
+  // Remove old version if exists
+  plugins.retain(|p| p.name != plugin_name);
+  plugins.push(plugin_info);
+
+  let json_str = serde_json::to_string_pretty(&plugins)
+    .map_err(|e| format!("JSON 직렬화 실패: {}", e))?;
+  fs::write(&plugins_json_path, json_str)
+    .map_err(|e| format!("installed_plugins.json 쓰기 실패: {}", e))?;
+
+  Ok(format!("'{}' 플러그인이 성공적으로 추가되었습니다.", plugin_name))
+}
