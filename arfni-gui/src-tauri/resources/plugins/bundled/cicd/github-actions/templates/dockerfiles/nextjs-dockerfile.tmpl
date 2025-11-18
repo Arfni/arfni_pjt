@@ -1,0 +1,20 @@
+# Runtime-only Dockerfile for Next.js (GitHub Actions deployment)
+# This Dockerfile assumes the app is already built by GitHub Actions
+FROM node:{{ .NODE_VERSION }}-alpine
+
+WORKDIR /app
+
+# Copy built Next.js files from GitHub Actions build
+COPY .next ./.next
+COPY public ./public
+COPY package*.json ./
+COPY next.config.js ./
+
+# Install production dependencies only
+RUN npm ci --only=production
+
+# Expose port
+EXPOSE {{ .PORT }}
+
+# Start Next.js in production mode
+CMD ["npm", "start"]

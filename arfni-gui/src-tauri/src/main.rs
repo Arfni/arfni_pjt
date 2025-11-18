@@ -137,6 +137,7 @@ fn main() {
 
       // 배포 명령어
       commands::deployment::validate_stack_yaml,
+      commands::deployment::get_project_services,
       commands::deployment::deploy_stack,
       commands::deployment::stop_deployment,
       commands::deployment::reset_deployment_state,

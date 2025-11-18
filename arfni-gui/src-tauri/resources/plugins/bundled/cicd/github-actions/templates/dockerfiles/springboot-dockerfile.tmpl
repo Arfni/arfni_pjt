@@ -1,0 +1,19 @@
+# Runtime-only Dockerfile for GitHub Actions deployment
+# This Dockerfile assumes JAR is already built by GitHub Actions
+FROM eclipse-temurin:{{ .JAVA_VERSION }}-jre-jammy
+
+WORKDIR /app
+
+# Copy the pre-built JAR file (uploaded by GitHub Actions)
+# Path is relative to build context (DEPLOY_ROOT)
+COPY apps/app.jar /app/app.jar
+
+# Set environment variables
+ENV SPRING_PROFILES_ACTIVE={{ .PROFILE }}
+ENV JVM_OPTS="{{ .JVM_OPTS }}"
+
+# Expose the application port
+EXPOSE {{ .PORT }}
+
+# Run the JAR file
+ENTRYPOINT ["sh", "-c", "java $JVM_OPTS -jar /app/app.jar"]

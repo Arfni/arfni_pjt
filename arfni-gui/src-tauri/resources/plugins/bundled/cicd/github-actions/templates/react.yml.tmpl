@@ -1,0 +1,107 @@
+name: Build & Deploy React to EC2
+
+on:
+  push:
+    branches: ["{{ .branch }}"]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: true
+        default: "{{ .branch }}"
+
+env:
+  NODE_VERSION: "{{ .node_version }}"
+  DEPLOY_ROOT: "{{ .deploy_root }}"
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.ref_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build React app
+        run: npm run build
+
+      - name: Create deployment archive
+        run: |
+          tar -czf build.tar.gz -C build .
+          ls -lh build.tar.gz
+
+      - name: Ensure target dirs exist on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            mkdir -p "${{ env.DEPLOY_ROOT }}/apps/backups"
+            mkdir -p "${{ env.DEPLOY_ROOT }}/apps/react"
+
+      - name: Copy to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: build.tar.gz
+          target: ${{ env.DEPLOY_ROOT }}/apps
+          overwrite: true
+
+      - name: Backup, extract, and restart
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd "${{ env.DEPLOY_ROOT }}"
+            APP_DIR="${{ env.DEPLOY_ROOT }}/apps"
+            BACKUP_DIR="${{ env.DEPLOY_ROOT }}/apps/backups"
+            DOCKER_COMPOSE="sudo docker compose"
+
+            if [ -d "${APP_DIR}/react/current" ]; then
+              TS=$(date +%Y%m%d-%H%M%S)
+              tar -czf "${BACKUP_DIR}/react-${TS}.tar.gz" -C "${APP_DIR}/react/current" .
+              echo "[INFO] Backed up to ${BACKUP_DIR}/react-${TS}.tar.gz"
+            fi
+
+            ls -1t "${BACKUP_DIR}"/react-*.tar.gz 2>/dev/null | tail -n +6 | xargs -r rm -f
+
+            rm -rf "${APP_DIR}/react/current"
+            mkdir -p "${APP_DIR}/react/current"
+            tar -xzf "${APP_DIR}/build.tar.gz" -C "${APP_DIR}/react/current"
+
+            echo "[INFO] Docker compose rebuild..."
+            ${DOCKER_COMPOSE} down
+            ${DOCKER_COMPOSE} build {{ .docker_service }}
+            echo "[INFO] Starting {{ .docker_service }}..."
+            ${DOCKER_COMPOSE} up -d {{ .docker_service }}
+
+            echo "[INFO] Running containers:"
+            sudo docker ps --format "table {{`{{.Names}}`}}\t{{`{{.Image}}`}}\t{{`{{.Status}}`}}"
+
+            echo "[INFO] Tail {{ .docker_service }} logs (last 80 lines):"
+            CID=$(sudo docker ps -qf "name={{ .docker_service }}" | head -n1 || true)
+            if [ -n "${CID:-}" ]; then
+              sudo docker logs --tail=80 "${CID}" || true
+            else
+              echo "[WARN] {{ .docker_service }} container not found"
+            fi

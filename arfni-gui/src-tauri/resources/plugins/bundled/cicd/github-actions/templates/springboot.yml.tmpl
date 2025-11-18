@@ -1,0 +1,197 @@
+name: Build JAR & Deploy to EC2 (image rebuild on server)
+
+on:
+  push:
+    branches: ["{{ .BRANCH }}"]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "{{ .BRANCH }}"
+        required: true
+        default: "{{ .BRANCH }}"
+
+env:
+  JAVA_VERSION: "{{ .JAVA_VERSION }}"
+  JAVA_DIST: "{{ .JAVA_DIST }}"
+  DEPLOY_ROOT: "{{ .DEPLOY_ROOT }}"
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout source (push or manual)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ "{{" }} github.event_name == 'workflow_dispatch' && inputs.branch || github.ref_name {{ "}}" }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ "{{" }} env.JAVA_VERSION {{ "}}" }}
+          distribution: ${{ "{{" }} env.JAVA_DIST {{ "}}" }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build Spring Boot JAR
+        run: |
+          # Find build.gradle location
+          if [ -f "build.gradle" ] || [ -f "build.gradle.kts" ]; then
+            BUILD_DIR="."
+          elif [ -f "apps/spring-boot/build.gradle" ]; then
+            BUILD_DIR="apps/spring-boot"
+          else
+            echo "[ERROR] Could not find build.gradle"
+            exit 1
+          fi
+
+          echo "[INFO] Building in directory: ${BUILD_DIR}"
+
+          # Use gradlew if available, otherwise use system gradle with proper project dir
+          if [ -f "${BUILD_DIR}/gradlew" ]; then
+            echo "[INFO] Using Gradle wrapper"
+            cd "${BUILD_DIR}"
+            chmod +x ./gradlew
+            ./gradlew clean bootJar --no-daemon
+          else
+            echo "[INFO] Using system Gradle with project directory: ${BUILD_DIR}"
+            gradle clean bootJar --no-daemon -p "${BUILD_DIR}"
+          fi
+
+      - name: Prepare upload artifact
+        run: |
+          set -euo pipefail
+          # Find JAR file - check multiple possible locations
+          if ls build/libs/*.jar 1> /dev/null 2>&1; then
+            JAR_GLOB="build/libs/*.jar"
+            BUILD_OUTPUT_DIR="build/libs"
+          elif ls apps/spring-boot/build/libs/*.jar 1> /dev/null 2>&1; then
+            JAR_GLOB="apps/spring-boot/build/libs/*.jar"
+            BUILD_OUTPUT_DIR="apps/spring-boot/build/libs"
+          else
+            echo "[ERROR] No JAR file found"
+            exit 1
+          fi
+
+          # Use absolute upload directory in workspace root
+          UPLOAD_DIR="${GITHUB_WORKSPACE}/upload"
+          UPLOAD_NAME="app.new.jar"
+          JAR_PATH=$(ls -t ${JAR_GLOB} | head -n1)
+          echo "[INFO] Picked jar: ${JAR_PATH}"
+          echo "[INFO] Build output dir: ${BUILD_OUTPUT_DIR}"
+          mkdir -p "${UPLOAD_DIR}"
+          cp -f "${JAR_PATH}" "${UPLOAD_DIR}/${UPLOAD_NAME}"
+          ls -lh "${UPLOAD_DIR}/${UPLOAD_NAME}"
+
+      - name: Ensure target dirs exist on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ "{{" }} secrets.EC2_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.EC2_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.EC2_SSH_KEY {{ "}}" }}
+          script: |
+            set -euo pipefail
+            mkdir -p "${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}/apps/backups"
+
+      - name: Copy to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ "{{" }} secrets.EC2_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.EC2_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.EC2_SSH_KEY {{ "}}" }}
+          source: upload/app.new.jar
+          target: ${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}/apps
+          overwrite: true
+          strip_components: 1
+
+      - name: Prepare docker-compose.yml
+        run: |
+          # Create docker-compose.yml from checked out files or use a default
+          if [ -f "docker-compose.yml" ]; then
+            echo "[INFO] Using docker-compose.yml from repository"
+          else
+            echo "[WARN] docker-compose.yml not found in repository, will use existing on EC2"
+          fi
+
+      - name: Copy docker-compose.yml to EC2 if exists
+        if: hashFiles('docker-compose.yml') != ''
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ "{{" }} secrets.EC2_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.EC2_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.EC2_SSH_KEY {{ "}}" }}
+          source: docker-compose.yml
+          target: ${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}
+          overwrite: true
+
+      - name: Copy Dockerfile to EC2 if exists
+        if: hashFiles('Dockerfile') != ''
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ "{{" }} secrets.EC2_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.EC2_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.EC2_SSH_KEY {{ "}}" }}
+          source: Dockerfile
+          target: ${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}
+          overwrite: true
+
+      - name: Backup previous JAR, swap, and restart
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ "{{" }} secrets.EC2_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.EC2_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.EC2_SSH_KEY {{ "}}" }}
+          script: |
+            set -euo pipefail
+            cd "${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}"
+            APP_DIR="${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}/apps"
+            BACKUP_DIR="${{ "{{" }} env.DEPLOY_ROOT {{ "}}" }}/apps/backups"
+            UPLOAD_NAME="app.new.jar"
+            FINAL_NAME="app.jar"
+            DOCKER_COMPOSE="sudo docker compose"
+
+            if [ ! -s "${APP_DIR}/${UPLOAD_NAME}" ]; then
+              echo "[ERROR] ${APP_DIR}/${UPLOAD_NAME} not found or empty"; exit 1
+            fi
+
+            if [ -f "${APP_DIR}/${FINAL_NAME}" ]; then
+              TS=$(date +%Y%m%d-%H%M%S)
+              mv -f "${APP_DIR}/${FINAL_NAME}" "${BACKUP_DIR}/app-${TS}.jar"
+              echo "[INFO] Backed up to ${BACKUP_DIR}/app-${TS}.jar"
+            else
+              echo "[INFO] No previous ${FINAL_NAME} to backup."
+            fi
+
+            ls -1t "${BACKUP_DIR}"/app-*.jar 2>/dev/null | tail -n +6 | xargs -r rm -f || true
+
+            mv -f "${APP_DIR}/${UPLOAD_NAME}" "${APP_DIR}/${FINAL_NAME}"
+            ls -lh "${APP_DIR}/${FINAL_NAME}"
+
+            echo "[INFO] Docker compose rebuild..."
+            # Stop and remove ONLY the specific service container
+            echo "[INFO] Stopping {{ .DOCKER_SERVICE }} service..."
+            ${DOCKER_COMPOSE} stop {{ .DOCKER_SERVICE }} || true
+            ${DOCKER_COMPOSE} rm -f {{ .DOCKER_SERVICE }} || true
+
+            # Alternative: Use exact container name matching (safer)
+            # sudo docker ps -aq --filter "name=^{{ .DOCKER_SERVICE }}$" | xargs -r sudo docker rm -f || true
+
+            ${DOCKER_COMPOSE} build {{ .DOCKER_SERVICE }}
+            echo "[INFO] Starting {{ .DOCKER_SERVICE }}..."
+            ${DOCKER_COMPOSE} up -d {{ .DOCKER_SERVICE }}
+
+            echo "[INFO] Running containers:"
+            sudo docker ps --format "table {{ "{{" }}.Names{{ "}}" }}\t{{ "{{" }}.Image{{ "}}" }}\t{{ "{{" }}.Status{{ "}}" }}"
+
+            echo "[INFO] Tail {{ .DOCKER_SERVICE }} logs (last 80 lines):"
+            CID=$(sudo docker ps -qf "name={{ .DOCKER_SERVICE }}" | head -n1 || true)
+            if [ -n "${CID:-}" ]; then
+              sudo docker logs --tail=80 "${CID}" || true
+            else
+              echo "[WARN] {{ .DOCKER_SERVICE }} container not found"
+            fi

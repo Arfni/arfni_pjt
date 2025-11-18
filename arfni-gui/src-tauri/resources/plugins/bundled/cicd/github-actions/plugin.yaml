@@ -1,0 +1,181 @@
+apiVersion: v0.1
+name: github-actions
+displayName: GitHub Actions
+version: 1.0.0
+category: cicd
+description: Automated CI/CD with GitHub Actions for EC2 deployment
+author: arfni-community
+homepage: https://github.com/Arfni/arfni-plugins/tree/main/plugins/cicd/github-actions
+license: MIT
+icon: icon.png
+
+provides:
+  service_kinds:
+    - cicd.github-actions
+  frameworks: []
+
+requires:
+  arfni_version: ">=0.2.0"
+
+inputs:
+  repository_url:
+    description: "GitHub repository URL"
+    type: text
+    required: true
+    placeholder: "https://github.com/username/repo"
+
+  branch:
+    description: "Branch to deploy from"
+    type: text
+    default: "main"
+    required: true
+
+  framework:
+    description: "Application framework"
+    type: select
+    options:
+      - "springboot"
+      - "nodejs"
+      - "react"
+      - "nextjs"
+    required: true
+
+  java_version:
+    description: "Java version (for Spring Boot)"
+    type: select
+    options:
+      - "11"
+      - "17"
+      - "21"
+    default: "17"
+    required: false
+
+  node_version:
+    description: "Node.js version"
+    type: select
+    options:
+      - "16"
+      - "18"
+      - "20"
+    default: "20"
+    required: false
+
+
+  deploy_root:
+    description: "Deployment directory on EC2"
+    type: text
+    default: "/home/ubuntu/arfni-deploy"
+    required: true
+
+  docker_service:
+    description: "Docker service name"
+    type: text
+    required: true
+
+  ec2_host:
+    description: "EC2 host (will be set as GitHub secret)"
+    type: secret
+    required: true
+    env_var: EC2_HOST
+
+  ec2_user:
+    description: "EC2 SSH username"
+    type: text
+    default: "ubuntu"
+    required: true
+
+  ec2_ssh_key:
+    description: "EC2 SSH private key (will be set as GitHub secret)"
+    type: secret
+    required: true
+    env_var: EC2_SSH_KEY
+
+frameworks:
+  springboot:
+    display_name: "Spring Boot"
+    default_port: 8080
+    versions:
+      java: ["11", "17", "21"]
+    detection:
+      files:
+        - "build.gradle"
+        - "build.gradle.kts"
+        - "pom.xml"
+        - "apps/spring-boot/build.gradle"
+    workflow_template: "templates/springboot.yml.tmpl"
+    dockerfile_template: "templates/dockerfiles/springboot-dockerfile.tmpl"
+
+  react:
+    display_name: "React"
+    default_port: 3000
+    versions:
+      node: ["16", "18", "20"]
+    detection:
+      files: ["package.json"]
+      content:
+        package.json: ["\"react\""]
+    workflow_template: "templates/react.yml.tmpl"
+    dockerfile_template: "templates/dockerfiles/react-dockerfile.tmpl"
+
+  nodejs:
+    display_name: "Node.js"
+    default_port: 3000
+    versions:
+      node: ["16", "18", "20"]
+    detection:
+      files: ["package.json"]
+    workflow_template: "templates/nodejs.yml.tmpl"
+    dockerfile_template: "templates/dockerfiles/nodejs-dockerfile.tmpl"
+
+  nextjs:
+    display_name: "Next.js"
+    default_port: 3000
+    versions:
+      node: ["16", "18", "20"]
+    detection:
+      files: ["package.json"]
+      content:
+        package.json: ["\"next\""]
+    workflow_template: "templates/nextjs.yml.tmpl"
+    dockerfile_template: "templates/dockerfiles/nextjs-dockerfile.tmpl"
+
+
+templates:
+  - source: templates/springboot.yml.tmpl
+    target: ".github/workflows/deploy.yml"
+    description: "GitHub Actions workflow for Spring Boot"
+    condition: "{{ eq .framework \"springboot\" }}"
+    overwrite: true
+
+  - source: templates/nodejs.yml.tmpl
+    target: ".github/workflows/deploy.yml"
+    description: "GitHub Actions workflow for Node.js"
+    condition: "{{ eq .framework \"nodejs\" }}"
+    overwrite: true
+
+  - source: templates/react.yml.tmpl
+    target: ".github/workflows/deploy.yml"
+    description: "GitHub Actions workflow for React"
+    condition: "{{ eq .framework \"react\" }}"
+    overwrite: true
+
+  - source: templates/nextjs.yml.tmpl
+    target: ".github/workflows/deploy.yml"
+    description: "GitHub Actions workflow for Next.js"
+    condition: "{{ eq .framework \"nextjs\" }}"
+    overwrite: true
+
+
+documentation:
+  readme: README.md
+
+tags:
+  - cicd
+  - github-actions
+  - automation
+  - deployment
+  - ec2
+  - continuous-integration
+  - continuous-deployment
+
+changelog: CHANGELOG.md

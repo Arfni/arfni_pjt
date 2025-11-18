@@ -36,6 +36,21 @@ struct StackYaml {
     services: Option<HashMap<String, serde_json::Value>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceInfo {
+    pub name: String,
+    pub framework: String,
+    pub kind: String,
+    pub ports: Option<Vec<String>>,
+    pub build: Option<BuildInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuildInfo {
+    pub context: String,
+    pub dockerfile: Option<String>,
+}
+
 // 배포 프로세스 관리를 위한 전역 상태
 static DEPLOYMENT_RUNNING: AtomicBool = AtomicBool::new(false);
 
@@ -2407,7 +2422,7 @@ async fn trigger_github_workflow(
 /// stack.yaml을 docker-compose.yml로 변환 (Rust에서 직접 파싱)
 /// Returns: (docker-compose.yml content, Vec<(build_context, dockerfile_content)>)
 fn generate_docker_files_with_go_binary(
-    _app: &AppHandle,
+    app: &AppHandle,
     _temp_dir: &std::path::Path,
     stack_yaml_content: &str,
 ) -> Result<(String, Vec<(String, String)>), String> {
@@ -2529,9 +2544,30 @@ fn generate_docker_files_with_go_binary(
             println!("[Docker Generate] Creating Dockerfile for service '{}' at context '{}'",
                      service_name.as_str().unwrap_or("unknown"), build_context);
 
-            // 간단한 Spring Boot Dockerfile 생성
+            // 프레임워크 감지 및 적절한 Dockerfile 생성
             // GitHub Actions 배포의 경우 런타임 전용 Dockerfile 사용
-            let dockerfile_content = generate_springboot_runtime_dockerfile(&source);
+            let dockerfile_content = {
+                // 서비스 이름이나 이미지 이름으로 프레임워크 감지
+                let service_name_str = service_name.as_str().unwrap_or("");
+
+                // 이미지 필드 확인
+                let is_react = if let Some(image) = source.get("image").and_then(|i| i.as_str()) {
+                    image.contains("nginx") || image.contains("react") || image.contains("node")
+                } else {
+                    // 서비스 이름으로 판단
+                    service_name_str.contains("react") ||
+                    service_name_str.contains("frontend") ||
+                    service_name_str.contains("web")
+                };
+
+                if is_react {
+                    println!("[Docker Generate] Detected React/Frontend service");
+                    generate_react_runtime_dockerfile(app, &source)
+                } else {
+                    println!("[Docker Generate] Detected Spring Boot/Backend service");
+                    generate_springboot_runtime_dockerfile(app, &source)
+                }
+            };
 
             dockerfiles.push((build_context, dockerfile_content));
             println!("[Docker Generate] ✅ Dockerfile generated for '{}'", service_name.as_str().unwrap_or("unknown"));
@@ -2615,9 +2651,70 @@ pub fn generate_docker_files_with_go_binary_public(
     generate_docker_files_with_go_binary(app, temp_dir, stack_yaml_content)
 }
 
+/// Generate a React runtime Dockerfile for GitHub Actions deployment
+/// This Dockerfile is for EC2 and only serves pre-built static files
+fn generate_react_runtime_dockerfile(app: &AppHandle, source: &serde_yaml::Mapping) -> String {
+    // Extract port from either 'port' field or 'ports' array
+    let port = if let Some(port_value) = source.get("port") {
+        // Direct port field
+        port_value.as_u64().unwrap_or(3000)
+    } else if let Some(ports_array) = source.get("ports").and_then(|v| v.as_sequence()) {
+        // ports array like ['3000:3000']
+        if let Some(first_port) = ports_array.first() {
+            if let Some(port_str) = first_port.as_str() {
+                // Parse '3000:3000' -> extract first number
+                port_str.split(':')
+                    .next()
+                    .and_then(|s| s.trim().parse::<u64>().ok())
+                    .unwrap_or(3000)
+            } else {
+                3000
+            }
+        } else {
+            3000
+        }
+    } else {
+        3000
+    };
+
+    // Load template from plugin
+    let plugin_path = "cicd/github-actions";
+    let template_relative_path = "templates/react-runtime-dockerfile.tmpl";
+
+    // Get the full path based on environment
+    let full_path = if cfg!(debug_assertions) {
+        // Development mode: use resources from src-tauri/resources
+        let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        manifest_dir.join("resources").join("plugins").join("bundled").join(plugin_path).join(&template_relative_path)
+    } else {
+        // Production mode: use resource_dir
+        match app.path().resource_dir() {
+            Ok(dir) => dir.join("resources").join("plugins").join("bundled").join(plugin_path).join(&template_relative_path),
+            Err(e) => {
+                eprintln!("[Dockerfile] Failed to get resource dir: {}, using fallback template", e);
+                // Fallback to basic template if can't load from file
+                return format!("FROM nginx:alpine\nCOPY build /usr/share/nginx/html\nEXPOSE {}\nCMD [\"nginx\", \"-g\", \"daemon off;\"]", port);
+            }
+        }
+    };
+
+    // Read template from file
+    let template_content = match std::fs::read_to_string(&full_path) {
+        Ok(content) => content,
+        Err(e) => {
+            eprintln!("[Dockerfile] Failed to read React template from {}: {}, using fallback", full_path.display(), e);
+            // Fallback template
+            format!("FROM nginx:alpine\nCOPY build /usr/share/nginx/html\nEXPOSE {}\nCMD [\"nginx\", \"-g\", \"daemon off;\"]", port)
+        }
+    };
+
+    // Replace template variables
+    template_content.replace("{{ .PORT }}", &port.to_string())
+}
+
 /// Generate a Spring Boot runtime Dockerfile for GitHub Actions deployment
 /// This Dockerfile is for EC2 and only runs pre-built JAR files
-fn generate_springboot_runtime_dockerfile(source: &serde_yaml::Mapping) -> String {
+fn generate_springboot_runtime_dockerfile(app: &AppHandle, source: &serde_yaml::Mapping) -> String {
     let java_version = source.get("java_version")
         .or_else(|| source.get("javaVersion"))
         .and_then(|v| v.as_str())
@@ -2655,27 +2752,45 @@ fn generate_springboot_runtime_dockerfile(source: &serde_yaml::Mapping) -> Strin
         .and_then(|v| v.as_str())
         .unwrap_or("-Xmx512m -Xms256m");
 
-    // Runtime-only Dockerfile for pre-built JAR
-    // This assumes:
-    // - Dockerfile is in DEPLOY_ROOT/
-    // - JAR file is in DEPLOY_ROOT/apps/app.jar
-    // - docker-compose.yml build context is "."
-    format!(r#"# Runtime Dockerfile for GitHub Actions deployment
-FROM eclipse-temurin:{}-jre-jammy
+    // Load template from plugin
+    let plugin_path = "cicd/github-actions";
+    let template_relative_path = "templates/runtime-dockerfile.tmpl";
 
-WORKDIR /app
+    // Get the full path based on environment
+    let full_path = if cfg!(debug_assertions) {
+        // Development mode: use resources from src-tauri/resources
+        let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        manifest_dir.join("resources").join("plugins").join("bundled").join(plugin_path).join(&template_relative_path)
+    } else {
+        // Production mode: use resource_dir
+        match app.path().resource_dir() {
+            Ok(dir) => dir.join("resources").join("plugins").join("bundled").join(plugin_path).join(&template_relative_path),
+            Err(e) => {
+                eprintln!("[Dockerfile] Failed to get resource dir: {}, using fallback template", e);
+                // Fallback to basic template if can't load from file
+                return format!("FROM eclipse-temurin:{}-jre-jammy\nWORKDIR /app\nCOPY apps/app.jar /app/app.jar\nENV SPRING_PROFILES_ACTIVE={}\nENV JVM_OPTS=\"{}\"\nEXPOSE {}\nENTRYPOINT [\"sh\", \"-c\", \"java $JVM_OPTS -jar /app/app.jar\"]",
+                    java_version, profile, jvm_opts, port);
+            }
+        }
+    };
 
-# Copy the pre-built JAR file (uploaded by GitHub Actions)
-# Path is relative to build context (DEPLOY_ROOT)
-COPY apps/app.jar /app/app.jar
+    // Read template from file
+    let template_content = match std::fs::read_to_string(&full_path) {
+        Ok(content) => content,
+        Err(e) => {
+            eprintln!("[Dockerfile] Failed to read Spring Boot template from {}: {}, using fallback", full_path.display(), e);
+            // Fallback template
+            format!("FROM eclipse-temurin:{}-jre-jammy\nWORKDIR /app\nCOPY apps/app.jar /app/app.jar\nENV SPRING_PROFILES_ACTIVE={}\nENV JVM_OPTS=\"{}\"\nEXPOSE {}\nENTRYPOINT [\"sh\", \"-c\", \"java $JVM_OPTS -jar /app/app.jar\"]",
+                java_version, profile, jvm_opts, port)
+        }
+    };
 
-ENV SPRING_PROFILES_ACTIVE={}
-ENV JVM_OPTS="{}"
-
-EXPOSE {}
-
-ENTRYPOINT ["sh", "-c", "java $JVM_OPTS -jar /app/app.jar"]
-"#, java_version, profile, jvm_opts, port)
+    // Replace template variables with actual values from stack.yaml
+    template_content
+        .replace("{{ .JAVA_VERSION }}", java_version)
+        .replace("{{ .PROFILE }}", profile)
+        .replace("{{ .JVM_OPTS }}", jvm_opts)
+        .replace("{{ .PORT }}", &port.to_string())
 }
 
 /// Generate a Spring Boot Dockerfile from service configuration
@@ -2767,4 +2882,146 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
 # Run the application
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
 "#, java_version, java_version, port, profile, jvm_opts, port)
+}
+
+/// Get services from project's stack.yaml
+#[tauri::command]
+pub async fn get_project_services(
+    db: State<'_, Database>,
+    project_id: String,
+) -> Result<Vec<ServiceInfo>, String> {
+    // Get project from database
+    let conn = db.get_conn();
+    let conn = conn.lock().unwrap();
+
+    let project_path: String = conn.query_row(
+        "SELECT path FROM projects WHERE id = ?1",
+        rusqlite::params![&project_id],
+        |row| row.get(0)
+    ).map_err(|e| format!("Failed to get project: {}", e))?;
+
+    drop(conn); // Release the lock early
+
+    // Read stack.yaml
+    let stack_path = Path::new(&project_path).join("stack.yaml");
+    if !stack_path.exists() {
+        return Err(format!("stack.yaml not found in project path"));
+    }
+
+    let stack_content = std::fs::read_to_string(&stack_path)
+        .map_err(|e| format!("Failed to read stack.yaml: {}", e))?;
+
+    // Parse stack.yaml
+    let stack: serde_yaml::Value = serde_yaml::from_str(&stack_content)
+        .map_err(|e| format!("Failed to parse stack.yaml: {}", e))?;
+
+    let mut services = Vec::new();
+
+    // Extract services
+    if let Some(services_map) = stack.get("services").and_then(|s| s.as_mapping()) {
+        for (name, service_def) in services_map {
+            let service_name = name.as_str().unwrap_or("unknown").to_string();
+
+            // Extract service details
+            let kind = service_def.get("kind")
+                .and_then(|k| k.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            // Detect framework from kind or other fields
+            let framework = detect_service_framework(&kind, service_def);
+
+            // Extract ports
+            let ports = if let Some(spec) = service_def.get("spec") {
+                spec.get("ports")
+                    .and_then(|p| p.as_sequence())
+                    .map(|ports_array| {
+                        ports_array.iter()
+                            .filter_map(|p| p.as_str().map(String::from))
+                            .collect()
+                    })
+            } else {
+                None
+            };
+
+            // Extract build info
+            let build = if let Some(spec) = service_def.get("spec") {
+                spec.get("build").map(|b| {
+                    BuildInfo {
+                        context: b.get("context")
+                            .and_then(|c| c.as_str())
+                            .unwrap_or(".")
+                            .to_string(),
+                        dockerfile: b.get("dockerfile")
+                            .and_then(|d| d.as_str())
+                            .map(String::from),
+                    }
+                })
+            } else {
+                None
+            };
+
+            services.push(ServiceInfo {
+                name: service_name,
+                framework,
+                kind,
+                ports,
+                build,
+            });
+        }
+    }
+
+    Ok(services)
+}
+
+fn detect_service_framework(kind: &str, service_def: &serde_yaml::Value) -> String {
+    // Check kind first
+    if kind.starts_with("app.") {
+        let framework = &kind[4..];
+        return match framework {
+            "spring" => "springboot".to_string(),
+            "react" => "react".to_string(),
+            "nodejs" => "nodejs".to_string(),
+            "nextjs" => "nextjs".to_string(),
+            "python" => "python".to_string(),
+            _ => framework.to_string(),
+        };
+    }
+
+    if kind.starts_with("database.") {
+        return kind[9..].to_string();
+    }
+
+    if kind.starts_with("cache.") {
+        return kind[6..].to_string();
+    }
+
+    // Check image field
+    if let Some(spec) = service_def.get("spec") {
+        if let Some(image) = spec.get("image").and_then(|i| i.as_str()) {
+            if image.contains("spring") || image.contains("java") {
+                return "springboot".to_string();
+            }
+            if image.contains("node") {
+                return "nodejs".to_string();
+            }
+            if image.contains("nginx") || image.contains("react") {
+                return "react".to_string();
+            }
+            if image.contains("python") {
+                return "python".to_string();
+            }
+            if image.contains("postgres") {
+                return "postgres".to_string();
+            }
+            if image.contains("mysql") {
+                return "mysql".to_string();
+            }
+            if image.contains("redis") {
+                return "redis".to_string();
+            }
+        }
+    }
+
+    "unknown".to_string()
 }

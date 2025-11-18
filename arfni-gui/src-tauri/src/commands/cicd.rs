@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use std::process::Command;
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Repository {
@@ -356,28 +355,57 @@ pub async fn setup_cicd(
 
 /// Load Dockerfile template from bundled resources
 fn load_dockerfile_template(app: &AppHandle, framework: &str) -> Result<String, String> {
-    let template_name = match framework {
-        "springboot" => "runtime-dockerfile.tmpl",
-        "nodejs" => "nodejs-dockerfile.tmpl",
-        "react" => "react-dockerfile.tmpl",
-        "nextjs" => "nextjs-dockerfile.tmpl",
-        "python" | "fastapi" | "flask" => "python-dockerfile.tmpl",
+    // Validate framework
+    match framework {
+        "springboot" | "nodejs" | "react" | "nextjs" => {},
         _ => return Err(format!("Unsupported framework: {}", framework)),
+    }
+
+    // Use consistent naming: {framework}-dockerfile.tmpl
+    let template_name = format!("{}-dockerfile.tmpl", framework);
+
+    // Use plugin path resolution
+    let plugin_path = "cicd/github-actions";
+    let template_relative_path = format!("templates/dockerfiles/{}", template_name);
+
+    println!("[Dockerfile Template] Loading from plugin: {}/{}", plugin_path, template_relative_path);
+
+    // Get the full path based on environment
+    let full_path = if cfg!(debug_assertions) {
+        // Development mode: use resources from src-tauri/resources
+        let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        manifest_dir.join("resources").join("plugins").join("bundled").join(plugin_path).join(&template_relative_path)
+    } else {
+        // Production mode: use resource_dir
+        app.path()
+            .resource_dir()
+            .map_err(|e| format!("Failed to get resource dir: {}", e))?
+            .join("resources").join("plugins").join("bundled").join(plugin_path).join(&template_relative_path)
     };
 
-    // Single source of truth for all Dockerfile templates
-    let template_path = PathBuf::from("C:\\Users\\SSAFY\\Desktop\\github-actions\\templates")
-        .join(template_name);
+    println!("[Dockerfile Template] Full path: {:?}", full_path);
 
-    println!("[Dockerfile Template] Loading from single source: {:?}", template_path);
-
-    std::fs::read_to_string(&template_path)
-        .map_err(|e| format!("Failed to read Dockerfile template from single source {}: {}",
-                             template_path.display(), e))
+    std::fs::read_to_string(&full_path)
+        .map_err(|e| format!("Failed to read Dockerfile template from plugin {}: {}",
+                             full_path.display(), e))
 }
 
 /// Generate docker-compose.yml content
 fn generate_docker_compose(config: &CICDConfiguration) -> Result<String, String> {
+    // Determine port based on framework
+    let port = match config.framework.as_str() {
+        "springboot" => "8080",
+        "react" | "nodejs" | "nextjs" => "3000",
+        _ => "8080", // default
+    };
+
+    // Generate environment variables based on framework
+    let environment = match config.framework.as_str() {
+        "springboot" => format!("    environment:\n      - SPRING_PROFILES_ACTIVE=production"),
+        "nodejs" | "nextjs" => format!("    environment:\n      - NODE_ENV=production"),
+        _ => String::new(),
+    };
+
     let compose_content = format!(r#"version: '3.8'
 
 services:
@@ -388,21 +416,20 @@ services:
     container_name: {}
     restart: unless-stopped
     ports:
-      - "8080:8080"
-    environment:
-      - SPRING_PROFILES_ACTIVE=production
+      - "{}:{}"
+{}
     networks:
       - app-network
 
 networks:
   app-network:
     driver: bridge
-"#, config.docker_service, config.docker_service);
+"#, config.docker_service, config.docker_service, port, port, environment);
 
     Ok(compose_content)
 }
 
-/// Load template from single source directory
+/// Load workflow template from plugin directory
 fn load_template(app: &AppHandle, framework: &str) -> Result<String, String> {
     let template_name = match framework {
         "springboot" => "springboot.yml.tmpl",
@@ -413,15 +440,30 @@ fn load_template(app: &AppHandle, framework: &str) -> Result<String, String> {
         _ => return Err(format!("Unsupported framework: {}", framework)),
     };
 
-    // Single source of truth for all CI/CD templates
-    let template_path = PathBuf::from("C:\\Users\\SSAFY\\Desktop\\github-actions\\templates")
-        .join(template_name);
+    // Use plugin path resolution
+    let plugin_path = "cicd/github-actions";
+    let template_relative_path = format!("templates/{}", template_name);
 
-    println!("[Template] Loading from single source: {:?}", template_path);
+    println!("[Template] Loading from plugin: {}/{}", plugin_path, template_relative_path);
 
-    std::fs::read_to_string(&template_path)
-        .map_err(|e| format!("Failed to read template from single source {}: {}",
-                             template_path.display(), e))
+    // Get the full path based on environment
+    let full_path = if cfg!(debug_assertions) {
+        // Development mode: use resources from src-tauri/resources
+        let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        manifest_dir.join("resources").join("plugins").join("bundled").join(plugin_path).join(&template_relative_path)
+    } else {
+        // Production mode: use resource_dir
+        app.path()
+            .resource_dir()
+            .map_err(|e| format!("Failed to get resource dir: {}", e))?
+            .join("resources").join("plugins").join("bundled").join(plugin_path).join(&template_relative_path)
+    };
+
+    println!("[Template] Full path: {:?}", full_path);
+
+    std::fs::read_to_string(&full_path)
+        .map_err(|e| format!("Failed to read template from plugin {}: {}",
+                             full_path.display(), e))
 }
 
 /// Render template with configuration values
@@ -464,11 +506,6 @@ fn render_template(template: &str, config: &CICDConfiguration) -> Result<String,
             let node_version = config.node_version.as_deref().unwrap_or("20");
             rendered = rendered.replace("{{ .NODE_VERSION }}", node_version);
             rendered = rendered.replace("{{ .node_version }}", node_version);
-        }
-        "python" | "fastapi" | "flask" => {
-            let python_version = config.python_version.as_deref().unwrap_or("3.11");
-            rendered = rendered.replace("{{ .PYTHON_VERSION }}", python_version);
-            rendered = rendered.replace("{{ .python_version }}", python_version);
         }
         _ => {}
     }

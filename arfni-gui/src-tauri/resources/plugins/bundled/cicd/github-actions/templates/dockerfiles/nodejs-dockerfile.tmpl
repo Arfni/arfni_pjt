@@ -1,0 +1,20 @@
+# Runtime-only Dockerfile for Node.js (GitHub Actions deployment)
+# This Dockerfile assumes the app is already built by GitHub Actions
+FROM node:{{ .NODE_VERSION }}-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --only=production
+
+# Copy application files
+COPY . .
+
+# Expose port
+EXPOSE {{ .PORT }}
+
+# Start the application
+CMD ["node", "index.js"]

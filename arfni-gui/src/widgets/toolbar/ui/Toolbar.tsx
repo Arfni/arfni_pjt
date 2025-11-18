@@ -40,6 +40,7 @@ import { ExportDialog } from './dialogs/ExportDialog';
 import { ExportSuccessNotification } from './dialogs/ExportSuccessNotification';
 import { AIDialog } from './dialogs/AIDialog';
 import DeploymentProgressModal from '../../../components/DeploymentProgressModal';
+import { DeploymentServiceModal } from '@pages/projects/ui/DeploymentServiceModal';
 
 export function Toolbar() {
   const navigate = useNavigate();
@@ -62,6 +63,7 @@ export function Toolbar() {
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [showMonitoringHelp, setShowMonitoringHelp] = useState(false);
   const [showDeploymentProgress, setShowDeploymentProgress] = useState(false);
+  const [showServiceSelectionModal, setShowServiceSelectionModal] = useState(false);
 
   const isEC2Project = currentProject?.environment === 'ec2';
   const ec2TargetNode = isEC2Project && targetNodes.length > 0 ? targetNodes[0] : null;
@@ -300,17 +302,15 @@ export function Toolbar() {
 
       // GitHub 프로젝트와 로컬 프로젝트를 구분하여 처리
       if (currentProject.github_repo_url && currentProject.environment === 'ec2') {
-        // GitHub 프로젝트는 deployGitHubActions 직접 호출 (Go 바이너리 호출 없음)
-        console.log('[Deploy] Using deployGitHubActions for GitHub project');
+        // GitHub 프로젝트는 서비스 선택 모달 표시
+        console.log('[Deploy] Showing service selection modal for GitHub project');
 
-        // Show deployment progress modal for GitHub projects
-        setShowDeploymentProgress(true);
+        // Stop loading and show service selection modal
+        setIsDeploying(false);
+        setShowServiceSelectionModal(true);
 
-        // 새로운 GitHub Actions 전용 함수 사용
-        result = await deploymentCommands.deployGitHubActions(currentProject.id);
-
-        // Modal will automatically close when deployment is complete
-        // No need to navigate away for GitHub projects
+        // Actual deployment will be handled by handleDeployServices
+        return;
       } else {
         // 로컬 프로젝트는 기존 deploy_stack 사용
         console.log('[Deploy] Using deployStack for local project');
@@ -327,6 +327,28 @@ export function Toolbar() {
       setIsDeploying(false);
     }
   }, [currentProject, isDirty, nodes, edges, dispatch, navigate]);
+
+  const handleDeployServices = useCallback(async (selectedServices: string[]) => {
+    if (!currentProject) return;
+
+    console.log('[Deploy] Deploying selected services:', selectedServices);
+    setShowServiceSelectionModal(false);
+    setShowDeploymentProgress(true);
+
+    try {
+      // Call deployGitHubActions with selected services
+      // For now, we'll deploy all services since backend doesn't support selective deployment yet
+      const result = await deploymentCommands.deployGitHubActions(currentProject.id);
+
+      // TODO: Once backend supports selective deployment:
+      // const result = await deploymentCommands.deploySelectedServices(currentProject.id, selectedServices);
+
+      console.log('[Deploy] Deployment result:', result);
+    } catch (error) {
+      alert(`배포 실패: ${error}`);
+      setShowDeploymentProgress(false);
+    }
+  }, [currentProject]);
 
   const handleStopDeployment = useCallback(async () => {
     try {
@@ -614,6 +636,15 @@ export function Toolbar() {
         }}
         projectName={currentProject?.name || 'Project'}
       />
+
+      {currentProject && (
+        <DeploymentServiceModal
+          open={showServiceSelectionModal}
+          onClose={() => setShowServiceSelectionModal(false)}
+          projectId={currentProject.id}
+          onDeploy={handleDeployServices}
+        />
+      )}
     </>
   );
 }
