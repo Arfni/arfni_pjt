@@ -4,7 +4,7 @@ use tauri::command;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
 use std::collections::HashMap;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrometheusMetric {
@@ -282,6 +282,7 @@ pub async fn get_all_metrics(
 /// 프로젝트의 모니터링 설정 가져오기
 #[command]
 pub async fn get_monitoring_config(
+    app: AppHandle,
     project_path: String,
 ) -> Result<MonitoringConfig, String> {
     // project_path는 디렉토리이므로 stack.yaml 경로를 구성
@@ -324,7 +325,7 @@ pub async fn get_monitoring_config(
     let grafana_url = format!("http://localhost:{}", grafana_port);
 
     // Grafana 대시보드 UID 읽기
-    let dashboard_uid = read_dashboard_uid();
+    let dashboard_uid = read_dashboard_uid(&app);
 
     Ok(MonitoringConfig {
         mode,
@@ -337,25 +338,38 @@ pub async fn get_monitoring_config(
 }
 
 /// Grafana 대시보드 JSON 파일에서 UID 읽기
-fn read_dashboard_uid() -> Option<String> {
-    use tauri::Manager;
+fn read_dashboard_uid(app: &AppHandle) -> Option<String> {
+    use tauri::path::BaseDirectory;
 
     // 리소스 경로에서 node-exporter-full.json 읽기
     let resource_path = "resources/plugins/bundled/monitoring/grafana/provisioning/dashboards/node-exporter-full.json";
 
+    // 1. 프로덕션 경로 시도 (번들된 리소스)
+    if let Ok(resolved_path) = app.path().resolve(resource_path, BaseDirectory::Resource) {
+        if let Ok(content) = std::fs::read_to_string(&resolved_path) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(uid) = json.get("uid").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+                    eprintln!("Dashboard UID loaded from production path: {}", uid);
+                    return Some(uid);
+                }
+            }
+        }
+    }
+
+    // 2. 개발 경로로 fallback
     match std::fs::read_to_string(resource_path) {
         Ok(content) => {
-            // JSON 파싱해서 uid 추출
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                json.get("uid")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            } else {
-                None
+                if let Some(uid) = json.get("uid").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+                    eprintln!("Dashboard UID loaded from dev path: {}", uid);
+                    return Some(uid);
+                }
             }
+            eprintln!("Failed to parse dashboard JSON from dev path");
+            None
         },
         Err(e) => {
-            eprintln!("Failed to read dashboard JSON: {}", e);
+            eprintln!("Failed to read dashboard JSON from both production and dev paths: {}", e);
             None
         }
     }
