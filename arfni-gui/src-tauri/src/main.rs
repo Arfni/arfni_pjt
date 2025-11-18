@@ -116,7 +116,7 @@ fn main() {
       commands::project::open_project_by_path,
       commands::project::save_stack_yaml,
       commands::project::read_stack_yaml,
-      // commands::project::read_file_content,  // Temporarily disabled - GitHub feature unstable
+      commands::project::read_file_content,
       commands::project::load_canvas_state,
       commands::project::get_all_projects,
       commands::project::get_projects_by_environment,
@@ -146,6 +146,7 @@ fn main() {
       commands::deployment::test_ssh_connection,
       commands::deployment::start_monitoring,
       commands::deployment::smart_deploy,
+      commands::deployment::deploy_github_actions,
 
       // 파일 감시 명령어
       commands::file_watcher::watch_stack_yaml,
@@ -183,6 +184,7 @@ fn main() {
       commands::system::open_downloads_folder,
       commands::system::open_folder_in_explorer,
       commands::system::path_exists,
+      commands::system::get_temp_dir,
 
       //api_key
       commands::keys::add_api_key,

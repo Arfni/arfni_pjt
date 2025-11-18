@@ -105,8 +105,8 @@ export function CreateProjectModal({
               </div>
             )}
 
-            {/* Project Source Selection (only for EC2) - GitHub option temporarily disabled */}
-            {/* {isEC2Project && (
+            {/* Project Source Selection (only for EC2) */}
+            {isEC2Project && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Project Source
@@ -138,7 +138,7 @@ export function CreateProjectModal({
                   </button>
                 </div>
               </div>
-            )} */}
+            )}
 
             {/* Local folder selection */}
             {(!isEC2Project || projectSource === 'local') && (

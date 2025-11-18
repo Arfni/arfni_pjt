@@ -74,3 +74,11 @@ pub async fn open_folder_in_explorer(path: String) -> Result<(), String> {
 pub fn path_exists(path: String) -> bool {
     Path::new(&path).exists()
 }
+
+#[command]
+pub fn get_temp_dir() -> Result<String, String> {
+    std::env::temp_dir()
+        .to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "임시 디렉토리 경로를 가져올 수 없습니다".to_string())
+}

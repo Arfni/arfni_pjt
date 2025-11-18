@@ -114,12 +114,16 @@ pub async fn setup_cicd(
 ) -> Result<String, String> {
     println!("[CI/CD] Starting CI/CD setup for {}", config.repository_url);
 
-    // 1. Create temp directory for git operations
+    // 1. Generate temp directory path (but don't create it yet - git clone will create it)
     let temp_dir = std::env::temp_dir().join(format!("arfni-cicd-{}", uuid::Uuid::new_v4()));
-    std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| format!("Failed to create temp dir: {}", e))?;
 
-    println!("[CI/CD] Created temp directory: {:?}", temp_dir);
+    // Make sure the directory doesn't exist (clean up if it does)
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir)
+            .map_err(|e| format!("Failed to remove existing temp dir: {}", e))?;
+    }
+
+    println!("[CI/CD] Will clone to temp directory: {:?}", temp_dir);
 
     // 2. Clone repository (shallow clone for speed)
     let clone_url = if config.repository_url.starts_with("https://github.com/") {
@@ -128,7 +132,9 @@ pub async fn setup_cicd(
         format!("https://{}@{}", access_token, config.repository_url.trim_start_matches("https://"))
     };
 
-    println!("[CI/CD] Cloning repository...");
+    println!("[CI/CD] Cloning repository from: {}", config.repository_url);
+    println!("[CI/CD] Branch: {}", config.branch);
+
     let clone_output = Command::new("git")
         .args(&[
             "clone",
@@ -144,6 +150,9 @@ pub async fn setup_cicd(
 
     if !clone_output.status.success() {
         let error_msg = String::from_utf8_lossy(&clone_output.stderr);
+        let stdout_msg = String::from_utf8_lossy(&clone_output.stdout);
+        println!("[CI/CD] Clone stderr: {}", error_msg);
+        println!("[CI/CD] Clone stdout: {}", stdout_msg);
         return Err(format!("Git clone failed: {}", error_msg));
     }
 
@@ -156,16 +165,57 @@ pub async fn setup_cicd(
     let rendered = render_template(&template_content, &config)?;
     println!("[CI/CD] Template rendered successfully");
 
-    // 4. Write workflow file
+    // 4. Write workflow file (force overwrite)
     let workflow_dir = temp_dir.join(".github").join("workflows");
     std::fs::create_dir_all(&workflow_dir)
         .map_err(|e| format!("Failed to create workflow dir: {}", e))?;
 
     let workflow_path = workflow_dir.join("deploy.yml");
+
+    // Remove existing workflow file if it exists to force regeneration
+    if workflow_path.exists() {
+        std::fs::remove_file(&workflow_path)
+            .map_err(|e| format!("Failed to remove old workflow file: {}", e))?;
+        println!("[CI/CD] Removed existing workflow file for regeneration");
+    }
+
     std::fs::write(&workflow_path, rendered)
         .map_err(|e| format!("Failed to write workflow file: {}", e))?;
 
     println!("[CI/CD] Workflow file written to {:?}", workflow_path);
+
+    // 5. Generate and write Dockerfile (force overwrite)
+    let dockerfile_content = load_dockerfile_template(&app, &config.framework)?;
+    let rendered_dockerfile = render_template(&dockerfile_content, &config)?;
+    let dockerfile_path = temp_dir.join("Dockerfile");
+
+    // Remove existing Dockerfile if it exists
+    if dockerfile_path.exists() {
+        std::fs::remove_file(&dockerfile_path)
+            .map_err(|e| format!("Failed to remove old Dockerfile: {}", e))?;
+        println!("[CI/CD] Removed existing Dockerfile for regeneration");
+    }
+
+    std::fs::write(&dockerfile_path, rendered_dockerfile)
+        .map_err(|e| format!("Failed to write Dockerfile: {}", e))?;
+
+    println!("[CI/CD] Dockerfile written to {:?}", dockerfile_path);
+
+    // 6. Generate and write docker-compose.yml (force overwrite)
+    let docker_compose_content = generate_docker_compose(&config)?;
+    let docker_compose_path = temp_dir.join("docker-compose.yml");
+
+    // Remove existing docker-compose.yml if it exists
+    if docker_compose_path.exists() {
+        std::fs::remove_file(&docker_compose_path)
+            .map_err(|e| format!("Failed to remove old docker-compose.yml: {}", e))?;
+        println!("[CI/CD] Removed existing docker-compose.yml for regeneration");
+    }
+
+    std::fs::write(&docker_compose_path, docker_compose_content)
+        .map_err(|e| format!("Failed to write docker-compose.yml: {}", e))?;
+
+    println!("[CI/CD] docker-compose.yml written to {:?}", docker_compose_path);
 
     // 5. Configure git user (required for commit)
     Command::new("git")
@@ -190,19 +240,37 @@ pub async fn setup_cicd(
     let status_output_str = String::from_utf8_lossy(&status_output.stdout);
     println!("[CI/CD] Git status:\n{}", status_output_str);
 
-    // 7. Stage the workflow file
+    // 7. Stage all CI/CD files (workflow, Dockerfile, docker-compose.yml)
+    // Use -f flag to force add even if .gitignore would normally ignore them
     let add_output = Command::new("git")
         .current_dir(&temp_dir)
-        .args(&["add", ".github/workflows/deploy.yml"])
+        .args(&["add", "-f", ".github/workflows/deploy.yml", "Dockerfile", "docker-compose.yml"])
         .output()
         .map_err(|e| format!("Git add failed: {}", e))?;
 
     if !add_output.status.success() {
         let error_msg = String::from_utf8_lossy(&add_output.stderr);
-        return Err(format!("Failed to stage workflow file: {}", error_msg));
+        return Err(format!("Failed to stage CI/CD files: {}", error_msg));
     }
 
-    println!("[CI/CD] Workflow file staged");
+    println!("[CI/CD] All CI/CD files staged (workflow, Dockerfile, docker-compose.yml)");
+
+    // Check if there are actually any changes to commit
+    let diff_output = Command::new("git")
+        .current_dir(&temp_dir)
+        .args(&["diff", "--cached", "--name-only"])
+        .output()
+        .map_err(|e| format!("Git diff failed: {}", e))?;
+
+    let staged_files = String::from_utf8_lossy(&diff_output.stdout);
+    println!("[CI/CD] Staged files:\n{}", staged_files);
+
+    if staged_files.trim().is_empty() {
+        println!("[CI/CD] ⚠️ No changes detected in CI/CD files, they are already up to date");
+        // Still return success, but skip commit and push
+        std::fs::remove_dir_all(&temp_dir).ok();
+        return Ok("CI/CD files are already up to date".to_string());
+    }
 
     // 8. Commit (skip if no changes)
     let commit_msg = format!(
@@ -286,7 +354,55 @@ pub async fn setup_cicd(
     Ok(format!("CI/CD setup completed successfully for {}", config.repository_url))
 }
 
-/// Load template from bundled resources
+/// Load Dockerfile template from bundled resources
+fn load_dockerfile_template(app: &AppHandle, framework: &str) -> Result<String, String> {
+    let template_name = match framework {
+        "springboot" => "runtime-dockerfile.tmpl",
+        "nodejs" => "nodejs-dockerfile.tmpl",
+        "react" => "react-dockerfile.tmpl",
+        "nextjs" => "nextjs-dockerfile.tmpl",
+        "python" | "fastapi" | "flask" => "python-dockerfile.tmpl",
+        _ => return Err(format!("Unsupported framework: {}", framework)),
+    };
+
+    // Single source of truth for all Dockerfile templates
+    let template_path = PathBuf::from("C:\\Users\\SSAFY\\Desktop\\github-actions\\templates")
+        .join(template_name);
+
+    println!("[Dockerfile Template] Loading from single source: {:?}", template_path);
+
+    std::fs::read_to_string(&template_path)
+        .map_err(|e| format!("Failed to read Dockerfile template from single source {}: {}",
+                             template_path.display(), e))
+}
+
+/// Generate docker-compose.yml content
+fn generate_docker_compose(config: &CICDConfiguration) -> Result<String, String> {
+    let compose_content = format!(r#"version: '3.8'
+
+services:
+  {}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {}
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=production
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+"#, config.docker_service, config.docker_service);
+
+    Ok(compose_content)
+}
+
+/// Load template from single source directory
 fn load_template(app: &AppHandle, framework: &str) -> Result<String, String> {
     let template_name = match framework {
         "springboot" => "springboot.yml.tmpl",
@@ -297,58 +413,61 @@ fn load_template(app: &AppHandle, framework: &str) -> Result<String, String> {
         _ => return Err(format!("Unsupported framework: {}", framework)),
     };
 
-    // Try to load from resource directory
-    let resource_path = app
-        .path()
-        .resource_dir()
-        .map_err(|e| format!("Failed to get resource dir: {}", e))?
-        .join("plugins")
-        .join("bundled")
-        .join("cicd")
+    // Single source of truth for all CI/CD templates
+    let template_path = PathBuf::from("C:\\Users\\SSAFY\\Desktop\\github-actions\\templates")
         .join(template_name);
 
-    if resource_path.exists() {
-        std::fs::read_to_string(&resource_path)
-            .map_err(|e| format!("Failed to read template: {}", e))
-    } else {
-        // TODO: FIX PATH - 템플릿 파일 경로를 올바르게 설정해야 함
-        // 현재는 개발 환경 임시 경로를 사용중
-        // 배포 시에는 resource_path에 템플릿 파일들을 번들링해야 함
-        // Fallback: try the github-actions templates directory
-        let fallback_path = PathBuf::from("C:\\Users\\SSAFY\\Desktop\\github-actions\\templates")
-            .join(template_name);
+    println!("[Template] Loading from single source: {:?}", template_path);
 
-        if fallback_path.exists() {
-            std::fs::read_to_string(&fallback_path)
-                .map_err(|e| format!("Failed to read template from fallback: {}", e))
-        } else {
-            Err(format!("Template not found: {}. Checked paths: {:?} and {:?}",
-                template_name, resource_path, fallback_path))
-        }
-    }
+    std::fs::read_to_string(&template_path)
+        .map_err(|e| format!("Failed to read template from single source {}: {}",
+                             template_path.display(), e))
 }
 
 /// Render template with configuration values
 fn render_template(template: &str, config: &CICDConfiguration) -> Result<String, String> {
+    use regex::Regex;
+
     let mut rendered = template.to_string();
 
+    // First, unescape GitHub Actions expressions
+    // Convert pattern: ${{ "{{" }} EXPR {{ "}}" }} to ${{ EXPR }}
+    let re = Regex::new(r#"\{\{ "\{\{" \}\}(.*?)\{\{ "\}\}" \}\}"#).unwrap();
+    rendered = re.replace_all(&rendered, "{{$1}}").to_string();
+
     // Replace common variables
+    rendered = rendered.replace("{{ .BRANCH }}", &config.branch);
     rendered = rendered.replace("{{ .branch }}", &config.branch);
+    rendered = rendered.replace("{{ .DEPLOY_ROOT }}", &config.deploy_root);
     rendered = rendered.replace("{{ .deploy_root }}", &config.deploy_root);
+    rendered = rendered.replace("{{ .DOCKER_SERVICE }}", &config.docker_service);
     rendered = rendered.replace("{{ .docker_service }}", &config.docker_service);
+
+    // EC2 variables
+    rendered = rendered.replace("{{ .EC2_HOST }}", &config.ec2_host);
+    rendered = rendered.replace("{{ .ec2_host }}", &config.ec2_host);
+    rendered = rendered.replace("{{ .EC2_USER }}", &config.ec2_user);
+    rendered = rendered.replace("{{ .ec2_user }}", &config.ec2_user);
 
     // Framework-specific replacements
     match config.framework.as_str() {
         "springboot" => {
             let java_version = config.java_version.as_deref().unwrap_or("17");
+            rendered = rendered.replace("{{ .JAVA_VERSION }}", java_version);
             rendered = rendered.replace("{{ .java_version }}", java_version);
+            rendered = rendered.replace("{{ .JAVA_DIST }}", "temurin");
+            rendered = rendered.replace("{{ .PROFILE }}", "production");
+            rendered = rendered.replace("{{ .JVM_OPTS }}", "-Xmx512m -Xms256m");
+            rendered = rendered.replace("{{ .PORT }}", "8080");
         }
         "nodejs" | "react" | "nextjs" => {
             let node_version = config.node_version.as_deref().unwrap_or("20");
+            rendered = rendered.replace("{{ .NODE_VERSION }}", node_version);
             rendered = rendered.replace("{{ .node_version }}", node_version);
         }
         "python" | "fastapi" | "flask" => {
             let python_version = config.python_version.as_deref().unwrap_or("3.11");
+            rendered = rendered.replace("{{ .PYTHON_VERSION }}", python_version);
             rendered = rendered.replace("{{ .python_version }}", python_version);
         }
         _ => {}
@@ -604,18 +723,17 @@ pub async fn setup_complete_cicd(
     println!("[CI/CD] Starting complete CI/CD setup...");
     println!("[CI/CD] Step 1/4: Cloning repository to EC2...");
 
-    // Step 1: Clone repository to EC2 FIRST - Temporarily disabled
-    // {
-    //     let db_state: State<'_, Database> = app.state();
-    //     crate::commands::project::clone_github_repo_on_ec2(
-    //         db_state.clone(),
-    //         project_id.clone(),
-    //         ec2_server_id.clone()
-    //     ).await.map_err(|e| format!("Failed to clone repo to EC2: {}", e))?;
+    // Step 1: Clone repository to EC2 FIRST
+    {
+        let db_state: State<'_, Database> = app.state();
+        crate::commands::project::clone_github_repo_on_ec2(
+            db_state.clone(),
+            project_id.clone(),
+            ec2_server_id.clone()
+        ).await.map_err(|e| format!("Failed to clone repo to EC2: {}", e))?;
 
-    //     println!("[CI/CD] ✅ Repository cloned to EC2 successfully");
-    // }
-    println!("[CI/CD] ⚠️ GitHub clone disabled - feature temporarily unavailable");
+        println!("[CI/CD] ✅ Repository cloned to EC2 successfully");
+    }
 
     // Step 2: Use user's stack.yaml (or create a default one if not provided)
     println!("[CI/CD] Step 2/4: Preparing stack.yaml...");
@@ -728,16 +846,35 @@ services:
         // Write Dockerfiles
         if let Some(ref dockerfiles_vec) = final_dockerfiles {
             println!("[CI/CD] Writing {} Dockerfile(s)...", dockerfiles_vec.len());
+
+            if dockerfiles_vec.is_empty() {
+                eprintln!("[CI/CD] ⚠️ WARNING: No Dockerfiles were generated!");
+                eprintln!("[CI/CD] This will cause deployment to fail - docker-compose.yml expects Dockerfile");
+            }
+
             for (build_context, dockerfile_content) in dockerfiles_vec {
                 let dockerfile_dir = temp_dir.join(build_context);
+                println!("[CI/CD] Creating directory for Dockerfile: {:?}", dockerfile_dir);
                 std::fs::create_dir_all(&dockerfile_dir)
                     .map_err(|e| format!("Failed to create directory {}: {}", build_context, e))?;
 
                 let dockerfile_path = dockerfile_dir.join("Dockerfile");
+                println!("[CI/CD] Writing Dockerfile to: {:?}", dockerfile_path);
+                println!("[CI/CD] Dockerfile content length: {} bytes", dockerfile_content.len());
+
                 std::fs::write(&dockerfile_path, dockerfile_content)
                     .map_err(|e| format!("Failed to write Dockerfile in {}: {}", build_context, e))?;
 
-                println!("[CI/CD] ✅ Dockerfile written to {}/Dockerfile", build_context);
+                // Verify file was written
+                if dockerfile_path.exists() {
+                    let file_size = std::fs::metadata(&dockerfile_path)
+                        .map(|m| m.len())
+                        .unwrap_or(0);
+                    println!("[CI/CD] ✅ Dockerfile written to {}/Dockerfile ({} bytes)", build_context, file_size);
+                } else {
+                    eprintln!("[CI/CD] ❌ ERROR: Dockerfile was not created at {:?}", dockerfile_path);
+                    return Err(format!("Failed to create Dockerfile at {:?}", dockerfile_path));
+                }
             }
         } else {
             println!("[CI/CD] ⚠️ No Dockerfiles to write");
@@ -793,11 +930,42 @@ services:
             }
             println!("[CI/CD] ✅ Files added to git (stack.yaml, docker-compose.yml)");
 
-            // Try to add Dockerfiles if they exist (don't fail if they don't)
-            let _ = Command::new("git")
-                .args(&["add", "Dockerfile", "*/Dockerfile"])
+            // Add Dockerfile if it exists
+            println!("[CI/CD] Checking for Dockerfile in temp directory...");
+            let dockerfile_path = temp_dir.join("Dockerfile");
+            if dockerfile_path.exists() {
+                println!("[CI/CD] Dockerfile found at {:?}, adding to git...", dockerfile_path);
+                let add_dockerfile = Command::new("git")
+                    .args(&["add", "Dockerfile"])
+                    .current_dir(&temp_dir)
+                    .output()
+                    .map_err(|e| format!("Failed to add Dockerfile: {}", e))?;
+
+                if add_dockerfile.status.success() {
+                    println!("[CI/CD] ✅ Dockerfile added to git");
+                } else {
+                    let error = String::from_utf8_lossy(&add_dockerfile.stderr);
+                    eprintln!("[CI/CD] ⚠️ Failed to add Dockerfile: {}", error);
+                }
+            } else {
+                eprintln!("[CI/CD] ⚠️ WARNING: Dockerfile not found at {:?}", dockerfile_path);
+                eprintln!("[CI/CD] This will cause deployment to fail!");
+                eprintln!("[CI/CD] Dockerfile generation may have failed - check logs above");
+            }
+
+            // Also try to add Dockerfiles in subdirectories
+            let add_sub_dockerfiles = Command::new("git")
+                .args(&["add", "*/Dockerfile"])
                 .current_dir(&temp_dir)
-                .output(); // Ignore errors - these files may not exist
+                .output();
+            if let Ok(output) = add_sub_dockerfiles {
+                if output.status.success() {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    if !stdout.trim().is_empty() {
+                        println!("[CI/CD] ✅ Subdirectory Dockerfiles added: {}", stdout);
+                    }
+                }
+            }
 
             println!("[CI/CD] Committing changes...");
             let commit_output = Command::new("git")

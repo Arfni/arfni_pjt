@@ -20,6 +20,9 @@ pub struct Project {
     pub updated_at: String,
     pub stack_yaml_path: Option<String>,
     pub description: Option<String>,
+    pub github_repo_url: Option<String>,
+    pub github_branch: Option<String>,
+    pub github_access_token: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -75,6 +78,9 @@ pub fn create_project(
     environment: String, // "local" | "ec2"
     ec2_server_id: Option<String>,
     description: Option<String>,
+    github_repo_url: Option<String>,
+    github_branch: Option<String>,
+    github_access_token: Option<String>,
     workdir: Option<String>,
 ) -> Result<Project, String> {
     // 환경 검증
@@ -144,6 +150,9 @@ pub fn create_project(
         updated_at: created_at.clone(),
         stack_yaml_path: Some(stack_yaml_path),
         description: description.clone(),
+        github_repo_url: github_repo_url.clone(),
+        github_branch: github_branch.clone(),
+        github_access_token: github_access_token.clone(),
     };
 
     // 데이터베이스에 프로젝트 저장
@@ -151,8 +160,8 @@ pub fn create_project(
     let conn = conn.lock().unwrap();
 
     conn.execute(
-        "INSERT INTO projects (id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO projects (id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
             &project.id,
             &project.name,
@@ -165,6 +174,9 @@ pub fn create_project(
             &project.updated_at,
             &project.description,
             &project.stack_yaml_path,
+            &github_repo_url,
+            &github_branch,
+            &github_access_token,
         ],
     ).map_err(|e| format!("프로젝트 DB 저장 실패: {}", e))?;
 
@@ -295,7 +307,7 @@ pub fn open_project(
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token
          FROM projects WHERE id = ?1"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -312,6 +324,9 @@ pub fn open_project(
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
@@ -406,7 +421,7 @@ pub fn open_project_by_path(
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token
          FROM projects WHERE path = ?1"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -423,6 +438,9 @@ pub fn open_project_by_path(
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?;
 
@@ -577,7 +595,7 @@ pub fn get_all_projects(db: State<Database>) -> Result<Vec<Project>, String> {
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token
          FROM projects ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -594,6 +612,9 @@ pub fn get_all_projects(db: State<Database>) -> Result<Vec<Project>, String> {
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -609,7 +630,7 @@ pub fn get_projects_by_environment(db: State<Database>, environment: String) -> 
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token
          FROM projects WHERE environment = ?1 ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -626,6 +647,9 @@ pub fn get_projects_by_environment(db: State<Database>, environment: String) -> 
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -641,7 +665,7 @@ pub fn get_projects_by_server(db: State<Database>, server_id: String) -> Result<
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, description, stack_yaml_path, github_repo_url, github_branch, github_access_token
          FROM projects WHERE ec2_server_id = ?1 ORDER BY updated_at DESC"
     ).map_err(|e| format!("쿼리 준비 실패: {}", e))?;
 
@@ -658,6 +682,9 @@ pub fn get_projects_by_server(db: State<Database>, server_id: String) -> Result<
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -673,7 +700,7 @@ pub fn get_recent_projects(db: State<Database>) -> Result<Vec<Project>, String> 
     let conn = conn.lock().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT p.id, p.name, p.path, p.environment, p.ec2_server_id, p.mode, p.workdir, p.created_at, p.updated_at, p.description, p.stack_yaml_path
+        "SELECT p.id, p.name, p.path, p.environment, p.ec2_server_id, p.mode, p.workdir, p.created_at, p.updated_at, p.description, p.stack_yaml_path, p.github_repo_url, p.github_branch, p.github_access_token
          FROM projects p
          INNER JOIN recent_projects r ON p.id = r.project_id
          ORDER BY r.opened_at DESC
@@ -693,6 +720,9 @@ pub fn get_recent_projects(db: State<Database>) -> Result<Vec<Project>, String> 
             updated_at: row.get(8)?,
             description: row.get(9)?,
             stack_yaml_path: row.get(10)?,
+            github_repo_url: row.get(11)?,
+            github_branch: row.get(12)?,
+            github_access_token: row.get(13)?,
         })
     }).map_err(|e| format!("최근 프로젝트 조회 실패: {}", e))?
     .collect::<Result<Vec<_>, _>>()
@@ -826,7 +856,7 @@ pub fn delete_project(
     let conn = conn.lock().unwrap();
 
     let project: Project = conn.query_row(
-        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, stack_yaml_path, description
+        "SELECT id, name, path, environment, ec2_server_id, mode, workdir, created_at, updated_at, stack_yaml_path, description, github_repo_url, github_branch, github_access_token
          FROM projects WHERE id = ?1",
         params![&project_id],
         |row| {
@@ -842,6 +872,9 @@ pub fn delete_project(
                 updated_at: row.get(8)?,
                 stack_yaml_path: row.get(9)?,
                 description: row.get(10)?,
+                github_repo_url: row.get(11)?,
+                github_branch: row.get(12)?,
+                github_access_token: row.get(13)?,
             })
         },
     ).map_err(|e| format!("프로젝트를 찾을 수 없습니다: {}", e))?;
@@ -908,4 +941,175 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
         .map_err(|e| format!("Failed to write file: {}", e))?;
 
     Ok(())
+}
+
+/// Read file content as string
+#[tauri::command]
+pub fn read_file_content(path: String) -> Result<String, String> {
+    fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read file {}: {}", path, e))
+}
+
+/// Clone GitHub repository to EC2 server via SSH
+pub async fn clone_github_repo_on_ec2(
+    db: State<'_, Database>,
+    project_id: String,
+    ec2_server_id: String,
+) -> Result<String, String> {
+    use std::process::Command;
+
+    println!("[Clone] Starting EC2 repository clone...");
+    println!("[Clone] Project ID: {}, EC2 Server ID: {}", project_id, ec2_server_id);
+
+    // 1. Get project information from DB
+    let conn = db.get_conn();
+    let conn_lock = conn.lock().unwrap();
+
+    let project_row = conn_lock.query_row(
+        "SELECT github_repo_url, github_branch, github_access_token, workdir
+         FROM projects WHERE id = ?1",
+        params![&project_id],
+        |row| {
+            Ok((
+                row.get::<_, Option<String>>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+            ))
+        }
+    ).map_err(|e| format!("Failed to get project info: {}", e))?;
+
+    let (repo_url, branch, access_token, workdir) = project_row;
+
+    let repo_url = repo_url.ok_or("No GitHub repository URL found in project")?;
+    let branch = branch.unwrap_or_else(|| "main".to_string());
+    let access_token = access_token.ok_or("No GitHub access token found in project")?;
+    let workdir = workdir.unwrap_or_else(|| "arfni-deploy".to_string());
+
+    println!("[Clone] Repository: {}", repo_url);
+    println!("[Clone] Branch: {}", branch);
+    println!("[Clone] Workdir: {}", workdir);
+
+    // 2. Get EC2 server information
+    let ec2_row = conn_lock.query_row(
+        "SELECT host, user, pem_path FROM ec2_servers WHERE id = ?1",
+        params![&ec2_server_id],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        }
+    ).map_err(|e| format!("Failed to get EC2 server info: {}", e))?;
+
+    drop(conn_lock); // Release DB lock
+
+    let (ec2_host, ec2_user, pem_path) = ec2_row;
+
+    println!("[Clone] EC2 Host: {}", ec2_host);
+    println!("[Clone] EC2 User: {}", ec2_user);
+
+    // 3. Prepare clone URL with access token
+    let clone_url = if repo_url.starts_with("https://github.com/") {
+        // Insert access token into URL for authentication
+        repo_url.replace(
+            "https://github.com/",
+            &format!("https://{}@github.com/", access_token)
+        )
+    } else if repo_url.starts_with("https://") {
+        // Handle other Git providers if needed
+        repo_url.replace(
+            "https://",
+            &format!("https://{}@", access_token)
+        )
+    } else {
+        return Err("Invalid repository URL format. Must start with https://".to_string());
+    };
+
+    // 4. Prepare SSH command to clone repository on EC2
+    // First, remove existing directory if it exists, then clone
+    let ssh_command = format!(
+        "cd /home/{} && \
+         if [ -d '{}' ]; then \
+           echo 'Removing existing directory...'; \
+           rm -rf '{}'; \
+         fi && \
+         echo 'Cloning repository...' && \
+         git clone -b '{}' '{}' '{}' && \
+         echo 'Clone completed successfully'",
+        ec2_user,
+        workdir,
+        workdir,
+        branch,
+        clone_url,
+        workdir
+    );
+
+    println!("[Clone] Executing SSH command to EC2...");
+
+    // 5. Execute SSH command
+    let output = Command::new("ssh")
+        .args(&[
+            "-i", &pem_path,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=30",
+            &format!("{}@{}", ec2_user, ec2_host),
+            &ssh_command
+        ])
+        .output()
+        .map_err(|e| format!("Failed to execute SSH command: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    if !output.status.success() {
+        eprintln!("[Clone] SSH command failed");
+        eprintln!("[Clone] STDERR: {}", stderr);
+        return Err(format!("SSH clone failed: {}", stderr));
+    }
+
+    println!("[Clone] STDOUT: {}", stdout);
+    if !stderr.is_empty() {
+        println!("[Clone] STDERR (info): {}", stderr);
+    }
+
+    // 6. Verify clone was successful by checking if directory exists
+    let verify_command = format!(
+        "if [ -d '/home/{}/{}' ]; then \
+           echo 'SUCCESS: Repository cloned'; \
+           cd '/home/{}/{}' && git log --oneline -1; \
+         else \
+           echo 'ERROR: Repository directory not found'; \
+           exit 1; \
+         fi",
+        ec2_user, workdir, ec2_user, workdir
+    );
+
+    println!("[Clone] Verifying clone...");
+
+    let verify_output = Command::new("ssh")
+        .args(&[
+            "-i", &pem_path,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=30",
+            &format!("{}@{}", ec2_user, ec2_host),
+            &verify_command
+        ])
+        .output()
+        .map_err(|e| format!("Failed to verify clone: {}", e))?;
+
+    let verify_stdout = String::from_utf8_lossy(&verify_output.stdout);
+    let verify_stderr = String::from_utf8_lossy(&verify_output.stderr);
+
+    if !verify_output.status.success() {
+        eprintln!("[Clone] Verification failed");
+        eprintln!("[Clone] STDERR: {}", verify_stderr);
+        return Err(format!("Repository clone verification failed: {}", verify_stderr));
+    }
+
+    println!("[Clone] Verification: {}", verify_stdout);
+    println!("[Clone] ✅ Repository successfully cloned to EC2 at /home/{}/{}", ec2_user, workdir);
+
+    Ok(format!("Repository cloned to /home/{}/{}", ec2_user, workdir))
 }

@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
-use tauri::{AppHandle, Manager, Emitter};
+use tauri::{AppHandle, Manager, Emitter, State};
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::collections::HashMap;
+use crate::db::Database;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -76,6 +77,24 @@ pub async fn deploy_stack(
     // 이미 배포가 진행 중인지 확인
     if DEPLOYMENT_RUNNING.load(Ordering::SeqCst) {
         return Err("이미 배포가 진행 중입니다".to_string());
+    }
+
+    // GitHub 프로젝트 검증 - deploy_stack은 로컬 프로젝트만 처리
+    if let Some(ref pid) = project_id {
+        // DB에서 프로젝트 정보 확인
+        let db: State<Database> = app.state();
+        let conn = db.get_conn();
+        let conn = conn.lock().unwrap();
+
+        let is_github = conn.query_row(
+            "SELECT github_repo_url FROM projects WHERE id = ?1",
+            rusqlite::params![pid],
+            |row| row.get::<_, Option<String>>(0)
+        ).ok().flatten().is_some();
+
+        if is_github {
+            return Err("GitHub 프로젝트는 deploy_github_actions를 사용해야 합니다. deploy_stack은 로컬 프로젝트 전용입니다.".to_string());
+        }
     }
 
     // deploy_stack은 로컬 프로젝트 배포만 담당
@@ -1405,9 +1424,17 @@ pub async fn smart_deploy(
     project_id: String,
 ) -> Result<DeploymentStatus, String> {
     use crate::db::Database;
-    use tauri::State;
+    use tauri::{State, Manager};
+    use serde_json::json;
 
     println!("[Smart Deploy] Starting smart deployment for project: {}", project_id);
+
+    // Send initial progress event
+    app.emit("deployment-progress", json!({
+        "stage": "check_cicd",
+        "message": "CI/CD 상태를 확인하고 있습니다...",
+        "progress": 5
+    })).ok();
 
     // Get project info from database
     let db_state: State<'_, Database> = app.state();
@@ -1471,6 +1498,14 @@ pub async fn smart_deploy(
                 if let Some(ec2_server_id) = project.ec2_server_id {
                     if !cicd_configured {
                         println!("[Smart Deploy] CI/CD not configured, setting up automatically...");
+
+                        // Send event: Starting CI/CD setup
+                        app.emit("deployment-progress", json!({
+                            "stage": "clone_repo",
+                            "message": "EC2에 레포지토리를 클론하고 있습니다...",
+                            "progress": 15
+                        })).ok();
+
                         // GitHub 프로젝트는 DB에 저장된 Canvas 데이터에서 stack.yaml 읽기
                         // (프론트엔드에서 이미 저장했음)
                         println!("[Smart Deploy] Reading stack.yaml from database for GitHub project");
@@ -1519,6 +1554,13 @@ pub async fn smart_deploy(
 
                         let ssh_key = get_ec2_ssh_key(&app, &ec2_server_id)?;
 
+                        // Send event: Setting up CI/CD
+                        app.emit("deployment-progress", json!({
+                            "stage": "commit_stack",
+                            "message": "stack.yaml 파일을 커밋하고 있습니다...",
+                            "progress": 30
+                        })).ok();
+
                         crate::commands::cicd::setup_complete_cicd(
                             app.clone(),
                             config,
@@ -1532,9 +1574,23 @@ pub async fn smart_deploy(
                         ).await.map_err(|e| format!("Failed to setup CI/CD: {}", e))?;
 
                         println!("[Smart Deploy] CI/CD setup completed!");
+
+                        // Send event: CI/CD setup completed
+                        app.emit("deployment-progress", json!({
+                            "stage": "configure_secrets",
+                            "message": "CI/CD 설정이 완료되었습니다.",
+                            "progress": 60
+                        })).ok();
                     } else {
                         // CI/CD already configured, commit all files (stack.yaml + docker files) to GitHub
                         println!("[Smart Deploy] CI/CD already configured, committing all files to GitHub...");
+
+                        // Send event: Updating files
+                        app.emit("deployment-progress", json!({
+                            "stage": "commit_stack",
+                            "message": "stack.yaml을 GitHub에 커밋하고 있습니다...",
+                            "progress": 20
+                        })).ok();
 
                         // Read stack.yaml from database (source of truth for CI/CD projects)
                         println!("[Smart Deploy] Reading stack.yaml from database for GitHub project");
@@ -1554,6 +1610,13 @@ pub async fn smart_deploy(
                         if let Some(ref yaml_content) = stack_yaml_content {
                             println!("[Smart Deploy] ✅ Read stack.yaml from database");
 
+                            // Send event: Generating Docker files
+                            app.emit("deployment-progress", json!({
+                                "stage": "generate_docker",
+                                "message": "Docker 파일을 생성하고 있습니다...",
+                                "progress": 40
+                            })).ok();
+
                             // Commit stack.yaml + docker-compose.yml + Dockerfiles to GitHub
                             crate::commands::cicd::update_docker_files_only(
                                 app.clone(),
@@ -1564,6 +1627,13 @@ pub async fn smart_deploy(
                             ).await.map_err(|e| format!("Failed to update Docker files: {}", e))?;
 
                             println!("[Smart Deploy] ✅ All files committed to GitHub successfully");
+
+                            // Send event: Files committed
+                            app.emit("deployment-progress", json!({
+                                "stage": "trigger_workflow",
+                                "message": "파일이 GitHub에 커밋되었습니다.",
+                                "progress": 60
+                            })).ok();
                         } else {
                             return Err("Could not read stack.yaml from database. Please save your canvas first.".to_string());
                         }
@@ -1590,12 +1660,54 @@ pub async fn smart_deploy(
     match deployment_type {
         "github_actions" => {
             println!("[Smart Deploy] Deploying via GitHub Actions...");
+
+            // Send event: Triggering workflow
+            app.emit("deployment-progress", json!({
+                "stage": "trigger_workflow",
+                "message": "GitHub Actions 워크플로우를 트리거하고 있습니다...",
+                "progress": 70
+            })).ok();
+
             // GitHub Actions deployment: trigger workflow via API
-            trigger_github_workflow(
+            let result = trigger_github_workflow(
                 project.github_repo_url.as_ref().unwrap().clone(),
                 github_branch,
                 project.github_access_token.unwrap()
-            ).await
+            ).await;
+
+            match result {
+                Ok(status) => {
+                    // Send event: Deployment in progress
+                    app.emit("deployment-progress", json!({
+                        "stage": "monitor_deployment",
+                        "message": "배포가 진행 중입니다. GitHub Actions에서 확인하세요.",
+                        "progress": 90
+                    })).ok();
+
+                    // Wait a moment for better UX
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+                    // Send event: Deployment complete
+                    app.emit("deployment-progress", json!({
+                        "stage": "deployment_complete",
+                        "message": "배포가 성공적으로 시작되었습니다!",
+                        "progress": 100
+                    })).ok();
+
+                    Ok(status)
+                },
+                Err(e) => {
+                    // Send event: Deployment error
+                    app.emit("deployment-progress", json!({
+                        "stage": "monitor_deployment",
+                        "message": format!("배포 실패: {}", e),
+                        "progress": 90,
+                        "status": "error"
+                    })).ok();
+
+                    Err(e)
+                }
+            }
         }
         "docker_compose" => {
             println!("[Smart Deploy] Deploying via Docker Compose...");
@@ -1605,6 +1717,510 @@ pub async fn smart_deploy(
         }
         _ => Err("Unknown deployment type".to_string())
     }
+}
+
+/// GitHub 프로젝트 전용 배포 함수 - Go 바이너리를 호출하지 않음
+/// GitHub Actions를 트리거하고 상태만 반환
+#[tauri::command]
+pub async fn deploy_github_actions(
+    app: AppHandle,
+    project_id: String,
+) -> Result<DeploymentStatus, String> {
+    use serde_json::json;
+
+    println!("[GitHub Deploy] Starting GitHub Actions deployment for project: {}", project_id);
+
+    // DB에서 프로젝트 정보 가져오기
+    let db_state: State<'_, Database> = app.state();
+    let project = {
+        let conn = db_state.get_conn();
+        let conn = conn.lock().unwrap();
+
+        conn.query_row(
+            "SELECT id, name, path, environment, ec2_server_id, github_repo_url, github_branch, github_access_token, workdir
+             FROM projects WHERE id = ?1",
+            rusqlite::params![&project_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,         // id
+                    row.get::<_, String>(1)?,         // name
+                    row.get::<_, String>(2)?,         // path
+                    row.get::<_, String>(3)?,         // environment
+                    row.get::<_, Option<String>>(4)?, // ec2_server_id
+                    row.get::<_, Option<String>>(5)?, // github_repo_url
+                    row.get::<_, Option<String>>(6)?, // github_branch
+                    row.get::<_, Option<String>>(7)?, // github_access_token
+                    row.get::<_, Option<String>>(8)?, // workdir
+                ))
+            },
+        ).map_err(|e| format!("Failed to get project from DB: {}", e))?
+    };
+
+    let (_id, name, path, environment, ec2_server_id, github_repo_url, github_branch, github_access_token, _workdir) = project;
+
+    // GitHub 프로젝트 검증
+    if github_repo_url.is_none() || github_access_token.is_none() {
+        return Err("This is not a GitHub project. Use deploy_stack for local projects.".to_string());
+    }
+
+    let repo_url = github_repo_url.unwrap();
+    let branch = github_branch.unwrap_or("main".to_string());
+    let access_token = github_access_token.unwrap();
+
+    println!("[GitHub Deploy] Project: {}, Repo: {}, Branch: {}", name, repo_url, branch);
+
+    // EC2 서버가 설정되어 있는지 확인
+    if environment != "ec2" || ec2_server_id.is_none() {
+        return Err("GitHub deployment requires EC2 environment".to_string());
+    }
+
+    // 진행 상황 이벤트 전송
+    app.emit("deployment-progress", json!({
+        "stage": "check_files",
+        "message": "필요한 CI/CD 파일들을 확인 중...",
+        "progress": 10
+    })).ok();
+
+    println!("[GitHub Deploy] Checking required files...");
+
+    // 모든 필요한 파일의 존재 여부 확인
+    let workflow_exists = check_github_workflow_exists(&repo_url, &branch, &access_token)
+        .await
+        .unwrap_or(false);
+    let dockerfile_exists = check_dockerfile_exists(&repo_url, &branch, &access_token)
+        .await
+        .unwrap_or(false);
+    let docker_compose_exists = check_docker_compose_exists(&repo_url, &branch, &access_token)
+        .await
+        .unwrap_or(false);
+
+    println!("[GitHub Deploy] File status - Workflow: {}, Dockerfile: {}, Docker-Compose: {}",
+        workflow_exists, dockerfile_exists, docker_compose_exists);
+
+    // TEMPORARY FIX: Force workflow regeneration to fix template issues
+    // TODO: Remove this after successful deployment
+    let needs_setup = true; // !workflow_exists || !dockerfile_exists || !docker_compose_exists;
+
+    if needs_setup {
+        let missing_files: Vec<&str> = vec![
+            if !workflow_exists { Some("workflow") } else { None },
+            if !dockerfile_exists { Some("Dockerfile") } else { None },
+            if !docker_compose_exists { Some("docker-compose.yml") } else { None },
+        ].into_iter().filter_map(|x| x).collect();
+
+        let missing_list = missing_files.join(", ");
+
+        app.emit("deployment-progress", json!({
+            "stage": "setup_cicd",
+            "message": format!("누락된 파일 생성 중: {}", missing_list),
+            "progress": 20
+        })).ok();
+
+        println!("[GitHub Deploy] Missing files detected: {}. Setting up CI/CD...", missing_list);
+
+        // CI/CD 설정을 위한 configuration 생성
+        use crate::commands::cicd::{setup_cicd, setup_complete_cicd, CICDConfiguration};
+        use std::path::PathBuf;
+
+        // stack.yaml에서 framework 정보 읽기
+        let stack_yaml_path = PathBuf::from(&path).join("stack.yaml");
+        let stack_content = tokio::fs::read_to_string(&stack_yaml_path)
+            .await
+            .map_err(|e| format!("Failed to read stack.yaml: {}", e))?;
+
+        // stack.yaml 파싱해서 framework와 service name 찾기
+        let framework = extract_framework_from_stack(&stack_content)
+            .unwrap_or_else(|| "springboot".to_string());
+
+        // Extract docker service name from stack.yaml
+        let docker_service = extract_service_name_from_stack(&stack_content)
+            .unwrap_or_else(|| "app".to_string());
+
+        println!("[GitHub Deploy] Detected framework: {}", framework);
+        println!("[GitHub Deploy] Detected docker service: {}", docker_service);
+
+        // EC2 서버 정보 가져오기 (SSH key)
+        let ec2_server_id = ec2_server_id.ok_or("EC2 server ID is required")?;
+        let (pem_path, ec2_host, ec2_user): (String, String, String) = {
+            let conn = db_state.get_conn();
+            let conn = conn.lock().unwrap();
+            conn.query_row(
+                "SELECT pem_path, host, user FROM ec2_servers WHERE id = ?1",
+                rusqlite::params![&ec2_server_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            ).map_err(|e| format!("Failed to get EC2 server info: {}", e))?
+        };
+
+        // Read SSH key content from file
+        let ssh_key = tokio::fs::read_to_string(&pem_path)
+            .await
+            .map_err(|e| format!("Failed to read SSH key from {}: {}", pem_path, e))?;
+
+        println!("[GitHub Deploy] SSH key loaded from: {}", pem_path);
+        println!("[GitHub Deploy] SSH key length: {} bytes", ssh_key.len());
+
+        // Framework별 버전 설정
+        let (java_version, node_version, python_version) = match framework.as_str() {
+            "springboot" => (Some("17".to_string()), None, None),
+            "nodejs" => (None, Some("18".to_string()), None),
+            "python" => (None, None, Some("3.11".to_string())),
+            _ => (Some("17".to_string()), None, None),
+        };
+
+        let cicd_config = CICDConfiguration {
+            platform: "github-actions".to_string(),
+            repository_url: repo_url.clone(),
+            branch: branch.clone(),
+            framework,
+            java_version,
+            node_version,
+            python_version,
+            ec2_host: ec2_host.clone(),
+            ec2_user: ec2_user.clone(),
+            deploy_root: "/home/ubuntu/arfni-deploy".to_string(),
+            docker_service,
+        };
+
+        // setup_complete_cicd 호출 - stack.yaml 기반으로 파일 생성 및 커밋
+        match setup_complete_cicd(
+            app.clone(),
+            cicd_config,
+            ssh_key.clone(),
+            project_id.clone(),
+            ec2_server_id.clone(),
+            access_token.clone(),
+            Some(stack_content.clone()),  // stack.yaml 내용 전달
+            None,  // docker-compose.yml 자동 생성
+            None,  // Dockerfiles 자동 생성
+        ).await {
+            Ok(_) => {
+                app.emit("deployment-progress", json!({
+                    "stage": "setup_cicd",
+                    "message": "CI/CD 파일들이 성공적으로 생성되고 커밋되었습니다!",
+                    "progress": 40
+                })).ok();
+                println!("[GitHub Deploy] CI/CD setup completed successfully");
+            }
+            Err(e) => {
+                app.emit("deployment-progress", json!({
+                    "stage": "setup_cicd",
+                    "message": format!("CI/CD 설정 실패: {}", e),
+                    "progress": 20,
+                    "status": "error"
+                })).ok();
+                return Err(format!("Failed to setup CI/CD: {}", e));
+            }
+        }
+
+        // GitHub Secrets 설정
+        app.emit("deployment-progress", json!({
+            "stage": "setup_secrets",
+            "message": "GitHub Secrets 설정 중...",
+            "progress": 50
+        })).ok();
+
+        println!("[GitHub Deploy] Setting up GitHub Secrets...");
+
+        match setup_github_secrets(&repo_url, &access_token, &ec2_host, &ec2_user, &ssh_key).await {
+            Ok(_) => {
+                app.emit("deployment-progress", json!({
+                    "stage": "setup_secrets",
+                    "message": "GitHub Secrets가 성공적으로 설정되었습니다!",
+                    "progress": 55
+                })).ok();
+                println!("[GitHub Deploy] GitHub Secrets setup completed");
+            }
+            Err(e) => {
+                // Secrets 설정 실패는 경고로만 처리 (이미 설정되어 있을 수 있음)
+                println!("[GitHub Deploy] Warning: Failed to setup secrets: {}", e);
+                app.emit("deployment-progress", json!({
+                    "stage": "setup_secrets",
+                    "message": format!("Secrets 설정 경고: {} (이미 설정되어 있을 수 있습니다)", e),
+                    "progress": 55,
+                    "status": "warning"
+                })).ok();
+            }
+        }
+    } else {
+        println!("[GitHub Deploy] All required files already exist");
+        app.emit("deployment-progress", json!({
+            "stage": "check_files",
+            "message": "모든 필요한 파일이 존재합니다",
+            "progress": 50
+        })).ok();
+    }
+
+    // GitHub Actions 워크플로우 트리거
+    app.emit("deployment-progress", json!({
+        "stage": "trigger_workflow",
+        "message": "워크플로우를 실행하고 있습니다...",
+        "progress": 60
+    })).ok();
+
+    println!("[GitHub Deploy] Triggering workflow...");
+    println!("[GitHub Deploy] Repo: {}, Branch: {}", repo_url, branch);
+
+    let result = trigger_github_workflow(repo_url, branch, access_token).await;
+
+    println!("[GitHub Deploy] Trigger result: {:?}", result);
+
+    match result {
+        Ok(status) => {
+            app.emit("deployment-progress", json!({
+                "stage": "deployment_complete",
+                "message": "GitHub Actions 배포가 시작되었습니다! GitHub에서 진행 상황을 확인하세요.",
+                "progress": 100
+            })).ok();
+
+            Ok(status)
+        }
+        Err(e) => {
+            app.emit("deployment-progress", json!({
+                "stage": "trigger_workflow",
+                "message": format!("워크플로우 트리거 실패: {}", e),
+                "progress": 60,
+                "status": "error"
+            })).ok();
+
+            Err(e)
+        }
+    }
+}
+
+/// stack.yaml에서 framework 추출
+fn extract_framework_from_stack(stack_content: &str) -> Option<String> {
+    // stack.yaml 파싱
+    use serde_yaml::Value;
+
+    if let Ok(yaml) = serde_yaml::from_str::<Value>(stack_content) {
+        // services에서 첫 번째 서비스의 image 또는 type 확인
+        if let Some(services) = yaml.get("services").and_then(|s| s.as_mapping()) {
+            for (_name, service) in services.iter() {
+                // image 필드에서 framework 추출
+                if let Some(image) = service.get("image").and_then(|i| i.as_str()) {
+                    if image.contains("spring") || image.contains("java") {
+                        return Some("springboot".to_string());
+                    } else if image.contains("node") || image.contains("express") {
+                        return Some("nodejs".to_string());
+                    } else if image.contains("python") || image.contains("django") || image.contains("flask") {
+                        return Some("python".to_string());
+                    } else if image.contains("nginx") {
+                        return Some("react".to_string());
+                    }
+                }
+
+                // type 필드에서 framework 추출
+                if let Some(service_type) = service.get("type").and_then(|t| t.as_str()) {
+                    return Some(service_type.to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// stack.yaml에서 첫 번째 서비스 이름 추출
+fn extract_service_name_from_stack(stack_content: &str) -> Option<String> {
+    use serde_yaml::Value;
+
+    if let Ok(yaml) = serde_yaml::from_str::<Value>(stack_content) {
+        // services에서 첫 번째 서비스의 이름 반환
+        if let Some(services) = yaml.get("services").and_then(|s| s.as_mapping()) {
+            if let Some((name, _)) = services.iter().next() {
+                if let Some(name_str) = name.as_str() {
+                    return Some(name_str.to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// GitHub 워크플로우 파일이 존재하는지 확인
+async fn check_github_workflow_exists(
+    repo_url: &str,
+    branch: &str,
+    access_token: &str,
+) -> Result<bool, String> {
+    check_github_file_exists(repo_url, branch, access_token, ".github/workflows/deploy.yml").await
+}
+
+/// Dockerfile이 존재하는지 확인
+async fn check_dockerfile_exists(
+    repo_url: &str,
+    branch: &str,
+    access_token: &str,
+) -> Result<bool, String> {
+    check_github_file_exists(repo_url, branch, access_token, "Dockerfile").await
+}
+
+/// docker-compose.yml이 존재하는지 확인
+async fn check_docker_compose_exists(
+    repo_url: &str,
+    branch: &str,
+    access_token: &str,
+) -> Result<bool, String> {
+    check_github_file_exists(repo_url, branch, access_token, "docker-compose.yml").await
+}
+
+/// GitHub 파일 존재 확인을 위한 공통 함수
+async fn check_github_file_exists(
+    repo_url: &str,
+    branch: &str,
+    access_token: &str,
+    file_path: &str,
+) -> Result<bool, String> {
+    let repo_path = repo_url
+        .trim_end_matches('/')
+        .split('/')
+        .rev()
+        .take(2)
+        .collect::<Vec<&str>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<&str>>()
+        .join("/")
+        .replace(".git", "");
+
+    let check_url = format!(
+        "https://api.github.com/repos/{}/contents/{}?ref={}",
+        repo_path, file_path, branch
+    );
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&check_url)
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("User-Agent", "ARFNI-App")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to check file {}: {}", file_path, e))?;
+
+    Ok(response.status().is_success())
+}
+
+/// GitHub Secrets 설정 - EC2 배포에 필요한 credentials 저장
+async fn setup_github_secrets(
+    repo_url: &str,
+    access_token: &str,
+    ec2_host: &str,
+    ec2_user: &str,
+    ssh_key: &str,
+) -> Result<(), String> {
+    use serde_json::json;
+
+    println!("[Secrets] Setting up GitHub Secrets for EC2 deployment...");
+
+    let repo_path = repo_url
+        .trim_end_matches('/')
+        .split('/')
+        .rev()
+        .take(2)
+        .collect::<Vec<&str>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<&str>>()
+        .join("/")
+        .replace(".git", "");
+
+    println!("[Secrets] Repository path: {}", repo_path);
+
+    // 1. Get repository public key for encrypting secrets
+    let pubkey_url = format!("https://api.github.com/repos/{}/actions/secrets/public-key", repo_path);
+
+    let client = reqwest::Client::new();
+    let pubkey_response = client
+        .get(&pubkey_url)
+        .header("Accept", "application/vnd.github+json")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("User-Agent", "Arfni-GUI")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get public key: {}", e))?;
+
+    if !pubkey_response.status().is_success() {
+        return Err(format!("Failed to get public key: HTTP {}", pubkey_response.status()));
+    }
+
+    let pubkey_data: serde_json::Value = pubkey_response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse public key response: {}", e))?;
+
+    let key_id = pubkey_data["key_id"].as_str()
+        .ok_or("Missing key_id in public key response")?;
+    let public_key = pubkey_data["key"].as_str()
+        .ok_or("Missing key in public key response")?;
+
+    println!("[Secrets] Got public key with ID: {}", key_id);
+
+    // 2. Encrypt and upload each secret
+    let secrets = vec![
+        ("EC2_HOST", ec2_host),
+        ("EC2_USER", ec2_user),
+        ("EC2_SSH_KEY", ssh_key),
+    ];
+
+    for (secret_name, secret_value) in secrets {
+        println!("[Secrets] Setting secret: {}", secret_name);
+
+        // Encrypt the secret using libsodium (sodium_crypto_box_seal)
+        let encrypted_value = encrypt_secret(secret_value, public_key)?;
+
+        let secret_url = format!("https://api.github.com/repos/{}/actions/secrets/{}", repo_path, secret_name);
+
+        let response = client
+            .put(&secret_url)
+            .header("Accept", "application/vnd.github+json")
+            .header("Authorization", format!("Bearer {}", access_token))
+            .header("User-Agent", "Arfni-GUI")
+            .json(&json!({
+                "encrypted_value": encrypted_value,
+                "key_id": key_id
+            }))
+            .send()
+            .await
+            .map_err(|e| format!("Failed to set secret {}: {}", secret_name, e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_default();
+            return Err(format!("Failed to set secret {}: HTTP {} - {}", secret_name, status, error_body));
+        }
+
+        println!("[Secrets] Successfully set secret: {}", secret_name);
+    }
+
+    println!("[Secrets] All GitHub Secrets configured successfully!");
+    Ok(())
+}
+
+/// GitHub Actions Secrets 암호화
+/// libsodium의 crypto_box_seal 사용
+fn encrypt_secret(secret_value: &str, public_key_base64: &str) -> Result<String, String> {
+    use base64::{Engine as _, engine::general_purpose};
+    use sodiumoxide::crypto::box_::PublicKey;
+    use sodiumoxide::crypto::sealedbox;
+
+    // Initialize sodiumoxide
+    sodiumoxide::init().map_err(|_| "Failed to initialize sodiumoxide")?;
+
+    // Decode the public key from base64
+    let public_key_bytes = general_purpose::STANDARD
+        .decode(public_key_base64)
+        .map_err(|e| format!("Failed to decode public key: {}", e))?;
+
+    // Create PublicKey from bytes
+    let public_key = PublicKey::from_slice(&public_key_bytes)
+        .ok_or("Invalid public key length")?;
+
+    // Encrypt the secret using sealed box
+    let encrypted = sealedbox::seal(secret_value.as_bytes(), &public_key);
+
+    // Encode to base64
+    Ok(general_purpose::STANDARD.encode(&encrypted))
 }
 
 // Helper functions
@@ -1734,6 +2350,8 @@ async fn trigger_github_workflow(
     branch: String,
     access_token: String,
 ) -> Result<DeploymentStatus, String> {
+    println!("[Trigger] Starting workflow trigger...");
+
     // GitHub API를 통해 워크플로우 디스패치
     let repo_path = repo_url
         .trim_end_matches('/')
@@ -1747,7 +2365,12 @@ async fn trigger_github_workflow(
         .join("/")
         .replace(".git", "");
 
+    println!("[Trigger] Repository path: {}", repo_path);
+
     let dispatch_url = format!("https://api.github.com/repos/{}/actions/workflows/deploy.yml/dispatches", repo_path);
+
+    println!("[Trigger] Dispatch URL: {}", dispatch_url);
+    println!("[Trigger] Branch: {}", branch);
 
     let client = reqwest::Client::new();
     let response = client.post(&dispatch_url)
@@ -1759,9 +2382,15 @@ async fn trigger_github_workflow(
         }))
         .send()
         .await
-        .map_err(|e| format!("Failed to trigger workflow: {}", e))?;
+        .map_err(|e| {
+            println!("[Trigger] Request failed: {}", e);
+            format!("Failed to trigger workflow: {}", e)
+        })?;
+
+    println!("[Trigger] Response status: {}", response.status());
 
     if response.status().is_success() {
+        println!("[Trigger] Workflow triggered successfully!");
         Ok(DeploymentStatus {
             status: "success".to_string(),
             message: Some(format!("GitHub Actions workflow triggered successfully for branch '{}'", branch)),
@@ -1770,6 +2399,7 @@ async fn trigger_github_workflow(
     } else {
         let status = response.status();
         let error_text = response.text().await.unwrap_or_default();
+        println!("[Trigger] Failed: {} - {}", status, error_text);
         Err(format!("Failed to trigger workflow: {} - {}", status, error_text))
     }
 }
@@ -1822,23 +2452,14 @@ fn generate_docker_files_with_go_binary(
         };
 
         // build 정보
+        // GitHub Actions 배포를 위해 build context를 "."로 override
         if let Some(build) = source.get("build") {
-            if let Some(build_map) = build.as_mapping() {
-                // build is a mapping with context/dockerfile
-                let mut build_config = Mapping::new();
-                if let Some(context) = build_map.get("context") {
-                    build_config.insert(Value::String("context".to_string()), context.clone());
-                }
-                if let Some(dockerfile) = build_map.get("dockerfile") {
-                    build_config.insert(Value::String("dockerfile".to_string()), dockerfile.clone());
-                }
-                if !build_config.is_empty() {
-                    dc_service.insert(Value::String("build".to_string()), Value::Mapping(build_config));
-                }
-            } else {
-                // build is a string (build context path)
-                dc_service.insert(Value::String("build".to_string()), build.clone());
-            }
+            // Always use "." as context for GitHub Actions deployment
+            // Dockerfile will be in DEPLOY_ROOT/Dockerfile
+            let mut build_config = Mapping::new();
+            build_config.insert(Value::String("context".to_string()), Value::String(".".to_string()));
+            build_config.insert(Value::String("dockerfile".to_string()), Value::String("./Dockerfile".to_string()));
+            dc_service.insert(Value::String("build".to_string()), Value::Mapping(build_config));
         }
 
         // image
@@ -1900,24 +2521,17 @@ fn generate_docker_files_with_go_binary(
         };
 
         // build 설정이 있는 경우에만 Dockerfile 생성
-        if let Some(build) = source.get("build") {
-            let build_context = if let Some(build_str) = build.as_str() {
-                build_str.to_string()
-            } else if let Some(build_map) = build.as_mapping() {
-                build_map.get("context")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(".")
-                    .to_string()
-            } else {
-                ".".to_string()
-            };
+        if source.get("build").is_some() {
+            // GitHub Actions 배포에서는 Dockerfile이 무조건 DEPLOY_ROOT에 위치
+            // build_context는 항상 "."
+            let build_context = ".".to_string();
 
             println!("[Docker Generate] Creating Dockerfile for service '{}' at context '{}'",
                      service_name.as_str().unwrap_or("unknown"), build_context);
 
             // 간단한 Spring Boot Dockerfile 생성
-            // TODO: 프레임워크별 템플릿 사용하도록 개선
-            let dockerfile_content = generate_springboot_dockerfile(&source);
+            // GitHub Actions 배포의 경우 런타임 전용 Dockerfile 사용
+            let dockerfile_content = generate_springboot_runtime_dockerfile(&source);
 
             dockerfiles.push((build_context, dockerfile_content));
             println!("[Docker Generate] ✅ Dockerfile generated for '{}'", service_name.as_str().unwrap_or("unknown"));
@@ -2001,7 +2615,71 @@ pub fn generate_docker_files_with_go_binary_public(
     generate_docker_files_with_go_binary(app, temp_dir, stack_yaml_content)
 }
 
+/// Generate a Spring Boot runtime Dockerfile for GitHub Actions deployment
+/// This Dockerfile is for EC2 and only runs pre-built JAR files
+fn generate_springboot_runtime_dockerfile(source: &serde_yaml::Mapping) -> String {
+    let java_version = source.get("java_version")
+        .or_else(|| source.get("javaVersion"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("17");
+
+    // Extract port from either 'port' field or 'ports' array
+    let port = if let Some(port_value) = source.get("port") {
+        // Direct port field
+        port_value.as_u64().unwrap_or(8080)
+    } else if let Some(ports_array) = source.get("ports").and_then(|v| v.as_sequence()) {
+        // ports array like ['8085:8085']
+        if let Some(first_port) = ports_array.first() {
+            if let Some(port_str) = first_port.as_str() {
+                // Parse '8085:8085' -> extract first number
+                port_str.split(':')
+                    .next()
+                    .and_then(|s| s.trim().parse::<u64>().ok())
+                    .unwrap_or(8080)
+            } else {
+                8080
+            }
+        } else {
+            8080
+        }
+    } else {
+        8080
+    };
+
+    let profile = source.get("profile")
+        .and_then(|v| v.as_str())
+        .unwrap_or("production");
+
+    let jvm_opts = source.get("jvm_opts")
+        .or_else(|| source.get("jvmOpts"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("-Xmx512m -Xms256m");
+
+    // Runtime-only Dockerfile for pre-built JAR
+    // This assumes:
+    // - Dockerfile is in DEPLOY_ROOT/
+    // - JAR file is in DEPLOY_ROOT/apps/app.jar
+    // - docker-compose.yml build context is "."
+    format!(r#"# Runtime Dockerfile for GitHub Actions deployment
+FROM eclipse-temurin:{}-jre-jammy
+
+WORKDIR /app
+
+# Copy the pre-built JAR file (uploaded by GitHub Actions)
+# Path is relative to build context (DEPLOY_ROOT)
+COPY apps/app.jar /app/app.jar
+
+ENV SPRING_PROFILES_ACTIVE={}
+ENV JVM_OPTS="{}"
+
+EXPOSE {}
+
+ENTRYPOINT ["sh", "-c", "java $JVM_OPTS -jar /app/app.jar"]
+"#, java_version, profile, jvm_opts, port)
+}
+
 /// Generate a Spring Boot Dockerfile from service configuration
+/// This is for local builds with source code
 fn generate_springboot_dockerfile(source: &serde_yaml::Mapping) -> String {
     // Extract configuration with defaults
     let java_version = source.get("java_version")

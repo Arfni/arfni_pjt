@@ -233,8 +233,17 @@ export function DeploymentPage() {
       dispatch(startDeployment());
 
       // Call backend to start deployment
-      const stackYamlPath = `${currentProject.path}/stack.yaml`;
-      await deploymentCommands.deployStack(currentProject.path, stackYamlPath, currentProject.id);
+      // GitHub 프로젝트와 로컬 프로젝트 구분
+      if (currentProject.github_repo_url && currentProject.environment === 'ec2') {
+        // GitHub 프로젝트는 deployGitHubActions 사용
+        console.log('[DeploymentPage] Using deployGitHubActions for GitHub project');
+        await deploymentCommands.deployGitHubActions(currentProject.id);
+      } else {
+        // 로컬 프로젝트는 기존 deployStack 사용
+        console.log('[DeploymentPage] Using deployStack for local project');
+        const stackYamlPath = `${currentProject.path}/stack.yaml`;
+        await deploymentCommands.deployStack(currentProject.path, stackYamlPath, currentProject.id);
+      }
     } catch (err) {
       console.error('Failed to restart deployment:', err);
       dispatch(deploymentFailed(String(err)));

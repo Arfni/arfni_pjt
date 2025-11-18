@@ -39,6 +39,7 @@ import { SettingsDialog } from './dialogs/SettingsDialog';
 import { ExportDialog } from './dialogs/ExportDialog';
 import { ExportSuccessNotification } from './dialogs/ExportSuccessNotification';
 import { AIDialog } from './dialogs/AIDialog';
+import DeploymentProgressModal from '../../../components/DeploymentProgressModal';
 
 export function Toolbar() {
   const navigate = useNavigate();
@@ -60,6 +61,7 @@ export function Toolbar() {
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [showMonitoringHelp, setShowMonitoringHelp] = useState(false);
+  const [showDeploymentProgress, setShowDeploymentProgress] = useState(false);
 
   const isEC2Project = currentProject?.environment === 'ec2';
   const ec2TargetNode = isEC2Project && targetNodes.length > 0 ? targetNodes[0] : null;
@@ -298,19 +300,27 @@ export function Toolbar() {
 
       // GitHub 프로젝트와 로컬 프로젝트를 구분하여 처리
       if (currentProject.github_repo_url && currentProject.environment === 'ec2') {
-        // GitHub 프로젝트는 smartDeploy 직접 호출 (stack.yaml 경로 체크 불필요)
-        console.log('[Deploy] Using smartDeploy for GitHub project');
-        result = await deploymentCommands.smartDeploy(currentProject.id);
+        // GitHub 프로젝트는 deployGitHubActions 직접 호출 (Go 바이너리 호출 없음)
+        console.log('[Deploy] Using deployGitHubActions for GitHub project');
+
+        // Show deployment progress modal for GitHub projects
+        setShowDeploymentProgress(true);
+
+        // 새로운 GitHub Actions 전용 함수 사용
+        result = await deploymentCommands.deployGitHubActions(currentProject.id);
+
+        // Modal will automatically close when deployment is complete
+        // No need to navigate away for GitHub projects
       } else {
         // 로컬 프로젝트는 기존 deploy_stack 사용
         console.log('[Deploy] Using deployStack for local project');
         const stackYamlPath = `${currentProject.path}/stack.yaml`;
         result = await deploymentCommands.deployStack(currentProject.path, stackYamlPath, currentProject.id);
-      }
 
-      if (result.status === 'deploying' || result.status === 'success') {
-        console.log('[Deploy] Navigating to deployment page');
-        navigate('/deployment', { replace: true });
+        if (result.status === 'deploying' || result.status === 'success') {
+          console.log('[Deploy] Navigating to deployment page');
+          navigate('/deployment', { replace: true });
+        }
       }
     } catch (error) {
       alert(`배포 실패: ${error}`);
@@ -594,6 +604,15 @@ export function Toolbar() {
         show={showAIDialog}
         onClose={() => setShowAIDialog(false)}
         currentProject={currentProject}
+      />
+
+      <DeploymentProgressModal
+        isOpen={showDeploymentProgress}
+        onClose={() => {
+          setShowDeploymentProgress(false);
+          setIsDeploying(false);
+        }}
+        projectName={currentProject?.name || 'Project'}
       />
     </>
   );

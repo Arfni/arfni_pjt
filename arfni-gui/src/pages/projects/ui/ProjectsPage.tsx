@@ -318,10 +318,16 @@ export default function ProjectsPage() {
     try {
       console.log('[GitHub Project] Creating project with workdir:', workdir);
 
-      // GitHub 프로젝트 생성
+      // GitHub 프로젝트는 임시 디렉토리에 메타데이터만 저장
+      const { invoke } = await import('@tauri-apps/api/core');
+      const tempDir = await invoke<string>('get_temp_dir');
+      const projectName = newProjectName.trim() || repoName;
+      const githubProjectPath = `${tempDir}\\arfni\\github-projects`;
+
+      // 1. GitHub 프로젝트 생성 (DB에 저장)
       const project = await projectCommands.createProject(
-        newProjectName.trim() || repoName, // 프로젝트 이름 (미입력시 레포 이름 사용)
-        newProjectPath.trim(), // 로컬 경로
+        projectName, // 프로젝트 이름
+        githubProjectPath, // 임시 경로 (여기에 .arfni 폴더만 생성됨)
         'ec2', // GitHub 프로젝트는 항상 EC2
         selectedEC2ServerId,
         undefined, // description
@@ -332,6 +338,74 @@ export default function ProjectsPage() {
       );
 
       console.log('[GitHub Project] 프로젝트 생성 완료:', project);
+
+      // 2. EC2 서버 정보 가져오기
+      const ec2Server = ec2Servers.find(s => s.id === selectedEC2ServerId);
+      if (!ec2Server) {
+        throw new Error('EC2 서버 정보를 찾을 수 없습니다');
+      }
+
+      // 3. 기본 stack.yaml 생성 및 DB에 저장
+      const initialStackYaml = `apiVersion: v1
+name: ${repoName}
+targets:
+  ec2:
+    type: ec2.ssh
+    host: ${ec2Server.host}
+    user: ${ec2Server.user}
+services: {}`;
+
+      await projectCommands.saveStackYaml(
+        project.path,
+        initialStackYaml,
+        {
+          nodes: [],
+          edges: [],
+          project_name: repoName,
+          secrets: []
+        }
+      );
+
+      console.log('[GitHub Project] stack.yaml 저장 완료');
+
+      // 4. CI/CD 환경 설정 (EC2 클론, GitHub Secrets, Workflow 생성)
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+
+        // SSH 키 파일 읽기 (Tauri command 사용)
+        const sshKey = await invoke<string>('read_file_content', {
+          path: ec2Server.pem_path
+        });
+
+        const config = {
+          platform: 'github',
+          repository_url: repoUrl,
+          branch: branch,
+          framework: 'springboot', // TODO: 자동 감지 필요
+          ec2_host: ec2Server.host,
+          ec2_user: ec2Server.user,
+          deploy_root: `/home/${ec2Server.user}/${workdir}`,
+          docker_service: 'spring',
+        };
+
+        console.log('[GitHub Project] CI/CD 설정 시작:', config);
+
+        await invoke('setup_complete_cicd', {
+          config,
+          sshKey,
+          projectId: project.id,
+          ec2ServerId: selectedEC2ServerId,
+          accessToken,
+          stackYamlContent: initialStackYaml,
+        });
+
+        console.log('[GitHub Project] CI/CD 설정 완료');
+      } catch (cicdErr) {
+        // CI/CD 설정 실패는 경고로 표시하고 계속 진행
+        console.warn('[GitHub Project] CI/CD 설정 실패 (나중에 Deploy 시 자동 설정됨):', cicdErr);
+        // 사용자에게 경고 메시지 표시 (선택적)
+        // toast.warning('CI/CD 설정이 지연되었습니다. 첫 배포 시 자동으로 설정됩니다.');
+      }
 
       // 모달 닫기 및 초기화
       setShowCreateModal(false);
@@ -351,7 +425,7 @@ export default function ProjectsPage() {
     } finally {
       setCreating(false);
     }
-  }, [newProjectName, newProjectPath, newProjectWorkdir, selectedEC2ServerId, navigate, loadProjects, t]);
+  }, [newProjectName, newProjectPath, newProjectWorkdir, selectedEC2ServerId, navigate, loadProjects, t, ec2Servers]);
 
   // 탭 상태를 sessionStorage에 저장
   useEffect(() => {

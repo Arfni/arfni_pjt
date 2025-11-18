@@ -284,6 +284,11 @@ export const deploymentCommands = {
     return await invoke('smart_deploy', { projectId });
   },
 
+  // GitHub Actions 전용 배포 (Go 바이너리 호출하지 않음)
+  deployGitHubActions: async (projectId: string): Promise<DeploymentStatus> => {
+    return await invoke('deploy_github_actions', { projectId });
+  },
+
   // 배포 중단
   stopDeployment: async (): Promise<void> => {
     return await invoke('stop_deployment');
