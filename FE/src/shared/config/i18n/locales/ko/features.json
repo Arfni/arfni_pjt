@@ -8,12 +8,12 @@
       "description": "웹, 백엔드, DB, 캐시 등 다양한 서비스를 블록 형태로 드래그&드롭하여 시각적으로 인프라 구조 설계"
     },
     "autoGeneration": {
-      "title": "선언 파일 생성 및 배포 자동화",
-      "description": "설계된 인프라를 stack.yaml로 실시간 동기화하고, Generate → Build → Up → Monitoring 단계로 원클릭 배포"
+      "title": "선언 파일 자동 생성 및 동기화",
+      "description": "설계된 인프라가 stack.yaml로 실시간 동기화되고, 속성창 입력하여 빌드 경로 및 포트 번호 변경 가능"
     },
     "visualFeedback": {
-      "title": "배포 과정 요약 및 시각적 피드백",
-      "description": "단계별 로그, 실행 결과, 리소스 상태를 통합 화면에서 시각적 타임라인 형태로 요약 표시"
+      "title": "원클릭 배포 자동화",
+      "description": "Preflight → Generate → Build → Deploy → Health Check 단계로 원클릭 배포"
     },
     "aiSupport": {
       "title": "AI 서포트",

@@ -8,12 +8,12 @@
       "description": "Web、バックエンド、DB、キャッシュなど様々なサービスをドラッグ&ドロップで視覚的にインフラ構造を設計"
     },
     "autoGeneration": {
-      "title": "宣言ファイル生成とデプロイ自動化",
-      "description": "設計されたインフラをstack.yamlにリアルタイム同期し、Generate → Build → Up → Monitoringでワンクリックデプロイ"
+      "title": "宣言ファイルの自動生成および同期",
+      "description": "設計したインフラは stack.yaml とリアルタイムで同期され、プロパティパネルからビルドパスやポート番号を変更できます。"
     },
     "visualFeedback": {
-      "title": "デプロイプロセスの要約と視覚的フィードバック",
-      "description": "ステップ別ログ、実行結果、リソース状態を統合画面で視覚的なタイムライン形式で要約表示"
+      "title": "ワンクリックデプロイ自動化",
+      "description": "デプロイは、Preflight → Generate → Build → Deploy → Health Check の各ステージを経て、ワンクリックで自動的に実行されます。"
     },
     "aiSupport": {
       "title": "AIサポート",

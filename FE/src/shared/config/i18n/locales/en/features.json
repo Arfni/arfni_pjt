@@ -8,12 +8,12 @@
       "description": "Drag & drop various services like web, backend, DB, and cache to visually design your infrastructure"
     },
     "autoGeneration": {
-      "title": "Declaration File Generation & Deployment Automation",
-      "description": "Sync designed infrastructure to stack.yaml in real-time and deploy with one click: Generate → Build → Up → Monitoring"
+      "title": "Automatic Declaration File Generation & Sync",
+      "description": "The designed infrastructure is synchronized with stack.yaml in real time, and you can modify build paths and port numbers directly through the property panel."
     },
     "visualFeedback": {
-      "title": "Deployment Summary & Visual Feedback",
-      "description": "View step-by-step logs, execution results, and resource status in a visual timeline on an integrated screen"
+      "title": "One-Click Deployment Automation",
+      "description": "Deployment is fully automated through the stages: Preflight → Generate → Build → Deploy → Health Check."
     },
     "aiSupport": {
       "title": "AI Support",
