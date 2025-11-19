@@ -124,7 +124,7 @@ Leveraging OpenAI API, Arfni recommends optimized EC2 instances and estimates co
 
 ## 4. 플러그인 개발 문서
 
-- 작성중
+- [플로그인 개발 문서로 이동](https://github.com/Arfni/arfni-plugins)
 
 ## 5. **Contribution Guide**
 
