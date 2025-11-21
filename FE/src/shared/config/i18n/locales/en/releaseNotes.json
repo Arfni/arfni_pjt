@@ -1,0 +1,40 @@
+{
+  "hero": {
+    "eyebrow": "Release notes",
+    "title": "Latest ARFNI release",
+    "description": "Review the changelog that is fetched directly from GitHub every time we publish a new build."
+  },
+  "nav": {
+    "backToDocs": "Back to docs",
+    "goHome": "Back to main page"
+  },
+  "loading": "Loading the latest release…",
+  "error": {
+    "title": "We couldn’t load the release notes.",
+    "description": "Please refresh the page or try again in a moment.",
+    "retry": "Retry"
+  },
+  "metadata": {
+    "tag": "Tag",
+    "published": "Published",
+    "author": "Author",
+    "link": "View on GitHub"
+  },
+  "assets": {
+    "title": "Downloads",
+    "downloadCta": "Download",
+    "empty": "No downloadable assets were attached to this release.",
+    "meta": "{{size}} • {{count}} downloads"
+  },
+  "markdown": {
+    "title": "Changelog",
+    "empty": "No changelog content was published for this release."
+  },
+  "list": {
+    "title": "Release history",
+    "description": "Select another build to inspect its notes.",
+    "refresh": "Refresh",
+    "latest": "Latest",
+    "empty": "No releases were found."
+  }
+}

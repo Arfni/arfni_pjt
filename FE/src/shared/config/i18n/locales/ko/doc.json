@@ -1,6 +1,73 @@
 {
-  "title": "페이지 공사중입니다",
-  "descriptionLine1": "현재 페이지를 개선하고 있습니다.",
-  "descriptionLine2": "더 나은 모습으로 찾아뵙겠습니다!",
-  "back": "뒤로 가기"
+  "hero": {
+    "eyebrow": "문서 허브",
+    "title": {
+      "line1": "ARFNI 문서가",
+      "line2": "한 곳에 모이는",
+      "line3": "가장 빠른 길"
+    },
+    "description": "아래 리소스를 통해 최신 릴리스를 바로 확인하고, 곧 공개될 핸드북과 가이드를 미리 살펴보세요."
+  },
+  "actions": {
+    "primary": "릴리스 노트 보기",
+    "secondary": "메인 화면으로 돌아가기"
+  },
+  "statuses": {
+    "live": "바로 이용 가능",
+    "comingSoon": "곧 업데이트"
+  },
+  "tags": {
+    "product": "제품",
+    "release": "릴리스",
+    "developer": "개발자",
+    "guide": "가이드",
+    "api": "API",
+    "integrations": "통합"
+  },
+  "sections": {
+    "updates": {
+      "title": "최신 업데이트",
+      "description": "ARFNI의 모든 빌드와 공지사항을 가장 먼저 확인하세요."
+    },
+    "developerDocs": {
+      "title": "개발자 문서",
+      "description": "ARFNI를 확장하고 자동화하는 방법을 깊이 있게 다룰 예정입니다."
+    }
+  },
+  "documents": {
+    "releaseNotes": {
+      "title": "릴리스 노트",
+      "description": "버전별 새로운 기능, 수정 사항, 알려진 이슈를 담은 상세 변경 로그입니다.",
+      "highlight": "공개 릴리스마다 즉시 업데이트됩니다.",
+      "action": "릴리스 노트 열기"
+    },
+    "developerGuide": {
+      "title": "개발자 핸드북",
+      "description": "아키텍처, SDK 설정, 기여 프로세스를 정리한 안내서입니다.",
+      "highlight": "엔지니어링 팀과 함께 내용을 정리하고 있습니다."
+    },
+    "apiReference": {
+      "title": "API 레퍼런스",
+      "description": "CI/CD에 연동하기 위한 REST 엔드포인트와 자동화 훅을 제공할 예정입니다.",
+      "highlight": "스키마와 예제를 준비 중입니다."
+    },
+    "integrationPlaybook": {
+      "title": "통합 플레이북",
+      "description": "ARFNI와 기존 도구를 연결하는 다양한 사례 기반 가이드입니다.",
+      "highlight": "파일럿 고객의 베스트 프랙티스를 수집하고 있습니다."
+    }
+  },
+  "releases": {
+    "subheading": "ARFNI GitHub 릴리스와 실시간으로 동기화된 목록입니다.",
+    "loading": "릴리스 기록을 불러오는 중입니다…",
+    "empty": "공개된 릴리스가 아직 없습니다.",
+    "noDescription": "요약 정보가 제공되지 않은 릴리스입니다.",
+    "versionLabel": "버전 {{version}}",
+    "publishedOn": "{{date}}에 게시됨",
+    "error": {
+      "title": "릴리스 목록을 불러오지 못했습니다.",
+      "description": "페이지를 새로 고치거나 잠시 후 다시 시도해 주세요.",
+      "retry": "목록 새로 고침"
+    }
+  }
 }

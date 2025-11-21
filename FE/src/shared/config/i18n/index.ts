@@ -21,8 +21,11 @@ import jaIntegrations from './locales/ja/integrations.json';
 import jaDownload from './locales/ja/download.json';
 import koDownload from './locales/ko/download.json';
 import koDoc from './locales/ko/doc.json';
+import koReleaseNotes from './locales/ko/releaseNotes.json';
 import enDoc from './locales/en/doc.json';
+import enReleaseNotes from './locales/en/releaseNotes.json';
 import jaDoc from './locales/ja/doc.json';
+import jaReleaseNotes from './locales/ja/releaseNotes.json';
 
 const resources = {
   ko: {
@@ -32,6 +35,7 @@ const resources = {
     integrations: koIntegrations,
     download: koDownload,
     doc: koDoc,
+    releaseNotes: koReleaseNotes,
   },
   en: {
     common: enCommon,
@@ -40,6 +44,7 @@ const resources = {
     integrations: enIntegrations,
     download: enDownload,
     doc: enDoc,
+    releaseNotes: enReleaseNotes,
   },
   ja: {
     common: jaCommon,
@@ -48,6 +53,7 @@ const resources = {
     integrations: jaIntegrations,
     download: jaDownload,
     doc: jaDoc,
+    releaseNotes: jaReleaseNotes,
   },
 };
 
@@ -58,7 +64,15 @@ i18n
     resources,
     fallbackLng: 'ko',
     defaultNS: 'common',
-    ns: ['common', 'hero', 'features', 'integrations', 'download', 'doc'],
+    ns: [
+      'common',
+      'hero',
+      'features',
+      'integrations',
+      'download',
+      'doc',
+      'releaseNotes',
+    ],
 
     interpolation: {
       escapeValue: false,

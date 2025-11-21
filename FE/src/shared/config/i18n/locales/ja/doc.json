@@ -1,6 +1,73 @@
 {
-  "title": "ページは工事中です",
-  "descriptionLine1": "現在、このページを改良中です。",
-  "descriptionLine2": "より良い形でお届けします！",
-  "back": "戻る"
+  "hero": {
+    "eyebrow": "ドキュメントハブ",
+    "title": {
+      "line1": "ARFNI の情報を",
+      "line2": "ひとつに集約した",
+      "line3": "最速の入り口"
+    },
+    "description": "以下のリソースで最新リリースを追跡し、近日公開予定のハンドブックも先取りしてご確認ください。"
+  },
+  "actions": {
+    "primary": "リリースノートを見る",
+    "secondary": "メインページへ戻る"
+  },
+  "statuses": {
+    "live": "利用可能",
+    "comingSoon": "近日公開"
+  },
+  "tags": {
+    "product": "プロダクト",
+    "release": "リリース",
+    "developer": "開発者",
+    "guide": "ガイド",
+    "api": "API",
+    "integrations": "連携"
+  },
+  "sections": {
+    "updates": {
+      "title": "最新アップデート",
+      "description": "すべての ARFNI ビルドとアナウンスをすばやく追跡できます。"
+    },
+    "developerDocs": {
+      "title": "開発者向けドキュメント",
+      "description": "ARFNI を拡張し自動化するための詳細なガイドを順次公開します。"
+    }
+  },
+  "documents": {
+    "releaseNotes": {
+      "title": "リリースノート",
+      "description": "各バージョンの新機能・修正・既知の問題をまとめた詳細な変更履歴です。",
+      "highlight": "公開リリースのたびに更新されます。",
+      "action": "リリースノートを開く"
+    },
+    "developerGuide": {
+      "title": "デベロッパーハンドブック",
+      "description": "アーキテクチャや SDK セットアップ、コントリビューション手順を整理します。",
+      "highlight": "エンジニアリングチームと内容を準備中です。"
+    },
+    "apiReference": {
+      "title": "API リファレンス",
+      "description": "CI/CD 連携のための REST エンドポイントと自動化フックを掲載予定です。",
+      "highlight": "スキーマとサンプルを作成しています。"
+    },
+    "integrationPlaybook": {
+      "title": "インテグレーションプレイブック",
+      "description": "既存ツールとの組み合わせをケーススタディで紹介します。",
+      "highlight": "パイロットユーザーの知見を収集中です。"
+    }
+  },
+  "releases": {
+    "subheading": "ARFNI の GitHub リリースとリアルタイムに同期されています。",
+    "loading": "リリース履歴を読み込んでいます…",
+    "empty": "公開済みのリリースはまだありません。",
+    "noDescription": "このリリースには概要がありません。",
+    "versionLabel": "バージョン {{version}}",
+    "publishedOn": "{{date}} に公開",
+    "error": {
+      "title": "リリース一覧を取得できませんでした。",
+      "description": "ページを再読み込みするか、しばらくしてからもう一度お試しください。",
+      "retry": "一覧を更新"
+    }
+  }
 }

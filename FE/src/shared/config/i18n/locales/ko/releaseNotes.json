@@ -1,0 +1,40 @@
+{
+  "hero": {
+    "eyebrow": "릴리스 노트",
+    "title": "최신 ARFNI 릴리스",
+    "description": "GitHub에서 실시간으로 불러온 변경 내역을 통해 새로운 빌드의 내용을 한눈에 확인하세요."
+  },
+  "nav": {
+    "backToDocs": "문서 목록으로",
+    "goHome": "메인 화면으로"
+  },
+  "loading": "최신 릴리스를 불러오는 중입니다…",
+  "error": {
+    "title": "릴리스 노트를 불러오지 못했습니다.",
+    "description": "잠시 후 페이지를 새로 고치거나 다시 시도해 주세요.",
+    "retry": "다시 시도"
+  },
+  "metadata": {
+    "tag": "태그",
+    "published": "게시일",
+    "author": "작성자",
+    "link": "GitHub에서 열기"
+  },
+  "assets": {
+    "title": "다운로드",
+    "downloadCta": "다운로드",
+    "empty": "이번 릴리스에는 첨부된 다운로드 파일이 없습니다.",
+    "meta": "{{size}} • 다운로드 {{count}}회"
+  },
+  "markdown": {
+    "title": "변경 로그",
+    "empty": "이번 릴리스에는 공개된 변경 로그가 없습니다."
+  },
+  "list": {
+    "title": "릴리스 기록",
+    "description": "다른 빌드를 선택해 릴리스 노트를 확인하세요.",
+    "refresh": "새로 고침",
+    "latest": "최신",
+    "empty": "등록된 릴리스가 없습니다."
+  }
+}

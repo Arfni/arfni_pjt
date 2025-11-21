@@ -1,6 +1,73 @@
 {
-  "title": "Page Under Construction",
-  "descriptionLine1": "This page is currently being improved.",
-  "descriptionLine2": "We’ll be back with a better experience!",
-  "back": "Go Back"
+  "hero": {
+    "eyebrow": "Documentation hub",
+    "title": {
+      "line1": "Your single source",
+      "line2": "for ARFNI documentation",
+      "line3": "and release notes"
+    },
+    "description": "Explore the resources below to follow the latest release today and preview the handbooks that are on the roadmap."
+  },
+  "actions": {
+    "primary": "Read release notes",
+    "secondary": "Back to main page"
+  },
+  "statuses": {
+    "live": "Available now",
+    "comingSoon": "Coming soon"
+  },
+  "tags": {
+    "product": "Product",
+    "release": "Release",
+    "developer": "Developer",
+    "guide": "Guide",
+    "api": "API",
+    "integrations": "Integrations"
+  },
+  "sections": {
+    "updates": {
+      "title": "Latest updates",
+      "description": "Stay up to date with every ARFNI build and announcement."
+    },
+    "developerDocs": {
+      "title": "Developer documentation",
+      "description": "Deep dives that will cover how to extend and automate with ARFNI."
+    }
+  },
+  "documents": {
+    "releaseNotes": {
+      "title": "Release notes",
+      "description": "Detailed changelog with features, fixes, and known issues for each version.",
+      "highlight": "Updated on every public release.",
+      "action": "Open release notes"
+    },
+    "developerGuide": {
+      "title": "Developer handbook",
+      "description": "Architecture, SDK setup, and contribution workflow guidance.",
+      "highlight": "Drafting content with the engineering team."
+    },
+    "apiReference": {
+      "title": "API reference",
+      "description": "REST endpoints and automation hooks to integrate with CI/CD.",
+      "highlight": "Schema definitions and examples are in progress."
+    },
+    "integrationPlaybook": {
+      "title": "Integration playbook",
+      "description": "Use-case based walkthroughs for pairing ARFNI with your tooling.",
+      "highlight": "Collecting best practices from pilot users."
+    }
+  },
+  "releases": {
+    "subheading": "Live data synced directly from the ARFNI GitHub releases.",
+    "loading": "Loading release history…",
+    "empty": "No public releases have been published yet.",
+    "noDescription": "No summary is available for this release.",
+    "versionLabel": "Version {{version}}",
+    "publishedOn": "Published {{date}}",
+    "error": {
+      "title": "We couldn’t load the release list.",
+      "description": "Please refresh the page or try again in a moment.",
+      "retry": "Reload list"
+    }
+  }
 }

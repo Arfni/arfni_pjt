@@ -1,0 +1,40 @@
+{
+  "hero": {
+    "eyebrow": "リリースノート",
+    "title": "最新の ARFNI リリース",
+    "description": "GitHub から取得した最新の変更履歴で、新しいビルドの内容をすばやく把握できます。"
+  },
+  "nav": {
+    "backToDocs": "ドキュメント一覧へ",
+    "goHome": "メインページへ戻る"
+  },
+  "loading": "最新リリースを読み込んでいます…",
+  "error": {
+    "title": "リリースノートを読み込めませんでした。",
+    "description": "少し時間をおいてから再度お試しください。",
+    "retry": "再試行"
+  },
+  "metadata": {
+    "tag": "タグ",
+    "published": "公開日",
+    "author": "作成者",
+    "link": "GitHub で開く"
+  },
+  "assets": {
+    "title": "ダウンロード",
+    "downloadCta": "ダウンロード",
+    "empty": "このリリースにはダウンロード可能なアセットがありません。",
+    "meta": "{{size}} ・ ダウンロード {{count}}回"
+  },
+  "markdown": {
+    "title": "変更履歴",
+    "empty": "このリリースでは変更履歴が公開されていません。"
+  },
+  "list": {
+    "title": "リリース履歴",
+    "description": "別のビルドを選択してノートを確認してください。",
+    "refresh": "更新",
+    "latest": "最新",
+    "empty": "リリースが見つかりませんでした。"
+  }
+}
