@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Server, Loader2, Plus, Edit2, Trash2 } from 'lucide-react';
 import { EC2Server, sshCommands, ec2ServerCommands } from '@shared/api/tauri/commands';
 import { confirm } from '@tauri-apps/plugin-dialog';
@@ -28,6 +28,12 @@ export function ServerSelectionModal({
   const { t } = useTranslation('projects');
   const [connectingServerId, setConnectingServerId] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setConnectionError(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -120,7 +126,7 @@ export function ServerSelectionModal({
         {/* Server List */}
         <div className="px-6 py-4 max-h-96 overflow-y-auto">
           {connectionError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700 break-words">
               {connectionError}
             </div>
           )}
