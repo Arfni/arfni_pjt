@@ -10,6 +10,8 @@ interface FailedModalProps {
     level: string;
     message: string;
   }>;
+  onAnalyzeWithAI?: () => void;
+  isAnalyzing?: boolean;
 }
 
 const getLogColor = (level: string) => {
@@ -27,7 +29,7 @@ const getLogColor = (level: string) => {
   }
 };
 
-export function FailedModal({ isOpen, onClose, error, logs }: FailedModalProps) {
+export function FailedModal({ isOpen, onClose, error, logs, onAnalyzeWithAI, isAnalyzing }: FailedModalProps) {
   const { t } = useTranslation('deployment');
 
   if (!isOpen) return null;
@@ -62,13 +64,30 @@ export function FailedModal({ isOpen, onClose, error, logs }: FailedModalProps) 
           </div>
         </div>
 
-        {/* 확인 버튼 */}
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
-        >
-          {t('failed.confirm')}
-        </button>
+        {/* 버튼 그룹 */}
+        <div className="flex gap-3">
+          {onAnalyzeWithAI && (
+            <button
+              onClick={onAnalyzeWithAI}
+              disabled={isAnalyzing}
+              className={`flex-1 py-3 rounded font-semibold transition-colors ${
+                isAnalyzing
+                  ? 'bg-purple-300 text-white cursor-wait'
+                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+              }`}
+            >
+              {isAnalyzing ? 'AI 분석 중...' : 'AI 분석 요청'}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className={`py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors ${
+              onAnalyzeWithAI ? 'flex-1' : 'w-full'
+            }`}
+          >
+            {t('failed.confirm')}
+          </button>
+        </div>
       </div>
     </div>
   );

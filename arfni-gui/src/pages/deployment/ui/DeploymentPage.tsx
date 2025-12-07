@@ -27,6 +27,7 @@ import { selectCurrentProject } from '@features/project/model/projectSlice';
 import { eventListeners, deploymentCommands, ec2ServerCommands, EC2Server, projectCommands } from '@shared/api/tauri/commands';
 import { SuccessModal } from './SuccessModal';
 import { FailedModal } from './FailedModal';
+import { AIAnalysisModal } from './AIAnalysisModal';
 import { LogsView } from './LogsView';
 import { ContainersView } from './ContainersView';
 import { ProgressBar } from './ProgressBar';
@@ -77,6 +78,8 @@ export function DeploymentPage() {
   const [showFailedModal, setShowFailedModal] = useState(false);
   const [ec2Server, setEc2Server] = useState<EC2Server | null>(null);
   const [isStopping, setIsStopping] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
 
   // Load containers from stack.yaml
   const loadContainersFromStack = async () => {
@@ -261,6 +264,37 @@ export function DeploymentPage() {
     setShowFailedModal(false);
   };
 
+  const handleAnalyzeWithAI = async () => {
+    if (!currentProject) {
+      console.error('No current project');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    try {
+      const stackYamlPath = `${currentProject.path}/stack.yaml`;
+      const environment = currentProject.environment || 'local';
+
+      console.log('[AI Analysis] Starting analysis...');
+      console.log('[AI Analysis] Stack YAML:', stackYamlPath);
+      console.log('[AI Analysis] Environment:', environment);
+
+      const result = await deploymentCommands.analyzeDeploymentFailure(
+        stackYamlPath,
+        environment,
+        'ko'
+      );
+
+      console.log('[AI Analysis] Result:', result);
+      setAiAnalysis(result);
+    } catch (error) {
+      console.error('[AI Analysis] Failed:', error);
+      alert(`AI 분석 실패: ${error}`);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const getCurrentStageMessage = () => {
     if (!currentStage) return '';
     const stage = STAGES.find((s) => s.id === currentStage);
@@ -420,6 +454,15 @@ export function DeploymentPage() {
           onClose={handleConfirmFailed}
           error={error}
           logs={logs}
+          onAnalyzeWithAI={handleAnalyzeWithAI}
+          isAnalyzing={isAnalyzing}
+        />
+
+        {/* AI 분석 결과 모달 */}
+        <AIAnalysisModal
+          isOpen={aiAnalysis !== null}
+          onClose={() => setAiAnalysis(null)}
+          analysis={aiAnalysis}
         />
       </div>
     );

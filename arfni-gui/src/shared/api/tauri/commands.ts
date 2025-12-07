@@ -308,6 +308,11 @@ export const deploymentCommands = {
   startMonitoring: async (stackPath: string): Promise<string> => {
     return await invoke('start_monitoring', { stackPath });
   },
+
+  // AI 배포 실패 분석
+  analyzeDeploymentFailure: async (stackYamlPath: string, environment: string, language?: string): Promise<any> => {
+    return await invoke('analyze_deployment_failure', { stackYamlPath, environment, language: language || 'ko' });
+  },
 };
 
 // ============= 파일 감시 명령어 =============

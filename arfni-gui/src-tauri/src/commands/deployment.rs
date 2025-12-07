@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::collections::HashMap;
+use std::fs;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -41,8 +42,37 @@ static DEPLOYMENT_RUNNING: AtomicBool = AtomicBool::new(false);
 // 배포 프로세스 PID 저장
 static DEPLOYMENT_PROCESS_PID: OnceLock<Arc<Mutex<Option<u32>>>> = OnceLock::new();
 
+// 배포 로그 저장 (AI 분석용)
+static DEPLOYMENT_LOGS: OnceLock<Arc<Mutex<Vec<String>>>> = OnceLock::new();
+
 fn get_deployment_pid() -> &'static Arc<Mutex<Option<u32>>> {
     DEPLOYMENT_PROCESS_PID.get_or_init(|| Arc::new(Mutex::new(None)))
+}
+
+fn get_deployment_logs() -> &'static Arc<Mutex<Vec<String>>> {
+    DEPLOYMENT_LOGS.get_or_init(|| Arc::new(Mutex::new(Vec::new())))
+}
+
+// AI 트러블슈팅 결과 구조체
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Solution {
+    pub priority: String,
+    pub title: String,
+    pub description: String,
+    pub steps: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code_examples: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TroubleshootResult {
+    pub error_summary: String,
+    pub root_cause: String,
+    pub solutions: Vec<Solution>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub related_docs: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prevention_tips: Option<Vec<String>>,
 }
 
 /// stack.yaml 검증
@@ -97,6 +127,11 @@ pub async fn deploy_stack(
 
     // 배포 시작 플래그 설정 (바이너리 확인 후에만 설정)
     DEPLOYMENT_RUNNING.store(true, Ordering::SeqCst);
+
+    // 이전 로그 클리어 (새 배포 시작)
+    if let Ok(mut logs) = get_deployment_logs().lock() {
+        logs.clear();
+    }
 
     // 배포 시작 이벤트 전송
     app.emit("deployment-started", DeploymentStatus {
@@ -368,6 +403,11 @@ pub async fn deploy_stack(
                             }
 
                             if let Ok(line) = line {
+                                // 로그 저장 (AI 분석용)
+                                if let Ok(mut logs) = get_deployment_logs().lock() {
+                                    logs.push(line.clone());
+                                }
+
                                 // __OUTPUTS__ 파싱
                                 if line.contains("__OUTPUTS__") {
                                     if let Some(json_start) = line.find("__OUTPUTS__") {
@@ -409,6 +449,11 @@ pub async fn deploy_stack(
                             }
 
                             if let Ok(line) = line {
+                                // 로그 저장 (AI 분석용)
+                                if let Ok(mut logs) = get_deployment_logs().lock() {
+                                    logs.push(format!("ERROR: {}", line));
+                                }
+
                                 // stderr는 에러 레벨로 처리
                                 app_clone_stderr.emit("deployment-log", DeploymentLog {
                                     timestamp: chrono::Utc::now().to_rfc3339(),
@@ -1999,6 +2044,126 @@ pub fn generate_docker_files_with_go_binary_public(
     stack_yaml_content: &str,
 ) -> Result<(String, Vec<(String, String)>), String> {
     generate_docker_files_with_go_binary(app, temp_dir, stack_yaml_content)
+}
+
+/// AI 배포 실패 분석
+#[tauri::command]
+pub async fn analyze_deployment_failure(
+    app: AppHandle,
+    stack_yaml_path: String,
+    environment: String,
+    language: Option<String>,
+) -> Result<TroubleshootResult, String> {
+    use crate::db::{Database, api_key as repo};
+    use tauri::State;
+
+    println!("[AI Troubleshoot] Starting deployment failure analysis");
+    println!("[AI Troubleshoot] Stack YAML: {}", stack_yaml_path);
+    println!("[AI Troubleshoot] Environment: {}", environment);
+
+    // 0. API 키 가져오기
+    let db_state: State<'_, Database> = app.state();
+    let api_key = repo::get_active_value(&db_state, "openai")
+        .ok()
+        .flatten()
+        .or_else(|| repo::get_active_value(&db_state, "etc").ok().flatten())
+        .ok_or_else(|| "OpenAI API 키가 설정되지 않았습니다. 설정(Settings > API Keys)에서 API 키를 추가해주세요.".to_string())?;
+
+    println!("[AI Troubleshoot] API key loaded from database");
+
+    // 1. 저장된 로그 가져오기
+    let logs = if let Ok(logs_guard) = get_deployment_logs().lock() {
+        logs_guard.join("\n")
+    } else {
+        return Err("Failed to access deployment logs".to_string());
+    };
+
+    if logs.is_empty() {
+        return Err("No deployment logs available for analysis. Please run a deployment first.".to_string());
+    }
+
+    println!("[AI Troubleshoot] Collected {} lines of logs", logs.lines().count());
+
+    // 2. 로그를 임시 파일로 저장
+    let temp_dir = std::env::temp_dir();
+    let temp_log_path = temp_dir.join("arfni_deployment_failure.log");
+
+    fs::write(&temp_log_path, &logs)
+        .map_err(|e| format!("Failed to write logs to temp file: {}", e))?;
+
+    println!("[AI Troubleshoot] Logs saved to: {}", temp_log_path.display());
+
+    // 3. Go 바이너리 찾기
+    let go_binary_path = find_go_binary(&app)?;
+    println!("[AI Troubleshoot] Using Go binary: {}", go_binary_path);
+
+    // 4. 언어 설정
+    let lang = language.unwrap_or_else(|| "ko".to_string());
+
+    // 5. arfni-go.exe troubleshoot 명령 실행
+    let mut command = Command::new(&go_binary_path);
+    command
+        .arg("troubleshoot")
+        .arg("-logs")
+        .arg(&temp_log_path)
+        .arg("-f")
+        .arg(&stack_yaml_path)
+        .arg("-env")
+        .arg(&environment)
+        .arg("-language")
+        .arg(&lang)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // API 키를 환경변수로 설정
+    if api_key.starts_with("sk-") {
+        // OpenAI key format
+        command.env("OPENAI_API_KEY", &api_key);
+        println!("[AI Troubleshoot] Set OPENAI_API_KEY environment variable");
+    } else {
+        // GMS key format
+        command.env("GMS_KEY", &api_key);
+        println!("[AI Troubleshoot] Set GMS_KEY environment variable");
+    }
+
+    // Windows에서 콘솔 창 숨김
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    println!("[AI Troubleshoot] Executing troubleshoot command...");
+
+    let output = command.output()
+        .map_err(|e| format!("Failed to execute troubleshoot command: {}", e))?;
+
+    // 6. 결과 파싱
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!("Troubleshoot command failed:\nSTDERR: {}\nSTDOUT: {}", stderr, stdout));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    println!("[AI Troubleshoot] Got response from AI");
+
+    // __TROUBLESHOOT_RESULT__ 마커 찾기
+    let json_marker = "__TROUBLESHOOT_RESULT__";
+    if let Some(json_start) = stdout.find(json_marker) {
+        let json_str = &stdout[json_start + json_marker.len()..];
+        let result: TroubleshootResult = serde_json::from_str(json_str)
+            .map_err(|e| format!("Failed to parse troubleshoot result: {}\nJSON: {}", e, json_str))?;
+
+        println!("[AI Troubleshoot] Successfully parsed AI response");
+
+        // 임시 파일 삭제
+        let _ = fs::remove_file(&temp_log_path);
+
+        Ok(result)
+    } else {
+        Err(format!("No troubleshoot result found in output:\n{}", stdout))
+    }
 }
 
 /// Generate a Spring Boot Dockerfile from service configuration

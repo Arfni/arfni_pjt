@@ -146,6 +146,7 @@ fn main() {
       commands::deployment::test_ssh_connection,
       commands::deployment::start_monitoring,
       commands::deployment::smart_deploy,
+      commands::deployment::analyze_deployment_failure,
 
       // 파일 감시 명령어
       commands::file_watcher::watch_stack_yaml,

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/arfni/arfni/internal/deployment"
 	"github.com/arfni/arfni/internal/pricing"
 	"gopkg.in/yaml.v3"
 )
@@ -32,6 +33,8 @@ func main() {
 		runCostEstimation(os.Args[2:])
 	case "analyze":
 		runAnalyze(os.Args[2:])
+	case "troubleshoot", "diagnose":
+		runTroubleshoot(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -54,6 +57,7 @@ func printUsage() {
 	fmt.Println("  monitor        Start monitoring (alias: monitoring)")
 	fmt.Println("  estimate-cost  Estimate AWS costs (alias: estimate)")
 	fmt.Println("  analyze        Analyze actual usage and optimize costs")
+	fmt.Println("  troubleshoot   Analyze deployment failures with AI (alias: diagnose)")
 	fmt.Println("  help           Show this help message")
 	fmt.Println()
 	fmt.Println("Deploy Options:")
@@ -85,6 +89,18 @@ func printUsage() {
 	fmt.Println("Analyze Options:")
 	fmt.Println("  -prometheus string")
 	fmt.Println("        Prometheus URL (default: http://localhost:9090)")
+	fmt.Println("  -language string")
+	fmt.Println("        Response language: ko, en (default: ko)")
+	fmt.Println()
+	fmt.Println("Troubleshoot Options:")
+	fmt.Println("  -logs string")
+	fmt.Println("        Path to deployment logs file (required)")
+	fmt.Println("  -f string")
+	fmt.Println("        Path to stack.yaml (required)")
+	fmt.Println("  -env string")
+	fmt.Println("        Deployment environment: local, ec2 (default: local)")
+	fmt.Println("  -language string")
+	fmt.Println("        Response language: ko, en (default: ko)")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  arfni-go.exe deploy -f stack.yaml")
@@ -94,6 +110,7 @@ func printUsage() {
 	fmt.Println("  arfni-go.exe estimate-cost -f stack.yaml -users 1000 -traffic high -deployment production")
 	fmt.Println("  arfni-go.exe analyze")
 	fmt.Println("  arfni-go.exe analyze -prometheus http://localhost:9090")
+	fmt.Println("  arfni-go.exe troubleshoot -logs deployment.log -f stack.yaml -env local")
 	fmt.Println()
 }
 
@@ -763,4 +780,64 @@ func runAnalyze(args []string) {
 	}
 
 	fmt.Printf("__ANALYSIS_REPORT__%s\n", string(jsonOutput))
+}
+
+// ========== Troubleshoot Command ==========
+
+func runTroubleshoot(args []string) {
+	fs := flag.NewFlagSet("troubleshoot", flag.ExitOnError)
+	logsPath := fs.String("logs", "", "Path to deployment logs file (required)")
+	stackPath := fs.String("f", "stack.yaml", "Path to stack.yaml (required)")
+	environment := fs.String("env", "local", "Deployment environment: local, ec2")
+	language := fs.String("language", "ko", "Response language: ko, en")
+
+	fs.Parse(args)
+
+	// Validation
+	if *logsPath == "" {
+		fmt.Fprintln(os.Stderr, "[ERROR] -logs flag is required")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  arfni-go.exe troubleshoot -logs <log-file> -f <stack.yaml> [-env local|ec2] [-language ko|en]")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Example:")
+		fmt.Fprintln(os.Stderr, "  arfni-go.exe troubleshoot -logs deployment.log -f stack.yaml -env local")
+		os.Exit(1)
+	}
+
+	if *stackPath == "" {
+		fmt.Fprintln(os.Stderr, "[ERROR] -f flag is required (stack.yaml path)")
+		os.Exit(1)
+	}
+
+	// Validate environment
+	if *environment != "local" && *environment != "ec2" {
+		fmt.Fprintln(os.Stderr, "[ERROR] -env must be 'local' or 'ec2'")
+		os.Exit(1)
+	}
+
+	// Validate language
+	if *language != "ko" && *language != "en" {
+		fmt.Fprintln(os.Stderr, "[ERROR] -language must be 'ko' or 'en'")
+		os.Exit(1)
+	}
+
+	fmt.Println("================================================")
+	fmt.Println("  AI Deployment Troubleshooter")
+	fmt.Println("================================================")
+	fmt.Println()
+	fmt.Printf("Logs File:     %s\n", *logsPath)
+	fmt.Printf("Stack YAML:    %s\n", *stackPath)
+	fmt.Printf("Environment:   %s\n", *environment)
+	fmt.Printf("Language:      %s\n", *language)
+	fmt.Println()
+	fmt.Println("Analyzing deployment failure with AI...")
+	fmt.Println()
+
+	// Call analyzer
+	err := deployment.AnalyzeDeploymentFailureCommand(*logsPath, *stackPath, *environment, *language)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] Troubleshooting failed: %v\n", err)
+		os.Exit(1)
+	}
 }
