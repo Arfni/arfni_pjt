@@ -161,12 +161,9 @@ pub async fn estimate_cost(
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-    // Get API key from database (try multiple providers)
-    let api_key = repo::get_active_value(&db, "openai")
-        .ok()
-        .flatten()
-        .or_else(|| repo::get_active_value(&db, "etc").ok().flatten())
-        .ok_or_else(|| "No active API key found. Please add an OpenAI API key in settings (Settings > API Keys).".to_string())?;
+    // Get API key from database. Older UI versions stored OpenAI as "OpenAI",
+    // while the command previously queried only lowercase "openai".
+    let (provider, api_key) = get_active_ai_api_key(&db)?;
 
     // Find arfni-go.exe
     let exe_path = find_arfni_go_executable()?;
@@ -182,14 +179,7 @@ pub async fn estimate_cost(
         .arg("-language")
         .arg(&lang);
 
-    // Set appropriate environment variable based on key format
-    if api_key.starts_with("sk-") {
-        // OpenAI key format
-        cmd.env("OPENAI_API_KEY", &api_key);
-    } else {
-        // GMS key format
-        cmd.env("GMS_KEY", &api_key);
-    }
+    apply_ai_api_key_env(&mut cmd, &provider, &api_key);
 
     #[cfg(target_os = "windows")]
     {
@@ -232,12 +222,9 @@ pub async fn analyze(
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-    // Get API key from database (try multiple providers)
-    let api_key = repo::get_active_value(&db, "openai")
-        .ok()
-        .flatten()
-        .or_else(|| repo::get_active_value(&db, "etc").ok().flatten())
-        .ok_or_else(|| "No active API key found. Please add an OpenAI API key in settings (Settings > API Keys).".to_string())?;
+    // Get API key from database. Older UI versions stored OpenAI as "OpenAI",
+    // while the command previously queried only lowercase "openai".
+    let (provider, api_key) = get_active_ai_api_key(&db)?;
 
     // Find arfni-go.exe
     let exe_path = find_arfni_go_executable()?;
@@ -261,14 +248,7 @@ pub async fn analyze(
         .arg("-language")
         .arg(&lang);
 
-    // Set appropriate environment variable based on key format
-    if api_key.starts_with("sk-") {
-        // OpenAI key format
-        cmd.env("OPENAI_API_KEY", &api_key);
-    } else {
-        // GMS key format
-        cmd.env("GMS_KEY", &api_key);
-    }
+    apply_ai_api_key_env(&mut cmd, &provider, &api_key);
 
     #[cfg(target_os = "windows")]
     {
@@ -331,4 +311,30 @@ fn find_arfni_go_executable() -> Result<std::path::PathBuf, String> {
         "arfni-go.exe not found. Tried paths:\n  - {}",
         tried_paths.join("\n  - ")
     ))
+}
+
+fn get_active_ai_api_key(db: &Database) -> Result<(String, String), String> {
+    for provider in ["openai", "OpenAI", "gms", "GMS", "etc"] {
+        if let Some(api_key) = repo::get_active_value(db, provider)
+            .map_err(|e| e.to_string())?
+        {
+            return Ok((provider.to_string(), api_key));
+        }
+    }
+
+    Err("No active API key found. Please add an OpenAI API key in settings (Settings > API Keys).".to_string())
+}
+
+fn apply_ai_api_key_env(cmd: &mut Command, provider: &str, api_key: &str) {
+    let provider = provider.to_ascii_lowercase();
+    if provider == "gms" {
+        cmd.env("OPENAI_PROVIDER", "gms");
+        cmd.env("GMS_KEY", api_key);
+    } else if api_key.starts_with("sk-") {
+        cmd.env("OPENAI_PROVIDER", "openai");
+        cmd.env("OPENAI_API_KEY", api_key);
+    } else {
+        cmd.env("OPENAI_PROVIDER", "gms");
+        cmd.env("GMS_KEY", api_key);
+    }
 }
