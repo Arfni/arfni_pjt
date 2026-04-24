@@ -1,0 +1,30 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - fastapi
+      - react
+    networks:
+      - app-net
+
+  fastapi:
+    build: ./backend
+    expose:
+      - "8000"
+    networks:
+      - app-net
+
+  react:
+    build: ./frontend
+    expose:
+      - "80"
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    driver: bridge

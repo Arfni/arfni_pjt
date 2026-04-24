@@ -63,6 +63,18 @@ export class PluginStackGenerator {
     for (const node of nodes) {
       if (node.type === 'target') continue; // Skip target nodes
 
+      // NGINX 게이트웨이 노드는 별도 처리
+      if (node.type === 'nginx') {
+        const nginxService = this.generateNginxService(node, validEdges, nodes, defaultTarget);
+        if (nginxService) {
+          const serviceName = (node.data.name || 'nginx')
+            .toLowerCase().trim()
+            .replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+          stack.services[serviceName] = nginxService;
+        }
+        continue;
+      }
+
       const service = await this.generateServiceFromNode(node, validEdges, nodes, defaultTarget, environment);
       if (service) {
         // Use sanitized node name as service key
@@ -1294,6 +1306,66 @@ export class PluginStackGenerator {
    */
   private static camelToSnake(str: string): string {
     return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+  }
+
+  /**
+   * Generate NGINX gateway service from a nginx node + edges
+   */
+  private static generateNginxService(
+    node: CanvasNode,
+    edges: CanvasEdge[],
+    allNodes: CanvasNode[],
+    defaultTarget: string
+  ): any {
+    const data = node.data as any;
+
+    // Collect upstream services from incoming edges
+    const incomingEdges = edges.filter(e => e && e.target === node.id);
+    const upstreams = incomingEdges
+      .map(edge => {
+        const sourceNode = allNodes.find(n => n.id === edge.source);
+        if (!sourceNode || sourceNode.type === 'target') return null;
+
+        const name = (sourceNode.data.name || sourceNode.type || 'service')
+          .toLowerCase().trim()
+          .replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+        // port: first exposed port of the upstream service
+        const ports: string[] = sourceNode.data.ports || [];
+        const port = ports.length > 0
+          ? Number(ports[0].split(':')[1] || ports[0].split(':')[0] || 80)
+          : 80;
+
+        // route comes from edge metadata (set via edge click UI)
+        const route: string = (edge.data as any)?.route || '/';
+
+        return { name, service: name, port, route };
+      })
+      .filter(Boolean);
+
+    const listenPort = data.listenPort ?? 80;
+
+    return {
+      kind: 'proxy.nginx',
+      target: defaultTarget,
+      spec: {
+        image: 'nginx:alpine',
+        ports: [`${listenPort}:${listenPort}`],
+        volumes: [{ host: './nginx.conf', mount: '/etc/nginx/nginx.conf' }],
+        nginx: {
+          listenPort,
+          serverName: data.serverName || '_',
+          upstreams,
+          ssl: data.ssl?.enabled ? data.ssl : undefined,
+          rateLimit: data.rateLimit?.enabled ? data.rateLimit : undefined,
+          cors: data.cors?.enabled ? data.cors : undefined,
+          gzip: data.gzip?.enabled ? data.gzip : undefined,
+          cache: data.cache?.enabled ? data.cache : undefined,
+          keepalive: data.keepalive ?? 32,
+          loadBalancing: data.loadBalancing,
+        },
+      },
+    };
   }
 
   /**

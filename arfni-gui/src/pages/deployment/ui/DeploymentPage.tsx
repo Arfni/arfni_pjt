@@ -13,6 +13,7 @@ import {
   selectDeploymentEndpoints,
   selectDeploymentStats,
   selectDeploymentContainers,
+  selectSslWarning,
   addLog,
   deploymentSuccess,
   deploymentFailed,
@@ -70,6 +71,7 @@ export function DeploymentPage() {
   const endpoints = useSelector(selectDeploymentEndpoints);
   const stats = useSelector(selectDeploymentStats);
   const containers = useSelector(selectDeploymentContainers);
+  const sslWarning = useSelector(selectSslWarning);
 
   const [activeTab] = useState<'log' | 'canvas'>('log');
   const [activeLogTab, setActiveLogTab] = useState<'containers' | 'logs'>('logs');
@@ -336,6 +338,17 @@ export function DeploymentPage() {
                 getCurrentStageMessage={getCurrentStageMessage}
                 stages={STAGES}
               />
+
+              {/* SSL 경고 배너 */}
+              {sslWarning && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg flex items-start gap-2">
+                  <span className="text-yellow-500 text-lg flex-shrink-0">⚠️</span>
+                  <div className="text-sm text-yellow-800">
+                    <p className="font-semibold mb-1">SSL 인증서 미발급 — HTTP 전용 모드로 배포됨</p>
+                    <p>도메인 DNS가 서버 IP를 가리키는지, EC2 보안그룹에서 443 포트(인바운드)가 열려있는지 확인 후 재배포하세요.</p>
+                  </div>
+                </div>
+              )}
 
               {/* Containers/Logs 탭 */}
               <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col flex-1 min-h-0">

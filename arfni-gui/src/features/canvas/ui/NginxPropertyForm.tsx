@@ -107,20 +107,47 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
             </label>
             {data.ssl?.enabled && (
               <div className="pl-5 space-y-2">
-                <FormField label="인증서 경로 (certPath)">
-                  <Input
-                    value={data.ssl.certPath ?? ''}
-                    onChange={(e) => updateNested('ssl', 'certPath', e.target.value)}
-                    placeholder="/etc/nginx/certs/cert.pem"
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={data.ssl.auto ?? false}
+                    onChange={(e) => updateNested('ssl', 'auto', e.target.checked)}
+                    className="rounded"
                   />
-                </FormField>
-                <FormField label="개인키 경로 (keyPath)">
-                  <Input
-                    value={data.ssl.keyPath ?? ''}
-                    onChange={(e) => updateNested('ssl', 'keyPath', e.target.value)}
-                    placeholder="/etc/nginx/certs/key.pem"
-                  />
-                </FormField>
+                  Let's Encrypt 자동 발급
+                </label>
+                {data.ssl.auto ? (
+                  <FormField label="이메일 (Let's Encrypt 알림용)">
+                    <Input
+                      value={data.ssl.email ?? ''}
+                      onChange={(e) => updateNested('ssl', 'email', e.target.value)}
+                      placeholder="admin@example.com"
+                      className={!data.ssl.email ? 'border-red-400' : ''}
+                    />
+                    {!data.ssl.email && (
+                      <p className="text-red-500 text-xs mt-1">
+                        이메일을 입력해야 Let's Encrypt 인증서를 발급할 수 있습니다.
+                      </p>
+                    )}
+                  </FormField>
+                ) : (
+                  <>
+                    <FormField label="인증서 경로 (certPath)">
+                      <Input
+                        value={data.ssl.certPath ?? ''}
+                        onChange={(e) => updateNested('ssl', 'certPath', e.target.value)}
+                        placeholder="/etc/nginx/certs/cert.pem"
+                      />
+                    </FormField>
+                    <FormField label="개인키 경로 (keyPath)">
+                      <Input
+                        value={data.ssl.keyPath ?? ''}
+                        onChange={(e) => updateNested('ssl', 'keyPath', e.target.value)}
+                        placeholder="/etc/nginx/certs/key.pem"
+                      />
+                    </FormField>
+                  </>
+                )}
               </div>
             )}
           </div>

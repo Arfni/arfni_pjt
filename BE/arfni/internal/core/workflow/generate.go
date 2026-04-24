@@ -86,6 +86,66 @@ func GenerateDockerComposeWithTarget(s *stack.Stack, projectDir string, targetTy
 			}
 		}
 
+		// proxy.nginx: auto-inject nginx.conf volume mount + optional certbot
+		if service.Kind == "proxy.nginx" {
+			hasNginxConf := false
+			for _, v := range service.Spec.Volumes {
+				if strings.Contains(v.Mount, "nginx.conf") {
+					hasNginxConf = true
+					break
+				}
+			}
+			if !hasNginxConf {
+				service.Spec.Volumes = append(service.Spec.Volumes, stack.Volume{
+					Host:  "./nginx.conf",
+					Mount: "/etc/nginx/nginx.conf",
+				})
+			}
+
+			// Auto SSL: inject certbot companion service, 443 port, and shared volumes
+			if service.Spec.Nginx != nil && service.Spec.Nginx.SSL != nil &&
+				service.Spec.Nginx.SSL.Enabled && service.Spec.Nginx.SSL.Auto {
+
+				// Add 443 port if not already present
+				has443 := false
+				for _, p := range dcService.Ports {
+					if strings.Contains(p, "443") {
+						has443 = true
+						break
+					}
+				}
+				if !has443 {
+					dcService.Ports = append(dcService.Ports, "443:443")
+				}
+
+				// Add shared volumes to nginx (processed in volumes loop below)
+				service.Spec.Volumes = append(service.Spec.Volumes,
+					stack.Volume{Host: "letsencrypt", Mount: "/etc/letsencrypt"},
+					stack.Volume{Host: "certbot-webroot", Mount: "/var/www/certbot"},
+				)
+
+				// Build certbot command
+				serverName := service.Spec.Nginx.ServerName
+				certbotCmd := []string{
+					"certonly", "--webroot",
+					"-w", "/var/www/certbot",
+					"-d", serverName,
+				}
+				if email := service.Spec.Nginx.SSL.Email; email != "" {
+					certbotCmd = append(certbotCmd, "--email", email)
+				}
+				certbotCmd = append(certbotCmd, "--agree-tos", "--non-interactive", "--expand")
+
+				compose.Services["certbot"] = DockerComposeService{
+					Image:   "certbot/certbot",
+					Volumes: []string{"letsencrypt:/etc/letsencrypt", "certbot-webroot:/var/www/certbot"},
+					Command: certbotCmd,
+				}
+				compose.Volumes["letsencrypt"] = nil
+				compose.Volumes["certbot-webroot"] = nil
+			}
+		}
+
 		// Handle volumes
 		if len(service.Spec.Volumes) > 0 {
 			for _, vol := range service.Spec.Volumes {

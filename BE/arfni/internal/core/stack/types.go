@@ -50,6 +50,67 @@ type ServiceSpec struct {
 	Command     []string               `yaml:"command,omitempty"`
 	Restart     string                 `yaml:"restart,omitempty"`
 	Health      *HealthCheck           `yaml:"health,omitempty"`
+	Nginx       *NginxConfig           `yaml:"nginx,omitempty"` // NGINX 게이트웨이 설정
+}
+
+// NginxConfig는 proxy.nginx 서비스의 리버스 프록시 설정입니다
+type NginxConfig struct {
+	ListenPort    int               `yaml:"listenPort,omitempty"`
+	ServerName    string            `yaml:"serverName,omitempty"`
+	Upstreams     []NginxUpstream   `yaml:"upstreams,omitempty"`
+	SSL           *NginxSSL         `yaml:"ssl,omitempty"`
+	RateLimit     *NginxRateLimit   `yaml:"rateLimit,omitempty"`
+	CORS          *NginxCORS        `yaml:"cors,omitempty"`
+	Gzip          *NginxGzip        `yaml:"gzip,omitempty"`
+	Cache         *NginxCache       `yaml:"cache,omitempty"`
+	Keepalive     int               `yaml:"keepalive,omitempty"`
+	LoadBalancing *NginxLoadBalance `yaml:"loadBalancing,omitempty"`
+}
+
+// NginxUpstream은 개별 업스트림 서비스 설정입니다
+type NginxUpstream struct {
+	Name    string `yaml:"name"`    // upstream 블록 이름
+	Service string `yaml:"service"` // Docker Compose 서비스명
+	Port    int    `yaml:"port"`    // 컨테이너 포트
+	Route   string `yaml:"route"`   // location 경로 (예: /api/)
+}
+
+// NginxSSL은 SSL/TLS 설정입니다
+type NginxSSL struct {
+	Enabled  bool   `yaml:"enabled"`
+	Auto     bool   `yaml:"auto,omitempty"`     // Let's Encrypt 자동 발급
+	Email    string `yaml:"email,omitempty"`    // Let's Encrypt 알림 이메일
+	CertPath string `yaml:"certPath,omitempty"`
+	KeyPath  string `yaml:"keyPath,omitempty"`
+}
+
+// NginxRateLimit은 Rate Limiting 설정입니다
+type NginxRateLimit struct {
+	Enabled bool   `yaml:"enabled"`
+	Rate    string `yaml:"rate,omitempty"`
+	Burst   int    `yaml:"burst,omitempty"`
+}
+
+// NginxCORS는 CORS 설정입니다
+type NginxCORS struct {
+	Enabled bool   `yaml:"enabled"`
+	Origin  string `yaml:"origin,omitempty"`
+}
+
+// NginxGzip은 Gzip 압축 설정입니다
+type NginxGzip struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// NginxCache는 Cache-Control 헤더 설정입니다
+type NginxCache struct {
+	Enabled bool `yaml:"enabled"`
+	MaxAge  int  `yaml:"maxAge,omitempty"`
+}
+
+// NginxLoadBalance는 로드밸런싱 방식입니다
+type NginxLoadBalance struct {
+	Method string `yaml:"method"` // round_robin | least_conn | ip_hash
 }
 
 // BuildSpec은 빌드 설정을 정의합니다 (문자열 또는 객체)

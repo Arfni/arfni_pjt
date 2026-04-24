@@ -15,6 +15,7 @@ import (
 	"github.com/arfni/arfni/internal/core/monitoring"
 	"github.com/arfni/arfni/internal/core/stack"
 	"github.com/arfni/arfni/internal/events"
+	"github.com/arfni/arfni/internal/generator/nginx"
 )
 
 // Runner는 전체 워크플로우를 조정합니다
@@ -174,6 +175,16 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 	}
 
 	stream.Success(fmt.Sprintf("Generated docker-compose.yml for %d services", len(r.stack.Services)))
+
+	// Generate nginx.conf if a proxy.nginx service is present
+	if nginx.HasNginxService(r.stack) {
+		stream.Info("Generating nginx.conf...")
+		if err := nginx.WriteNginxConfig(r.stack, r.projectDir); err != nil {
+			stream.Info(fmt.Sprintf("Warning: failed to generate nginx.conf: %v", err))
+		} else {
+			stream.Success("Generated nginx.conf")
+		}
+	}
 
 	// Generate Dockerfiles for services that need them
 	stream.Info("Generating Dockerfiles...")
@@ -500,6 +511,25 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 		}
 	}
 
+	// Upload nginx.conf if a proxy.nginx service exists on EC2
+	for _, serviceName := range ec2Services {
+		if serviceName == "nginx" {
+			nginxConf := filepath.Join(r.projectDir, "nginx.conf")
+			if _, err := os.Stat(nginxConf); err == nil {
+				stream.Info("Uploading nginx.conf...")
+				remoteNginxConf := workdir + "/nginx.conf"
+				if err := sshClient.RunCommand(stream, fmt.Sprintf("rm -rf %s", remoteNginxConf)); err != nil {
+					stream.Info(fmt.Sprintf("Warning: failed to remove existing nginx.conf: %v", err))
+				}
+				if err := sshClient.UploadFile(stream, nginxConf, remoteNginxConf); err != nil {
+					return fmt.Errorf("failed to upload nginx.conf: %w", err)
+				}
+				stream.Success("nginx.conf uploaded")
+			}
+			break
+		}
+	}
+
 	// Re-collect EC2 services for build context upload
 	ec2Services = []string{}
 	for name, service := range r.stack.Services {
@@ -773,7 +803,90 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 	}
 
 	stream.Success("Containers deployed successfully on EC2")
+
+	// Auto SSL: run certbot and activate HTTPS after containers are up
+	if cfg := r.getNginxAutoSSLConfig(); cfg != nil {
+		stream.Info("Issuing SSL certificate via Let's Encrypt (certbot)...")
+		certbotRunCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml run --rm certbot", workdir)
+		if err := sshClient.RunCommand(stream, certbotRunCmd); err != nil {
+			stream.Warning(
+				fmt.Sprintf("SSL 인증서 발급 실패: %v", err),
+				map[string]interface{}{"ssl_pending": true},
+			)
+			stream.Warning(
+				"HTTP 전용 모드로 계속합니다. 도메인 DNS와 포트 443(인바운드)을 확인한 후 재배포하세요.",
+				map[string]interface{}{"ssl_pending": true},
+			)
+		} else {
+			stream.Success("SSL certificate issued successfully")
+
+			sslContent := nginx.BuildConfigWithSSL(cfg)
+			tmpFile, err := os.CreateTemp("", "nginx-ssl-*.conf")
+			if err != nil {
+				stream.Info(fmt.Sprintf("Warning: failed to create SSL nginx.conf: %v", err))
+			} else {
+				if _, err := tmpFile.WriteString(sslContent); err != nil {
+					stream.Info(fmt.Sprintf("Warning: failed to write SSL nginx.conf: %v", err))
+					tmpFile.Close()
+					os.Remove(tmpFile.Name())
+				} else {
+					tmpFile.Close()
+					remoteNginxConf := workdir + "/nginx.conf"
+					if err := sshClient.UploadFile(stream, tmpFile.Name(), remoteNginxConf); err != nil {
+						stream.Info(fmt.Sprintf("Warning: failed to upload SSL nginx.conf: %v", err))
+					} else {
+						nginxSvcName := r.getNginxServiceName()
+						reloadCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml exec %s nginx -s reload", workdir, nginxSvcName)
+						if err := sshClient.RunCommand(stream, reloadCmd); err != nil {
+							stream.Info(fmt.Sprintf("Warning: failed to reload nginx: %v", err))
+						} else {
+							stream.Success("HTTPS activated - nginx reloaded with SSL config")
+						}
+
+						// Register daily cron for automatic certificate renewal
+						cronEntry := fmt.Sprintf(
+							"0 12 * * * cd %s && docker compose -f docker-compose.yml run --rm certbot renew --quiet && docker compose -f docker-compose.yml exec %s nginx -s reload # arfni-certbot-renew",
+							workdir, nginxSvcName,
+						)
+						cronCmd := fmt.Sprintf(
+							`(crontab -l 2>/dev/null | grep -v 'arfni-certbot-renew'; echo "%s") | crontab -`,
+							cronEntry,
+						)
+						if err := sshClient.RunCommand(stream, cronCmd); err != nil {
+							stream.Info(fmt.Sprintf("Warning: failed to register renewal cron: %v", err))
+						} else {
+							stream.Success("Auto-renewal cron registered (daily at 12:00 UTC)")
+						}
+					}
+					os.Remove(tmpFile.Name())
+				}
+			}
+		}
+	}
+
 	return nil
+}
+
+// getNginxAutoSSLConfig returns NginxConfig if the stack has a proxy.nginx with ssl.auto enabled.
+func (r *Runner) getNginxAutoSSLConfig() *stack.NginxConfig {
+	for _, svc := range r.stack.Services {
+		if svc.Kind == "proxy.nginx" && svc.Spec.Nginx != nil {
+			if ssl := svc.Spec.Nginx.SSL; ssl != nil && ssl.Enabled && ssl.Auto {
+				return svc.Spec.Nginx
+			}
+		}
+	}
+	return nil
+}
+
+// getNginxServiceName returns the service name of the first proxy.nginx service.
+func (r *Runner) getNginxServiceName() string {
+	for name, svc := range r.stack.Services {
+		if svc.Kind == "proxy.nginx" {
+			return name
+		}
+	}
+	return "nginx"
 }
 
 // healthChecks는 컨테이너 상태를 확인합니다

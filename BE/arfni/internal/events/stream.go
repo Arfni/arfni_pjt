@@ -76,3 +76,8 @@ func (s *Stream) Success(message string) error {
 func (s *Stream) Info(message string) error {
 	return s.Emit(TypeLog, message, nil)
 }
+
+// Warning emits a warning event with optional data
+func (s *Stream) Warning(message string, data map[string]interface{}) error {
+	return s.Emit(TypeWarning, message, data)
+}

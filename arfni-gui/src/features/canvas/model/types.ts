@@ -69,6 +69,8 @@ export interface NginxNodeData {
   serverName: string;
   ssl: {
     enabled: boolean;
+    auto?: boolean;
+    email?: string;
     certPath?: string;
     keyPath?: string;
   };

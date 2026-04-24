@@ -1,0 +1,60 @@
+apiVersion: v0.1
+name: nginx-test
+
+targets:
+  local:
+    type: docker-desktop
+
+services:
+  nginx:
+    kind: proxy.nginx
+    target: local
+    spec:
+      image: nginx:alpine
+      ports:
+        - "80:80"
+      nginx:
+        listenPort: 80
+        serverName: _
+        upstreams:
+          - name: api
+            service: fastapi
+            port: 8000
+            route: /api/
+          - name: frontend
+            service: react
+            port: 3000
+            route: /
+        rateLimit:
+          enabled: true
+          rate: 10r/s
+          burst: 20
+        ssl:
+          enabled: false
+        cors:
+          enabled: true
+          origin: "*"
+        gzip:
+          enabled: true
+        cache:
+          enabled: true
+          maxAge: 3600
+        keepalive: 32
+        loadBalancing:
+          method: round_robin
+
+  fastapi:
+    kind: app.fastapi
+    target: local
+    spec:
+      image: tiangolo/uvicorn-gunicorn-fastapi:python3.11
+      ports:
+        - "8000:8000"
+
+  react:
+    kind: app.react
+    target: local
+    spec:
+      image: nginx:alpine
+      ports:
+        - "3000:3000"

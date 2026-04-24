@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>NGINX Test - Frontend</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 60px auto; padding: 0 20px; }
+    button { padding: 8px 16px; margin: 4px; cursor: pointer; }
+    pre { background: #f4f4f4; padding: 12px; border-radius: 6px; overflow: auto; }
+    .ok { color: green; } .err { color: red; }
+  </style>
+</head>
+<body>
+  <h1>NGINX Reverse Proxy Test</h1>
+  <p>Domain: <strong>ssafymarket1415.duckdns.org</strong></p>
+  <hr />
+
+  <h2>API 테스트</h2>
+  <button onclick="call('/api/health')">GET /api/health</button>
+  <button onclick="call('/api/hello')">GET /api/hello</button>
+  <button onclick="call('/api/items')">GET /api/items</button>
+
+  <h3>응답:</h3>
+  <pre id="output">버튼을 클릭하세요</pre>
+
+  <script>
+    async function call(path) {
+      const out = document.getElementById('output');
+      try {
+        const res = await fetch(path);
+        const data = await res.json();
+        out.className = 'ok';
+        out.textContent = `${res.status} ${res.statusText}\n\n${JSON.stringify(data, null, 2)}`;
+      } catch (e) {
+        out.className = 'err';
+        out.textContent = `Error: ${e.message}`;
+      }
+    }
+  </script>
+</body>
+</html>

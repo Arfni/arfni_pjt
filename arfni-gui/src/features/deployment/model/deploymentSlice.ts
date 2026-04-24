@@ -33,6 +33,7 @@ export interface DeploymentState {
   startTime: string | null;
   endTime: string | null;
   error: string | null;
+  sslWarning: string | null;
 
   // 배포 컨테이너 정보
   containers: DeploymentContainer[];
@@ -52,6 +53,7 @@ const initialState: DeploymentState = {
   startTime: null,
   endTime: null,
   error: null,
+  sslWarning: null,
   containers: [],
   endpoints: [],
   serviceCount: 0,
@@ -72,6 +74,7 @@ const deploymentSlice = createSlice({
       state.startTime = new Date().toISOString();
       state.endTime = null;
       state.error = null;
+      state.sslWarning = null;
       // state.containers는 초기화하지 않음 (loadContainersFromStack에서 설정한 값 유지)
       state.endpoints = [];
       state.serviceCount = 0;
@@ -99,6 +102,11 @@ const deploymentSlice = createSlice({
     // 로그 추가
     addLog: (state, action: PayloadAction<DeploymentLog>) => {
       state.logs.push(action.payload);
+
+      // SSL 경고 감지
+      if (action.payload.level === 'warning' && action.payload.message.includes('SSL')) {
+        state.sslWarning = action.payload.message;
+      }
 
       // 로그에서 단계 정보 파싱
       const message = action.payload.message;
@@ -259,3 +267,6 @@ export const selectDeploymentStats = (state: { deployment: DeploymentState }) =>
 });
 export const selectDeploymentContainers = (state: { deployment: DeploymentState }) =>
   state.deployment.containers;
+
+export const selectSslWarning = (state: { deployment: DeploymentState }) =>
+  state.deployment.sslWarning;
