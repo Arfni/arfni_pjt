@@ -306,7 +306,8 @@
       "db": "DB",
       "runtime": "Runtime",
       "infra": "Infra",
-      "monitor": "Monitor"
+      "monitor": "Monitor",
+      "gateway": "Gateway"
     },
     "searchPlaceholder": "Block Search...",
     "loading": "Loading plugins...",

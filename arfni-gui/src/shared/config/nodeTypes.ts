@@ -85,6 +85,46 @@ export const createTargetNode = (data: Partial<TargetNodeData>, position: { x: n
   } as TargetNodeData,
 });
 
+export interface NginxNodeData {
+  id: string;
+  name: string;
+  target?: string;
+  listenPort: number;
+  serverName: string;
+  ssl: { enabled: boolean; certPath?: string; keyPath?: string };
+  rateLimit: { enabled: boolean; rate: string; burst: number };
+  cors: { enabled: boolean; origin: string };
+  gzip: { enabled: boolean };
+  cache: { enabled: boolean; maxAge: number };
+  keepalive: number;
+  loadBalancing: { method: 'round_robin' | 'least_conn' | 'ip_hash' };
+}
+
+export const createNginxNode = (
+  data: Partial<NginxNodeData>,
+  position: { x: number; y: number },
+  defaultTarget?: string
+): CustomNode => ({
+  id: data.id || `nginx-${Date.now()}`,
+  type: 'nginx' as any,
+  position,
+  data: {
+    id: data.id || `nginx-${Date.now()}`,
+    name: data.name || 'NGINX',
+    target: data.target || defaultTarget || 'local',
+    listenPort: data.listenPort ?? 80,
+    serverName: data.serverName ?? '_',
+    ssl: data.ssl ?? { enabled: false },
+    rateLimit: data.rateLimit ?? { enabled: false, rate: '10r/s', burst: 20 },
+    cors: data.cors ?? { enabled: false, origin: '*' },
+    gzip: data.gzip ?? { enabled: false },
+    cache: data.cache ?? { enabled: false, maxAge: 3600 },
+    keepalive: data.keepalive ?? 32,
+    loadBalancing: data.loadBalancing ?? { method: 'round_robin' },
+    ...data,
+  } as NginxNodeData,
+});
+
 export const createDatabaseNode = (data: Partial<DatabaseNodeData>, position: { x: number; y: number }, defaultTarget?: string): CustomNode => ({
   id: data.id || `database-${Date.now()}`,
   type: 'database',

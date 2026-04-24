@@ -306,7 +306,8 @@
       "db": "DB",
       "runtime": "런타임",
       "infra": "인프라",
-      "monitor": "모니터링"
+      "monitor": "모니터링",
+      "gateway": "게이트웨이"
     },
     "searchPlaceholder": "블록 검색...",
     "loading": "플러그인 로딩 중...",

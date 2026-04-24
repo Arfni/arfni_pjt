@@ -61,18 +61,56 @@ export interface DatabaseNodeData {
   };
 }
 
+// NGINX 게이트웨이 노드 타입
+export interface NginxNodeData {
+  name: string;
+  target?: string;
+  listenPort: number;
+  serverName: string;
+  ssl: {
+    enabled: boolean;
+    certPath?: string;
+    keyPath?: string;
+  };
+  rateLimit: {
+    enabled: boolean;
+    rate: string;
+    burst: number;
+  };
+  cors: {
+    enabled: boolean;
+    origin: string;
+  };
+  gzip: {
+    enabled: boolean;
+  };
+  cache: {
+    enabled: boolean;
+    maxAge: number;
+  };
+  keepalive: number;
+  loadBalancing: {
+    method: 'round_robin' | 'least_conn' | 'ip_hash';
+  };
+}
+
+// 엣지 라우팅 메타데이터 (서비스 → NGINX 연결 시 경로 설정)
+export interface EdgeRouteData {
+  route?: string; // location 경로 (예: /api/, /)
+}
+
 // 커스텀 노드 타입
-export type CustomNodeData = ServiceNodeData | TargetNodeData | DatabaseNodeData;
+export type CustomNodeData = ServiceNodeData | TargetNodeData | DatabaseNodeData | NginxNodeData;
 
 export interface CustomNode extends Node {
-  type: 'service' | 'target' | 'database';
+  type: 'service' | 'target' | 'database' | 'nginx';
   data: any; // Use any for flexibility in node data access
 }
 
 // 노드 템플릿 타입
 export interface NodeTemplate {
   type: string;
-  category: 'service' | 'database' | 'target';
+  category: 'service' | 'database' | 'target' | 'nginx';
 }
 
 // Type aliases for backward compatibility
@@ -84,6 +122,7 @@ export interface CanvasState {
   nodes: CustomNode[];
   edges: Edge[];
   selectedNodeId: string | null;
+  selectedEdgeId: string | null;
   selectedTemplate: NodeTemplate | null; // 선택된 컴포넌트 템플릿
   isDirty: boolean;
 }

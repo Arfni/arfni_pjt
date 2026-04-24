@@ -21,11 +21,13 @@ import {
   selectEdges,
   selectSelectedTemplate,
   selectSelectedNodeId,
+  selectSelectedEdgeId,
   onNodesChange as handleNodesChange,
   onEdgesChange as handleEdgesChange,
   addEdge as addEdgeAction,
   addNode,
   selectNode,
+  selectEdge,
   selectTemplate,
   deleteNode,
   deleteEdge,
@@ -34,10 +36,12 @@ import { selectCurrentProject } from '@features/project';
 
 import { ServiceNode } from '@entities/service/ui/ServiceNode';
 import { TargetNode } from '@entities/target/ui/TargetNode';
+import { NginxNode } from '@entities/gateway/ui/NginxNode';
 import {
   createServiceNode,
   createTargetNode,
-  createDatabaseNode
+  createDatabaseNode,
+  createNginxNode,
 } from '@shared/config/nodeTypes';
 import { useAutoSave } from '@features/canvas/hooks/useAutoSave';
 import { pluginService } from '@services/pluginLoader';
@@ -46,6 +50,7 @@ const nodeTypes = {
   service: ServiceNode,
   target: TargetNode,
   database: ServiceNode,
+  nginx: NginxNode,
 };
 
 // MiniMap용 커스텀 노드 컴포넌트
@@ -285,6 +290,9 @@ function CanvasEditorInner() {
         };
 
         newNode = createTargetNode(targetData, position);
+      } else if (category === 'nginx') {
+        // NGINX 게이트웨이 노드
+        newNode = createNginxNode({ name: 'NGINX' }, position, defaultTarget);
       } else {
         return;
       }
@@ -296,19 +304,21 @@ function CanvasEditorInner() {
 
   // 캔버스 클릭 시 선택 해제만 처리
   const onPaneClick = useCallback(() => {
-    // 빈 캔버스 클릭 시 노드/엣지 선택 해제
     dispatch(selectNode(null));
+    dispatch(selectEdge(null));
     setSelectedEdgeId(null);
   }, [dispatch]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: any) => {
     dispatch(selectNode(node.id));
+    dispatch(selectEdge(null));
     setSelectedEdgeId(null);
   }, [dispatch]);
 
   const onEdgeClick = useCallback((event: React.MouseEvent, edge: any) => {
     event.stopPropagation();
     setSelectedEdgeId(edge.id);
+    dispatch(selectEdge(edge.id));
     dispatch(selectNode(null));
   }, [dispatch]);
 

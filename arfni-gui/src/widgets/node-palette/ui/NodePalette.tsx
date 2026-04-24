@@ -10,13 +10,14 @@ import { useTranslation } from 'react-i18next';
 // No more hardcoded icon imports!
 // Icons are now loaded dynamically from plugin folders
 
-type TabKey = 'DB' | 'Runtime' | 'Infra' | 'Monitor';
+type TabKey = 'DB' | 'Runtime' | 'Infra' | 'Monitor' | 'Gateway';
 
-const tabCategories: Record<TabKey, 'database' | 'runtime' | 'infra' | 'monitor'> = {
+const tabCategories: Record<TabKey, 'database' | 'runtime' | 'infra' | 'monitor' | 'gateway'> = {
   DB: 'database',
   Runtime: 'runtime',
   Infra: 'infra',
   Monitor: 'monitor',
+  Gateway: 'gateway',
 };
 
 export function NodePalette() {
@@ -105,8 +106,11 @@ export function NodePalette() {
   //   }
   // };
 
-  const onDragStart = (event: React.DragEvent, nodeType: string, category: 'runtime' | 'database' | 'infra' | 'monitor') => {
-    const canvasCategory = category === 'database' ? 'database' : category === 'runtime' ? 'service' : 'target';
+  const onDragStart = (event: React.DragEvent, nodeType: string, category: 'runtime' | 'database' | 'infra' | 'monitor' | 'gateway') => {
+    const canvasCategory = category === 'database' ? 'database'
+      : category === 'runtime' ? 'service'
+      : category === 'gateway' ? 'nginx'
+      : 'target';
     event.dataTransfer.setData('application/reactflow', JSON.stringify({ type: nodeType, category: canvasCategory }));
     event.dataTransfer.effectAllowed = 'move';
   };
@@ -127,10 +131,11 @@ export function NodePalette() {
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200">
-        {(['DB', 'Runtime', 'Infra', 'Monitor'] as TabKey[]).map((tab) => {
+        {(['DB', 'Runtime', 'Infra', 'Monitor', 'Gateway'] as TabKey[]).map((tab) => {
           const tabTranslationKey = tab === 'DB' ? 'blocks.tabs.db'
             : tab === 'Runtime' ? 'blocks.tabs.runtime'
             : tab === 'Infra' ? 'blocks.tabs.infra'
+            : tab === 'Gateway' ? 'blocks.tabs.gateway'
             : 'blocks.tabs.monitor';
 
           return (
@@ -182,7 +187,7 @@ export function NodePalette() {
                 <div
                   key={node.type}
                   draggable
-                  onDragStart={(e) => onDragStart(e, node.type, node.category)}
+                  onDragStart={(e) => onDragStart(e, node.type, node.category as any)}
                   className="bg-white border border-gray-200 rounded-lg p-2.5 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 transition-all"
                 >
                   <div className="flex items-start gap-2">

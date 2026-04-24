@@ -1,0 +1,134 @@
+apiVersion: v0.1
+name: nginx
+displayName: NGINX
+version: 1.0.0
+category: gateway
+description: "High-performance reverse proxy and load balancer"
+author: ARFNI Team
+license: MIT
+icon: icon.png
+
+provides:
+  service_kinds:
+    - proxy.nginx
+
+inputs:
+  listen_port:
+    description: "HTTP 리스닝 포트"
+    type: number
+    required: false
+    default: 80
+  server_name:
+    description: "서버 도메인 (server_name)"
+    type: string
+    required: false
+    default: "_"
+  ssl_enabled:
+    description: "SSL/TLS 활성화"
+    type: boolean
+    required: false
+    default: false
+  ssl_cert_path:
+    description: "SSL 인증서 경로"
+    type: string
+    required: false
+    scope: runtime
+  ssl_key_path:
+    description: "SSL 개인키 경로"
+    type: string
+    required: false
+    scope: runtime
+  rate_limit_enabled:
+    description: "Rate Limiting 활성화"
+    type: boolean
+    required: false
+    default: false
+  rate_limit_rate:
+    description: "초당 허용 요청 수 (예: 10r/s)"
+    type: string
+    required: false
+    default: "10r/s"
+  rate_limit_burst:
+    description: "순간 허용 초과 요청 수"
+    type: number
+    required: false
+    default: 20
+  cors_enabled:
+    description: "CORS 헤더 자동 추가"
+    type: boolean
+    required: false
+    default: false
+  cors_origin:
+    description: "허용 Origin"
+    type: string
+    required: false
+    default: "*"
+  gzip_enabled:
+    description: "Gzip 압축 활성화"
+    type: boolean
+    required: false
+    default: false
+  cache_enabled:
+    description: "정적 파일 Cache-Control 헤더 활성화"
+    type: boolean
+    required: false
+    default: false
+  cache_max_age:
+    description: "Cache max-age (초)"
+    type: number
+    required: false
+    default: 3600
+  keepalive:
+    description: "업스트림 keepalive 커넥션 수"
+    type: number
+    required: false
+    default: 32
+  load_balancing:
+    description: "로드밸런싱 방식"
+    type: select
+    required: false
+    options:
+      - round_robin
+      - least_conn
+      - ip_hash
+    default: round_robin
+
+contributes:
+  services:
+    nginx:
+      kind: proxy.nginx
+      type: docker.container
+      spec:
+        image: "nginx:alpine"
+        ports:
+          - "80:80"
+        volumes:
+          - host: "./nginx.conf"
+            mount: "/etc/nginx/nginx.conf"
+        healthcheck:
+          test: ["CMD", "nginx", "-t"]
+          interval: 10s
+          timeout: 5s
+          retries: 3
+
+  canvas:
+    nodeType: nginx
+    label: NGINX
+    description: "Reverse proxy & load balancer"
+    category: gateway
+    ports:
+      - name: http
+        port: 80
+        protocol: tcp
+      - name: https
+        port: 443
+        protocol: tcp
+    connections:
+      inputs:
+        - type: api
+          name: upstream
+          protocol: http
+      outputs:
+        - type: public
+          name: public
+          protocol: http

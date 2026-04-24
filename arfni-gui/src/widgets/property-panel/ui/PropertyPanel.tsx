@@ -1,11 +1,27 @@
-import { useAppSelector } from '@app/hooks';
-import { selectSelectedNode } from '@features/canvas/model/canvasSlice';
+import { useAppDispatch, useAppSelector } from '@app/hooks';
+import {
+  selectSelectedNode,
+  selectSelectedEdgeId,
+  selectEdges,
+  selectNodes,
+  updateEdgeData,
+} from '@features/canvas/model/canvasSlice';
 import { DynamicPropertyForm } from '@features/canvas/ui/DynamicPropertyForm';
 import { useTranslation } from 'react-i18next';
 
 export function PropertyPanel() {
+  const dispatch = useAppDispatch();
   const selectedNode = useAppSelector(selectSelectedNode);
+  const selectedEdgeId = useAppSelector(selectSelectedEdgeId);
+  const edges = useAppSelector(selectEdges);
+  const nodes = useAppSelector(selectNodes);
   const { t } = useTranslation('canvas');
+
+  // 선택된 엣지가 NGINX 노드로 연결된 경우 route 편집 UI 표시
+  const selectedEdge = selectedEdgeId ? edges.find(e => e.id === selectedEdgeId) : null;
+  const isNginxEdge = selectedEdge
+    ? nodes.find(n => n.id === selectedEdge.target)?.type === 'nginx'
+    : false;
 
   return (
     <div className="h-full bg-white flex flex-col">
@@ -17,12 +33,37 @@ export function PropertyPanel() {
             {selectedNode.data.name || 'Unnamed'} {t('properties.configuration')}
           </p>
         )}
+        {isNginxEdge && (
+          <p className="text-xs text-gray-500 mt-1">NGINX 라우팅 경로 설정</p>
+        )}
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {selectedNode ? (
           <DynamicPropertyForm node={selectedNode} />
+        ) : isNginxEdge && selectedEdge ? (
+          <div className="p-4 space-y-3">
+            <p className="text-xs text-gray-500">
+              이 연결의 Location 경로를 설정합니다.
+              NGINX가 해당 경로로 들어오는 요청을 이 서비스로 전달합니다.
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Location 경로
+              </label>
+              <input
+                type="text"
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={(selectedEdge.data as any)?.route ?? '/'}
+                onChange={(e) =>
+                  dispatch(updateEdgeData({ id: selectedEdge.id, data: { route: e.target.value } }))
+                }
+                placeholder="/api/"
+              />
+              <p className="text-xs text-gray-400 mt-1">예: /api/ 또는 /</p>
+            </div>
+          </div>
         ) : (
           <div className="flex items-center justify-center h-full p-4 text-gray-400">
             <div className="text-center">

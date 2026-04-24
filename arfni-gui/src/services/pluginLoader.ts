@@ -8,7 +8,7 @@ export interface PluginManifest {
   name: string;
   displayName: string;
   version: string;
-  category: 'database' | 'framework' | 'cache' | 'proxy' | 'cicd' | 'orchestration' | 'monitoring' | 'custom';
+  category: 'database' | 'framework' | 'cache' | 'proxy' | 'gateway' | 'cicd' | 'orchestration' | 'monitoring' | 'custom';
   description: string;
   author: string;
   license: string;
@@ -23,7 +23,7 @@ export interface PluginManifest {
       nodeType: string;
       label: string;
       description: string;
-      category: 'database' | 'runtime' | 'infra' | 'monitor';
+      category: 'database' | 'runtime' | 'infra' | 'monitor' | 'gateway';
       hidden?: boolean;
       ports?: Array<{
         name: string;
@@ -62,7 +62,7 @@ export interface NodeTemplate {
   label: string;
   description: string;
   icon: string;
-  category: 'runtime' | 'database' | 'infra' | 'monitor';
+  category: 'runtime' | 'database' | 'infra' | 'monitor' | 'gateway';
   plugin?: LoadedPlugin;
 }
 
@@ -118,7 +118,7 @@ class PluginService {
   private async loadBundledPluginsStatic(): Promise<void> {
     try {
       const bundledPath = 'plugins/bundled';
-      const categories = ['database', 'framework', 'cache', 'proxy', 'cicd', 'orchestration', 'monitoring', 'custom'];
+      const categories = ['database', 'framework', 'cache', 'proxy', 'gateway', 'cicd', 'orchestration', 'monitoring', 'custom'];
 
       for (const category of categories) {
         const categoryPath = `${bundledPath}/${category}`;
@@ -211,7 +211,7 @@ class PluginService {
         try {
           // For each installed plugin, try to find its manifest
           // We need to search through category directories since PluginInfo doesn't include category
-          const categories = ['database', 'framework', 'cache', 'proxy', 'cicd', 'orchestration', 'monitoring', 'custom'];
+          const categories = ['database', 'framework', 'cache', 'proxy', 'gateway', 'cicd', 'orchestration', 'monitoring', 'custom'];
 
           let manifest: PluginManifest | null = null;
           let foundCategory: string | null = null;

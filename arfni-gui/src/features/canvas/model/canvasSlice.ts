@@ -6,6 +6,7 @@ const initialState: CanvasState = {
   nodes: [],
   edges: [],
   selectedNodeId: null,
+  selectedEdgeId: null,
   selectedTemplate: null,
   isDirty: false,
 };
@@ -70,9 +71,23 @@ const canvasSlice = createSlice({
       state.isDirty = true;
     },
 
+    updateEdgeData: (state, action: PayloadAction<{ id: string; data: Record<string, any> }>) => {
+      const edge = state.edges.find(e => e.id === action.payload.id);
+      if (edge) {
+        edge.data = { ...(edge.data || {}), ...action.payload.data };
+        state.isDirty = true;
+      }
+    },
+
     // 선택 관련 액션
     selectNode: (state, action: PayloadAction<string | null>) => {
       state.selectedNodeId = action.payload;
+      if (action.payload !== null) state.selectedEdgeId = null;
+    },
+
+    selectEdge: (state, action: PayloadAction<string | null>) => {
+      state.selectedEdgeId = action.payload;
+      if (action.payload !== null) state.selectedNodeId = null;
     },
 
     selectTemplate: (state, action: PayloadAction<{ type: string; category: 'service' | 'database' | 'target' } | null>) => {
@@ -147,7 +162,9 @@ export const {
   addEdge,
   deleteEdge,
   onEdgesChange,
+  updateEdgeData,
   selectNode,
+  selectEdge,
   selectTemplate,
   clearCanvas,
   setDirty,
@@ -161,6 +178,7 @@ export const canvasReducer = canvasSlice.reducer;
 export const selectNodes = (state: { canvas: CanvasState }) => state.canvas.nodes;
 export const selectEdges = (state: { canvas: CanvasState }) => state.canvas.edges;
 export const selectSelectedNodeId = (state: { canvas: CanvasState }) => state.canvas.selectedNodeId;
+export const selectSelectedEdgeId = (state: { canvas: CanvasState }) => state.canvas.selectedEdgeId;
 export const selectSelectedNode = (state: { canvas: CanvasState }) => {
   const { nodes, selectedNodeId } = state.canvas;
   return selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;

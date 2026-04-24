@@ -5,6 +5,7 @@ import { FormField, Input, Select, KeyValueEditor } from '../../../shared/ui/for
 import { HealthCheckEditor } from '../../../shared/ui/form/HealthCheckEditor';
 import { VolumeArrayEditor } from '../../../shared/ui/form/VolumeArrayEditor';
 import { TargetPropertyForm } from './TargetPropertyForm';
+import { NginxPropertyForm } from './NginxPropertyForm';
 import { pluginService } from '@services/pluginLoader';
 import { useTranslation } from 'react-i18next';
 
@@ -19,6 +20,11 @@ export function DynamicPropertyForm({ node }: DynamicPropertyFormProps) {
   // Target 노드인 경우 TargetPropertyForm 사용
   if (node.type === 'target') {
     return <TargetPropertyForm node={node} />;
+  }
+
+  // NGINX 게이트웨이 노드인 경우 NginxPropertyForm 사용
+  if (node.type === 'nginx') {
+    return <NginxPropertyForm node={node} />;
   }
 
   const data = node.data as ServiceNodeData | DatabaseNodeData;
