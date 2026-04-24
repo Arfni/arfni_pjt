@@ -63,7 +63,7 @@ export const openProject = createAsyncThunk(
       // Canvas store에 상태 로드
       const nodes = canvasState.nodes.map(n => ({
         ...n,
-        type: n.node_type as 'service' | 'target' | 'database',
+        type: n.node_type as 'service' | 'target' | 'database' | 'nginx',
       }));
 
       dispatch(loadCanvasState({

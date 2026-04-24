@@ -52,6 +52,7 @@ export interface CanvasEdge {
   id: string;
   source: string;
   target: string;
+  data?: Record<string, unknown>;
 }
 
 // ============= 배포 관련 타입 =============

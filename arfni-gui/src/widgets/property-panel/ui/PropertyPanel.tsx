@@ -17,10 +17,11 @@ export function PropertyPanel() {
   const nodes = useAppSelector(selectNodes);
   const { t } = useTranslation('canvas');
 
-  // 선택된 엣지가 NGINX 노드로 연결된 경우 route 편집 UI 표시
+  // 선택된 엣지가 NGINX 노드와 연결된 경우 route 편집 UI 표시 (방향 무관)
   const selectedEdge = selectedEdgeId ? edges.find(e => e.id === selectedEdgeId) : null;
   const isNginxEdge = selectedEdge
-    ? nodes.find(n => n.id === selectedEdge.target)?.type === 'nginx'
+    ? nodes.find(n => n.id === selectedEdge.target)?.type === 'nginx' ||
+      nodes.find(n => n.id === selectedEdge.source)?.type === 'nginx'
     : false;
 
   return (

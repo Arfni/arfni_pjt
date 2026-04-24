@@ -512,8 +512,9 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 	}
 
 	// Upload nginx.conf if a proxy.nginx service exists on EC2
+	nginxSvcName := r.getNginxServiceName()
 	for _, serviceName := range ec2Services {
-		if serviceName == "nginx" {
+		if serviceName == nginxSvcName {
 			nginxConf := filepath.Join(r.projectDir, "nginx.conf")
 			if _, err := os.Stat(nginxConf); err == nil {
 				stream.Info("Uploading nginx.conf...")

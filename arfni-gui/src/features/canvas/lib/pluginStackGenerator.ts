@@ -1319,12 +1319,14 @@ export class PluginStackGenerator {
   ): any {
     const data = node.data as any;
 
-    // Collect upstream services from incoming edges
-    const incomingEdges = edges.filter(e => e && e.target === node.id);
-    const upstreams = incomingEdges
+    // Collect upstream services from connected edges (service → nginx or nginx → service)
+    const connectedEdges = edges.filter(e => e && (e.target === node.id || e.source === node.id));
+    const upstreams = connectedEdges
       .map(edge => {
-        const sourceNode = allNodes.find(n => n.id === edge.source);
-        if (!sourceNode || sourceNode.type === 'target') return null;
+        // The upstream node is whichever side is NOT the nginx node
+        const upstreamNodeId = edge.target === node.id ? edge.source : edge.target;
+        const sourceNode = allNodes.find(n => n.id === upstreamNodeId);
+        if (!sourceNode || sourceNode.type === 'target' || sourceNode.type === 'nginx') return null;
 
         const name = (sourceNode.data.name || sourceNode.type || 'service')
           .toLowerCase().trim()
@@ -1347,7 +1349,7 @@ export class PluginStackGenerator {
 
     return {
       kind: 'proxy.nginx',
-      target: defaultTarget,
+      target: data.target || defaultTarget,
       spec: {
         image: 'nginx:alpine',
         ports: [`${listenPort}:${listenPort}`],

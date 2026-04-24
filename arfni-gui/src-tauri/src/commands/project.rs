@@ -49,6 +49,8 @@ pub struct CanvasEdge {
     pub id: String,
     pub source: String,
     pub target: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
 }
 
 /// 프로젝트 잠금 파일을 관리하는 구조체

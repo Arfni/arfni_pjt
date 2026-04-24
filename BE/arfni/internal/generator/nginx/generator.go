@@ -173,7 +173,7 @@ func BuildConfigWithSSL(cfg *stack.NginxConfig) string {
 			fmt.Fprintf(&b, "            add_header Cache-Control 'public, max-age=%d';\n", maxAge)
 		}
 
-		fmt.Fprintf(&b, "            proxy_pass http://%s/;\n", up.Name)
+		fmt.Fprintf(&b, "            proxy_pass http://%s;\n", up.Name)
 		b.WriteString("            proxy_set_header Host $host;\n")
 		b.WriteString("            proxy_set_header X-Real-IP $remote_addr;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
@@ -309,7 +309,7 @@ func buildConfig(cfg *stack.NginxConfig) string {
 			fmt.Fprintf(&b, "            add_header Cache-Control 'public, max-age=%d';\n", maxAge)
 		}
 
-		fmt.Fprintf(&b, "            proxy_pass http://%s/;\n", up.Name)
+		fmt.Fprintf(&b, "            proxy_pass http://%s;\n", up.Name)
 		b.WriteString("            proxy_set_header Host $host;\n")
 		b.WriteString("            proxy_set_header X-Real-IP $remote_addr;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")

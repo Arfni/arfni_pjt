@@ -117,6 +117,7 @@ export function useAutoSave(debounceMs: number = 2000) {
             id: edge.id,
             source: edge.source,
             target: edge.target,
+            data: edge.data,
           })),
           project_name: currentProject.name,
           secrets: [],

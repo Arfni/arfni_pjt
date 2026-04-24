@@ -83,7 +83,7 @@ func TestGenerateNginxConfig_Basic(t *testing.T) {
 	mustContain(t, out, "upstream backend {")
 	mustContain(t, out, "server fastapi:8000;")
 	mustContain(t, out, "location / {")
-	mustContain(t, out, "proxy_pass http://backend/;")
+	mustContain(t, out, "proxy_pass http://backend;")
 }
 
 // 도메인 + 풀 기능 테스트 (ssafymarket1415.duckdns.org)
