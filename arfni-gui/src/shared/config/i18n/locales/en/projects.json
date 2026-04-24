@@ -61,6 +61,7 @@
     "createSuccess": "Project created successfully",
     "createFailed": "Failed to create project",
     "specialCharactersError": "Project name cannot contain special characters",
+    "koreanNotAllowedError": "Korean characters are not allowed in project names (use letters, numbers, _, -)",
     "settingUp": "Setting up project...",
     "mayTakeMoments": "This may take a few moments",
     "workingDirectory": "Working Directory (on EC2)",

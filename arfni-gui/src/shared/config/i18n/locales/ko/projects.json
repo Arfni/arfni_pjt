@@ -61,6 +61,7 @@
     "createSuccess": "프로젝트가 성공적으로 생성되었습니다",
     "createFailed": "프로젝트 생성에 실패했습니다",
     "specialCharactersError": "프로젝트 이름에 특수 문자를 사용할 수 없습니다",
+    "koreanNotAllowedError": "프로젝트 이름에 한글을 사용하실 수 없습니다 (영문, 숫자, _, - 만 허용)",
     "settingUp": "프로젝트 설정 중...",
     "mayTakeMoments": "잠시만 기다려주세요",
     "workingDirectory": "작업 디렉토리 (EC2)",

@@ -130,7 +130,7 @@ export function NodePalette() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200">
+      <div className="flex overflow-x-auto border-b border-gray-200 scrollbar-hide">
         {(['DB', 'Runtime', 'Infra', 'Monitor', 'Gateway'] as TabKey[]).map((tab) => {
           const tabTranslationKey = tab === 'DB' ? 'blocks.tabs.db'
             : tab === 'Runtime' ? 'blocks.tabs.runtime'
@@ -143,8 +143,8 @@ export function NodePalette() {
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`
-                flex-1 px-3 py-2 text-xs font-medium transition-colors
-                whitespace-nowrap min-w-0
+                flex-shrink-0 px-2.5 py-2 text-xs font-medium transition-colors
+                whitespace-nowrap
                 flex items-center justify-center
                 ${activeTab === tab
                   ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'

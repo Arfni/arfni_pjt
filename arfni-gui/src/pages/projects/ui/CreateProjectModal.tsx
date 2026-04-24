@@ -55,8 +55,10 @@ export function CreateProjectModal({
 
   if (!isOpen) return null;
 
-  // 프로젝트 이름에 특수문자가 있는지 검증 (영문, 숫자, 언더스코어, 하이픈만 허용)
-  const hasSpecialCharacters = newProjectName && !/^[a-zA-Z0-9_-]*$/.test(newProjectName);
+  // 프로젝트 이름 검증 (영문, 숫자, 언더스코어, 하이픈만 허용)
+  const hasKorean = newProjectName && /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(newProjectName);
+  const hasSpecialCharacters = newProjectName && !hasKorean && !/^[a-zA-Z0-9_-]*$/.test(newProjectName);
+  const hasNameError = hasKorean || hasSpecialCharacters;
 
   const isEC2Project = selectedTab === 'ec2';
 
@@ -156,6 +158,11 @@ export function CreateProjectModal({
                     disabled={creating}
                     autoFocus
                   />
+                  {hasKorean && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {t('create.koreanNotAllowedError')}
+                    </p>
+                  )}
                   {hasSpecialCharacters && (
                     <p className="mt-1 text-sm text-red-600">
                       {t('create.specialCharactersError')}
@@ -242,11 +249,11 @@ export function CreateProjectModal({
                   onCreate();
                 }
               }}
-              disabled={creating || (!isEC2Project && !!hasSpecialCharacters) || (projectSource === 'local' && !!hasSpecialCharacters)}
+              disabled={creating || (!isEC2Project && !!hasNameError) || (projectSource === 'local' && !!hasNameError)}
               className="flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 transition-colors"
               style={{ backgroundColor: '#4C65E2' }}
-              onMouseEnter={(e) => !creating && !hasSpecialCharacters && (e.currentTarget.style.backgroundColor = '#3B52C9')}
-              onMouseLeave={(e) => !creating && !hasSpecialCharacters && (e.currentTarget.style.backgroundColor = '#4C65E2')}
+              onMouseEnter={(e) => !creating && !hasNameError && (e.currentTarget.style.backgroundColor = '#3B52C9')}
+              onMouseLeave={(e) => !creating && !hasNameError && (e.currentTarget.style.backgroundColor = '#4C65E2')}
             >
               {creating ? t('create.creating') : isEC2Project && projectSource === 'github' ? t('create.continue') : t('create.create')}
             </button>

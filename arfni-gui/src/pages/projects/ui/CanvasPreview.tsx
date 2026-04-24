@@ -25,9 +25,26 @@ export function CanvasPreview({ nodes, edges }: CanvasPreviewProps) {
           techStack = node.data.serviceType;
         } else if (node.node_type === 'database' && node.data?.type) {
           techStack = node.data.type;
+        } else if (node.node_type === 'nginx') {
+          techStack = 'nginx';
         }
 
         if (techStack) {
+          // nginx icon loaded directly from bundled gateway plugin
+          if (techStack === 'nginx') {
+            try {
+              const iconBytes = await invoke<number[]>('read_plugin_icon', {
+                pluginPath: 'gateway/nginx',
+                isBundled: true,
+              });
+              const blob = new Blob([new Uint8Array(iconBytes)], { type: 'image/png' });
+              urls['nginx'] = URL.createObjectURL(blob);
+            } catch (error) {
+              console.error('Failed to load nginx icon:', error);
+            }
+            continue;
+          }
+
           // Get plugin from pluginService by nodeType
           const plugin = pluginService.getPluginByNodeType(techStack);
 
@@ -119,6 +136,8 @@ export function CanvasPreview({ nodes, edges }: CanvasPreviewProps) {
           techStack = node.data.serviceType;
         } else if (node.node_type === 'database' && node.data?.type) {
           techStack = node.data.type;
+        } else if (node.node_type === 'nginx') {
+          techStack = 'nginx';
         }
 
         const iconUrl = techStack ? iconUrls[techStack] : null;
