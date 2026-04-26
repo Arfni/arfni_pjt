@@ -53,8 +53,9 @@ const nodeTypes = {
   nginx: NginxNode,
 };
 
-// MiniMap용 커스텀 노드 컴포넌트
-function MiniMapNode({ x, y, width, height }: any) {
+// FE-L1: any 대신 명시적 타입으로 undefined 전달 시 타입 체커가 잡도록 변경
+interface MiniMapNodeProps { x: number; y: number; width: number; height: number; }
+function MiniMapNode({ x, y, width, height }: MiniMapNodeProps) {
   return (
     <g>
       {/* 그림자 효과 */}

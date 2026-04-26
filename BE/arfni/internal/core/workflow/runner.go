@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -372,32 +373,45 @@ func (r *Runner) buildImagesLocal(stream *events.Stream) error {
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		stdout.Close() // BE-M4: stdout 열린 채 반환 방지
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
+		stdout.Close() // BE-M4: 파이프 정리
+		stderr.Close()
 		return fmt.Errorf("failed to start docker-compose build: %w", err)
 	}
 
-	// Read stdout
+	// BE-H3: WaitGroup으로 goroutine 완료를 보장한 뒤 반환
+	var wg sync.WaitGroup
+	wg.Add(2)
+
 	go func() {
+		defer wg.Done()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			line := scanner.Text()
-			stream.Info(fmt.Sprintf("[build] %s", line))
+			stream.Info(fmt.Sprintf("[build] %s", scanner.Text()))
+		}
+		if err := scanner.Err(); err != nil { // BE-L1: I/O 에러 확인
+			stream.Info(fmt.Sprintf("[build] stdout read error: %v", err))
 		}
 	}()
 
-	// Read stderr
 	go func() {
+		defer wg.Done()
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			line := scanner.Text()
-			stream.Info(fmt.Sprintf("[build] %s", line))
+			stream.Info(fmt.Sprintf("[build] %s", scanner.Text()))
+		}
+		if err := scanner.Err(); err != nil { // BE-L1: I/O 에러 확인
+			stream.Info(fmt.Sprintf("[build] stderr read error: %v", err))
 		}
 	}()
 
-	if err := cmd.Wait(); err != nil {
+	err = cmd.Wait()
+	wg.Wait() // BE-H3: goroutine 둘 다 끝난 뒤 반환
+	if err != nil {
 		return fmt.Errorf("docker-compose build failed: %w", err)
 	}
 
@@ -460,8 +474,9 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 			// Upload prometheus.yml file
 			prometheusYml := filepath.Join(r.projectDir, "prometheus.yml")
 
-			// If prometheus.yml doesn't exist in project, copy from bundled plugin
-			if _, err := os.Stat(prometheusYml); os.IsNotExist(err) {
+			// BE-L2: Stat을 한 번만 호출해 TOCTOU 경쟁 조건 제거
+			_, prometheusStatErr := os.Stat(prometheusYml)
+			if os.IsNotExist(prometheusStatErr) {
 				stream.Info("prometheus.yml not found in project, using bundled version...")
 
 				// Try bundled plugins directory first
@@ -476,13 +491,14 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 						return fmt.Errorf("failed to copy prometheus.yml to project: %w", err)
 					}
 					stream.Success("Copied prometheus.yml from bundled plugin")
+					prometheusStatErr = nil // 복사 성공 → 파일 존재
 				} else {
 					stream.Info("Warning: prometheus.yml not found in bundled plugins, prometheus may not start correctly")
 				}
 			}
 
 			// Upload prometheus.yml if it exists
-			if _, err := os.Stat(prometheusYml); err == nil {
+			if prometheusStatErr == nil {
 				stream.Info("Uploading prometheus.yml...")
 				remotePrometheusYml := workdir + "/prometheus.yml"
 
@@ -719,32 +735,45 @@ func (r *Runner) deployContainersLocal(stream *events.Stream) error {
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		stdout.Close() // BE-M4: stdout 열린 채 반환 방지
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
+		stdout.Close() // BE-M4: 파이프 정리
+		stderr.Close()
 		return fmt.Errorf("failed to start docker-compose up: %w", err)
 	}
 
-	// Read stdout
+	// BE-H3: WaitGroup으로 goroutine 완료를 보장한 뒤 반환
+	var wg sync.WaitGroup
+	wg.Add(2)
+
 	go func() {
+		defer wg.Done()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			line := scanner.Text()
-			stream.Info(fmt.Sprintf("[deploy] %s", line))
+			stream.Info(fmt.Sprintf("[deploy] %s", scanner.Text()))
+		}
+		if err := scanner.Err(); err != nil { // BE-L1: I/O 에러 확인
+			stream.Info(fmt.Sprintf("[deploy] stdout read error: %v", err))
 		}
 	}()
 
-	// Read stderr
 	go func() {
+		defer wg.Done()
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			line := scanner.Text()
-			stream.Info(fmt.Sprintf("[deploy] %s", line))
+			stream.Info(fmt.Sprintf("[deploy] %s", scanner.Text()))
+		}
+		if err := scanner.Err(); err != nil { // BE-L1: I/O 에러 확인
+			stream.Info(fmt.Sprintf("[deploy] stderr read error: %v", err))
 		}
 	}()
 
-	if err := cmd.Wait(); err != nil {
+	err = cmd.Wait()
+	wg.Wait() // BE-H3: goroutine 둘 다 끝난 뒤 반환
+	if err != nil {
 		return fmt.Errorf("docker-compose up failed: %w", err)
 	}
 
@@ -822,16 +851,18 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 			stream.Success("SSL certificate issued successfully")
 
 			sslContent := nginx.BuildConfigWithSSL(cfg)
+			// BE-H4: defer로 어떤 경로로 종료되든 임시 파일 정리 보장
 			tmpFile, err := os.CreateTemp("", "nginx-ssl-*.conf")
 			if err != nil {
 				stream.Info(fmt.Sprintf("Warning: failed to create SSL nginx.conf: %v", err))
 			} else {
+				defer tmpFile.Close()
+				defer os.Remove(tmpFile.Name())
+
 				if _, err := tmpFile.WriteString(sslContent); err != nil {
 					stream.Info(fmt.Sprintf("Warning: failed to write SSL nginx.conf: %v", err))
-					tmpFile.Close()
-					os.Remove(tmpFile.Name())
 				} else {
-					tmpFile.Close()
+					tmpFile.Close() // defer보다 먼저 닫아야 업로드 시 파일 내용이 flush됨
 					remoteNginxConf := workdir + "/nginx.conf"
 					if err := sshClient.UploadFile(stream, tmpFile.Name(), remoteNginxConf); err != nil {
 						stream.Info(fmt.Sprintf("Warning: failed to upload SSL nginx.conf: %v", err))
@@ -859,7 +890,6 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 							stream.Success("Auto-renewal cron registered (daily at 12:00 UTC)")
 						}
 					}
-					os.Remove(tmpFile.Name())
 				}
 			}
 		}
