@@ -53,8 +53,12 @@ const nodeTypes = {
   nginx: NginxNode,
 };
 
-// FE-L1: any 대신 명시적 타입으로 undefined 전달 시 타입 체커가 잡도록 변경
-interface MiniMapNodeProps { x: number; y: number; width: number; height: number; }
+interface MiniMapNodeProps {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 function MiniMapNode({ x, y, width, height }: MiniMapNodeProps) {
   return (
     <g>

@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 interface AIDialogProps {
   show: boolean;
   onClose: () => void;
-  currentProject: any;
+  currentProject: { path: string } | null;
 }
 
 interface CostItem {

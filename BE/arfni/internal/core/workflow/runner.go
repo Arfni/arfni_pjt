@@ -373,17 +373,18 @@ func (r *Runner) buildImagesLocal(stream *events.Stream) error {
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		stdout.Close() // BE-M4: stdout 열린 채 반환 방지
+		stdout.Close() // StderrPipe 실패 시 이미 열린 stdout 파이프를 닫아 fd 누수를 방지한다.
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		stdout.Close() // BE-M4: 파이프 정리
+		stdout.Close()
 		stderr.Close()
 		return fmt.Errorf("failed to start docker-compose build: %w", err)
 	}
 
-	// BE-H3: WaitGroup으로 goroutine 완료를 보장한 뒤 반환
+	// cmd.Wait()가 파이프를 닫아 goroutine 스캐너 루프를 종료시키고,
+	// wg.Wait()로 두 goroutine이 마지막 줄까지 읽은 뒤 반환한다.
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -393,8 +394,8 @@ func (r *Runner) buildImagesLocal(stream *events.Stream) error {
 		for scanner.Scan() {
 			stream.Info(fmt.Sprintf("[build] %s", scanner.Text()))
 		}
-		if err := scanner.Err(); err != nil { // BE-L1: I/O 에러 확인
-			stream.Info(fmt.Sprintf("[build] stdout read error: %v", err))
+		if err := scanner.Err(); err != nil {
+			stream.Warning(fmt.Sprintf("[build] stdout read error: %v", err), nil)
 		}
 	}()
 
@@ -404,13 +405,13 @@ func (r *Runner) buildImagesLocal(stream *events.Stream) error {
 		for scanner.Scan() {
 			stream.Info(fmt.Sprintf("[build] %s", scanner.Text()))
 		}
-		if err := scanner.Err(); err != nil { // BE-L1: I/O 에러 확인
-			stream.Info(fmt.Sprintf("[build] stderr read error: %v", err))
+		if err := scanner.Err(); err != nil {
+			stream.Warning(fmt.Sprintf("[build] stderr read error: %v", err), nil)
 		}
 	}()
 
 	err = cmd.Wait()
-	wg.Wait() // BE-H3: goroutine 둘 다 끝난 뒤 반환
+	wg.Wait()
 	if err != nil {
 		return fmt.Errorf("docker-compose build failed: %w", err)
 	}
@@ -474,7 +475,7 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 			// Upload prometheus.yml file
 			prometheusYml := filepath.Join(r.projectDir, "prometheus.yml")
 
-			// BE-L2: Stat을 한 번만 호출해 TOCTOU 경쟁 조건 제거
+			// 파일 존재 여부를 한 번만 확인하고 결과를 재사용해 이중 Stat 호출을 방지한다.
 			_, prometheusStatErr := os.Stat(prometheusYml)
 			if os.IsNotExist(prometheusStatErr) {
 				stream.Info("prometheus.yml not found in project, using bundled version...")
@@ -735,17 +736,18 @@ func (r *Runner) deployContainersLocal(stream *events.Stream) error {
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		stdout.Close() // BE-M4: stdout 열린 채 반환 방지
+		stdout.Close() // StderrPipe 실패 시 이미 열린 stdout 파이프를 닫아 fd 누수를 방지한다.
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		stdout.Close() // BE-M4: 파이프 정리
+		stdout.Close()
 		stderr.Close()
 		return fmt.Errorf("failed to start docker-compose up: %w", err)
 	}
 
-	// BE-H3: WaitGroup으로 goroutine 완료를 보장한 뒤 반환
+	// cmd.Wait()가 파이프를 닫아 goroutine 스캐너 루프를 종료시키고,
+	// wg.Wait()로 두 goroutine이 마지막 줄까지 읽은 뒤 반환한다.
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -755,8 +757,8 @@ func (r *Runner) deployContainersLocal(stream *events.Stream) error {
 		for scanner.Scan() {
 			stream.Info(fmt.Sprintf("[deploy] %s", scanner.Text()))
 		}
-		if err := scanner.Err(); err != nil { // BE-L1: I/O 에러 확인
-			stream.Info(fmt.Sprintf("[deploy] stdout read error: %v", err))
+		if err := scanner.Err(); err != nil {
+			stream.Warning(fmt.Sprintf("[deploy] stdout read error: %v", err), nil)
 		}
 	}()
 
@@ -766,13 +768,13 @@ func (r *Runner) deployContainersLocal(stream *events.Stream) error {
 		for scanner.Scan() {
 			stream.Info(fmt.Sprintf("[deploy] %s", scanner.Text()))
 		}
-		if err := scanner.Err(); err != nil { // BE-L1: I/O 에러 확인
-			stream.Info(fmt.Sprintf("[deploy] stderr read error: %v", err))
+		if err := scanner.Err(); err != nil {
+			stream.Warning(fmt.Sprintf("[deploy] stderr read error: %v", err), nil)
 		}
 	}()
 
 	err = cmd.Wait()
-	wg.Wait() // BE-H3: goroutine 둘 다 끝난 뒤 반환
+	wg.Wait()
 	if err != nil {
 		return fmt.Errorf("docker-compose up failed: %w", err)
 	}
@@ -851,18 +853,25 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 			stream.Success("SSL certificate issued successfully")
 
 			sslContent := nginx.BuildConfigWithSSL(cfg)
-			// BE-H4: defer로 어떤 경로로 종료되든 임시 파일 정리 보장
 			tmpFile, err := os.CreateTemp("", "nginx-ssl-*.conf")
 			if err != nil {
 				stream.Info(fmt.Sprintf("Warning: failed to create SSL nginx.conf: %v", err))
 			} else {
-				defer tmpFile.Close()
-				defer os.Remove(tmpFile.Name())
+				// 이중 Close를 방지하기 위해 한 번만 닫도록 추적한다.
+				// 업로드 전 flush 목적으로 명시적으로 닫은 뒤 defer가 재시도하지 않도록 한다.
+				var fileClosed bool
+				closeTmp := func() {
+					if !fileClosed {
+						fileClosed = true
+						tmpFile.Close()
+					}
+				}
+				defer func() { closeTmp(); os.Remove(tmpFile.Name()) }()
 
 				if _, err := tmpFile.WriteString(sslContent); err != nil {
 					stream.Info(fmt.Sprintf("Warning: failed to write SSL nginx.conf: %v", err))
 				} else {
-					tmpFile.Close() // defer보다 먼저 닫아야 업로드 시 파일 내용이 flush됨
+					closeTmp() // 업로드 전 파일 내용을 flush한다.
 					remoteNginxConf := workdir + "/nginx.conf"
 					if err := sshClient.UploadFile(stream, tmpFile.Name(), remoteNginxConf); err != nil {
 						stream.Info(fmt.Sprintf("Warning: failed to upload SSL nginx.conf: %v", err))
