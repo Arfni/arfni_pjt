@@ -327,6 +327,13 @@
     "remove": "삭제",
     "addVariable": "+ 변수 추가"
   },
+  "nginxEdge": {
+    "subtitle": "NGINX 라우팅 경로 설정",
+    "description": "이 연결의 Location 경로를 설정합니다. NGINX가 해당 경로로 들어오는 요청을 이 서비스로 전달합니다.",
+    "locationLabel": "Location 경로",
+    "locationPlaceholder": "/api/",
+    "locationHint": "예: /api/ 또는 /"
+  },
   "nginx": {
     "sections": {
       "basic": "기본 설정",

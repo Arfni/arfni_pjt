@@ -3,3 +3,4 @@ export { Input } from './Input';
 export { Select } from './Select';
 export { Checkbox } from './Checkbox';
 export { KeyValueEditor } from './KeyValueEditor';
+export { Tooltip } from './Tooltip';

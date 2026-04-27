@@ -327,6 +327,13 @@
     "remove": "Remove",
     "addVariable": "+ Add Variable"
   },
+  "nginxEdge": {
+    "subtitle": "NGINX Routing Path Settings",
+    "description": "Set the Location path for this connection. NGINX will forward incoming requests on this path to the service.",
+    "locationLabel": "Location Path",
+    "locationPlaceholder": "/api/",
+    "locationHint": "e.g. /api/ or /"
+  },
   "nginx": {
     "sections": {
       "basic": "Basic Settings",

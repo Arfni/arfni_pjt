@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { updateNode } from '../model/canvasSlice';
 import { CustomNode, NginxNodeData } from '../model/types';
 import { FormField, Input, Select } from '../../../shared/ui/form';
+import { Tooltip } from '../../../shared/ui/form/Tooltip';
 
 interface NginxPropertyFormProps {
   node: CustomNode;
@@ -75,14 +76,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
               />
               <span className="inline-flex items-center gap-1">
                 {t('nginx.labels.rateLimitEnabled')}
-                <span className="relative group inline-flex">
-                  <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
-                    ?
-                  </span>
-                  <span className="absolute right-6 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
-                    {t('nginx.tooltips.rateLimitEnabled')}
-                  </span>
-                </span>
+                <Tooltip content={t('nginx.tooltips.rateLimitEnabled')} />
               </span>
             </label>
             {data.rateLimit?.enabled && (
@@ -117,14 +111,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
               />
               <span className="inline-flex items-center gap-1">
                 {t('nginx.labels.sslEnabled')}
-                <span className="relative group inline-flex">
-                  <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
-                    ?
-                  </span>
-                  <span className="absolute right-6 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
-                    {t('nginx.tooltips.sslEnabled')}
-                  </span>
-                </span>
+                <Tooltip content={t('nginx.tooltips.sslEnabled')} />
               </span>
             </label>
             {data.ssl?.enabled && (
@@ -138,14 +125,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
                   />
                   <span className="inline-flex items-center gap-1">
                     {t('nginx.labels.sslAuto')}
-                    <span className="relative group inline-flex">
-                      <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
-                        ?
-                      </span>
-                      <span className="absolute right-6 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
-                        {t('nginx.tooltips.sslAuto')}
-                      </span>
-                    </span>
+                    <Tooltip content={t('nginx.tooltips.sslAuto')} />
                   </span>
                 </label>
                 {data.ssl.auto ? (
@@ -195,14 +175,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
               />
               <span className="inline-flex items-center gap-1">
                 {t('nginx.labels.corsEnabled')}
-                <span className="relative group inline-flex">
-                  <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
-                    ?
-                  </span>
-                  <span className="absolute right-6 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
-                    {t('nginx.tooltips.corsEnabled')}
-                  </span>
-                </span>
+                <Tooltip content={t('nginx.tooltips.corsEnabled')} />
               </span>
             </label>
             {data.cors?.enabled && (
@@ -234,14 +207,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
             />
             <span className="inline-flex items-center gap-1">
               {t('nginx.labels.gzip')}
-              <span className="relative group inline-flex">
-                <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
-                  ?
-                </span>
-                <span className="absolute left-5 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
-                  {t('nginx.tooltips.gzip')}
-                </span>
-              </span>
+              <Tooltip content={t('nginx.tooltips.gzip')} />
             </span>
           </label>
 
@@ -255,14 +221,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
               />
               <span className="inline-flex items-center gap-1">
                 {t('nginx.labels.cacheEnabled')}
-                <span className="relative group inline-flex">
-                  <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
-                    ?
-                  </span>
-                  <span className="absolute right-6 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
-                    {t('nginx.tooltips.cacheEnabled')}
-                  </span>
-                </span>
+                <Tooltip content={t('nginx.tooltips.cacheEnabled')} />
               </span>
             </label>
             {data.cache?.enabled && (

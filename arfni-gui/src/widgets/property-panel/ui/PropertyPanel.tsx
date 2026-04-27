@@ -35,7 +35,7 @@ export function PropertyPanel() {
           </p>
         )}
         {isNginxEdge && (
-          <p className="text-xs text-gray-500 mt-1">NGINX 라우팅 경로 설정</p>
+          <p className="text-xs text-gray-500 mt-1">{t('nginxEdge.subtitle')}</p>
         )}
       </div>
 
@@ -46,12 +46,11 @@ export function PropertyPanel() {
         ) : isNginxEdge && selectedEdge ? (
           <div className="p-4 space-y-3">
             <p className="text-xs text-gray-500">
-              이 연결의 Location 경로를 설정합니다.
-              NGINX가 해당 경로로 들어오는 요청을 이 서비스로 전달합니다.
+              {t('nginxEdge.description')}
             </p>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Location 경로
+                {t('nginxEdge.locationLabel')}
               </label>
               <input
                 type="text"
@@ -60,9 +59,9 @@ export function PropertyPanel() {
                 onChange={(e) =>
                   dispatch(updateEdgeData({ id: selectedEdge.id, data: { route: e.target.value } }))
                 }
-                placeholder="/api/"
+                placeholder={t('nginxEdge.locationPlaceholder')}
               />
-              <p className="text-xs text-gray-400 mt-1">예: /api/ 또는 /</p>
+              <p className="text-xs text-gray-400 mt-1">{t('nginxEdge.locationHint')}</p>
             </div>
           </div>
         ) : (
