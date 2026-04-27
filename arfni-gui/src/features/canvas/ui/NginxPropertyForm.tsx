@@ -79,7 +79,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
                   <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
                     ?
                   </span>
-                  <span className="absolute left-5 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
+                  <span className="absolute right-6 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
                     {t('nginx.tooltips.rateLimitEnabled')}
                   </span>
                 </span>
@@ -121,7 +121,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
                   <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
                     ?
                   </span>
-                  <span className="absolute left-5 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
+                  <span className="absolute right-6 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
                     {t('nginx.tooltips.sslEnabled')}
                   </span>
                 </span>
@@ -142,7 +142,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
                       <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
                         ?
                       </span>
-                      <span className="absolute left-5 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
+                      <span className="absolute right-6 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
                         {t('nginx.tooltips.sslAuto')}
                       </span>
                     </span>
@@ -199,7 +199,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
                   <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
                     ?
                   </span>
-                  <span className="absolute left-5 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
+                  <span className="absolute right-6 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
                     {t('nginx.tooltips.corsEnabled')}
                   </span>
                 </span>
@@ -259,7 +259,7 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
                   <span className="cursor-help text-gray-400 hover:text-gray-600 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none select-none">
                     ?
                   </span>
-                  <span className="absolute left-5 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
+                  <span className="absolute right-6 top-0 z-50 invisible group-hover:visible bg-gray-800 text-white text-xs rounded px-2 py-1.5 w-52 whitespace-normal font-normal pointer-events-none shadow-lg">
                     {t('nginx.tooltips.cacheEnabled')}
                   </span>
                 </span>
