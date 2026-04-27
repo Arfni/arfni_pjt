@@ -181,7 +181,7 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 	if nginx.HasNginxService(r.stack) {
 		stream.Info("Generating nginx.conf...")
 		if err := nginx.WriteNginxConfig(r.stack, r.projectDir); err != nil {
-			stream.Info(fmt.Sprintf("Warning: failed to generate nginx.conf: %v", err))
+			stream.Warning(fmt.Sprintf("failed to generate nginx.conf: %v", err), nil)
 		} else {
 			stream.Success("Generated nginx.conf")
 		}
@@ -872,7 +872,7 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 			sslContent := nginx.BuildConfigWithSSL(cfg)
 			tmpFile, err := os.CreateTemp("", "nginx-ssl-*.conf")
 			if err != nil {
-				stream.Info(fmt.Sprintf("Warning: failed to create SSL nginx.conf: %v", err))
+				stream.Warning(fmt.Sprintf("failed to create SSL nginx.conf: %v", err), nil)
 			} else {
 				// 이중 Close를 방지하기 위해 한 번만 닫도록 추적한다.
 				// 업로드 전 flush 목적으로 명시적으로 닫은 뒤 defer가 재시도하지 않도록 한다.
@@ -886,7 +886,7 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 				defer func() { closeTmp(); os.Remove(tmpFile.Name()) }()
 
 				if _, err := tmpFile.WriteString(sslContent); err != nil {
-					stream.Info(fmt.Sprintf("Warning: failed to write SSL nginx.conf: %v", err))
+					stream.Warning(fmt.Sprintf("failed to write SSL nginx.conf: %v", err), nil)
 				} else {
 					closeTmp() // 업로드 전 파일 내용을 flush한다.
 					remoteNginxConf := workdir + "/nginx.conf"
