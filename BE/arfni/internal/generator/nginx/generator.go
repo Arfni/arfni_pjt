@@ -4,10 +4,30 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/arfni/arfni/internal/core/stack"
 )
+
+// domainPattern은 유효한 도메인/서버명 패턴이다.
+// 경로 탈출(../)이나 셸 인젝션을 방지하기 위해 인증서 경로 생성 전 검증에 사용한다.
+var domainPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-\.]+$`)
+
+// ValidateServerName은 serverName이 인증서 경로 및 nginx 설정에 안전한 값인지 검증한다.
+// serverName은 stack.yaml 사용자 입력에서 오므로 경로 생성 전에 반드시 호출해야 한다.
+func ValidateServerName(name string) error {
+	if name == "" || name == "_" {
+		return nil // 기본값(와일드카드)은 경로 생성에 사용되지 않으므로 허용
+	}
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("serverName contains path traversal sequence: %q", name)
+	}
+	if !domainPattern.MatchString(name) {
+		return fmt.Errorf("serverName contains invalid characters: %q", name)
+	}
+	return nil
+}
 
 // GenerateNginxConfig generates nginx.conf content from a stack.
 // It finds the first service with kind "proxy.nginx" and builds the config.

@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/arfni/arfni/internal/core/stack"
+	"github.com/arfni/arfni/internal/generator/nginx"
 )
 
 // Generate creates docker-compose.yaml from stack
@@ -126,6 +127,9 @@ func GenerateDockerComposeWithTarget(s *stack.Stack, projectDir string, targetTy
 
 				// Build certbot command
 				serverName := service.Spec.Nginx.ServerName
+				if err := nginx.ValidateServerName(serverName); err != nil {
+					return "", fmt.Errorf("invalid nginx serverName for certbot: %w", err)
+				}
 				certbotCmd := []string{
 					"certonly", "--webroot",
 					"-w", "/var/www/certbot",

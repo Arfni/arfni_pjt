@@ -254,11 +254,34 @@ fi
 	return nil
 }
 
+// validateWorkdir는 workdir 경로에 셸 인젝션에 사용될 수 있는 문자가 없는지 검증한다.
+// workdir는 stack.yaml 사용자 입력에서 오므로 셸 명령에 삽입하기 전에 반드시 검증해야 한다.
+func validateWorkdir(path string) error {
+	if path == "" {
+		return nil // 빈 값은 기본값으로 대체되므로 허용
+	}
+	if !strings.HasPrefix(path, "/") {
+		return fmt.Errorf("workdir must be an absolute path (got: %q)", path)
+	}
+	// 셸 메타문자 및 경로 탈출 패턴 차단
+	forbidden := []string{"&&", ";", "|", "`", "$", ">", "<", "(", ")", "\n", "\r", ".."}
+	for _, char := range forbidden {
+		if strings.Contains(path, char) {
+			return fmt.Errorf("workdir contains invalid character %q: %q", char, path)
+		}
+	}
+	return nil
+}
+
 // PrepareWorkdir는 EC2에 작업 디렉토리를 준비합니다
 func (c *SSHClient) PrepareWorkdir(stream *events.Stream) error {
 	workdir := c.target.Workdir
 	if workdir == "" {
 		workdir = "/home/" + c.target.User + "/arfni-deploy"
+	}
+
+	if err := validateWorkdir(workdir); err != nil {
+		return fmt.Errorf("invalid workdir: %w", err)
 	}
 
 	stream.Info(fmt.Sprintf("Preparing workdir: %s", workdir))

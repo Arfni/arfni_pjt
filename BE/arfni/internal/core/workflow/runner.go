@@ -806,6 +806,9 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 
 	sshClient := NewSSHClient(target, r.projectDir)
 	workdir := sshClient.GetWorkdir()
+	if err := validateWorkdir(workdir); err != nil {
+		return fmt.Errorf("invalid workdir: %w", err)
+	}
 
 	stream.Info(fmt.Sprintf("Deploying containers on EC2: %v", ec2Services))
 
@@ -825,7 +828,17 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 	}
 	buildCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml build%s", workdir, serviceList)
 	if err := sshClient.RunCommand(stream, buildCmd); err != nil {
-		stream.Info(fmt.Sprintf("Warning: Image build completed with warnings (this is normal for pre-built images)"))
+		// 빌드 실패 시 기존 이미지가 있는지 확인한다.
+		// 이미지가 있으면 이전 버전으로 계속 진행하고, 없으면 배포를 중단한다.
+		checkCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml images -q | wc -l", workdir)
+		output, checkErr := sshClient.RunCommandWithOutput(stream, checkCmd)
+		if checkErr != nil || strings.TrimSpace(output) == "0" || strings.TrimSpace(output) == "" {
+			return fmt.Errorf("docker compose build failed and no existing images found: %w", err)
+		}
+		stream.Warning(
+			"Image build failed. Deploying with previous build — the running container may not reflect the latest code.",
+			map[string]interface{}{"build_error": err.Error()},
+		)
 	}
 
 	// Step 3: Start containers (volumes are preserved)
@@ -852,6 +865,10 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 		} else {
 			stream.Success("SSL certificate issued successfully")
 
+			if err := nginx.ValidateServerName(cfg.ServerName); err != nil {
+				stream.Warning(fmt.Sprintf("SSL config skipped: invalid serverName — %v", err), nil)
+				return nil
+			}
 			sslContent := nginx.BuildConfigWithSSL(cfg)
 			tmpFile, err := os.CreateTemp("", "nginx-ssl-*.conf")
 			if err != nil {
@@ -1035,6 +1052,9 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 
 	sshClient := NewSSHClient(target, r.projectDir)
 	workdir := sshClient.GetWorkdir()
+	if err := validateWorkdir(workdir); err != nil {
+		return fmt.Errorf("invalid workdir: %w", err)
+	}
 
 	// Wait a bit for containers to start
 	time.Sleep(2 * time.Second)
@@ -1214,7 +1234,7 @@ func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
 
 	// Restart Grafana container to reload provisioning files
 	stream.Info("Restarting Grafana to apply provisioning changes...")
-	restartCmd := fmt.Sprintf("cd %s && docker compose restart grafana", ec2Target.Workdir)
+	restartCmd := fmt.Sprintf("cd %s && docker compose restart grafana", sshClient.GetWorkdir())
 	if err := sshClient.RunCommand(stream, restartCmd); err != nil {
 		stream.Info(fmt.Sprintf("Warning: Failed to restart Grafana: %v", err))
 		stream.Info("Note: You may need to restart Grafana manually for changes to take effect")
