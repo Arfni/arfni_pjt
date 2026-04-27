@@ -426,7 +426,10 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 		return err
 	}
 
-	sshClient := NewSSHClient(target, r.projectDir)
+	sshClient, err := NewSSHClient(target, r.projectDir)
+	if err != nil {
+		return err
+	}
 
 	// 1. Docker 설치 확인
 	if err := sshClient.CheckDockerInstalled(stream); err != nil {
@@ -804,7 +807,10 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 		return nil
 	}
 
-	sshClient := NewSSHClient(target, r.projectDir)
+	sshClient, err := NewSSHClient(target, r.projectDir)
+	if err != nil {
+		return err
+	}
 	workdir := sshClient.GetWorkdir()
 	if err := validateWorkdir(workdir); err != nil {
 		return fmt.Errorf("invalid workdir: %w", err)
@@ -1050,7 +1056,10 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 		return err
 	}
 
-	sshClient := NewSSHClient(target, r.projectDir)
+	sshClient, err := NewSSHClient(target, r.projectDir)
+	if err != nil {
+		return err
+	}
 	workdir := sshClient.GetWorkdir()
 	if err := validateWorkdir(workdir); err != nil {
 		return fmt.Errorf("invalid workdir: %w", err)
@@ -1198,7 +1207,10 @@ func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
 	}
 
 	// Create SSH client and upload
-	sshClient := NewSSHClient(ec2Target, r.projectDir)
+	sshClient, err := NewSSHClient(ec2Target, r.projectDir)
+	if err != nil {
+		return err
+	}
 
 	// Ensure grafana directory exists with correct ownership before upload
 	stream.Info("Preparing grafana directory on EC2...")

@@ -20,8 +20,20 @@ type SSHClient struct {
 	arfniIgnore  *ArfniIgnore
 }
 
-// NewSSHClient는 새로운 SSH 클라이언트를 생성합니다
-func NewSSHClient(target stack.Target, projectDir string) *SSHClient {
+// NewSSHClient는 새로운 SSH 클라이언트를 생성합니다.
+// target의 필수 필드(host, user, sshKey)가 비어 있으면 에러를 반환해
+// 이후 scp/ssh 호출에서 cryptic한 에러 메시지가 나오는 것을 방지한다.
+func NewSSHClient(target stack.Target, projectDir string) (*SSHClient, error) {
+	if target.Host == "" {
+		return nil, fmt.Errorf("EC2 target is not configured: host is empty")
+	}
+	if target.User == "" {
+		return nil, fmt.Errorf("EC2 target is not configured: user is empty")
+	}
+	if target.SSHKey == "" {
+		return nil, fmt.Errorf("EC2 target is not configured: sshKey is empty")
+	}
+
 	// Load .arfniignore file (creates default if not exists)
 	arfniIgnore, err := LoadArfniIgnore(projectDir)
 	if err != nil {
@@ -30,10 +42,10 @@ func NewSSHClient(target stack.Target, projectDir string) *SSHClient {
 	}
 
 	return &SSHClient{
-		target:       target,
-		projectDir:   projectDir,
-		arfniIgnore:  arfniIgnore,
-	}
+		target:      target,
+		projectDir:  projectDir,
+		arfniIgnore: arfniIgnore,
+	}, nil
 }
 
 // UploadFile은 로컬 파일을 EC2로 SCP 전송합니다
