@@ -79,6 +79,7 @@ export function DeploymentPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showFailedModal, setShowFailedModal] = useState(false);
   const [ec2Server, setEc2Server] = useState<EC2Server | null>(null);
+  const [ec2ServerError, setEc2ServerError] = useState<string | null>(null);
   const [isStopping, setIsStopping] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
@@ -200,9 +201,11 @@ export function DeploymentPage() {
         try {
           const server = await ec2ServerCommands.getServerById(currentProject.ec2_server_id);
           setEc2Server(server);
+          setEc2ServerError(null);
         } catch (error) {
           console.error('EC2 서버 정보 로드 실패:', error);
           setEc2Server(null);
+          setEc2ServerError('EC2 서버 정보를 불러오지 못했습니다. 서버 설정을 확인해 주세요.');
         }
       } else {
         setEc2Server(null);
@@ -340,6 +343,13 @@ export function DeploymentPage() {
               />
 
               {/* SSL 경고 배너 */}
+              {ec2ServerError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-lg flex items-start gap-2">
+                  <span className="text-red-500 text-lg flex-shrink-0">⚠️</span>
+                  <p className="text-sm text-red-800">{ec2ServerError}</p>
+                </div>
+              )}
+
               {sslWarning && (
                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg flex items-start gap-2">
                   <span className="text-yellow-500 text-lg flex-shrink-0">⚠️</span>

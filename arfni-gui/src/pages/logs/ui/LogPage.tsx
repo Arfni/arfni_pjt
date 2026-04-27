@@ -107,6 +107,7 @@ export default function LogPage() {
         } catch (error) {
           console.error('EC2 서버 정보 로드 실패:', error);
           setEc2Server(null);
+          setTerminalLogs((prev) => [...prev, `❌ EC2 서버 정보를 불러오지 못했습니다: ${error instanceof Error ? error.message : String(error)}`]);
         }
       } else {
         setEc2Server(null);
