@@ -442,6 +442,9 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 	}
 
 	workdir := sshClient.GetWorkdir()
+	if err := validateWorkdir(workdir); err != nil {
+		return fmt.Errorf("invalid workdir: %w", err)
+	}
 
 	// 3. 프로젝트 파일들 전송
 	stream.Info("Uploading project files to EC2...")
@@ -838,13 +841,20 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 		// 이미지가 있으면 이전 버전으로 계속 진행하고, 없으면 배포를 중단한다.
 		checkCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml images -q | wc -l", workdir)
 		output, checkErr := sshClient.RunCommandWithOutput(stream, checkCmd)
-		if checkErr != nil || strings.TrimSpace(output) == "0" || strings.TrimSpace(output) == "" {
+		if checkErr != nil {
+			// checkCmd 자체가 실패한 경우 — 이미지 존재 여부를 알 수 없으므로 경고 후 계속 진행한다.
+			stream.Warning(
+				fmt.Sprintf("Image build failed and could not verify existing images: %v", checkErr),
+				map[string]interface{}{"build_error": err.Error()},
+			)
+		} else if strings.TrimSpace(output) == "0" || strings.TrimSpace(output) == "" {
 			return fmt.Errorf("docker compose build failed and no existing images found: %w", err)
+		} else {
+			stream.Warning(
+				"Image build failed. Deploying with previous build — the running container may not reflect the latest code.",
+				map[string]interface{}{"build_error": err.Error()},
+			)
 		}
-		stream.Warning(
-			"Image build failed. Deploying with previous build — the running container may not reflect the latest code.",
-			map[string]interface{}{"build_error": err.Error()},
-		)
 	}
 
 	// Step 3: Start containers (volumes are preserved)
@@ -1212,10 +1222,15 @@ func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
 		return err
 	}
 
+	workdir := sshClient.GetWorkdir()
+	if err := validateWorkdir(workdir); err != nil {
+		return fmt.Errorf("invalid workdir: %w", err)
+	}
+
 	// Ensure grafana directory exists with correct ownership before upload
 	stream.Info("Preparing grafana directory on EC2...")
 	// Use forward slashes for remote Linux paths (even when running on Windows/Mac)
-	remoteGrafanaDir := ec2Target.Workdir + "/grafana"
+	remoteGrafanaDir := workdir + "/grafana"
 	createDirCmd := fmt.Sprintf("mkdir -p %s/provisioning/datasources %s/provisioning/dashboards", remoteGrafanaDir, remoteGrafanaDir)
 	if err := sshClient.RunCommand(stream, createDirCmd); err != nil {
 		stream.Info(fmt.Sprintf("Warning: Failed to create grafana directories: %v", err))
@@ -1246,7 +1261,7 @@ func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
 
 	// Restart Grafana container to reload provisioning files
 	stream.Info("Restarting Grafana to apply provisioning changes...")
-	restartCmd := fmt.Sprintf("cd %s && docker compose restart grafana", sshClient.GetWorkdir())
+	restartCmd := fmt.Sprintf("cd %s && docker compose restart grafana", workdir)
 	if err := sshClient.RunCommand(stream, restartCmd); err != nil {
 		stream.Info(fmt.Sprintf("Warning: Failed to restart Grafana: %v", err))
 		stream.Info("Note: You may need to restart Grafana manually for changes to take effect")

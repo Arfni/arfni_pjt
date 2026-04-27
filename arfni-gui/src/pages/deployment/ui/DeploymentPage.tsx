@@ -493,7 +493,13 @@ export function DeploymentPage() {
 
   // idle 상태 (배포 전)
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-50">
+    <div className="h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
+      {ec2ServerError && (
+        <div className="w-full max-w-md p-3 bg-red-50 border border-red-300 rounded-lg flex items-start gap-2">
+          <span className="text-red-500 text-lg flex-shrink-0">⚠️</span>
+          <p className="text-sm text-red-800">{ec2ServerError}</p>
+        </div>
+      )}
       <div className="text-gray-600 text-center">
         <p>{t('messages.startDeployment')}</p>
         <button
