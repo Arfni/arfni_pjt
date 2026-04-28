@@ -34,6 +34,13 @@ fn main() {
 
             // 윈도우 닫힐 때 모니터링 스택 정리
             let window = app.get_webview_window("main").unwrap();
+
+            // Windows에서는 OS가 foreground 가로채기를 막으므로
+            // 잠깐 always-on-top으로 올린 뒤 포커스를 주고 해제
+            let _ = window.set_always_on_top(true);
+            let _ = window.set_focus();
+            let _ = window.set_always_on_top(false);
+
             let app_handle_clone = app.handle().clone();
             let window_clone = window.clone();
 

@@ -19,7 +19,8 @@
         "minHeight": 600,
         "decorations": false,
         "dragDropEnabled": false,
-        "devtools": true
+        "devtools": true,
+        "focus": true
       }
     ],
     "security": {
