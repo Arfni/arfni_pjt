@@ -332,7 +332,9 @@
     "description": "Set the Location path for this connection. NGINX will forward incoming requests on this path to the service.",
     "locationLabel": "Location Path",
     "locationPlaceholder": "/api/",
-    "locationHint": "e.g. /api/ or /"
+    "locationHint": "e.g. /api/ or /",
+    "websocketLabel": "Enable WebSocket",
+    "websocketHint": "Adds Upgrade/Connection headers to support WebSocket connections through nginx."
   },
   "nginx": {
     "sections": {

@@ -332,7 +332,9 @@
     "description": "이 연결의 Location 경로를 설정합니다. NGINX가 해당 경로로 들어오는 요청을 이 서비스로 전달합니다.",
     "locationLabel": "Location 경로",
     "locationPlaceholder": "/api/",
-    "locationHint": "예: /api/ 또는 /"
+    "locationHint": "예: /api/ 또는 /",
+    "websocketLabel": "WebSocket 활성화",
+    "websocketHint": "활성화하면 Upgrade/Connection 헤더를 추가하여 WebSocket 연결을 지원합니다."
   },
   "nginx": {
     "sections": {

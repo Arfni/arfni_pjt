@@ -63,6 +63,21 @@ export function PropertyPanel() {
               />
               <p className="text-xs text-gray-400 mt-1">{t('nginxEdge.locationHint')}</p>
             </div>
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="websocket-toggle"
+                className="w-4 h-4 accent-blue-500 cursor-pointer"
+                checked={(selectedEdge.data as any)?.websocket ?? false}
+                onChange={(e) =>
+                  dispatch(updateEdgeData({ id: selectedEdge.id, data: { websocket: e.target.checked } }))
+                }
+              />
+              <label htmlFor="websocket-toggle" className="text-xs font-medium text-gray-700 cursor-pointer select-none">
+                {t('nginxEdge.websocketLabel')}
+              </label>
+            </div>
+            <p className="text-xs text-gray-400">{t('nginxEdge.websocketHint')}</p>
           </div>
         ) : (
           <div className="flex items-center justify-center h-full p-4 text-gray-400">

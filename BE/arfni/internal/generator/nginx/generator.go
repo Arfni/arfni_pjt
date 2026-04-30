@@ -198,6 +198,12 @@ func BuildConfigWithSSL(cfg *stack.NginxConfig) string {
 		b.WriteString("            proxy_set_header X-Real-IP $remote_addr;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-Proto $scheme;\n")
+		if up.WebSocket {
+			b.WriteString("            proxy_http_version 1.1;\n")
+			b.WriteString("            proxy_set_header Upgrade $http_upgrade;\n")
+			b.WriteString("            proxy_set_header Connection \"upgrade\";\n")
+			b.WriteString("            proxy_read_timeout 86400;\n")
+		}
 		b.WriteString("        }\n\n")
 	}
 
@@ -334,6 +340,12 @@ func buildConfig(cfg *stack.NginxConfig) string {
 		b.WriteString("            proxy_set_header X-Real-IP $remote_addr;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-Proto $scheme;\n")
+		if up.WebSocket {
+			b.WriteString("            proxy_http_version 1.1;\n")
+			b.WriteString("            proxy_set_header Upgrade $http_upgrade;\n")
+			b.WriteString("            proxy_set_header Connection \"upgrade\";\n")
+			b.WriteString("            proxy_read_timeout 86400;\n")
+		}
 		b.WriteString("        }\n\n")
 	}
 
