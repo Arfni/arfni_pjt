@@ -8,12 +8,15 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# Normalize output: Vite -> dist/, CRA -> build/
+RUN if [ -d dist ]; then mv dist output; \
+    elif [ -d build ]; then mv build output; \
+    else echo "ERROR: no build output found (expected dist/ or build/)" >&2 && exit 1; fi
+
 # Production stage - nginx serves built static files
 FROM nginx:alpine
 
-# Support both Vite (dist/) and CRA (build/) output directories
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY --from=builder /app/build /usr/share/nginx/html 2>/dev/null || true
+COPY --from=builder /app/output /usr/share/nginx/html
 
 # SPA routing: unknown paths fall back to index.html for client-side routing
 RUN printf 'server {\n\
