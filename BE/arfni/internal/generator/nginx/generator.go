@@ -15,7 +15,8 @@ import (
 var domainPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-\.]+$`)
 
 // ValidateServerName은 serverName이 인증서 경로 및 nginx 설정에 안전한 값인지 검증한다.
-// serverName은 stack.yaml 사용자 입력에서 오므로 경로 생성 전에 반드시 호출해야 한다.
+// serverName은 stack.yaml 사용자 입력에서 오므로 호출자가 BuildConfigWithSSL 또는
+// 파일 시스템 경로 생성 전에 반드시 호출해야 한다.
 func ValidateServerName(name string) error {
 	if name == "" || name == "_" {
 		return nil // 기본값(와일드카드)은 경로 생성에 사용되지 않으므로 허용
@@ -27,6 +28,15 @@ func ValidateServerName(name string) error {
 		return fmt.Errorf("serverName contains invalid characters: %q", name)
 	}
 	return nil
+}
+
+// writeWebSocketHeaders는 WebSocket 프록시에 필요한 헤더를 location 블록에 추가한다.
+// 호출자가 up.WebSocket 여부를 확인한 뒤 호출해야 한다.
+func writeWebSocketHeaders(b *strings.Builder) {
+	b.WriteString("            proxy_http_version 1.1;\n")
+	b.WriteString("            proxy_set_header Upgrade $http_upgrade;\n")
+	b.WriteString("            proxy_set_header Connection \"upgrade\";\n")
+	b.WriteString("            proxy_read_timeout 86400;\n")
 }
 
 // GenerateNginxConfig generates nginx.conf content from a stack.
@@ -199,10 +209,7 @@ func BuildConfigWithSSL(cfg *stack.NginxConfig) string {
 		b.WriteString("            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-Proto $scheme;\n")
 		if up.WebSocket {
-			b.WriteString("            proxy_http_version 1.1;\n")
-			b.WriteString("            proxy_set_header Upgrade $http_upgrade;\n")
-			b.WriteString("            proxy_set_header Connection \"upgrade\";\n")
-			b.WriteString("            proxy_read_timeout 86400;\n")
+			writeWebSocketHeaders(&b)
 		}
 		b.WriteString("        }\n\n")
 	}
@@ -341,10 +348,7 @@ func buildConfig(cfg *stack.NginxConfig) string {
 		b.WriteString("            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-Proto $scheme;\n")
 		if up.WebSocket {
-			b.WriteString("            proxy_http_version 1.1;\n")
-			b.WriteString("            proxy_set_header Upgrade $http_upgrade;\n")
-			b.WriteString("            proxy_set_header Connection \"upgrade\";\n")
-			b.WriteString("            proxy_read_timeout 86400;\n")
+			writeWebSocketHeaders(&b)
 		}
 		b.WriteString("        }\n\n")
 	}
