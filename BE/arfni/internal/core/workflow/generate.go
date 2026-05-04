@@ -130,13 +130,15 @@ func GenerateDockerComposeWithTarget(s *stack.Stack, projectDir string, targetTy
 				if err := nginx.ValidateServerName(serverName); err != nil {
 					return "", fmt.Errorf("invalid nginx serverName for certbot: %w", err)
 				}
+				email := service.Spec.Nginx.SSL.Email
+				if email == "" {
+					return "", fmt.Errorf("SSL auto is enabled but email is empty: required for Let's Encrypt registration")
+				}
 				certbotCmd := []string{
 					"certonly", "--webroot",
 					"-w", "/var/www/certbot",
 					"-d", serverName,
-				}
-				if email := service.Spec.Nginx.SSL.Email; email != "" {
-					certbotCmd = append(certbotCmd, "--email", email)
+					"--email", email,
 				}
 				certbotCmd = append(certbotCmd, "--agree-tos", "--non-interactive", "--expand")
 
