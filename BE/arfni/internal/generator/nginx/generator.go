@@ -37,6 +37,7 @@ func writeWebSocketHeaders(b *strings.Builder) {
 	b.WriteString("            proxy_set_header Upgrade $http_upgrade;\n")
 	b.WriteString("            proxy_set_header Connection \"upgrade\";\n")
 	b.WriteString("            proxy_read_timeout 86400;\n")
+	b.WriteString("            proxy_buffering off;\n")
 }
 
 // GenerateNginxConfig generates nginx.conf content from a stack.
