@@ -31,15 +31,6 @@ const (
 	colorWhite  = "\033[37m"
 )
 
-// MonitoringMode 타입
-type MonitoringMode string
-
-const (
-	ModeLocal     MonitoringMode = "local"      // Prometheus + Grafana 로컬
-	ModeHybrid    MonitoringMode = "hybrid"     // Prometheus EC2, Grafana 로컬
-	ModeAllInOne  MonitoringMode = "all-in-one" // 모두 EC2
-)
-
 // Config 구조체 - JSON 파일 또는 CLI 플래그로 설정
 type Config struct {
 	SSH struct {
@@ -48,7 +39,7 @@ type Config struct {
 		PemPath string `json:"pem_path"`
 	} `json:"ssh"`
 	Monitoring struct {
-		Mode              MonitoringMode `json:"mode"`
+		Mode              monitoring.MonitoringMode `json:"mode"`
 		StackPath         string         `json:"stack_path"`
 		PrometheusPort    int            `json:"prometheus_port"`
 		GrafanaPort       int            `json:"grafana_port"`
@@ -225,7 +216,7 @@ func main() {
 	defer os.RemoveAll(tempDir) // Clean up on exit
 
 	// 플러그인에서 docker-compose.yml 생성
-	monitoringMode := monitoring.MonitoringMode(cfg.Monitoring.Mode)
+	monitoringMode := cfg.Monitoring.Mode
 	if err := monitoring.PrepareMonitoringStack(pluginsDir, monitoringMode, tempDir); err != nil {
 		// Fallback to legacy monitoring directory
 		fmt.Printf("%s⚠️  Failed to use plugins, falling back to legacy monitoring: %v%s\n", colorYellow, err, colorReset)
@@ -248,7 +239,7 @@ func main() {
 		pressEnterToExit()
 		os.Exit(1)
 	}
-	if cfg.Monitoring.Mode != ModeAllInOne {
+	if cfg.Monitoring.Mode != monitoring.ModeAllInOne {
 		fmt.Printf("%s   ✓ Docker containers started%s\n", colorGreen, colorReset)
 	}
 
@@ -258,11 +249,11 @@ func main() {
 	// 모드별 포트 설정
 	var ports []int
 	switch cfg.Monitoring.Mode {
-	case ModeLocal:
+	case monitoring.ModeLocal:
 		ports = []int{cfg.Monitoring.NodeExporterPort} // 9100
-	case ModeHybrid:
+	case monitoring.ModeHybrid:
 		ports = []int{cfg.Monitoring.NodeExporterPort, cfg.Monitoring.PrometheusPort} // 9100, 9090
-	case ModeAllInOne:
+	case monitoring.ModeAllInOne:
 		ports = []int{cfg.Monitoring.PrometheusPort, cfg.Monitoring.GrafanaPort} // 9090, 3000
 	}
 
@@ -284,7 +275,7 @@ func main() {
 	fmt.Printf("%s   ✓ SSH tunnel established (ports: %s)%s\n", colorGreen, portInfo, colorReset)
 
 	// Step 8: 서비스 준비 대기 (로컬에서 실행되는 경우만)
-	if cfg.Monitoring.Mode != ModeAllInOne {
+	if cfg.Monitoring.Mode != monitoring.ModeAllInOne {
 		fmt.Printf("%s⏳ Waiting for services to be ready...%s\n", colorBlue, colorReset)
 		if err := waitForGrafana(ctx, cfg.Monitoring.GrafanaPort); err != nil {
 			fmt.Printf("%s❌ %s%s\n", colorRed, err.Error(), colorReset)
@@ -317,7 +308,7 @@ func loadConfig(configFile, host, user, key, stackPath, mode string, args []stri
 	cfg.Monitoring.PrometheusPort = 9090
 	cfg.Monitoring.GrafanaPort = 3200
 	cfg.Monitoring.NodeExporterPort = 9100
-	cfg.Monitoring.Mode = ModeLocal // 기본 모드
+	cfg.Monitoring.Mode = monitoring.ModeLocal // 기본 모드
 	cfg.Options.AutoOpenBrowser = false  // GUI에서 iframe으로 보여주므로 브라우저 자동 열기 비활성화
 	cfg.Options.CleanupOnExit = true
 
@@ -335,7 +326,7 @@ func loadConfig(configFile, host, user, key, stackPath, mode string, args []stri
 		fmt.Printf("%s✓ Loaded config from: %s%s\n", colorGreen, configFile, colorReset)
 		// CLI 플래그로 모드 오버라이드
 		if mode != "" {
-			cfg.Monitoring.Mode = MonitoringMode(mode)
+			cfg.Monitoring.Mode = monitoring.MonitoringMode(mode)
 		}
 		if stackPath != "" {
 			cfg.Monitoring.StackPath = stackPath
@@ -352,7 +343,7 @@ func loadConfig(configFile, host, user, key, stackPath, mode string, args []stri
 
 		// 모드 결정: CLI 플래그 > stack.yaml 자동 감지 > 기본값
 		if mode != "" {
-			cfg.Monitoring.Mode = MonitoringMode(mode)
+			cfg.Monitoring.Mode = monitoring.MonitoringMode(mode)
 			fmt.Printf("%s✓ Using CLI flags (mode: %s)%s\n", colorGreen, mode, colorReset)
 		} else if stackPath != "" {
 			cfg.Monitoring.Mode = detectModeFromStack(stackPath)
@@ -393,7 +384,7 @@ func loadConfig(configFile, host, user, key, stackPath, mode string, args []stri
 
 		// 모드 자동 감지
 		if mode != "" {
-			cfg.Monitoring.Mode = MonitoringMode(mode)
+			cfg.Monitoring.Mode = monitoring.MonitoringMode(mode)
 			fmt.Printf("%s✓ Using stack.yaml only (mode: %s from CLI flag)%s\n", colorGreen, cfg.Monitoring.Mode, colorReset)
 		} else {
 			cfg.Monitoring.Mode = detectModeFromStack(stackYamlPath)
@@ -418,7 +409,7 @@ func loadConfig(configFile, host, user, key, stackPath, mode string, args []stri
 
 		// 모드 결정: CLI 플래그 > 4번째 위치 인자(stack) > CLI --stack 플래그 > 기본값
 		if mode != "" {
-			cfg.Monitoring.Mode = MonitoringMode(mode)
+			cfg.Monitoring.Mode = monitoring.MonitoringMode(mode)
 			fmt.Printf("%s✓ Using positional arguments (mode: %s from CLI flag)%s\n", colorGreen, cfg.Monitoring.Mode, colorReset)
 		} else if cfg.Monitoring.StackPath != "" {
 			cfg.Monitoring.Mode = detectModeFromStack(cfg.Monitoring.StackPath)
@@ -634,9 +625,9 @@ Please check and try again.`, keyPath, host)
 }
 
 // docker-compose up -d 실행 (모드별로 다른 서비스 실행)
-func dockerComposeUp(ctx context.Context, dir string, mode MonitoringMode) error {
+func dockerComposeUp(ctx context.Context, dir string, mode monitoring.MonitoringMode) error {
 	switch mode {
-	case ModeAllInOne:
+	case monitoring.ModeAllInOne:
 		// All-in-One: Docker Compose 실행 안 함
 		fmt.Printf("%s   ✓ Prometheus and Grafana are running on EC2%s\n", colorGreen, colorReset)
 		fmt.Println("   Access via SSH tunnel:")
@@ -644,7 +635,7 @@ func dockerComposeUp(ctx context.Context, dir string, mode MonitoringMode) error
 		fmt.Println("     - Grafana:    http://localhost:3000")
 		return nil
 
-	case ModeHybrid:
+	case monitoring.ModeHybrid:
 		// Hybrid: Grafana만 실행 (docker-compose 사용)
 		fmt.Printf("%s   Pulling Grafana image...%s\n", colorBlue, colorReset)
 		pullCmd := exec.CommandContext(ctx, "docker", "compose", "pull", "grafana")
@@ -846,25 +837,25 @@ func pressEnterToExit() {
 }
 
 // stack.yaml을 파싱해서 모니터링 모드 자동 감지
-func detectModeFromStack(stackPath string) MonitoringMode {
+func detectModeFromStack(stackPath string) monitoring.MonitoringMode {
 	// 파일이 없으면 기본값
 	if stackPath == "" {
 		fmt.Println("[DEBUG] No stack path provided, using ModeLocal")
-		return ModeLocal
+		return monitoring.ModeLocal
 	}
 
 	// YAML 파일 읽기
 	data, err := os.ReadFile(stackPath)
 	if err != nil {
 		fmt.Printf("[WARNING] Failed to read stack.yaml: %v\n", err)
-		return ModeLocal
+		return monitoring.ModeLocal
 	}
 
 	// YAML 파싱
 	var stack StackYAML
 	if err := yaml.Unmarshal(data, &stack); err != nil {
 		fmt.Printf("[WARNING] Failed to parse stack.yaml: %v\n", err)
-		return ModeLocal
+		return monitoring.ModeLocal
 	}
 
 	// metadata.monitoring.mode가 있으면 우선 사용
@@ -873,11 +864,11 @@ func detectModeFromStack(stackPath string) MonitoringMode {
 		fmt.Printf("[DEBUG] Mode from metadata.monitoring.mode: %s\n", mode)
 		switch strings.ToLower(mode) {
 		case "local":
-			return ModeLocal
+			return monitoring.ModeLocal
 		case "hybrid":
-			return ModeHybrid
+			return monitoring.ModeHybrid
 		case "all-in-one":
-			return ModeAllInOne
+			return monitoring.ModeAllInOne
 		default:
 			fmt.Printf("[WARNING] Unknown mode in metadata: %s, fallback to auto-detection\n", mode)
 		}
@@ -897,7 +888,7 @@ func detectModeFromStack(stackPath string) MonitoringMode {
 	// EC2 타겟이 없으면 로컬 모드
 	if len(ec2TargetNames) == 0 {
 		fmt.Println("[DEBUG] No EC2 targets found, using ModeLocal")
-		return ModeLocal
+		return monitoring.ModeLocal
 	}
 
 	// EC2 타겟에 prometheus/grafana가 있는지 확인
@@ -935,13 +926,13 @@ func detectModeFromStack(stackPath string) MonitoringMode {
 
 	if hasPrometheusOnEC2 && hasGrafanaOnEC2 {
 		fmt.Println("[DEBUG] Mode detected: ModeAllInOne")
-		return ModeAllInOne
+		return monitoring.ModeAllInOne
 	} else if hasPrometheusOnEC2 {
 		fmt.Println("[DEBUG] Mode detected: ModeHybrid")
-		return ModeHybrid
+		return monitoring.ModeHybrid
 	} else {
 		fmt.Println("[DEBUG] Mode detected: ModeLocal")
-		return ModeLocal
+		return monitoring.ModeLocal
 	}
 }
 
