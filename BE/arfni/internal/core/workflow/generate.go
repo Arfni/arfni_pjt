@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,12 +11,6 @@ import (
 	"github.com/arfni/arfni/internal/core/stack"
 	"github.com/arfni/arfni/internal/generator/nginx"
 )
-
-// Generate creates docker-compose.yaml from stack
-func Generate(ctx context.Context) error {
-	// TODO: Stack을 docker-compose.yaml로 변환
-	return nil
-}
 
 // DockerComposeService represents a service in docker-compose.yml
 type DockerComposeService struct {
