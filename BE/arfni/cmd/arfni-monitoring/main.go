@@ -355,9 +355,12 @@ func loadConfig(configFile, host, user, key, stackPath, mode string, args []stri
 	}
 
 	// 3. 위치 기반 인자
-	fmt.Printf("[DEBUG] Positional args count: %d\n", len(args))
-	for i, arg := range args {
-		fmt.Printf("[DEBUG] args[%d] = %s\n", i, arg)
+	debugMode := os.Getenv("ARFNI_DEBUG") == "true"
+	if debugMode {
+		fmt.Printf("[DEBUG] Positional args count: %d\n", len(args))
+		for i, arg := range args {
+			fmt.Printf("[DEBUG] args[%d] = %s\n", i, arg)
+		}
 	}
 
 	// 3a. stack.yaml만 제공된 경우 (방식 1: 권장)
@@ -837,31 +840,35 @@ func pressEnterToExit() {
 }
 
 // stack.yaml을 파싱해서 모니터링 모드 자동 감지
+// Parses stack.yaml to auto-detect monitoring mode (local/hybrid/all-in-one)
 func detectModeFromStack(stackPath string) monitoring.MonitoringMode {
-	// 파일이 없으면 기본값
+	debugMode := os.Getenv("ARFNI_DEBUG") == "true"
+
 	if stackPath == "" {
-		fmt.Println("[DEBUG] No stack path provided, using ModeLocal")
+		if debugMode {
+			fmt.Println("[DEBUG] No stack path provided, using ModeLocal")
+		}
 		return monitoring.ModeLocal
 	}
 
-	// YAML 파일 읽기
 	data, err := os.ReadFile(stackPath)
 	if err != nil {
 		fmt.Printf("[WARNING] Failed to read stack.yaml: %v\n", err)
 		return monitoring.ModeLocal
 	}
 
-	// YAML 파싱
 	var stack StackYAML
 	if err := yaml.Unmarshal(data, &stack); err != nil {
 		fmt.Printf("[WARNING] Failed to parse stack.yaml: %v\n", err)
 		return monitoring.ModeLocal
 	}
 
-	// metadata.monitoring.mode가 있으면 우선 사용
+	// metadata.monitoring.mode가 명시된 경우 우선 사용
 	if stack.Metadata.Monitoring.Mode != "" {
 		mode := stack.Metadata.Monitoring.Mode
-		fmt.Printf("[DEBUG] Mode from metadata.monitoring.mode: %s\n", mode)
+		if debugMode {
+			fmt.Printf("[DEBUG] Mode from metadata.monitoring.mode: %s\n", mode)
+		}
 		switch strings.ToLower(mode) {
 		case "local":
 			return monitoring.ModeLocal
@@ -874,32 +881,38 @@ func detectModeFromStack(stackPath string) monitoring.MonitoringMode {
 		}
 	}
 
-	// EC2 타겟 찾기
+	// EC2 타겟 찾기 / Find EC2 targets
 	var ec2TargetNames []string
 	for name, target := range stack.Targets {
-		fmt.Printf("[DEBUG] Target: %s, Type: %s\n", name, target.Type)
+		if debugMode {
+			fmt.Printf("[DEBUG] Target: %s, Type: %s\n", name, target.Type)
+		}
 		if strings.EqualFold(target.Type, "ec2.ssh") {
 			ec2TargetNames = append(ec2TargetNames, name)
 		}
 	}
 
-	fmt.Printf("[DEBUG] EC2 targets found: %v\n", ec2TargetNames)
+	if debugMode {
+		fmt.Printf("[DEBUG] EC2 targets found: %v\n", ec2TargetNames)
+	}
 
-	// EC2 타겟이 없으면 로컬 모드
 	if len(ec2TargetNames) == 0 {
-		fmt.Println("[DEBUG] No EC2 targets found, using ModeLocal")
+		if debugMode {
+			fmt.Println("[DEBUG] No EC2 targets found, using ModeLocal")
+		}
 		return monitoring.ModeLocal
 	}
 
-	// EC2 타겟에 prometheus/grafana가 있는지 확인
+	// EC2에 prometheus/grafana가 배포됐는지 확인
+	// Check if prometheus/grafana are deployed on EC2
 	hasPrometheusOnEC2 := false
 	hasGrafanaOnEC2 := false
 
-	// Services map을 순회해서 키(서비스 이름)로 판단
 	for svcName, svc := range stack.Services {
-		fmt.Printf("[DEBUG] Service: %s, Target: %s\n", svcName, svc.Target)
+		if debugMode {
+			fmt.Printf("[DEBUG] Service: %s, Target: %s\n", svcName, svc.Target)
+		}
 
-		// EC2 타겟에 배포된 서비스인지 확인
 		isEC2Service := false
 		for _, ec2Target := range ec2TargetNames {
 			if strings.EqualFold(svc.Target, ec2Target) {
@@ -909,31 +922,25 @@ func detectModeFromStack(stackPath string) monitoring.MonitoringMode {
 		}
 
 		if isEC2Service {
-			fmt.Printf("[DEBUG] Service %s is on EC2\n", svcName)
 			if strings.EqualFold(svcName, "prometheus") {
 				hasPrometheusOnEC2 = true
-				fmt.Println("[DEBUG] Prometheus found on EC2")
 			}
 			if strings.EqualFold(svcName, "grafana") {
 				hasGrafanaOnEC2 = true
-				fmt.Println("[DEBUG] Grafana found on EC2")
 			}
 		}
 	}
 
-	// 모드 결정
-	fmt.Printf("[DEBUG] hasPrometheusOnEC2: %v, hasGrafanaOnEC2: %v\n", hasPrometheusOnEC2, hasGrafanaOnEC2)
+	if debugMode {
+		fmt.Printf("[DEBUG] hasPrometheusOnEC2: %v, hasGrafanaOnEC2: %v\n", hasPrometheusOnEC2, hasGrafanaOnEC2)
+	}
 
 	if hasPrometheusOnEC2 && hasGrafanaOnEC2 {
-		fmt.Println("[DEBUG] Mode detected: ModeAllInOne")
 		return monitoring.ModeAllInOne
 	} else if hasPrometheusOnEC2 {
-		fmt.Println("[DEBUG] Mode detected: ModeHybrid")
 		return monitoring.ModeHybrid
-	} else {
-		fmt.Println("[DEBUG] Mode detected: ModeLocal")
-		return monitoring.ModeLocal
 	}
+	return monitoring.ModeLocal
 }
 
 func fixPemPermissions(pemPath string) error {
