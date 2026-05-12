@@ -407,7 +407,9 @@ func loadConfig(configFile, host, user, key, stackPath, mode string, args []stri
 		if len(args) >= 4 {
 			// 4번째 위치 인자로 stack.yaml 경로 전달
 			cfg.Monitoring.StackPath = args[3]
-			fmt.Printf("[DEBUG] Stack path from 4th arg: %s\n", cfg.Monitoring.StackPath)
+			if debugMode {
+				fmt.Printf("[DEBUG] Stack path from 4th arg: %s\n", cfg.Monitoring.StackPath)
+			}
 		}
 
 		// 모드 결정: CLI 플래그 > 4번째 위치 인자(stack) > CLI --stack 플래그 > 기본값
