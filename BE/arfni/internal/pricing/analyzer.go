@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -860,8 +861,9 @@ EXAMPLE GOOD DESCRIPTION:
 
 	content := openAIResp.Choices[0].Message.Content
 
-	// Debug: Print raw OpenAI response
-	fmt.Printf("\n[DEBUG] OpenAI Raw Response:\n%s\n\n", content)
+	if os.Getenv("ARFNI_DEBUG") == "true" {
+		fmt.Printf("\n[DEBUG] OpenAI Raw Response:\n%s\n\n", content)
+	}
 	content = strings.TrimPrefix(content, "```json\n")
 	content = strings.TrimPrefix(content, "```\n")
 	content = strings.TrimSuffix(content, "\n```")

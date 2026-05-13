@@ -101,6 +101,7 @@ export function Toolbar() {
           id: edge.id,
           source: edge.source,
           target: edge.target,
+          data: edge.data,
         })),
         project_name: updatedProject.name,
         secrets: [],
@@ -147,6 +148,7 @@ export function Toolbar() {
         id: edge.id,
         source: edge.source,
         target: edge.target,
+        data: edge.data,
       }));
       await dispatch(saveStackYaml({
         projectPath: currentProject.path,
@@ -207,6 +209,7 @@ export function Toolbar() {
           id: edge.id,
           source: edge.source,
           target: edge.target,
+          data: edge.data,
         }));
         await dispatch(saveStackYaml({
           projectPath: currentProject.path,

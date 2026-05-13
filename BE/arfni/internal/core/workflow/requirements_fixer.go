@@ -169,16 +169,3 @@ func containsPackage(content, packageName string) bool {
 	return false
 }
 
-// FixDjangoRequirements can be added later for Django projects
-func FixDjangoRequirements(projectDir, buildContext string) error {
-	// TODO: Implement Django-specific requirements fixing
-	// For now, Django projects should work fine with user-provided requirements
-	return nil
-}
-
-// FixFlaskRequirements can be added later for Flask projects
-func FixFlaskRequirements(projectDir, buildContext string) error {
-	// TODO: Implement Flask-specific requirements fixing
-	// For now, Flask projects should work fine with user-provided requirements
-	return nil
-}

@@ -64,7 +64,9 @@
       "start": "Start",
       "stop": "Stop",
       "restart": "Restart",
-      "delete": "Delete"
+      "delete": "Delete",
+      "confirmDelete": "Delete?",
+      "cancel": "Cancel"
     },
     "details": {
       "id": "Container ID:",
