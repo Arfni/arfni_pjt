@@ -326,5 +326,81 @@
   "keyValueEditor": {
     "remove": "Remove",
     "addVariable": "+ Add Variable"
+  },
+  "nginxEdge": {
+    "subtitle": "NGINX Routing Path Settings",
+    "description": "Set the Location path for this connection. NGINX will forward incoming requests on this path to the service.",
+    "locationLabel": "Location Path",
+    "locationPlaceholder": "/api/",
+    "locationHint": "e.g. /api/ or /",
+    "websocketLabel": "Enable WebSocket",
+    "websocketHint": "Adds Upgrade/Connection headers to support WebSocket connections through nginx."
+  },
+  "nginx": {
+    "sections": {
+      "basic": "Basic Settings",
+      "security": "Security",
+      "performance": "Performance",
+      "loadBalancing": "Load Balancing",
+      "routing": "Routing"
+    },
+    "labels": {
+      "serviceName": "Service Name",
+      "listenPort": "Listening Port",
+      "serverName": "Server Domain (server_name)",
+      "rateLimitEnabled": "Enable Rate Limiting",
+      "rate": "Rate (e.g. 10r/s)",
+      "burst": "Burst",
+      "sslEnabled": "Enable SSL/TLS",
+      "sslAuto": "Auto Let's Encrypt",
+      "email": "Email (for Let's Encrypt notifications)",
+      "certPath": "Certificate Path (certPath)",
+      "keyPath": "Private Key Path (keyPath)",
+      "corsEnabled": "Auto-add CORS Headers",
+      "corsOrigin": "Allowed Origin",
+      "gzip": "Gzip Compression",
+      "cacheEnabled": "Cache-Control Headers",
+      "maxAge": "max-age (seconds)",
+      "keepalive": "Keepalive Connections",
+      "lbMethod": "Method"
+    },
+    "placeholders": {
+      "serverName": "myapp.com or _",
+      "email": "admin@example.com",
+      "certPath": "/etc/nginx/certs/cert.pem",
+      "keyPath": "/etc/nginx/certs/key.pem",
+      "corsOrigin": "* or https://myapp.com"
+    },
+    "tooltips": {
+      "listenPort": "The port Nginx listens on for incoming requests. Use port 80 for HTTP and 443 for HTTPS.",
+      "serverName": "The domain name this Nginx block handles. Use _ (underscore) if no domain is configured.",
+      "rateLimitEnabled": "Limit requests per second to protect against DDoS attacks and traffic spikes.",
+      "rate": "Number of requests allowed per second per client IP. Example: 10r/s means 10 requests per second.",
+      "burst": "Number of excess requests temporarily allowed. Requests beyond the rate but within this limit are queued and processed.",
+      "sslEnabled": "Enable HTTPS encrypted connections. Strongly recommended for production services.",
+      "sslAuto": "Automatically issue and renew free SSL certificates via Let's Encrypt. Requires a real domain pointing to this server.",
+      "email": "Email address to receive Let's Encrypt certificate expiration notifications.",
+      "certPath": "Server path to your manually-issued SSL certificate (.pem) file.",
+      "keyPath": "Server path to the private key (.pem) corresponding to your SSL certificate.",
+      "corsEnabled": "Automatically adds CORS headers to allow API requests from other domains.",
+      "corsOrigin": "Allowed origin domain. Use * to allow all origins. Specify a domain in production for security.",
+      "gzip": "Compress responses to reduce transfer size and improve page load speed. Most effective for HTML, CSS, and JS files.",
+      "cacheEnabled": "Add Cache-Control headers to static files to enable browser caching.",
+      "maxAge": "Duration in seconds for browser cache validity. 3600 = 1 hour, 86400 = 1 day.",
+      "keepalive": "Number of idle connections to maintain to upstream servers. Reusing connections reduces latency.",
+      "lbMethod": "Strategy for distributing traffic across upstream servers. Use Round Robin (default) for single-server setups."
+    },
+    "lbMethods": {
+      "roundRobin": "Round Robin (Default)",
+      "leastConn": "Least Connections",
+      "ipHash": "IP Hash"
+    },
+    "routing": {
+      "info": "Connect an edge from a service to the NGINX node, then click the edge to configure the Location path.",
+      "example": "Example: FastAPI → /api/, React → /"
+    },
+    "errors": {
+      "emailRequired": "Email is required to issue a Let's Encrypt certificate."
+    }
   }
 }

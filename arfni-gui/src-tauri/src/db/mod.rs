@@ -156,42 +156,6 @@ impl Database {
     }
 }
 
-/// 더미 EC2 서버 추가 (테스트용 - 서버가 없을 때만)
-pub fn add_dummy_server_if_empty(db: &Database) -> Result<()> {
-    let conn = db.get_conn();
-    let conn = conn.lock().unwrap();
-
-    // 기존 서버 개수 확인
-    let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM ec2_servers",
-        [],
-        |row| row.get(0)
-    )?;
-
-    if count == 0 {
-        let now = chrono::Utc::now().to_rfc3339();
-        let id = uuid::Uuid::new_v4().to_string();
-
-        conn.execute(
-            "INSERT INTO ec2_servers (id, name, host, user, pem_path, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                id,
-                "Test Server (Dummy)",
-                "43.200.123.45",
-                "ubuntu",
-                "C:\\Users\\SSAFY\\.ssh\\test-key.pem",
-                &now,
-                &now,
-            ],
-        )?;
-
-        println!("🧪 Added dummy EC2 server for testing");
-    }
-
-    Ok(())
-}
-
 /// 데이터베이스 경로 가져오기 (사용자별 AppData 디렉토리)
 fn get_db_path(app: &AppHandle) -> Result<PathBuf> {
     let app_data_dir = app.path().app_data_dir()

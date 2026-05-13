@@ -20,8 +20,20 @@ type SSHClient struct {
 	arfniIgnore  *ArfniIgnore
 }
 
-// NewSSHClient는 새로운 SSH 클라이언트를 생성합니다
-func NewSSHClient(target stack.Target, projectDir string) *SSHClient {
+// NewSSHClient는 새로운 SSH 클라이언트를 생성합니다.
+// target의 필수 필드(host, user, sshKey)가 비어 있으면 에러를 반환해
+// 이후 scp/ssh 호출에서 cryptic한 에러 메시지가 나오는 것을 방지한다.
+func NewSSHClient(target stack.Target, projectDir string) (*SSHClient, error) {
+	if target.Host == "" {
+		return nil, fmt.Errorf("EC2 target is not configured: host is empty")
+	}
+	if target.User == "" {
+		return nil, fmt.Errorf("EC2 target is not configured: user is empty")
+	}
+	if target.SSHKey == "" {
+		return nil, fmt.Errorf("EC2 target is not configured: sshKey is empty")
+	}
+
 	// Load .arfniignore file (creates default if not exists)
 	arfniIgnore, err := LoadArfniIgnore(projectDir)
 	if err != nil {
@@ -30,10 +42,10 @@ func NewSSHClient(target stack.Target, projectDir string) *SSHClient {
 	}
 
 	return &SSHClient{
-		target:       target,
-		projectDir:   projectDir,
-		arfniIgnore:  arfniIgnore,
-	}
+		target:      target,
+		projectDir:  projectDir,
+		arfniIgnore: arfniIgnore,
+	}, nil
 }
 
 // UploadFile은 로컬 파일을 EC2로 SCP 전송합니다
@@ -254,11 +266,38 @@ fi
 	return nil
 }
 
+// workdirForbiddenPatterns는 validateWorkdir가 차단하는 셸 메타문자 및 경로 탈출 패턴이다.
+var workdirForbiddenPatterns = []string{"&&", "&", ";", "|", "`", "$", ">", "<", "(", ")", "\n", "\r", ".."}
+
+// validateWorkdir는 workdir 경로에 셸 인젝션에 사용될 수 있는 문자가 없는지 검증한다.
+// workdir는 stack.yaml 사용자 입력에서 오므로 셸 명령에 삽입하기 전에 반드시 검증해야 한다.
+func validateWorkdir(path string) error {
+	if path == "" {
+		return nil // 빈 값은 기본값으로 대체되므로 허용
+	}
+	if strings.Contains(path, "\x00") {
+		return fmt.Errorf("workdir contains null byte")
+	}
+	if !strings.HasPrefix(path, "/") {
+		return fmt.Errorf("workdir must be an absolute path (got: %q)", path)
+	}
+	for _, char := range workdirForbiddenPatterns {
+		if strings.Contains(path, char) {
+			return fmt.Errorf("workdir contains invalid character %q: %q", char, path)
+		}
+	}
+	return nil
+}
+
 // PrepareWorkdir는 EC2에 작업 디렉토리를 준비합니다
 func (c *SSHClient) PrepareWorkdir(stream *events.Stream) error {
 	workdir := c.target.Workdir
 	if workdir == "" {
 		workdir = "/home/" + c.target.User + "/arfni-deploy"
+	}
+
+	if err := validateWorkdir(workdir); err != nil {
+		return fmt.Errorf("invalid workdir: %w", err)
 	}
 
 	stream.Info(fmt.Sprintf("Preparing workdir: %s", workdir))

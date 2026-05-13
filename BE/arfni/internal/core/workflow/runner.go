@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,85 +34,6 @@ func NewRunner(s *stack.Stack, projectDir string) *Runner {
 		pluginsDir:        "", // Execute()에서 설정
 		bundledPluginsDir: "", // Execute()에서 설정
 	}
-}
-
-// Run은 전체 5단계 워크플로우를 실행합니다
-// 1. Preflight check
-// 2. Generate docker-compose.yaml
-// 3. Build images
-// 4. Deploy containers
-// 5. Post-deploy hooks
-// 6. Health check
-func (r *Runner) Run(ctx context.Context) error {
-	fmt.Println("Starting deployment workflow...")
-
-	// 1. Preflight
-	if err := r.preflight(ctx); err != nil {
-		return fmt.Errorf("preflight check failed: %w", err)
-	}
-
-	// 2. Generate
-	if err := r.generate(ctx); err != nil {
-		return fmt.Errorf("generate failed: %w", err)
-	}
-
-	// 3. Build
-	if err := r.build(ctx); err != nil {
-		return fmt.Errorf("build failed: %w", err)
-	}
-
-	// 4. Deploy
-	if err := r.deploy(ctx); err != nil {
-		return fmt.Errorf("deploy failed: %w", err)
-	}
-
-	// 5. Post-deploy
-	if err := r.postDeploy(ctx); err != nil {
-		return fmt.Errorf("post-deploy failed: %w", err)
-	}
-
-	// 6. Health check
-	if err := r.healthCheck(ctx); err != nil {
-		return fmt.Errorf("health check failed: %w", err)
-	}
-
-	return nil
-}
-
-func (r *Runner) preflight(ctx context.Context) error {
-	fmt.Println("[1/6] Preflight check...")
-	// TODO: 구현
-	return nil
-}
-
-func (r *Runner) generate(ctx context.Context) error {
-	fmt.Println("[2/6] Generating docker-compose.yaml...")
-	// TODO: 구현
-	return nil
-}
-
-func (r *Runner) build(ctx context.Context) error {
-	fmt.Println("[3/6] Building images...")
-	// TODO: 구현
-	return nil
-}
-
-func (r *Runner) deploy(ctx context.Context) error {
-	fmt.Println("[4/6] Deploying containers...")
-	// TODO: 구현
-	return nil
-}
-
-func (r *Runner) postDeploy(ctx context.Context) error {
-	fmt.Println("[5/6] Running post-deploy hooks...")
-	// TODO: 구현
-	return nil
-}
-
-func (r *Runner) healthCheck(ctx context.Context) error {
-	fmt.Println("[6/6] Health check...")
-	// TODO: 구현
-	return nil
 }
 
 // Execute는 전체 워크플로우를 실행하며 이벤트를 스트리밍합니다 (기본 호환성 유지)
@@ -181,7 +101,7 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 	if nginx.HasNginxService(r.stack) {
 		stream.Info("Generating nginx.conf...")
 		if err := nginx.WriteNginxConfig(r.stack, r.projectDir); err != nil {
-			stream.Info(fmt.Sprintf("Warning: failed to generate nginx.conf: %v", err))
+			stream.Warning(fmt.Sprintf("failed to generate nginx.conf: %v", err), nil)
 		} else {
 			stream.Success("Generated nginx.conf")
 		}
@@ -426,7 +346,10 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 		return err
 	}
 
-	sshClient := NewSSHClient(target, r.projectDir)
+	sshClient, err := NewSSHClient(target, r.projectDir)
+	if err != nil {
+		return err
+	}
 
 	// 1. Docker 설치 확인
 	if err := sshClient.CheckDockerInstalled(stream); err != nil {
@@ -439,6 +362,9 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 	}
 
 	workdir := sshClient.GetWorkdir()
+	if err := validateWorkdir(workdir); err != nil {
+		return fmt.Errorf("invalid workdir: %w", err)
+	}
 
 	// 3. 프로젝트 파일들 전송
 	stream.Info("Uploading project files to EC2...")
@@ -804,8 +730,14 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 		return nil
 	}
 
-	sshClient := NewSSHClient(target, r.projectDir)
+	sshClient, err := NewSSHClient(target, r.projectDir)
+	if err != nil {
+		return err
+	}
 	workdir := sshClient.GetWorkdir()
+	if err := validateWorkdir(workdir); err != nil {
+		return fmt.Errorf("invalid workdir: %w", err)
+	}
 
 	stream.Info(fmt.Sprintf("Deploying containers on EC2: %v", ec2Services))
 
@@ -825,7 +757,24 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 	}
 	buildCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml build%s", workdir, serviceList)
 	if err := sshClient.RunCommand(stream, buildCmd); err != nil {
-		stream.Info(fmt.Sprintf("Warning: Image build completed with warnings (this is normal for pre-built images)"))
+		// 빌드 실패 시 기존 이미지가 있는지 확인한다.
+		// 이미지가 있으면 이전 버전으로 계속 진행하고, 없으면 배포를 중단한다.
+		checkCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml images -q | wc -l", workdir)
+		output, checkErr := sshClient.RunCommandWithOutput(stream, checkCmd)
+		if checkErr != nil {
+			// checkCmd 자체가 실패한 경우 — 이미지 존재 여부를 알 수 없으므로 경고 후 계속 진행한다.
+			stream.Warning(
+				fmt.Sprintf("Image build failed and could not verify existing images: %v", checkErr),
+				map[string]interface{}{"build_error": err.Error()},
+			)
+		} else if strings.TrimSpace(output) == "0" || strings.TrimSpace(output) == "" {
+			return fmt.Errorf("docker compose build failed and no existing images found: %w", err)
+		} else {
+			stream.Warning(
+				"Image build failed. Deploying with previous build — the running container may not reflect the latest code.",
+				map[string]interface{}{"build_error": err.Error()},
+			)
+		}
 	}
 
 	// Step 3: Start containers (volumes are preserved)
@@ -852,10 +801,18 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 		} else {
 			stream.Success("SSL certificate issued successfully")
 
-			sslContent := nginx.BuildConfigWithSSL(cfg)
+			if err := nginx.ValidateServerName(cfg.ServerName); err != nil {
+				stream.Warning(fmt.Sprintf("SSL config skipped: invalid serverName — %v", err), nil)
+				return nil
+			}
+			sslContent, err := nginx.BuildConfigWithSSL(cfg)
+			if err != nil {
+				stream.Warning(fmt.Sprintf("SSL nginx.conf generation failed: %v", err), nil)
+				return nil
+			}
 			tmpFile, err := os.CreateTemp("", "nginx-ssl-*.conf")
 			if err != nil {
-				stream.Info(fmt.Sprintf("Warning: failed to create SSL nginx.conf: %v", err))
+				stream.Warning(fmt.Sprintf("failed to create SSL nginx.conf: %v", err), nil)
 			} else {
 				// 이중 Close를 방지하기 위해 한 번만 닫도록 추적한다.
 				// 업로드 전 flush 목적으로 명시적으로 닫은 뒤 defer가 재시도하지 않도록 한다.
@@ -869,7 +826,7 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 				defer func() { closeTmp(); os.Remove(tmpFile.Name()) }()
 
 				if _, err := tmpFile.WriteString(sslContent); err != nil {
-					stream.Info(fmt.Sprintf("Warning: failed to write SSL nginx.conf: %v", err))
+					stream.Warning(fmt.Sprintf("failed to write SSL nginx.conf: %v", err), nil)
 				} else {
 					closeTmp() // 업로드 전 파일 내용을 flush한다.
 					remoteNginxConf := workdir + "/nginx.conf"
@@ -1033,8 +990,14 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 		return err
 	}
 
-	sshClient := NewSSHClient(target, r.projectDir)
+	sshClient, err := NewSSHClient(target, r.projectDir)
+	if err != nil {
+		return err
+	}
 	workdir := sshClient.GetWorkdir()
+	if err := validateWorkdir(workdir); err != nil {
+		return fmt.Errorf("invalid workdir: %w", err)
+	}
 
 	// Wait a bit for containers to start
 	time.Sleep(2 * time.Second)
@@ -1178,12 +1141,20 @@ func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
 	}
 
 	// Create SSH client and upload
-	sshClient := NewSSHClient(ec2Target, r.projectDir)
+	sshClient, err := NewSSHClient(ec2Target, r.projectDir)
+	if err != nil {
+		return err
+	}
+
+	workdir := sshClient.GetWorkdir()
+	if err := validateWorkdir(workdir); err != nil {
+		return fmt.Errorf("invalid workdir: %w", err)
+	}
 
 	// Ensure grafana directory exists with correct ownership before upload
 	stream.Info("Preparing grafana directory on EC2...")
 	// Use forward slashes for remote Linux paths (even when running on Windows/Mac)
-	remoteGrafanaDir := ec2Target.Workdir + "/grafana"
+	remoteGrafanaDir := workdir + "/grafana"
 	createDirCmd := fmt.Sprintf("mkdir -p %s/provisioning/datasources %s/provisioning/dashboards", remoteGrafanaDir, remoteGrafanaDir)
 	if err := sshClient.RunCommand(stream, createDirCmd); err != nil {
 		stream.Info(fmt.Sprintf("Warning: Failed to create grafana directories: %v", err))
@@ -1214,7 +1185,7 @@ func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
 
 	// Restart Grafana container to reload provisioning files
 	stream.Info("Restarting Grafana to apply provisioning changes...")
-	restartCmd := fmt.Sprintf("cd %s && docker compose restart grafana", ec2Target.Workdir)
+	restartCmd := fmt.Sprintf("cd %s && docker compose restart grafana", workdir)
 	if err := sshClient.RunCommand(stream, restartCmd); err != nil {
 		stream.Info(fmt.Sprintf("Warning: Failed to restart Grafana: %v", err))
 		stream.Info("Note: You may need to restart Grafana manually for changes to take effect")

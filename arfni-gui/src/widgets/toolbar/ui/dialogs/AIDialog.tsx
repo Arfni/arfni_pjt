@@ -76,7 +76,6 @@ export function AIDialog({ show, onClose, currentProject }: AIDialogProps) {
       setResult(estimateResult);
     } catch (err) {
       console.error('Estimate error:', err);
-      // FE-H1: err는 Error 객체일 수 있어 as string 단언 대신 안전하게 변환
       const errorMessage = err instanceof Error ? err.message : String(err);
 
       // 빈 캔버스 또는 서비스 없음 에러 처리

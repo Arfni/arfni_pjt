@@ -2,6 +2,7 @@
 import { ArrowLeft } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { confirm } from '@tauri-apps/plugin-dialog';
 import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
@@ -107,6 +108,7 @@ export default function LogPage() {
         } catch (error) {
           console.error('EC2 서버 정보 로드 실패:', error);
           setEc2Server(null);
+          setTerminalLogs((prev) => [...prev, `❌ EC2 서버 정보를 불러오지 못했습니다: ${error instanceof Error ? error.message : String(error)}`]);
         }
       } else {
         setEc2Server(null);
@@ -306,7 +308,7 @@ export default function LogPage() {
   // 모든 컨테이너 중지
   const stopAllContainers = async () => {
     if (!ec2Server || containers.length === 0) return;
-    if (!confirm(t('containers.confirmStopAll'))) return;
+    if (!await confirm(t('containers.confirmStopAll'))) return;
     try {
       await invoke('ssh_exec_system', {
         params: {

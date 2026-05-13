@@ -4,10 +4,41 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/arfni/arfni/internal/core/stack"
 )
+
+// domainPattern은 유효한 도메인/서버명 패턴이다.
+// 경로 탈출(../)이나 셸 인젝션을 방지하기 위해 인증서 경로 생성 전 검증에 사용한다.
+var domainPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-\.]+$`)
+
+// ValidateServerName은 serverName이 인증서 경로 및 nginx 설정에 안전한 값인지 검증한다.
+// serverName은 stack.yaml 사용자 입력에서 오므로 호출자가 BuildConfigWithSSL 또는
+// 파일 시스템 경로 생성 전에 반드시 호출해야 한다.
+func ValidateServerName(name string) error {
+	if name == "" || name == "_" {
+		return nil // 기본값(와일드카드)은 경로 생성에 사용되지 않으므로 허용
+	}
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("serverName contains path traversal sequence: %q", name)
+	}
+	if !domainPattern.MatchString(name) {
+		return fmt.Errorf("serverName contains invalid characters: %q", name)
+	}
+	return nil
+}
+
+// writeWebSocketHeaders는 WebSocket 프록시에 필요한 헤더를 location 블록에 추가한다.
+// 호출자가 up.WebSocket 여부를 확인한 뒤 호출해야 한다.
+func writeWebSocketHeaders(b *strings.Builder) {
+	b.WriteString("            proxy_http_version 1.1;\n")
+	b.WriteString("            proxy_set_header Upgrade $http_upgrade;\n")
+	b.WriteString("            proxy_set_header Connection \"upgrade\";\n")
+	b.WriteString("            proxy_read_timeout 86400;\n")
+	b.WriteString("            proxy_buffering off;\n")
+}
 
 // GenerateNginxConfig generates nginx.conf content from a stack.
 // It finds the first service with kind "proxy.nginx" and builds the config.
@@ -29,7 +60,7 @@ func GenerateNginxConfig(s *stack.Stack) (string, error) {
 		cfg = &stack.NginxConfig{}
 	}
 
-	return buildConfig(cfg), nil
+	return buildConfig(cfg)
 }
 
 // WriteNginxConfig writes nginx.conf to projectDir/nginx.conf.
@@ -59,7 +90,7 @@ func HasNginxService(s *stack.Stack) bool {
 
 // BuildConfigWithSSL generates nginx.conf with full HTTPS configuration.
 // Call this after Let's Encrypt certificates have been successfully issued.
-func BuildConfigWithSSL(cfg *stack.NginxConfig) string {
+func BuildConfigWithSSL(cfg *stack.NginxConfig) (string, error) {
 	var b strings.Builder
 
 	serverName := cfg.ServerName
@@ -140,11 +171,16 @@ func BuildConfigWithSSL(cfg *stack.NginxConfig) string {
 		b.WriteString("        gzip_types text/plain text/css application/json application/javascript text/xml application/xml;\n\n")
 	}
 
+	seen := make(map[string]bool)
 	for _, up := range cfg.Upstreams {
 		route := up.Route
 		if route == "" {
 			route = "/"
 		}
+		if seen[route] {
+			return "", fmt.Errorf("duplicate nginx route %q: each upstream must have a unique route (e.g. /api/, /)", route)
+		}
+		seen[route] = true
 		fmt.Fprintf(&b, "        location %s {\n", route)
 
 		if cfg.RateLimit != nil && cfg.RateLimit.Enabled {
@@ -178,15 +214,18 @@ func BuildConfigWithSSL(cfg *stack.NginxConfig) string {
 		b.WriteString("            proxy_set_header X-Real-IP $remote_addr;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-Proto $scheme;\n")
+		if up.WebSocket {
+			writeWebSocketHeaders(&b)
+		}
 		b.WriteString("        }\n\n")
 	}
 
 	b.WriteString("    }\n")
 	b.WriteString("}\n")
-	return b.String()
+	return b.String(), nil
 }
 
-func buildConfig(cfg *stack.NginxConfig) string {
+func buildConfig(cfg *stack.NginxConfig) (string, error) {
 	var b strings.Builder
 
 	listenPort := cfg.ListenPort
@@ -273,11 +312,16 @@ func buildConfig(cfg *stack.NginxConfig) string {
 	}
 
 	// location blocks
+	seen := make(map[string]bool)
 	for _, up := range cfg.Upstreams {
 		route := up.Route
 		if route == "" {
 			route = "/"
 		}
+		if seen[route] {
+			return "", fmt.Errorf("duplicate nginx route %q: each upstream must have a unique route (e.g. /api/, /)", route)
+		}
+		seen[route] = true
 		fmt.Fprintf(&b, "        location %s {\n", route)
 
 		// rate limiting
@@ -314,10 +358,13 @@ func buildConfig(cfg *stack.NginxConfig) string {
 		b.WriteString("            proxy_set_header X-Real-IP $remote_addr;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-Proto $scheme;\n")
+		if up.WebSocket {
+			writeWebSocketHeaders(&b)
+		}
 		b.WriteString("        }\n\n")
 	}
 
 	b.WriteString("    }\n")
 	b.WriteString("}\n")
-	return b.String()
+	return b.String(), nil
 }

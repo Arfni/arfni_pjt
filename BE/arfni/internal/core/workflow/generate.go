@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,13 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/arfni/arfni/internal/core/stack"
+	"github.com/arfni/arfni/internal/generator/nginx"
 )
-
-// Generate creates docker-compose.yaml from stack
-func Generate(ctx context.Context) error {
-	// TODO: Stack을 docker-compose.yaml로 변환
-	return nil
-}
 
 // DockerComposeService represents a service in docker-compose.yml
 type DockerComposeService struct {
@@ -126,13 +120,18 @@ func GenerateDockerComposeWithTarget(s *stack.Stack, projectDir string, targetTy
 
 				// Build certbot command
 				serverName := service.Spec.Nginx.ServerName
+				if err := nginx.ValidateServerName(serverName); err != nil {
+					return "", fmt.Errorf("invalid nginx serverName for certbot: %w", err)
+				}
+				email := service.Spec.Nginx.SSL.Email
+				if email == "" {
+					return "", fmt.Errorf("SSL auto is enabled but email is empty: required for Let's Encrypt registration")
+				}
 				certbotCmd := []string{
 					"certonly", "--webroot",
 					"-w", "/var/www/certbot",
 					"-d", serverName,
-				}
-				if email := service.Spec.Nginx.SSL.Email; email != "" {
-					certbotCmd = append(certbotCmd, "--email", email)
+					"--email", email,
 				}
 				certbotCmd = append(certbotCmd, "--agree-tos", "--non-interactive", "--expand")
 

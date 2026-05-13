@@ -69,10 +69,11 @@ type NginxConfig struct {
 
 // NginxUpstream은 개별 업스트림 서비스 설정입니다
 type NginxUpstream struct {
-	Name    string `yaml:"name"`    // upstream 블록 이름
-	Service string `yaml:"service"` // Docker Compose 서비스명
-	Port    int    `yaml:"port"`    // 컨테이너 포트
-	Route   string `yaml:"route"`   // location 경로 (예: /api/)
+	Name      string `yaml:"name"`                // upstream 블록 이름
+	Service   string `yaml:"service"`             // Docker Compose 서비스명
+	Port      int    `yaml:"port"`                // 컨테이너 포트
+	Route     string `yaml:"route"`               // location 경로 (예: /api/)
+	WebSocket bool   `yaml:"websocket,omitempty"` // WebSocket 프록시 헤더 활성화
 }
 
 // NginxSSL은 SSL/TLS 설정입니다

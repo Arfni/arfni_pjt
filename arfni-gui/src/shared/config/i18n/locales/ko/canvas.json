@@ -326,5 +326,81 @@
   "keyValueEditor": {
     "remove": "삭제",
     "addVariable": "+ 변수 추가"
+  },
+  "nginxEdge": {
+    "subtitle": "NGINX 라우팅 경로 설정",
+    "description": "이 연결의 Location 경로를 설정합니다. NGINX가 해당 경로로 들어오는 요청을 이 서비스로 전달합니다.",
+    "locationLabel": "Location 경로",
+    "locationPlaceholder": "/api/",
+    "locationHint": "예: /api/ 또는 /",
+    "websocketLabel": "WebSocket 활성화",
+    "websocketHint": "활성화하면 Upgrade/Connection 헤더를 추가하여 WebSocket 연결을 지원합니다."
+  },
+  "nginx": {
+    "sections": {
+      "basic": "기본 설정",
+      "security": "보안",
+      "performance": "성능",
+      "loadBalancing": "로드밸런싱",
+      "routing": "라우팅"
+    },
+    "labels": {
+      "serviceName": "서비스 이름",
+      "listenPort": "리스닝 포트",
+      "serverName": "서버 도메인 (server_name)",
+      "rateLimitEnabled": "Rate Limiting 활성화",
+      "rate": "Rate (예: 10r/s)",
+      "burst": "Burst",
+      "sslEnabled": "SSL/TLS 활성화",
+      "sslAuto": "Let's Encrypt 자동 발급",
+      "email": "이메일 (Let's Encrypt 알림용)",
+      "certPath": "인증서 경로 (certPath)",
+      "keyPath": "개인키 경로 (keyPath)",
+      "corsEnabled": "CORS 헤더 자동 추가",
+      "corsOrigin": "허용 Origin",
+      "gzip": "Gzip 압축",
+      "cacheEnabled": "Cache-Control 헤더",
+      "maxAge": "max-age (초)",
+      "keepalive": "Keepalive 커넥션 수",
+      "lbMethod": "방식"
+    },
+    "placeholders": {
+      "serverName": "myapp.com 또는 _",
+      "email": "admin@example.com",
+      "certPath": "/etc/nginx/certs/cert.pem",
+      "keyPath": "/etc/nginx/certs/key.pem",
+      "corsOrigin": "* 또는 https://myapp.com"
+    },
+    "tooltips": {
+      "listenPort": "Nginx가 외부 요청을 수신하는 포트입니다. HTTP는 80, HTTPS는 443을 주로 사용합니다.",
+      "serverName": "이 Nginx 블록이 처리할 도메인 이름입니다. 도메인이 없으면 _ (언더스코어)를 사용하세요.",
+      "rateLimitEnabled": "초당 요청 수를 제한하여 DDoS나 과부하 공격을 방어합니다.",
+      "rate": "클라이언트 IP당 허용되는 초당 요청 수입니다. 예: 10r/s는 초당 10회를 의미합니다.",
+      "burst": "일시적으로 허용되는 초과 요청 수입니다. Rate를 초과해도 이 값까지는 큐에 쌓여 처리됩니다.",
+      "sslEnabled": "HTTPS 암호화 연결을 활성화합니다. 실서비스에는 반드시 활성화하는 것을 권장합니다.",
+      "sslAuto": "Let's Encrypt를 통해 무료 SSL 인증서를 자동으로 발급하고 갱신합니다. 도메인이 실제로 서버를 향하고 있어야 합니다.",
+      "email": "Let's Encrypt 인증서 만료 알림을 받을 이메일 주소입니다.",
+      "certPath": "수동으로 발급한 SSL 인증서(.pem) 파일의 서버 내 경로입니다.",
+      "keyPath": "SSL 인증서에 대응하는 개인키(.pem) 파일의 서버 내 경로입니다.",
+      "corsEnabled": "다른 도메인에서의 API 요청을 허용하는 CORS 헤더를 자동으로 추가합니다.",
+      "corsOrigin": "요청을 허용할 출처 도메인입니다. *는 모든 도메인을 허용합니다. 프로덕션에서는 특정 도메인을 지정하세요.",
+      "gzip": "응답 데이터를 압축하여 전송량을 줄이고 페이지 로드 속도를 높입니다. HTML, CSS, JS 파일에 효과적입니다.",
+      "cacheEnabled": "정적 파일에 Cache-Control 헤더를 추가하여 브라우저 캐싱을 활성화합니다.",
+      "maxAge": "브라우저가 캐시를 유지하는 시간(초)입니다. 3600 = 1시간, 86400 = 1일입니다.",
+      "keepalive": "업스트림 서버와 유지할 유휴 연결 수입니다. 연결 재사용으로 지연 시간을 줄여줍니다.",
+      "lbMethod": "여러 업스트림 서버에 트래픽을 분산하는 방식입니다. 서버가 1대인 경우 기본값(Round Robin)을 사용하세요."
+    },
+    "lbMethods": {
+      "roundRobin": "Round Robin (기본)",
+      "leastConn": "Least Connections",
+      "ipHash": "IP Hash"
+    },
+    "routing": {
+      "info": "서비스에서 NGINX 노드로 엣지를 연결한 후, 엣지를 클릭하면 Location 경로를 설정할 수 있습니다.",
+      "example": "예: FastAPI → /api/, React → /"
+    },
+    "errors": {
+      "emailRequired": "이메일을 입력해야 Let's Encrypt 인증서를 발급할 수 있습니다."
+    }
   }
 }

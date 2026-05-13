@@ -12,7 +12,6 @@ pub struct GitParams {
 }
 
 
-// remember to call `.manage(MyState::default())`
 #[tauri::command]
 pub async fn git_clone_full(params : GitParams) -> Result<(), String> {
     // Run potentially long-running git operation off the async executor thread

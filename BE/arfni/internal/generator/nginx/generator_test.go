@@ -320,6 +320,43 @@ func TestGenerateNginxConfig_KeepaliveDefault(t *testing.T) {
 	mustContain(t, out, "keepalive 32;")
 }
 
+// 중복 route 설정 시 에러 반환 확인 (buildConfig)
+func TestGenerateNginxConfig_DuplicateRoute(t *testing.T) {
+	cfg := &stack.NginxConfig{
+		Upstreams: []stack.NginxUpstream{
+			{Name: "fastapi", Service: "fastapi", Port: 8000}, // route 미지정 → "/"
+			{Name: "react", Service: "react", Port: 3000},     // route 미지정 → "/"
+		},
+	}
+
+	_, err := GenerateNginxConfig(mockStack(cfg))
+	if err == nil {
+		t.Fatal("expected error for duplicate route, got nil")
+	}
+	if !strings.Contains(err.Error(), "duplicate nginx route") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// 중복 route 설정 시 에러 반환 확인 (BuildConfigWithSSL)
+func TestBuildConfigWithSSL_DuplicateRoute(t *testing.T) {
+	cfg := &stack.NginxConfig{
+		ServerName: "example.com",
+		Upstreams: []stack.NginxUpstream{
+			{Name: "fastapi", Service: "fastapi", Port: 8000}, // route 미지정 → "/"
+			{Name: "react", Service: "react", Port: 3000},     // route 미지정 → "/"
+		},
+	}
+
+	_, err := BuildConfigWithSSL(cfg)
+	if err == nil {
+		t.Fatal("expected error for duplicate route, got nil")
+	}
+	if !strings.Contains(err.Error(), "duplicate nginx route") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
 // ── 어서션 헬퍼 ───────────────────────────────────────────────────────────────
 
 func mustContain(t *testing.T, content, substr string) {

@@ -1338,10 +1338,11 @@ export class PluginStackGenerator {
           ? Number(ports[0].split(':')[1] || ports[0].split(':')[0] || 80)
           : 80;
 
-        // route comes from edge metadata (set via edge click UI)
+        // route and websocket come from edge metadata (set via edge click UI)
         const route: string = (edge.data as any)?.route || '/';
+        const websocket: boolean = (edge.data as any)?.websocket || false;
 
-        return { name, service: name, port, route };
+        return { name, service: name, port, route, ...(websocket && { websocket }) };
       })
       .filter(Boolean);
 

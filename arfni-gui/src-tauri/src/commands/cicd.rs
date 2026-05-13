@@ -311,20 +311,9 @@ fn load_template(app: &AppHandle, framework: &str) -> Result<String, String> {
         std::fs::read_to_string(&resource_path)
             .map_err(|e| format!("Failed to read template: {}", e))
     } else {
-        // TODO: FIX PATH - 템플릿 파일 경로를 올바르게 설정해야 함
-        // 현재는 개발 환경 임시 경로를 사용중
-        // 배포 시에는 resource_path에 템플릿 파일들을 번들링해야 함
-        // Fallback: try the github-actions templates directory
-        let fallback_path = PathBuf::from("C:\\Users\\SSAFY\\Desktop\\github-actions\\templates")
-            .join(template_name);
-
-        if fallback_path.exists() {
-            std::fs::read_to_string(&fallback_path)
-                .map_err(|e| format!("Failed to read template from fallback: {}", e))
-        } else {
-            Err(format!("Template not found: {}. Checked paths: {:?} and {:?}",
-                template_name, resource_path, fallback_path))
-        }
+        // 템플릿은 tauri.conf.json의 resources에 번들링되어야 함
+        // Bundle CI/CD templates via tauri.conf.json resources before shipping
+        Err(format!("Template not found: {}. Expected at: {:?}", template_name, resource_path))
     }
 }
 

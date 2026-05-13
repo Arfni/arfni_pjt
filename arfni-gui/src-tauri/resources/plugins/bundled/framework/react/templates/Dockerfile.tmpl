@@ -1,36 +1,31 @@
 # Build stage
-FROM node:{{default "18" .node_version}} AS builder
+FROM node:{{default "18-alpine" .node_version}} AS builder
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
-
-# Install dependencies (including devDependencies for build)
-RUN npm install
-
-# Copy application code
+RUN npm ci
 COPY . .
-
-# Build the application
 RUN npm run build
 
-# Rename output directory to standard name (supports both Vite's dist/ and CRA's build/)
-RUN if [ -d "dist" ]; then mv dist app; elif [ -d "build" ]; then mv build app; fi
+# Normalize output: Vite -> dist/, CRA -> build/
+RUN if [ -d dist ]; then mv dist output; \
+    elif [ -d build ]; then mv build output; \
+    else echo "ERROR: no build output found (expected dist/ or build/)" >&2 && exit 1; fi
 
-# Production stage
-FROM node:{{default "18" .node_version}}
+# Production stage - nginx serves built static files
+FROM nginx:alpine
 
-WORKDIR /app
+COPY --from=builder /app/output /usr/share/nginx/html
 
-# Install serve to run the application
-RUN npm install -g serve
+# SPA routing: unknown paths fall back to index.html for client-side routing
+RUN printf 'server {\n\
+    listen {{default 3000 .port}};\n\
+    root /usr/share/nginx/html;\n\
+    index index.html;\n\
+    location / {\n\
+        try_files $uri $uri/ /index.html;\n\
+    }\n\
+}\n' > /etc/nginx/conf.d/default.conf
 
-# Copy built application from builder
-COPY --from=builder /app/app ./app
-
-# Expose port
 EXPOSE {{default 3000 .port}}
-
-# Start the application
-CMD ["serve", "-s", "app", "-l", "{{default 3000 .port}}"]
