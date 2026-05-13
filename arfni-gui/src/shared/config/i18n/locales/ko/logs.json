@@ -64,7 +64,9 @@
       "start": "시작",
       "stop": "중지",
       "restart": "재시작",
-      "delete": "삭제"
+      "delete": "삭제",
+      "confirmDelete": "삭제?",
+      "cancel": "취소"
     },
     "details": {
       "id": "컨테이너 ID:",

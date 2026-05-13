@@ -45,6 +45,7 @@ export function ContainersView({
   const { t } = useTranslation('logs');
   const [expandedContainerIds, setExpandedContainerIds] = useState<Set<string>>(new Set());
   const [openHeaderDropdown, setOpenHeaderDropdown] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
@@ -212,29 +213,41 @@ export function ContainersView({
                       </button>
 
                       {/* Delete button */}
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          console.log('[DELETE] Button clicked, showing confirm dialog...');
-                          const userConfirmed = await confirm(t('containers.confirmRemove', { containerName: container.name }));
-                          console.log('[DELETE] User confirmed:', userConfirmed);
-                          if (userConfirmed) {
-                            console.log('[DELETE] Calling onRemoveContainer...');
-                            onRemoveContainer(container.id, container.name);
-                          } else {
-                            console.log('[DELETE] User cancelled deletion');
-                          }
-                        }}
-                        disabled={deletingContainerId === container.id}
-                        className="flex flex-col items-center gap-1 p-2 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {deletingContainerId === container.id ? (
-                          <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Trash2 className="w-5 h-5" />
-                        )}
-                        <span className="text-xs font-medium">{t('containers.actions.delete')}</span>
-                      </button>
+                      {confirmDeleteId === container.id ? (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => {
+                              setConfirmDeleteId(null);
+                              onRemoveContainer(container.id, container.name);
+                            }}
+                            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                          >
+                            {t('containers.actions.confirmDelete')}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                          >
+                            {t('containers.actions.cancel')}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeleteId(container.id);
+                          }}
+                          disabled={deletingContainerId === container.id}
+                          className="flex flex-col items-center gap-1 p-2 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {deletingContainerId === container.id ? (
+                            <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Trash2 className="w-5 h-5" />
+                          )}
+                          <span className="text-xs font-medium">{t('containers.actions.delete')}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
