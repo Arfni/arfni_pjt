@@ -805,7 +805,11 @@ func (r *Runner) deployContainersEC2(stream *events.Stream) error {
 				stream.Warning(fmt.Sprintf("SSL config skipped: invalid serverName — %v", err), nil)
 				return nil
 			}
-			sslContent := nginx.BuildConfigWithSSL(cfg)
+			sslContent, err := nginx.BuildConfigWithSSL(cfg)
+			if err != nil {
+				stream.Warning(fmt.Sprintf("SSL nginx.conf generation failed: %v", err), nil)
+				return nil
+			}
 			tmpFile, err := os.CreateTemp("", "nginx-ssl-*.conf")
 			if err != nil {
 				stream.Warning(fmt.Sprintf("failed to create SSL nginx.conf: %v", err), nil)

@@ -60,7 +60,7 @@ func GenerateNginxConfig(s *stack.Stack) (string, error) {
 		cfg = &stack.NginxConfig{}
 	}
 
-	return buildConfig(cfg), nil
+	return buildConfig(cfg)
 }
 
 // WriteNginxConfig writes nginx.conf to projectDir/nginx.conf.
@@ -90,7 +90,7 @@ func HasNginxService(s *stack.Stack) bool {
 
 // BuildConfigWithSSL generates nginx.conf with full HTTPS configuration.
 // Call this after Let's Encrypt certificates have been successfully issued.
-func BuildConfigWithSSL(cfg *stack.NginxConfig) string {
+func BuildConfigWithSSL(cfg *stack.NginxConfig) (string, error) {
 	var b strings.Builder
 
 	serverName := cfg.ServerName
@@ -171,11 +171,16 @@ func BuildConfigWithSSL(cfg *stack.NginxConfig) string {
 		b.WriteString("        gzip_types text/plain text/css application/json application/javascript text/xml application/xml;\n\n")
 	}
 
+	seen := make(map[string]bool)
 	for _, up := range cfg.Upstreams {
 		route := up.Route
 		if route == "" {
 			route = "/"
 		}
+		if seen[route] {
+			return "", fmt.Errorf("duplicate nginx route %q: each upstream must have a unique route (e.g. /api/, /)", route)
+		}
+		seen[route] = true
 		fmt.Fprintf(&b, "        location %s {\n", route)
 
 		if cfg.RateLimit != nil && cfg.RateLimit.Enabled {
@@ -217,10 +222,10 @@ func BuildConfigWithSSL(cfg *stack.NginxConfig) string {
 
 	b.WriteString("    }\n")
 	b.WriteString("}\n")
-	return b.String()
+	return b.String(), nil
 }
 
-func buildConfig(cfg *stack.NginxConfig) string {
+func buildConfig(cfg *stack.NginxConfig) (string, error) {
 	var b strings.Builder
 
 	listenPort := cfg.ListenPort
@@ -307,11 +312,16 @@ func buildConfig(cfg *stack.NginxConfig) string {
 	}
 
 	// location blocks
+	seen := make(map[string]bool)
 	for _, up := range cfg.Upstreams {
 		route := up.Route
 		if route == "" {
 			route = "/"
 		}
+		if seen[route] {
+			return "", fmt.Errorf("duplicate nginx route %q: each upstream must have a unique route (e.g. /api/, /)", route)
+		}
+		seen[route] = true
 		fmt.Fprintf(&b, "        location %s {\n", route)
 
 		// rate limiting
@@ -356,5 +366,5 @@ func buildConfig(cfg *stack.NginxConfig) string {
 
 	b.WriteString("    }\n")
 	b.WriteString("}\n")
-	return b.String()
+	return b.String(), nil
 }
