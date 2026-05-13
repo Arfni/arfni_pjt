@@ -7,11 +7,6 @@ use std::os::windows::process::CommandExt;
 
 use crate::db::{Database, api_key as repo};
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EstimateCostRequest {
-    pub stack_path: String,
-}
-
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CostItem {
     #[serde(default)]
@@ -232,13 +227,11 @@ pub async fn analyze(
     // Use default Prometheus URL if not provided
     let prometheus = prometheus_url.unwrap_or_else(|| "http://localhost:9090".to_string());
 
-    // DEBUG: Print language value before using it
-    eprintln!("[RUST DEBUG] analyze called with language: {:?}", language);
-
-    // Use default language if not provided
     let lang = language.unwrap_or_else(|| "en".to_string());
 
-    eprintln!("[RUST DEBUG] normalized language: {}", lang);
+    if std::env::var("ARFNI_DEBUG").as_deref() == Ok("true") {
+        eprintln!("[DEBUG] analyze language: {}", lang);
+    }
 
     // Build command
     let mut cmd = Command::new(&exe_path);

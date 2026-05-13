@@ -33,12 +33,6 @@ pub struct AddKeyParams {
   pub set_active: bool,
 }
 
-#[derive(Default)]
-struct MyState {
-  s: std::sync::Mutex<String>,
-  t: std::sync::Mutex<std::collections::HashMap<String, String>>,
-}
-// remember to call `.manage(MyState::default())`
 #[tauri::command]
 pub fn add_api_key(db :State<Database>, params:AddKeyParams)->Result<(),String>{
   repo::add_or_update_api_key(&db, &params.provider, &params.label, &params.api_key, params.set_active)
