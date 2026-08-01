@@ -1,0 +1,68 @@
+apiVersion: v0.1
+name: test
+metadata:
+  monitoring:
+    mode: all-in-one
+targets:
+  ec2:
+    type: ec2.ssh
+    host: t1529.p.ssafy.io
+    user: ubuntu
+    sshKey: C:\Users\SSAFY\.ssh\T1529T.pem
+    workdir: /home/ubuntu/arfni-deploy
+services:
+  prometheus:
+    kind: docker.container
+    target: ec2
+    spec:
+      image: prom/prometheus:latest
+      ports:
+        - '9090:9090'
+      volumes:
+        - host: ./prometheus.yml
+          mount: /etc/prometheus/prometheus.yml
+        - host: prometheus-data
+          mount: /prometheus
+      command:
+        - '--config.file=/etc/prometheus/prometheus.yml'
+        - '--storage.tsdb.path=/prometheus'
+        - '--storage.tsdb.retention.time=30d'
+        - '--storage.tsdb.retention.size=5GB'
+        - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+        - '--web.console.templates=/usr/share/prometheus/consoles'
+  grafana:
+    kind: docker.container
+    target: ec2
+    spec:
+      image: grafana/grafana:latest
+      ports:
+        - '3200:3200'
+      volumes:
+        - host: ./grafana/provisioning
+          mount: /etc/grafana/provisioning
+        - host: grafana-data
+          mount: /var/lib/grafana
+      env:
+        GF_SERVER_HTTP_PORT: '3200'
+        GF_AUTH_ANONYMOUS_ENABLED: 'true'
+        GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+        GF_SECURITY_ADMIN_PASSWORD: admin
+        GF_AUTH_DISABLE_LOGIN_FORM: 'true'
+        GF_SECURITY_ALLOW_EMBEDDING: 'true'
+        GF_SECURITY_COOKIE_SAMESITE: none
+        GF_SECURITY_COOKIE_SECURE: 'false'
+  node-exporter:
+    kind: docker.container
+    target: ec2
+    spec:
+      image: prom/node-exporter:latest
+      ports:
+        - '9100:9100'
+      command:
+        - '--path.rootfs=/host'
+        - '--collector.textfile.directory=/var/lib/node_exporter/textfile_collector'
+      volumes:
+        - host: /
+          mount: /host
+        - host: /var/lib/node_exporter/textfile_collector
+          mount: /var/lib/node_exporter/textfile_collector
