@@ -522,3 +522,6 @@ ssh_targets.json
 *.sqlite
 *.sqlite3
 *.db3
+
+# ---- arfni local project state ----
+.arfni/
