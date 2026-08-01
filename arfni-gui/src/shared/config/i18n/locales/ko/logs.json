@@ -27,7 +27,75 @@
     "tunnelOpened": "터널 열림 - Prometheus는 http://localhost:9091 사용",
     "tunnelFailed": "터널 실패",
     "noServerInfo": "EC2 서버 정보가 없습니다",
-    "notAvailable": "이 프로젝트 유형에서는 터미널을 사용할 수 없습니다"
+    "notAvailable": "이 프로젝트 유형에서는 터미널을 사용할 수 없습니다",
+    "newSession": "새 세션",
+    "closeTab": "탭 닫기",
+    "noServers": "등록된 서버가 없습니다.",
+    "noSessions": "열린 세션이 없습니다. + 로 새 세션을 여세요.",
+    "search": "스크롤백에서 검색…",
+    "disconnected": "[연결을 끊었습니다. Connect로 다시 접속할 수 있습니다.]",
+    "sessionClosed": "[세션이 종료되었습니다.]",
+    "connectFailed": "연결 실패: {{error}}"
+  },
+  "sftp": {
+    "title": "SFTP",
+    "close": "패널 닫기",
+    "refresh": "새로고침",
+    "parent": "상위 폴더 (Backspace)",
+    "home": "홈",
+    "newFolder": "새 폴더",
+    "upload": "업로드",
+    "download": "다운로드",
+    "preview": "미리보기 (Enter)",
+    "rename": "이름 변경 (F2)",
+    "delete": "삭제 (Delete)",
+    "newName": "새 이름",
+    "confirm": "확인",
+    "empty": "비어 있음",
+    "notConnected": "SFTP 세션이 연결되지 않았습니다.",
+    "noServerInfo": "EC2 서버 정보가 없습니다.",
+    "connect": "연결",
+    "followTerminal": "터미널 위치 따라가기",
+    "confirmDeleteDir": "'{{name}}' 디렉터리와 그 안의 모든 내용을 삭제합니다. 되돌릴 수 없습니다.",
+    "confirmDeleteFile": "'{{name}}' 을(를) 삭제합니다. 되돌릴 수 없습니다.",
+    "deleteTitle": "SFTP 삭제",
+    "truncated": "앞 {{size}}만 표시",
+    "binaryFile": "바이너리 파일입니다. 텍스트로 표시할 수 없습니다."
+  },
+  "tunnel": {
+    "title": "포트 포워딩",
+    "close": "패널 닫기",
+    "refresh": "새로고침",
+    "add": "새 포워딩",
+    "open": "열기",
+    "cancel": "취소",
+    "empty": "열린 포워딩이 없습니다.",
+    "removeTunnel": "닫기",
+    "openInBrowser": "브라우저로 열기 ({{url}})",
+    "kind": {
+      "local": "로컬 (-L)",
+      "remote": "원격 (-R)",
+      "dynamic": "SOCKS (-D)"
+    },
+    "hint": {
+      "local": "내 PC의 포트를 열고, 서버 쪽에서 대상으로 연결합니다.",
+      "remote": "서버의 포트를 열고, 내 PC 쪽에서 대상으로 연결합니다.",
+      "dynamic": "내 PC에 SOCKS5 프록시를 엽니다. 브라우저 프록시로 지정해 쓰세요."
+    },
+    "field": {
+      "bindAddressLocal": "로컬 바인드 주소",
+      "bindAddressRemote": "원격 바인드 주소",
+      "bindPort": "바인드 포트",
+      "targetHost": "대상 호스트",
+      "targetPort": "대상 포트",
+      "label": "메모 (선택)"
+    },
+    "error": {
+      "bindPort": "바인드 포트는 1–65535 사이여야 합니다.",
+      "targetPort": "대상 포트는 1–65535 사이여야 합니다.",
+      "colon": "{{field}}에는 ':'를 쓸 수 없습니다. (IPv6 리터럴 미지원)",
+      "noServerInfo": "EC2 서버 정보가 없습니다."
+    }
   },
   "containers": {
     "title": "컨테이너 목록",

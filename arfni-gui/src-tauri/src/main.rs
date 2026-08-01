@@ -58,6 +58,11 @@ fn main() {
                     // 창을 먼저 숨김 (사용자는 즉시 닫힌 것처럼 보임)
                     let _ = window_clone.hide();
 
+                    // 우리가 띄운 SSH 세션/터널만 정리 (전역 ssh.exe 학살 금지)
+                    crate::features::ssh_rt::close_all_sessions(&app_handle_clone);
+                    crate::features::ssh_rt::close_all_tunnels(&app_handle_clone);
+                    crate::features::sftp::kill_all_sessions();
+
                     // 백그라운드에서 cleanup 실행
                     std::thread::spawn(move || {
                         println!("[main.rs] Starting cleanup in background...");
@@ -80,6 +85,11 @@ fn main() {
       // SSH 명령어
       commands::ssh::ssh_exec_system,
 
+      // 원격 Docker (검증된 형태로만 노출)
+      commands::docker_remote::docker_container_action,
+      commands::docker_remote::docker_all_containers,
+      commands::docker_remote::docker_ps,
+
       // EC2 서버 관리 명령어 (SQLite 기반)
       commands::ssh::create_ec2_server,
       commands::ssh::get_all_ec2_servers,
@@ -93,10 +103,25 @@ fn main() {
       commands::ssh::ec2_read_entry,
       commands::ssh::ec2_delete_entry,
       commands::ssh_it::ssh_start,
-      commands::ssh_it::ssh_send,
+      commands::ssh_it::ssh_write,
+      commands::ssh_it::ssh_resize,
       commands::ssh_it::ssh_close,
       commands::ssh_it::tunnel_open,
+      commands::ssh_it::tunnel_list,
       commands::ssh_it::tunnel_close,
+
+      // SFTP 명령어
+      commands::sftp::sftp_connect,
+      commands::sftp::sftp_disconnect,
+      commands::sftp::sftp_home,
+      commands::sftp::sftp_canonicalize,
+      commands::sftp::sftp_list,
+      commands::sftp::sftp_mkdir,
+      commands::sftp::sftp_rename,
+      commands::sftp::sftp_remove,
+      commands::sftp::sftp_read_text,
+      commands::sftp::sftp_download,
+      commands::sftp::sftp_upload,
 
       // 플러그인 명령어
       commands::plugin::run_plugin,
@@ -300,15 +325,9 @@ fn cleanup_monitoring_stack() {
         }
     }
 
-    // 3. SSH 프로세스 종료
-    #[cfg(target_os = "windows")]
-    {
-        let mut kill_cmd = Command::new("taskkill");
-        kill_cmd.args(&["/F", "/IM", "ssh.exe"]);
-        kill_cmd.creation_flags(CREATE_NO_WINDOW);
-        let _ = kill_cmd.output();
-        log("Killed ssh.exe");
-    }
+    // 3. SSH 프로세스는 여기서 건드리지 않는다.
+    //    `taskkill /F /IM ssh.exe`는 사용자가 따로 띄운 SSH 세션까지 전부 죽인다.
+    //    이 앱이 소유한 세션/터널은 CloseRequested 핸들러에서 child PID 단위로 정리된다.
 
     log("Cleanup completed");
 }

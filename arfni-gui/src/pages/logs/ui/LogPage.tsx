@@ -1,16 +1,19 @@
 ﻿import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import { useSshTabs } from '../model/sshTabs';
+import { tunnelCommands } from '@shared/api/tauri/tunnel';
+import { dockerCommands } from '@shared/api/tauri/dockerRemote';
 import { listen } from '@tauri-apps/api/event';
 import { confirm } from '@tauri-apps/plugin-dialog';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentProject } from '@features/project/model/projectSlice';
 import { ec2ServerCommands, EC2Server, Project } from '@shared/api/tauri/commands';
 import { AnalyzeView } from './AnalyzeView';
 import { MonitoringView } from './MonitoringView';
 import { Sidebar } from './Sidebar';
-import { TerminalView } from './TerminalView';
+import { TerminalWorkspace } from './TerminalWorkspace';
 import { ContainersView } from './ContainersView';
 import { useTranslation } from 'react-i18next';
 
@@ -23,15 +26,30 @@ export default function LogPage() {
   const project = locationState?.project ?? projectFromStore;
   const [ec2Server, setEc2Server] = useState<EC2Server | null>(null);
 
-  // SSH Terminal 상태
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
-  const [cmd, setCmd] = useState('');
+  // SSH 터미널 탭. 세션은 Rust 쪽에 살아 있고 탭 목록은 모듈 스토어가 들고 있다.
+  const {
+    tabs,
+    activeTabId,
+    openTab,
+    setActiveTab,
+    closeTab,
+    connectTab,
+    disconnectTab,
+    clearNotices,
+    noticeActiveTab,
+    isServerConnected,
+  } = useSshTabs();
 
-  // Tunnel 상태
+  const connected = isServerConnected(ec2Server?.id);
+
+  // Tunnel 상태. LogPage가 직접 관리하는 건 모니터링용 Prometheus 터널 하나뿐이고,
+  // 사용자가 TunnelPanel에서 연 터널들은 백엔드 맵이 진짜 소유자다.
   const [tunnelId, setTunnelId] = useState<string | null>(null);
   const [tunnelOpen, setTunnelOpen] = useState(false);
+  const tunnelIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    tunnelIdRef.current = tunnelId;
+  }, [tunnelId]);
 
   // Container 상태
   interface Container {
@@ -52,51 +70,33 @@ export default function LogPage() {
     locationState?.selectedView ?? 'terminal'
   );
 
-  // SSH 이벤트 리스너
+  // 터널 이벤트 → 현재 보고 있는 탭의 알림으로
   useEffect(() => {
-    const unlistenData = listen('ssh:data', (e) => {
-      const payload = e.payload as { id: string; chunk: string };
-      setTerminalLogs((prev) => [...prev, payload.chunk]);
-    });
-
-    const unlistenErr = listen('ssh:stderr', (e) => {
-      const payload = e.payload as { id: string; chunk: string };
-      setTerminalLogs((prev) => [...prev, `[stderr] ${payload.chunk}`]);
-    });
-
-    const unlistenClose = listen('ssh:closed', (e) => {
-      const payload = e.payload as { id: string; chunk: string };
-      setTerminalLogs((prev) => [...prev, `\n[Session closed: ${payload.id}]`]);
-      setConnected(false);
-      setSessionId(null);
-    });
-
     const unlistenTunnelOpen = listen('tunnel:opened', (e) => {
       const payload = e.payload as { id: string; chunk: string };
-      setTerminalLogs((prev) => [...prev, `🚇 ${payload.chunk}`]);
+      noticeActiveTab(`🚇 ${payload.chunk}`);
     });
 
     const unlistenTunnelErr = listen('tunnel:stderr', (e) => {
       const payload = e.payload as { id: string; chunk: string };
-      setTerminalLogs((prev) => [...prev, `[tunnel error] ${payload.chunk}`]);
+      noticeActiveTab(`[tunnel error] ${payload.chunk}`);
     });
 
     const unlistenTunnelClose = listen('tunnel:closed', (e) => {
       const payload = e.payload as { id: string; chunk: string };
-      setTerminalLogs((prev) => [...prev, `🚇 ${payload.chunk}`]);
+      noticeActiveTab(`🚇 ${payload.chunk}`);
+      // 남의 터널이 닫힌 걸로 모니터링 터널 상태를 뒤집으면 안 된다.
+      if (payload.id !== tunnelIdRef.current) return;
       setTunnelOpen(false);
       setTunnelId(null);
     });
 
     return () => {
-      unlistenData.then((f) => f());
-      unlistenErr.then((f) => f());
-      unlistenClose.then((f) => f());
       unlistenTunnelOpen.then((f) => f());
       unlistenTunnelErr.then((f) => f());
       unlistenTunnelClose.then((f) => f());
     };
-  }, []);
+  }, [noticeActiveTab]);
 
   // EC2 서버 정보 로드
   useEffect(() => {
@@ -108,7 +108,7 @@ export default function LogPage() {
         } catch (error) {
           console.error('EC2 서버 정보 로드 실패:', error);
           setEc2Server(null);
-          setTerminalLogs((prev) => [...prev, `❌ EC2 서버 정보를 불러오지 못했습니다: ${error instanceof Error ? error.message : String(error)}`]);
+          noticeActiveTab(`❌ EC2 서버 정보를 불러오지 못했습니다: ${error instanceof Error ? error.message : String(error)}`);
         }
       } else {
         setEc2Server(null);
@@ -117,74 +117,32 @@ export default function LogPage() {
     loadEc2Server();
   }, [project]);
 
-  // SSH 터미널 연결
-  const startSshSession = async () => {
-    if (!ec2Server) {
-      setTerminalLogs((prev) => [...prev, '❌ EC2 서버 정보가 없습니다.']);
-      return;
-    }
-
-    try {
-      const id = await invoke<string>('ssh_start', {
-        params: {
-          host: ec2Server.host,
-          user: ec2Server.user,
-          pem_path: ec2Server.pem_path,
-        },
-      });
-      setSessionId(id);
-      setConnected(true);
-      setTerminalLogs((prev) => [...prev, `✅ SSH connected [${id}]`]);
-    } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Connection failed: ${String(err)}`]);
-    }
-  };
-
-  // 명령 전송
-  const sendSshCmd = async () => {
-    if (!sessionId || !cmd.trim()) return;
-    try {
-      await invoke('ssh_send', { id: sessionId, cmd });
-      setTerminalLogs((prev) => [...prev, `${t('log.commandPrefix')} ${cmd}`]);
-      setCmd('');
-    } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ ${t('log.sendFailed', { error: String(err) })}`]);
-    }
-  };
-
-  // SSH 세션 종료
-  const closeSshSession = async () => {
-    if (!sessionId) return;
-    try {
-      await invoke('ssh_close', { id: sessionId });
-    } finally {
-      setConnected(false);
-      setSessionId(null);
-    }
-  };
-
   // 터널 열기 (Prometheus: localhost:9091 -> remote:9090)
   const openTunnel = async () => {
     if (!ec2Server) {
-      setTerminalLogs((prev) => [...prev, '❌ EC2 서버 정보가 없습니다.']);
+      noticeActiveTab('❌ EC2 서버 정보가 없습니다.');
       return;
     }
 
     try {
-      const id = await invoke<string>('tunnel_open', {
-        params: {
+      const id = await tunnelCommands.open(
+        {
           host: ec2Server.host,
           user: ec2Server.user,
           pem_path: ec2Server.pem_path,
         },
-        localPort: 9091,
-        remotePort: 9090,
-      });
+        {
+          kind: 'local',
+          bind_port: 9091,
+          target_port: 9090,
+          label: 'Prometheus',
+        }
+      );
       setTunnelId(id);
       setTunnelOpen(true);
-      setTerminalLogs((prev) => [...prev, `✅ Tunnel opened [${id}] - Use http://localhost:9091 for Prometheus`]);
+      noticeActiveTab(`✅ Tunnel opened [${id}] - Use http://localhost:9091 for Prometheus`);
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Tunnel failed: ${String(err)}`]);
+      noticeActiveTab(`❌ Tunnel failed: ${String(err)}`);
     }
   };
 
@@ -192,7 +150,7 @@ export default function LogPage() {
   const closeTunnel = async () => {
     if (!tunnelId) return;
     try {
-      await invoke('tunnel_close', { id: tunnelId });
+      await tunnelCommands.close(tunnelId);
     } finally {
       setTunnelOpen(false);
       setTunnelId(null);
@@ -203,18 +161,11 @@ export default function LogPage() {
   const startContainer = async (containerId: string, containerName: string) => {
     if (!ec2Server) return;
     try {
-      await invoke('ssh_exec_system', {
-        params: {
-          host: ec2Server.host,
-          user: ec2Server.user,
-          pem_path: ec2Server.pem_path,
-          cmd: `docker start ${containerId}`
-        }
-      });
-      setTerminalLogs((prev) => [...prev, `✅ Container '${containerName}' started`]);
+      await dockerCommands.containerAction(ec2Server, 'start', containerId);
+      noticeActiveTab(`✅ Container '${containerName}' started`);
       fetchContainersQuietly(); // 목록 새로고침 (로딩 표시 없이)
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Failed to start container: ${String(err)}`]);
+      noticeActiveTab(`❌ Failed to start container: ${String(err)}`);
     }
   };
 
@@ -222,18 +173,11 @@ export default function LogPage() {
   const stopContainer = async (containerId: string, containerName: string) => {
     if (!ec2Server) return;
     try {
-      await invoke('ssh_exec_system', {
-        params: {
-          host: ec2Server.host,
-          user: ec2Server.user,
-          pem_path: ec2Server.pem_path,
-          cmd: `docker stop ${containerId}`
-        }
-      });
-      setTerminalLogs((prev) => [...prev, `✅ Container '${containerName}' stopped`]);
+      await dockerCommands.containerAction(ec2Server, 'stop', containerId);
+      noticeActiveTab(`✅ Container '${containerName}' stopped`);
       fetchContainersQuietly(); // 목록 새로고침 (로딩 표시 없이)
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Failed to stop container: ${String(err)}`]);
+      noticeActiveTab(`❌ Failed to stop container: ${String(err)}`);
     }
   };
 
@@ -245,22 +189,15 @@ export default function LogPage() {
     setDeletingContainerId(containerId);
     try {
       console.log('[REMOVE_CONTAINER] Executing docker rm command...');
-      await invoke('ssh_exec_system', {
-        params: {
-          host: ec2Server.host,
-          user: ec2Server.user,
-          pem_path: ec2Server.pem_path,
-          cmd: `docker rm -f ${containerId}`
-        }
-      });
+      await dockerCommands.containerAction(ec2Server, 'remove', containerId);
       console.log('[REMOVE_CONTAINER] Docker rm succeeded, updating logs...');
-      setTerminalLogs((prev) => [...prev, `✅ ${t('containers.removed', { containerName })}`]);
+      noticeActiveTab(`✅ ${t('containers.removed', { containerName })}`);
       console.log('[REMOVE_CONTAINER] Fetching updated container list...');
       await fetchContainersQuietly(); // 목록 새로고침 (로딩 표시 없이)
       console.log('[REMOVE_CONTAINER] Container list updated');
     } catch (err: any) {
       console.log('[REMOVE_CONTAINER] Error:', err);
-      setTerminalLogs((prev) => [...prev, `❌ ${t('containers.removeFailed')}: ${String(err)}`]);
+      noticeActiveTab(`❌ ${t('containers.removeFailed')}: ${String(err)}`);
     } finally {
       console.log('[REMOVE_CONTAINER] Clearing deleting state');
       setDeletingContainerId(null);
@@ -271,18 +208,11 @@ export default function LogPage() {
   const restartContainer = async (containerId: string, containerName: string) => {
     if (!ec2Server) return;
     try {
-      await invoke('ssh_exec_system', {
-        params: {
-          host: ec2Server.host,
-          user: ec2Server.user,
-          pem_path: ec2Server.pem_path,
-          cmd: `docker restart ${containerId}`
-        }
-      });
-      setTerminalLogs((prev) => [...prev, `✅ Container '${containerName}' restarted`]);
+      await dockerCommands.containerAction(ec2Server, 'restart', containerId);
+      noticeActiveTab(`✅ Container '${containerName}' restarted`);
       fetchContainersQuietly(); // 목록 새로고침 (로딩 표시 없이)
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ Failed to restart container: ${String(err)}`]);
+      noticeActiveTab(`❌ Failed to restart container: ${String(err)}`);
     }
   };
 
@@ -290,18 +220,11 @@ export default function LogPage() {
   const startAllContainers = async () => {
     if (!ec2Server || containers.length === 0) return;
     try {
-      await invoke('ssh_exec_system', {
-        params: {
-          host: ec2Server.host,
-          user: ec2Server.user,
-          pem_path: ec2Server.pem_path,
-          cmd: 'docker start $(docker ps -aq)'
-        }
-      });
-      setTerminalLogs((prev) => [...prev, `✅ ${t('containers.allStarted')}`]);
+      await dockerCommands.allContainers(ec2Server, true);
+      noticeActiveTab(`✅ ${t('containers.allStarted')}`);
       fetchContainersQuietly();
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ ${t('containers.allStartFailed', { error: String(err) })}`]);
+      noticeActiveTab(`❌ ${t('containers.allStartFailed', { error: String(err) })}`);
     }
   };
 
@@ -310,18 +233,11 @@ export default function LogPage() {
     if (!ec2Server || containers.length === 0) return;
     if (!await confirm(t('containers.confirmStopAll'))) return;
     try {
-      await invoke('ssh_exec_system', {
-        params: {
-          host: ec2Server.host,
-          user: ec2Server.user,
-          pem_path: ec2Server.pem_path,
-          cmd: 'docker stop $(docker ps -q)'
-        }
-      });
-      setTerminalLogs((prev) => [...prev, `✅ ${t('containers.allStopped')}`]);
+      await dockerCommands.allContainers(ec2Server, false);
+      noticeActiveTab(`✅ ${t('containers.allStopped')}`);
       fetchContainersQuietly();
     } catch (err: any) {
-      setTerminalLogs((prev) => [...prev, `❌ ${t('containers.allStopFailed', { error: String(err) })}`]);
+      noticeActiveTab(`❌ ${t('containers.allStopFailed', { error: String(err) })}`);
     }
   };
 
@@ -330,15 +246,7 @@ export default function LogPage() {
     if (!ec2Server) return;
 
     try {
-      // docker ps -a --format 명령을 사용해서 모든 컨테이너 정보를 파싱하기 쉬운 형태로 출력
-      const result = await invoke<string>('ssh_exec_system', {
-        params: {
-          host: ec2Server.host,
-          user: ec2Server.user,
-          pem_path: ec2Server.pem_path,
-          cmd: 'docker ps -a --format "{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Command}}|{{.CreatedAt}}|{{.Ports}}"'
-        }
-      });
+      const result = await dockerCommands.ps(ec2Server);
 
       if (result) {
         const lines = result.trim().split('\n').filter(line => line.trim());
@@ -408,24 +316,22 @@ export default function LogPage() {
       {/* Content Area */}
       <main className="flex-1 flex overflow-hidden">
 
-        {/* Terminal View - Only show when terminal is selected */}
-        {selectedView === 'terminal' && (
-          <TerminalView
-            project={project}
-            ec2Server={ec2Server}
-            connected={connected}
-            terminalLogs={terminalLogs}
-            cmd={cmd}
-            tunnelOpen={tunnelOpen}
-            onConnect={startSshSession}
-            onDisconnect={closeSshSession}
-            onTunnelOpen={openTunnel}
-            onTunnelClose={closeTunnel}
-            onClearLogs={() => setTerminalLogs([])}
-            onCmdChange={setCmd}
-            onSendCmd={sendSshCmd}
-          />
-        )}
+        {/* Terminal View
+            뷰를 바꿔도 언마운트하지 않는다. 언마운트하면 xterm 스크롤백과
+            SFTP 세션이 매번 날아간다. 숨기기만 하고 상태는 유지한다. */}
+        <TerminalWorkspace
+          project={project}
+          defaultServer={ec2Server}
+          tabs={tabs}
+          activeTabId={activeTabId}
+          hidden={selectedView !== 'terminal'}
+          onOpenTab={openTab}
+          onSelectTab={setActiveTab}
+          onCloseTab={closeTab}
+          onConnectTab={connectTab}
+          onDisconnectTab={disconnectTab}
+          onClearNotices={clearNotices}
+        />
 
         {/* Containers View - Only show when containers is selected */}
         {selectedView === 'containers' && project && (

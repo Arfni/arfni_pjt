@@ -5,6 +5,8 @@ pub mod project;
 pub mod deployment;
 pub mod file_watcher;
 pub mod ssh_it;
+pub mod sftp;
+pub mod docker_remote;
 pub mod health;
 pub mod monitoring;
 pub mod port_check;

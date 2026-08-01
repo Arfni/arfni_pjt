@@ -27,7 +27,75 @@
     "tunnelOpened": "Tunnel opened - Use http://localhost:9091 for Prometheus",
     "tunnelFailed": "Tunnel failed",
     "noServerInfo": "EC2 server information not available",
-    "notAvailable": "Terminal not available for this project type"
+    "notAvailable": "Terminal not available for this project type",
+    "newSession": "New session",
+    "closeTab": "Close tab",
+    "noServers": "No servers registered.",
+    "noSessions": "No open sessions. Use + to start one.",
+    "search": "Search in scrollback…",
+    "disconnected": "[Disconnected. Use Connect to reconnect.]",
+    "sessionClosed": "[Session closed.]",
+    "connectFailed": "Connection failed: {{error}}"
+  },
+  "sftp": {
+    "title": "SFTP",
+    "close": "Close panel",
+    "refresh": "Refresh",
+    "parent": "Parent folder (Backspace)",
+    "home": "Home",
+    "newFolder": "New folder",
+    "upload": "Upload",
+    "download": "Download",
+    "preview": "Preview (Enter)",
+    "rename": "Rename (F2)",
+    "delete": "Delete (Delete)",
+    "newName": "New name",
+    "confirm": "OK",
+    "empty": "Empty",
+    "notConnected": "SFTP session is not connected.",
+    "noServerInfo": "EC2 server information not available.",
+    "connect": "Connect",
+    "followTerminal": "Follow terminal folder",
+    "confirmDeleteDir": "Delete '{{name}}' and everything inside it. This cannot be undone.",
+    "confirmDeleteFile": "Delete '{{name}}'. This cannot be undone.",
+    "deleteTitle": "SFTP delete",
+    "truncated": "first {{size}} shown",
+    "binaryFile": "Binary file. Cannot be shown as text."
+  },
+  "tunnel": {
+    "title": "Port forwarding",
+    "close": "Close panel",
+    "refresh": "Refresh",
+    "add": "New forward",
+    "open": "Open",
+    "cancel": "Cancel",
+    "empty": "No active forwards.",
+    "removeTunnel": "Close",
+    "openInBrowser": "Open in browser ({{url}})",
+    "kind": {
+      "local": "Local (-L)",
+      "remote": "Remote (-R)",
+      "dynamic": "SOCKS (-D)"
+    },
+    "hint": {
+      "local": "Opens a port on this PC; the server side connects to the target.",
+      "remote": "Opens a port on the server; this PC connects to the target.",
+      "dynamic": "Opens a SOCKS5 proxy on this PC. Point your browser proxy at it."
+    },
+    "field": {
+      "bindAddressLocal": "Local bind address",
+      "bindAddressRemote": "Remote bind address",
+      "bindPort": "Bind port",
+      "targetHost": "Target host",
+      "targetPort": "Target port",
+      "label": "Note (optional)"
+    },
+    "error": {
+      "bindPort": "Bind port must be between 1 and 65535.",
+      "targetPort": "Target port must be between 1 and 65535.",
+      "colon": "{{field}} must not contain ':' (IPv6 literals are not supported).",
+      "noServerInfo": "EC2 server information not available."
+    }
   },
   "containers": {
     "title": "Container List",

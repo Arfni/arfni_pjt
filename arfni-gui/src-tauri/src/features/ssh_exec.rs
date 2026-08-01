@@ -73,7 +73,11 @@ pub fn list_ec2_listening_ports(host: &str, user: &str, pem: &str) -> Result<Vec
     Ok(ports)
 }
 
+/// 실제 서버가 있어야 도는 수동 테스트. host/pem을 채운 뒤
+/// `cargo test -- --ignored test_ssh_via_system` 으로 실행한다.
+/// 자격증명이 비어 있어 기본 실행에서는 항상 실패하므로 스위트에서 제외한다.
 #[test]
+#[ignore = "requires a live host and pem path"]
 fn test_ssh_via_system() {
     let host = "";
     let user = "ec2-user";
