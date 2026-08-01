@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; frame-src 'self' http://localhost:* https://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://localhost:* https://localhost:* https://raw.githubusercontent.com; connect-src 'self' http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* https://api.github.com https://raw.githubusercontent.com",
+      "csp": "default-src 'self'; frame-src 'self' http://localhost:* https://localhost:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://localhost:* https://localhost:* https://raw.githubusercontent.com; connect-src 'self' http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* https://api.github.com https://raw.githubusercontent.com",
       "assetProtocol": {
         "enable": true,
         "scope": [

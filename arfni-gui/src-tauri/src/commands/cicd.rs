@@ -411,15 +411,8 @@ async fn configure_github_secrets(
     for (secret_name, secret_value) in secrets {
         println!("[CI/CD] Setting secret: {} (value length: {} bytes)", secret_name, secret_value.len());
 
-        // Debug: Print first and last line of SSH key (for debugging)
-        if secret_name == "EC2_SSH_KEY" {
-            let lines: Vec<&str> = secret_value.lines().collect();
-            if !lines.is_empty() {
-                println!("[CI/CD] SSH Key first line: {}", lines.first().unwrap_or(&""));
-                println!("[CI/CD] SSH Key last line: {}", lines.last().unwrap_or(&""));
-                println!("[CI/CD] SSH Key total lines: {}", lines.len());
-            }
-        }
+        // 비밀 값의 내용은 어떤 형태로도 로그에 남기지 않는다.
+        // 헤더/푸터만으로도 키 종류가 드러나고, 로그 파일은 평문으로 남는다.
 
         let encrypted = encrypt_secret(secret_value, key)?;
         println!("[CI/CD] Secret {} encrypted successfully (encrypted length: {} bytes)", secret_name, encrypted.len());
