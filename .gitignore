@@ -490,3 +490,35 @@ TEST/my-app/.infracanvas/data/**/*.pem
 
 # End of https://www.toptal.com/developers/gitignore/api/rust,react,go,python,java,venv,node,macos
 
+
+# ---- AI coding agents / assistants ----
+.gjc/
+.claude/
+.cursor/
+.cursorrules
+.aider*
+.continue/
+.windsurf/
+.codeium/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.github/copilot-instructions.md
+
+# ---- secrets / credentials ----
+*.pem
+*.key
+*.p12
+*.pfx
+*.ppk
+id_rsa*
+id_ed25519*
+known_hosts
+.env*
+!.env.example
+ssh_targets.json
+
+# ---- local app data ----
+*.sqlite
+*.sqlite3
+*.db3
