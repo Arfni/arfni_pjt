@@ -109,9 +109,28 @@ jobs:
 
             echo "[INFO] Docker compose rebuild..."
             ${DOCKER_COMPOSE} down
+
+            # --- 도커 빌드 캐시 정리 ---
+            # 빌드 캐시는 이미지나 컨테이너 데이터가 아니라 재사용용 임시 산출물이다.
+            # 상한을 두고 오래된 캐시부터 정리해 빌드 디스크 사용량을 제한한다.
+            echo "[INFO] Disk before cleanup:"
+            df -h / | tail -1
+
+            # 옵션 이름이 Docker 버전마다 다르다
+            # (29에서 --keep-storage가 제거되고 --max-used-space로 대체됐다).
+            sudo docker builder prune -f --max-used-space 2GB 2>/dev/null \
+              || sudo docker builder prune -f --keep-storage 2GB 2>/dev/null \
+              || sudo docker builder prune -f --filter until=168h 2>/dev/null \
+              || true
+
+            echo "[INFO] Disk after cleanup:"
+            df -h / | tail -1
             ${DOCKER_COMPOSE} build {{ .DOCKER_SERVICE }}
             echo "[INFO] Starting {{ .DOCKER_SERVICE }}..."
             ${DOCKER_COMPOSE} up -d {{ .DOCKER_SERVICE }}
+            # 새 컨테이너가 정상 기동한 뒤에만 dangling 이미지를 정리한다.
+            # 실행 중인 컨테이너의 이미지와 named volume은 삭제하지 않는다.
+            sudo docker image prune -f || true
 
             echo "[INFO] Running containers:"
             sudo docker ps --format "table {{`{{.Names}}`}}\t{{`{{.Image}}`}}\t{{`{{.Status}}`}}"
