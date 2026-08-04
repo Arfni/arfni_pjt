@@ -35,7 +35,11 @@
     "search": "Search in scrollback…",
     "disconnected": "[Disconnected. Use Connect to reconnect.]",
     "sessionClosed": "[Session closed.]",
-    "connectFailed": "Connection failed: {{error}}"
+    "sessionLost": "[Connection to the server was lost. (no response or server shutdown)]",
+    "reconnected": "[Reconnected. This is a fresh shell — anything running before the drop is already gone.]",
+    "connectFailed": "Connection failed: {{error}}",
+    "reconnectScheduled": "[Reconnecting in {{seconds}}s. ({{attempt}}/{{max}})]",
+    "reconnectGaveUp": "[Auto-reconnect failed after {{max}} attempts. Use Connect to retry.]"
   },
   "sftp": {
     "title": "SFTP",
@@ -55,7 +59,12 @@
     "notConnected": "SFTP session is not connected.",
     "noServerInfo": "EC2 server information not available.",
     "connect": "Connect",
-    "followTerminal": "Follow terminal folder",
+    "followPause": "Stop following (browse elsewhere)",
+    "followResume": "Follow the terminal folder again",
+    "terminalPath": "Terminal: {{path}}",
+    "terminalPathUnknown": "Terminal path not detected yet",
+    "goToTerminalPath": "Go to this path",
+    "followOff": "Follow off",
     "confirmDeleteDir": "Delete '{{name}}' and everything inside it. This cannot be undone.",
     "confirmDeleteFile": "Delete '{{name}}'. This cannot be undone.",
     "deleteTitle": "SFTP delete",

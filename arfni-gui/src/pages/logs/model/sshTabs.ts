@@ -4,6 +4,11 @@ import { listen } from '@tauri-apps/api/event';
 import { EC2Server } from '@shared/api/tauri/commands';
 import i18n from '@shared/config/i18n';
 import { dropSession } from './sshDataBus';
+import { createReconnectScheduler } from './reconnectScheduler';
+import {
+  disconnectReasonFromClose,
+  MAX_RECONNECT_ATTEMPTS,
+} from './reconnectPolicy';
 
 export interface SshTab {
   tabId: string;
@@ -14,6 +19,11 @@ export interface SshTab {
   autoConnect: boolean;
   /** 앱이 만든 안내/오류 메시지. 터미널 버퍼에 회색으로 찍힌다. */
   notices: string[];
+  /**
+   * 마지막으로 접속할 때 쓴 PTY 크기.
+   * 자동 재접속은 xterm이 다시 알려주기를 기다릴 수 없으므로 이 값으로 연다.
+   */
+  lastSize: { rows: number; cols: number } | null;
 }
 
 interface TabsState {
@@ -65,6 +75,95 @@ function appendNotice(tabId: string, line: string) {
 }
 
 /**
+ * 세션을 실제로 연다.
+ *
+ * 훅 밖(모듈 스코프)에 두는 이유: 자동 재접속은 LogPage가 언마운트된 뒤에도
+ * 돌아야 한다. 훅 안의 useCallback에 묶어 두면 라우트를 떠나는 순간 재접속이 죽는다.
+ */
+async function startSession(
+  tabId: string,
+  rows: number,
+  cols: number,
+  opts: { auto: boolean } = { auto: false }
+) {
+  const tab = state.tabs.find((t) => t.tabId === tabId);
+  if (!tab || tab.sessionId) return;
+
+  // 재접속도 같은 크기로 열어야 하므로 시도할 때마다 최신 크기를 남긴다.
+  patchTab(tabId, { autoConnect: false, lastSize: { rows, cols } });
+  try {
+    const sessionId = await invoke<string>('ssh_start', {
+      params: {
+        host: tab.server.host,
+        user: tab.server.user,
+        pem_path: tab.server.pem_path,
+      },
+      rows,
+      cols,
+      // 서버별 설정. 켜져 있으면 원격 셸이 tmux로 감싸여 끊겨도 작업이 살아남는다.
+      persistent: tab.server.persistent_session === true,
+      // 탭마다 다른 tmux 세션을 쓴다. 같은 이름이면 두 탭이 한 화면을 공유해 버린다.
+      sessionKey: tabId,
+    });
+
+    // 접속하는 동안 탭이 닫혔을 수 있다. 그대로 두면 아무도 안 닫는 PTY가 남는다.
+    if (!state.tabs.some((t) => t.tabId === tabId)) {
+      await invoke('ssh_close', { id: sessionId }).catch(() => {});
+      return;
+    }
+
+    patchTab(tabId, { sessionId, connected: true });
+    reconnectScheduler.onConnected(tabId);
+    // 자동으로 붙었으면 반드시 알린다.
+    // 말없이 새 프롬프트만 띄우면 끊기기 전에 돌던 codex/vim이 아직 살아 있는 줄 안다.
+    // 원격 sshd가 연결이 끊긴 시점에 SIGHUP을 보내 이미 죽였는데도.
+    if (opts.auto) {
+      appendNotice(tabId, i18n.t('logs:terminal.reconnected'));
+    }
+    void invoke('update_ec2_server_last_connected', { serverId: tab.server.id }).catch(
+      () => {}
+    );
+  } catch (err) {
+    appendNotice(tabId, i18n.t('logs:terminal.connectFailed', { error: String(err) }));
+    // 자동 재접속이 실패했으면 다음 간격으로 이어 간다.
+    // 수동 연결 실패까지 되살리지는 않는다. 그건 사용자가 판단할 몫이다.
+    if (opts.auto && state.tabs.some((t) => t.tabId === tabId)) {
+      reconnectScheduler.onDisconnected(tabId, 'remote');
+    }
+  }
+}
+
+/**
+ * 재접속 예약기도 모듈 스코프다. 탭 상태와 수명을 같이 가야
+ * 다른 라우트에 가 있는 동안 끊긴 탭도 되살아난다.
+ */
+const reconnectScheduler = createReconnectScheduler({
+  connect: (tabId) => {
+    const tab = state.tabs.find((t) => t.tabId === tabId);
+    if (!tab || tab.sessionId) return;
+    // 크기를 모르는 경우는 첫 접속 전에 끊긴 탭뿐이라 관례값으로 연다.
+    const { rows, cols } = tab.lastSize ?? { rows: 24, cols: 80 };
+    void startSession(tabId, rows, cols, { auto: true });
+  },
+  onScheduled: (tabId, { attempt, delayMs }) => {
+    appendNotice(
+      tabId,
+      i18n.t('logs:terminal.reconnectScheduled', {
+        seconds: Math.round(delayMs / 1000),
+        attempt,
+        max: MAX_RECONNECT_ATTEMPTS,
+      })
+    );
+  },
+  onGiveUp: (tabId) => {
+    appendNotice(
+      tabId,
+      i18n.t('logs:terminal.reconnectGaveUp', { max: MAX_RECONNECT_ATTEMPTS })
+    );
+  },
+});
+
+/**
  * 세션 종료 이벤트는 LogPage가 마운트돼 있는지와 무관하게 도착해야 한다.
  * 모듈 로드 시 한 번만 등록하고 해제하지 않는다.
  */
@@ -72,8 +171,8 @@ let closedListenerReady = false;
 function ensureClosedListener() {
   if (closedListenerReady) return;
   closedListenerReady = true;
-  void listen<{ id: string; chunk: string }>('ssh:closed', (e) => {
-    const { id } = e.payload;
+  void listen<{ id: string; chunk: string; clean?: boolean }>('ssh:closed', (e) => {
+    const { id, clean } = e.payload;
     dropSession(id); // 버스에 남은 버퍼/소비자 정리
     const tab = state.tabs.find((t) => t.sessionId === id);
     if (!tab) return;
@@ -86,11 +185,21 @@ function ensureClosedListener() {
               sessionId: null,
               connected: false,
               autoConnect: false,
-              notices: [...t.notices, i18n.t('logs:terminal.sessionClosed')],
+              notices: [
+                ...t.notices,
+                i18n.t(
+                  clean === false
+                    ? 'logs:terminal.sessionLost'
+                    : 'logs:terminal.sessionClosed'
+                ),
+              ],
             }
           : t
       ),
     });
+    // 정상 종료면 'user'로 분류돼 정책이 stop을 낸다. 되살리면 사용자가 방금
+    // 닫은 셸이 3초 뒤에 혼자 다시 열린다.
+    reconnectScheduler.onDisconnected(tab.tabId, disconnectReasonFromClose(clean));
   });
 }
 
@@ -146,7 +255,15 @@ export function useSshTabs() {
     setState({
       tabs: [
         ...state.tabs,
-        { tabId, server, sessionId: null, connected: false, autoConnect: true, notices: [] },
+        {
+          tabId,
+          server,
+          sessionId: null,
+          connected: false,
+          autoConnect: true,
+          notices: [],
+          lastSize: null,
+        },
       ],
       activeTabId: tabId,
     });
@@ -160,6 +277,8 @@ export function useSshTabs() {
   const closeTab = useCallback(async (tabId: string) => {
     const tab = state.tabs.find((t) => t.tabId === tabId);
     const remaining = state.tabs.filter((t) => t.tabId !== tabId);
+    // 예약을 먼저 지운다. 남겨 두면 닫힌 탭에 세션이 다시 열려 주인 없는 PTY가 남는다.
+    reconnectScheduler.cancel(tabId);
     setState({
       tabs: remaining,
       activeTabId: computeNextActiveTab(state.tabs, tabId, state.activeTabId),
@@ -172,42 +291,22 @@ export function useSshTabs() {
   }, []);
 
   /** xterm이 실제 행/열을 알려준 뒤에만 호출된다. PTY 크기가 처음부터 정확해야 한다. */
-  const connectTab = useCallback(async (tabId: string, rows: number, cols: number) => {
-    const tab = state.tabs.find((t) => t.tabId === tabId);
-    if (!tab || tab.sessionId) return;
-
-    patchTab(tabId, { autoConnect: false });
-    try {
-      const sessionId = await invoke<string>('ssh_start', {
-        params: {
-          host: tab.server.host,
-          user: tab.server.user,
-          pem_path: tab.server.pem_path,
-        },
-        rows,
-        cols,
-      });
-
-      // 접속하는 동안 탭이 닫혔을 수 있다. 그대로 두면 아무도 안 닫는 PTY가 남는다.
-      if (!state.tabs.some((t) => t.tabId === tabId)) {
-        await invoke('ssh_close', { id: sessionId }).catch(() => {});
-        return;
-      }
-
-      patchTab(tabId, { sessionId, connected: true });
-      void invoke('update_ec2_server_last_connected', { serverId: tab.server.id }).catch(
-        () => {}
-      );
-    } catch (err) {
-      appendNotice(tabId, i18n.t('logs:terminal.connectFailed', { error: String(err) }));
-    }
-  }, []);
+  const connectTab = useCallback(
+    (tabId: string, rows: number, cols: number) => {
+      // 사용자가 직접 눌렀으면 대기 중인 자동 재접속은 의미가 없다.
+      reconnectScheduler.cancel(tabId);
+      return startSession(tabId, rows, cols);
+    },
+    []
+  );
 
   const disconnectTab = useCallback(async (tabId: string) => {
     const tab = state.tabs.find((t) => t.tabId === tabId);
     if (!tab?.sessionId) return;
     const sessionId = tab.sessionId;
     dropSession(sessionId);
+    // 사용자가 끊었으니 되살리지 않는다.
+    reconnectScheduler.cancel(tabId);
     // sessionId를 먼저 비우므로 ssh:closed 리스너가 이 탭을 못 찾는다.
     // 사용자가 "아무 반응 없음"으로 느끼지 않도록 여기서 직접 알린다.
     setState({

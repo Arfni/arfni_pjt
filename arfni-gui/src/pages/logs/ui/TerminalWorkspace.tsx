@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { computeDropdownPosition, DropdownPosition } from '@shared/lib/dropdownPosition';
 import { FolderTree, Network, Plus, X, Terminal as TerminalIcon, Server } from 'lucide-react';
@@ -59,8 +59,13 @@ export function TerminalWorkspace({
     const stored = localStorage.getItem(PANEL_KEY);
     return stored === 'sftp' || stored === 'tunnels' ? stored : null;
   });
-  /** 활성 탭의 원격 작업 디렉터리 (창 제목에서 추출). SFTP 패널이 따라간다. */
-  const [termCwd, setTermCwd] = useState<string | null>(null);
+  /**
+   * 탭별 원격 작업 디렉터리. SFTP 패널이 활성 탭을 따라간다.
+   *
+   * 탭마다 따로 들고 있어야 한다. 하나로 공유하면 A탭에서 cd 한 경로가
+   * B탭 SFTP에 그대로 남는다.
+   */
+  const [termCwds, setTermCwds] = useState<Record<string, string | null>>({});
   const [panelWidth, setPanelWidth] = useState(() => {
     const stored = Number(localStorage.getItem(WIDTH_KEY));
     return Number.isFinite(stored) && stored >= MIN_WIDTH ? stored : 360;
@@ -73,6 +78,18 @@ export function TerminalWorkspace({
     () => tabs.find((tb) => tb.tabId === activeTabId) ?? null,
     [tabs, activeTabId]
   );
+  /**
+   * 파싱된 경로만 기록한다.
+   *
+   * `null`은 "경로를 못 알아봤다"는 뜻이지 "홈으로 돌아갔다"는 뜻이 아니다.
+   * codex/vim이 화면을 채우는 동안 null로 덮어쓰면 SFTP가 시작 경로로 튄다.
+   */
+  const rememberCwd = useCallback((tabId: string, path: string | null) => {
+    if (path === null) return;
+    setTermCwds((previous) =>
+      previous[tabId] === path ? previous : { ...previous, [tabId]: path }
+    );
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(PANEL_KEY, sidePanel ?? '');
@@ -342,11 +359,10 @@ export function TerminalWorkspace({
               onConnect={(rows, cols) => onConnectTab(tab.tabId, rows, cols)}
               onDisconnect={() => onDisconnectTab(tab.tabId)}
               onClearNotices={() => onClearNotices(tab.tabId)}
-              onTitleChange={
-                tab.tabId === activeTabId
-                  ? (title) => setTermCwd(parseCwdFromTitle(title) ?? null)
-                  : undefined
-              }
+              // 활성 탭만 추적하면 뒤에서 cd 한 탭으로 돌아왔을 때 옛 경로가 남는다.
+              // 탭마다 자기 경로를 계속 기록하고, SFTP는 활성 탭 것만 읽어 간다.
+              onTitleChange={(title) => rememberCwd(tab.tabId, parseCwdFromTitle(title))}
+              onCwdDetected={(path) => rememberCwd(tab.tabId, path)}
               headerExtra={headerExtra}
             />
           ))
@@ -364,12 +380,16 @@ export function TerminalWorkspace({
               }`}
             />
             <div style={{ width: panelWidth }} className="flex-shrink-0 min-w-0">
-              {/* 활성 탭의 서버를 따라간다. 서버가 바뀌면 패널이 스스로 재연결한다. */}
+              {/*
+                SFTP 연결은 서버 단위다. 탭마다 새로 연결하면 탭을 바꿀 때마다
+                SSH 핸드셰이크를 다시 하느라 패널이 몇 초씩 비어 보인다.
+                탭 전환은 followPath만 바꿔서 이동으로 처리한다.
+              */}
               {sidePanel === 'sftp' ? (
                 <SftpPanel
                   key={activeTab?.server.id ?? 'none'}
                   ec2Server={activeTab?.server ?? defaultServer}
-                  followPath={termCwd}
+                  followPath={activeTabId ? termCwds[activeTabId] ?? null : null}
                   onClose={() => setSidePanel(null)}
                 />
               ) : (

@@ -34,7 +34,6 @@ import {
   formatMtime,
 } from '@shared/api/tauri/sftp';
 
-const FOLLOW_KEY = 'arfni.sftpFollowTerminal';
 
 interface SftpPanelProps {
   ec2Server: EC2Server | null;
@@ -59,7 +58,14 @@ type Prompt =
 
 export function SftpPanel({ ec2Server, followPath, onClose }: SftpPanelProps) {
   const { t } = useTranslation('logs');
-  const [follow, setFollow] = useState(() => localStorage.getItem(FOLLOW_KEY) !== '0');
+  /**
+   * 터미널 위치 따라가기. 항상 켠 채로 시작한다.
+   *
+   * 끄는 건 "잠깐 다른 폴더를 보겠다"는 일시적 의도지 영구 설정이 아니다.
+   * 예전엔 이 값을 localStorage에 저장해서, 한 번 끄면 다음 실행에도 계속 꺼진 채로
+   * 남았다. 그 상태가 화면 어디에도 안 보여서 "SFTP가 경로를 안 따라간다"로 보였다.
+   */
+  const [follow, setFollow] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [cwd, setCwd] = useState('');
@@ -179,12 +185,8 @@ export function SftpPanel({ ec2Server, followPath, onClose }: SftpPanelProps) {
     if (sessionId && cwd) void loadDir(sessionId, cwd);
   }, [sessionId, cwd, loadDir]);
 
-  useEffect(() => {
-    localStorage.setItem(FOLLOW_KEY, follow ? '1' : '0');
-  }, [follow]);
-
   // 터미널이 cd 하면 따라간다 (MobaXterm의 "Follow terminal folder").
-  // 원격 셸의 창 제목에서 읽은 값이라 셸에 아무것도 주입하지 않는다.
+  // 경로는 원격 화면에서 읽어낸 값이라 셸에 아무것도 주입하지 않는다.
   useEffect(() => {
     if (!follow || !sessionId || !followPath) return;
     if (followPath === cwdRef.current) return;
@@ -369,14 +371,6 @@ export function SftpPanel({ ec2Server, followPath, onClose }: SftpPanelProps) {
         <IconBtn onClick={refresh} disabled={!sessionId || loading} title={t('sftp.refresh')}>
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </IconBtn>
-        <IconBtn
-          onClick={() => setFollow((v) => !v)}
-          disabled={!sessionId}
-          title={t('sftp.followTerminal')}
-          active={follow}
-        >
-          <Crosshair className="w-4 h-4" />
-        </IconBtn>
         <div className="w-px h-5 bg-gray-200 mx-1" />
         <IconBtn
           onClick={() => {
@@ -451,6 +445,42 @@ export function SftpPanel({ ec2Server, followPath, onClose }: SftpPanelProps) {
             }
           }}
         />
+      </div>
+      {/*
+        따라가기 상태와 감지된 터미널 경로를 한 줄에 같이 둔다.
+        토글이 꺼져 있으면 아무리 cd 해도 목록이 안 움직이는데,
+        상태가 어디에도 안 보이면 "SFTP가 고장났다"로 오해하게 된다.
+      */}
+      <div className="px-2 py-1 border-b border-gray-200 flex items-center gap-2 flex-shrink-0 bg-gray-50">
+        <button
+          onClick={() => setFollow((v) => !v)}
+          title={follow ? t('sftp.followPause') : t('sftp.followResume')}
+          aria-pressed={follow}
+          className={`p-0.5 rounded flex-shrink-0 transition-colors ${
+            follow
+              ? 'text-blue-700 bg-blue-100 ring-1 ring-inset ring-blue-300'
+              : 'text-gray-400 hover:bg-gray-200'
+          }`}
+        >
+          <Crosshair className="w-3.5 h-3.5" />
+        </button>
+        {followPath ? (
+          <button
+            onClick={() => sessionId && void loadDir(sessionId, followPath)}
+            disabled={!sessionId}
+            title={t('sftp.goToTerminalPath')}
+            className="flex-1 min-w-0 text-left font-mono text-[11px] text-gray-600 hover:text-blue-700 truncate disabled:cursor-not-allowed"
+          >
+            {t('sftp.terminalPath', { path: followPath })}
+          </button>
+        ) : (
+          <span className="flex-1 min-w-0 font-mono text-[11px] text-gray-400 truncate">
+            {t('sftp.terminalPathUnknown')}
+          </span>
+        )}
+        {!follow && (
+          <span className="text-[10px] text-amber-600 flex-shrink-0">{t('sftp.followOff')}</span>
+        )}
       </div>
 
       {/* Prompt (mkdir / rename) */}
@@ -641,15 +671,12 @@ function IconBtn({
   disabled,
   title,
   danger,
-  active,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   title: string;
   danger?: boolean;
-  /** 토글형 버튼의 켜짐 상태 */
-  active?: boolean;
 }) {
   return (
     <button
@@ -657,11 +684,7 @@ function IconBtn({
       disabled={disabled}
       title={title}
       className={`p-1.5 rounded disabled:opacity-30 disabled:cursor-not-allowed ${
-        danger
-          ? 'hover:bg-red-100 text-red-600'
-          : active
-            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-            : 'hover:bg-gray-200 text-gray-700'
+        danger ? 'hover:bg-red-100 text-red-600' : 'hover:bg-gray-200 text-gray-700'
       }`}
     >
       {children}

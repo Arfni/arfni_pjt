@@ -35,7 +35,11 @@
     "search": "스크롤백에서 검색…",
     "disconnected": "[연결을 끊었습니다. Connect로 다시 접속할 수 있습니다.]",
     "sessionClosed": "[세션이 종료되었습니다.]",
-    "connectFailed": "연결 실패: {{error}}"
+    "sessionLost": "[서버와의 연결이 끊어졌습니다. (응답 없음 또는 서버 종료)]",
+    "reconnected": "[재접속했습니다. 새 셸이라서 끊기기 전에 실행 중이던 프로그램은 이미 종료되었습니다.]",
+    "connectFailed": "연결 실패: {{error}}",
+    "reconnectScheduled": "[{{seconds}}초 후 자동 재접속을 시도합니다. ({{attempt}}/{{max}})]",
+    "reconnectGaveUp": "[자동 재접속을 {{max}}회 시도했지만 실패했습니다. Connect로 직접 다시 시도하세요.]"
   },
   "sftp": {
     "title": "SFTP",
@@ -55,7 +59,12 @@
     "notConnected": "SFTP 세션이 연결되지 않았습니다.",
     "noServerInfo": "EC2 서버 정보가 없습니다.",
     "connect": "연결",
-    "followTerminal": "터미널 위치 따라가기",
+    "followPause": "따라가기 끄기 (다른 폴더 둘러보기)",
+    "followResume": "터미널 위치 다시 따라가기",
+    "terminalPath": "터미널: {{path}}",
+    "terminalPathUnknown": "터미널 경로를 아직 못 읽었습니다",
+    "goToTerminalPath": "이 경로로 이동",
+    "followOff": "따라가기 꺼짐",
     "confirmDeleteDir": "'{{name}}' 디렉터리와 그 안의 모든 내용을 삭제합니다. 되돌릴 수 없습니다.",
     "confirmDeleteFile": "'{{name}}' 을(를) 삭제합니다. 되돌릴 수 없습니다.",
     "deleteTitle": "SFTP 삭제",

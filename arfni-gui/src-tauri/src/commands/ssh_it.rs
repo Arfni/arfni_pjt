@@ -10,16 +10,29 @@ use crate::features::ssh_rt::{
 };
 
 /// 세션 시작. rows/cols는 프론트 xterm.js의 실제 크기를 그대로 받는다.
+///
+/// `persistent`가 켜져 있으면 원격 셸을 tmux로 감싼다. 연결이 끊겨도 원격
+/// 프로세스가 SIGHUP으로 죽지 않고, 재접속하면 화면이 그대로 복원된다.
+/// `session_key`는 어느 tmux 세션에 다시 붙을지 정하는 탭별 식별자다.
 #[tauri::command]
 pub async fn ssh_start(
   app: AppHandle,
   params: SshParams,
   rows: Option<u16>,
   cols: Option<u16>,
+  persistent: Option<bool>,
+  session_key: Option<String>,
 ) -> Result<String, String> {
-  start_interactive_session(app, params, rows.unwrap_or(24), cols.unwrap_or(80))
-    .map(|id| id.to_string())
-    .map_err(|e| e.to_string())
+  start_interactive_session(
+    app,
+    params,
+    rows.unwrap_or(24),
+    cols.unwrap_or(80),
+    persistent.unwrap_or(false),
+    session_key.as_deref(),
+  )
+  .map(|id| id.to_string())
+  .map_err(|e| e.to_string())
 }
 
 /// 키 입력 원본 전달. `data`는 xterm의 onData 문자열(UTF-8)이다.

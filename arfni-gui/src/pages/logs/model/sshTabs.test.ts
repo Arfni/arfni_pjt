@@ -11,6 +11,7 @@ function server(id: string, name: string): EC2Server {
     pem_path: `C:\\keys\\${id}.pem`,
     created_at: '',
     updated_at: '',
+    persistent_session: false,
   };
 }
 

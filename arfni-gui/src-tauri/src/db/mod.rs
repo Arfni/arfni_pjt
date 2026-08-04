@@ -146,6 +146,16 @@ impl Database {
             println!("✅ Migration 006 completed");
         }
 
+        // Migration 007: 지속 세션 설정 추가
+        if current_version < 7 {
+            println!("⬆️ Running migration 007...");
+            let migration_sql = include_str!("../../migrations/007_add_persistent_session.sql");
+            conn.execute_batch(migration_sql)
+                .context("Failed to run migration 007")?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (7)", [])?;
+            println!("✅ Migration 007 completed");
+        }
+
         println!("✅ All database migrations completed successfully");
         Ok(())
     }

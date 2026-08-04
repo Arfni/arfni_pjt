@@ -33,6 +33,19 @@ pub struct SshDataEvent {
   pub chunk: String,
 }
 
+/// 세션 종료 이벤트.
+///
+/// `clean`이 왜 필요한가: PTY EOF만 보면 "사용자가 셸에서 exit 했다"와
+/// "ServerAliveInterval 한도를 넘겨 연결이 끊겼다"가 완전히 같은 모양이다.
+/// 프론트가 이 둘을 구분하지 못하면 정상 종료한 탭까지 자동 재접속으로 되살린다.
+#[derive(Debug, Clone, Serialize)]
+pub struct SshClosedEvent {
+  pub id: String,
+  pub chunk: String,
+  /// 원격 셸이 정상 종료했으면 true. 연결이 끊겨 ssh가 죽었으면 false.
+  pub clean: bool,
+}
+
 /// PTY 원본 바이트 스트림 이벤트.
 /// ANSI 이스케이프가 그대로 들어있으므로 프론트의 터미널 에뮬레이터(xterm.js)가 해석한다.
 /// UTF-8 경계가 청크 중간에서 잘릴 수 있어 base64로 전송한다.
@@ -124,6 +137,47 @@ fn tunnels() -> &'static Mutex<HashMap<Uuid, TunnelHandle>> {
 
 // ============ Session API ============
 
+/// tmux 세션 이름으로 쓸 수 있게 식별자를 다듬는다.
+///
+/// 이 값은 원격 셸 명령 문자열에 그대로 박히므로 셸 메타문자가 절대 들어가면 안 된다.
+/// tmux 자체도 세션 이름에 `.`과 `:`를 허용하지 않는다.
+fn sanitize_session_key(key: &str) -> String {
+  let cleaned: String = key
+    .chars()
+    .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+    .take(48)
+    .collect();
+  if cleaned.is_empty() {
+    "default".to_string()
+  } else {
+    cleaned
+  }
+}
+
+/// 연결이 끊겨도 원격 작업이 살아남도록 셸을 tmux로 감싸는 원격 명령을 만든다.
+///
+/// 설계 이유:
+/// - `new-session -A`: 세션이 있으면 붙고 없으면 만든다. 재접속이 곧 복원이 된다.
+/// - `mouse off`: tmux가 마우스를 가져가면 xterm.js의 드래그 선택과 우클릭
+///   복사/붙여넣기가 전부 죽는다. 마우스는 프론트가 계속 소유해야 한다.
+/// - 대신 Alt+위/아래에만 스크롤을 걸어 둔다. 프론트가 휠을 이 키로 바꿔 보내면
+///   마우스를 뺏기지 않고도 스크롤백을 볼 수 있다. `copy-mode -e`라서 바닥에
+///   닿으면 스스로 빠져나온다.
+/// - tmux가 없는 서버에서는 조용히 평소 로그인 셸로 떨어진다.
+fn tmux_wrapped_command(session_key: &str) -> String {
+  let name = format!("arfni-{}", sanitize_session_key(session_key));
+  format!(
+    "if command -v tmux >/dev/null 2>&1; then \
+       tmux start-server 2>/dev/null; \
+       tmux set-option -g mouse off 2>/dev/null; \
+       tmux bind-key -n M-Up copy-mode -e \\; send-keys -X -N 3 scroll-up 2>/dev/null; \
+       tmux bind-key -n M-Down send-keys -X -N 3 scroll-down 2>/dev/null; \
+       exec tmux -u new-session -A -s {name}; \
+     fi; \
+     exec \"$SHELL\" -l"
+  )
+}
+
 /// 로컬 PTY(윈도우는 ConPTY) 안에서 ssh를 띄우고, PTY 출력 전체를 원본 바이트로 스트리밍한다.
 ///
 /// 이전 구현은 `Stdio::piped()` + `BufReader::lines()` 였다. 그 경우
@@ -134,6 +188,8 @@ pub fn start_interactive_session(
   params: SshParams,
   rows: u16,
   cols: u16,
+  persistent: bool,
+  session_key: Option<&str>,
 ) -> Result<Uuid> {
   let target = format!("{}@{}", params.user, params.host);
   println!("[ssh_rt] opening pty session to {target} ({cols}x{rows})");
@@ -160,6 +216,15 @@ pub fn start_interactive_session(
   cmd.arg("ServerAliveCountMax=3");
   cmd.arg(&target);
   // BatchMode는 켜지 않는다. 패스프레이즈/호스트키 프롬프트를 터미널에서 직접 입력할 수 있어야 한다.
+
+  // 원격 명령을 붙이면 로그인 셸 대신 그 명령이 실행된다.
+  // tmux가 죽거나 없는 경우까지 명령 안에서 처리하므로 여기서 분기하지 않는다.
+  if persistent {
+    let wrapped = tmux_wrapped_command(session_key.unwrap_or("default"));
+    println!("[ssh_rt] persistent session enabled (tmux)");
+    cmd.arg(&wrapped);
+  }
+
   cmd.env("TERM", "xterm-256color");
 
   let child = pair
@@ -218,12 +283,18 @@ pub fn start_interactive_session(
 
     // 세션 정리 + 종료 통지.
     // close_session()이 먼저 지웠다면 여기서는 아무것도 하지 않는다 (ssh:closed 중복 방지).
-    if sessions().lock().remove(&id).is_some() {
+    let removed = sessions().lock().remove(&id);
+    if let Some(mut h) = removed {
+      // 자식을 거둬 종료 코드를 확인한다. EOF가 이미 왔으므로 즉시 반환된다.
+      // ssh(1)은 연결 실패/끊김에 255를 쓰고, 그 외에는 원격 셸의 종료 코드를 그대로 돌려준다.
+      // 그래서 255가 아니면 사용자가 exit 등으로 끝낸 것이고, 자동 재접속으로 되살리면 안 된다.
+      let clean = matches!(h.child.wait(), Ok(status) if status.exit_code() != 255);
       let _ = app_reader.emit(
         "ssh:closed",
-        SshDataEvent {
+        SshClosedEvent {
           id: id.to_string(),
           chunk: "session closed".into(),
+          clean,
         },
       );
     }
@@ -266,11 +337,13 @@ pub fn close_session(app: &AppHandle, id: Uuid) -> Result<()> {
   if let Some(mut h) = removed {
     let _ = h.child.kill();
     let _ = h.child.wait();
+    // 사용자가 직접 끊었으므로 정상 종료다. 되살리지 않는다.
     let _ = app.emit(
       "ssh:closed",
-      SshDataEvent {
+      SshClosedEvent {
         id: id.to_string(),
         chunk: "session closed".into(),
+        clean: true,
       },
     );
     println!("[ssh_rt] session {id} closed");
@@ -623,6 +696,81 @@ mod tests {
       target_port,
       label: None,
     }
+  }
+
+  // ---- tmux 영속 세션 ----
+  //
+  // sanitize_session_key의 결과는 원격 셸이 해석하는 명령 문자열에 그대로 들어간다.
+  // 여기서 새는 문자가 하나라도 있으면 원격 명령 실행이다.
+
+  #[test]
+  fn session_key_keeps_ordinary_identifiers() {
+    assert_eq!(sanitize_session_key("prod"), "prod");
+    assert_eq!(sanitize_session_key("web-01"), "web-01");
+    assert_eq!(sanitize_session_key("my_server_2"), "my_server_2");
+    assert_eq!(
+      sanitize_session_key("3f2b1a0c9d8e7f6a5b4c3d2e1f0a9b8c"),
+      "3f2b1a0c9d8e7f6a5b4c3d2e1f0a9b8c"
+    );
+  }
+
+  #[test]
+  fn session_key_strips_shell_metacharacters() {
+    // 통과하면 tmux 세션 이름 자리에서 임의 명령이 실행된다
+    for (input, expected) in [
+      ("a; rm -rf /", "arm-rf"),
+      ("a && whoami", "awhoami"),
+      ("a | tee /tmp/x", "ateetmpx"),
+      ("a`id`", "aid"),
+      ("a$(id)", "aid"),
+      ("a\nwhoami", "awhoami"),
+      ("a>b", "ab"),
+      ("a'b\"c\\d", "abcd"),
+      ("a b", "ab"),
+      ("a*b", "ab"),
+    ] {
+      assert_eq!(sanitize_session_key(input), expected, "input={input:?}");
+    }
+  }
+
+  #[test]
+  fn session_key_strips_characters_tmux_rejects() {
+    // tmux는 세션 이름에 '.'과 ':'를 허용하지 않는다
+    assert_eq!(sanitize_session_key("ec2-1-2-3-4.compute.amazonaws.com"), "ec2-1-2-3-4computeamazonawscom");
+    assert_eq!(sanitize_session_key("host:22"), "host22");
+  }
+
+  #[test]
+  fn session_key_falls_back_when_nothing_survives() {
+    // 빈 이름을 넘기면 `tmux new-session -A -s arfni-` 가 되어 명령이 깨진다
+    assert_eq!(sanitize_session_key(""), "default");
+    assert_eq!(sanitize_session_key("...:::"), "default");
+    assert_eq!(sanitize_session_key("한글만"), "default");
+    assert_eq!(sanitize_session_key("   "), "default");
+  }
+
+  #[test]
+  fn session_key_is_length_capped() {
+    let long = "a".repeat(200);
+    assert_eq!(sanitize_session_key(&long).len(), 48);
+  }
+
+  #[test]
+  fn tmux_command_uses_the_sanitized_name_and_falls_back_to_login_shell() {
+    let cmd = tmux_wrapped_command("web-01");
+    assert!(cmd.contains("new-session -A -s arfni-web-01"), "{cmd}");
+    // tmux가 없는 서버에서도 로그인 셸로 떨어져야 한다
+    assert!(cmd.contains(r#"exec "$SHELL" -l"#), "{cmd}");
+    // 마우스를 tmux가 가져가면 xterm의 드래그 선택/우클릭이 죽는다
+    assert!(cmd.contains("mouse off"), "{cmd}");
+  }
+
+  #[test]
+  fn tmux_command_does_not_let_the_key_escape() {
+    let cmd = tmux_wrapped_command("evil; rm -rf /");
+    assert!(cmd.contains("arfni-evilrm-rf"), "{cmd}");
+    // 정제 후 이름 뒤에는 원래 명령 구분자만 남아야 한다
+    assert!(!cmd.contains("rm -rf /"), "{cmd}");
   }
 
   #[test]

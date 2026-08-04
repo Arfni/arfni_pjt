@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { attachSink, startSshDataBus } from '../model/sshDataBus';
+import { findCwdOnScreen } from '../model/terminalTitle';
 import { sanitizePasteText } from '../model/pasteText';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -26,8 +27,14 @@ interface TerminalViewProps {
   hidden?: boolean;
   /** 터미널이 준비되는 대로 한 번 자동 접속 */
   autoConnect?: boolean;
-  /** 원격 셸이 설정한 창 제목. SFTP 패널이 현재 디렉터리를 따라가는 데 쓴다. */
+  /** 원격 셸이 설정한 창 제목(OSC 0/2). 제목을 갱신하는 서버에서만 온다. */
   onTitleChange?: (title: string) => void;
+  /**
+   * 화면에서 읽어낸 원격 작업 디렉터리.
+   * tmux는 창 제목(OSC)을 바깥 터미널로 흘려보내지 않으므로,
+   * 지속 세션에서는 프롬프트 파싱이 유일한 단서다.
+   */
+  onCwdDetected?: (path: string) => void;
   /** 헤더 우측 버튼 영역에 끼워넣을 추가 컨트롤 (예: SFTP 패널 토글) */
   headerExtra?: React.ReactNode;
 }
@@ -56,6 +63,17 @@ const THEME = {
   brightWhite: '#a6adc8',
 };
 
+/**
+ * tmux로 감싼 세션에서 휠을 대신할 키.
+ *
+ * tmux의 마우스 모드는 켜지 않는다. 켜는 순간 드래그 선택도 우클릭 복사/붙여넣기도
+ * 전부 tmux가 가져가 버린다. 그래서 마우스는 xterm.js가 계속 소유하고,
+ * 휠만 여기서 가로채 tmux 스크롤 키로 바꿔 보낸다.
+ * 원격 tmux 쪽에 Alt+위/아래가 `copy-mode -e` 스크롤로 바인딩돼 있다(ssh_rt.rs).
+ */
+const TMUX_SCROLL_UP = '\x1b[1;3A';
+const TMUX_SCROLL_DOWN = '\x1b[1;3B';
+
 // 세션이 생기기 전부터 듣고 있어야 첫 출력을 놓치지 않는다.
 startSshDataBus();
 
@@ -70,6 +88,7 @@ export function TerminalView({
   hidden,
   autoConnect,
   onTitleChange,
+  onCwdDetected,
   headerExtra,
 }: TerminalViewProps) {
   const { t } = useTranslation('logs');
@@ -81,11 +100,20 @@ export function TerminalView({
   const writtenNoticesRef = useRef(0);
   /** 같은 탭에서 두 번째 이후로 붙는 세션인지 (재접속 시 화면 모드 정리용) */
   const reconnectedRef = useRef(false);
-  /** onTitleChange는 매 렌더 새 함수라 ref로 받는다 (터미널 재생성 방지) */
+  /** tmux로 감싼 세션인지. 휠 처리를 바꿔야 해서 콜백에서 최신 값을 읽는다. */
+  const persistentRef = useRef(false);
+  useEffect(() => {
+    persistentRef.current = server?.persistent_session === true;
+  }, [server]);
+  /** 콜백들은 매 렌더 새 함수라 ref로 받는다 (터미널 재생성 방지) */
   const onTitleChangeRef = useRef(onTitleChange);
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
   }, [onTitleChange]);
+  const onCwdDetectedRef = useRef(onCwdDetected);
+  useEffect(() => {
+    onCwdDetectedRef.current = onCwdDetected;
+  }, [onCwdDetected]);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -147,6 +175,20 @@ export function TerminalView({
       const id = sessionIdRef.current;
       if (!id) return;
       void invoke('ssh_write', { id, data }).catch(() => {});
+    });
+
+    // tmux 세션에서는 스크롤백이 원격 tmux 안에 있다. 휠을 그대로 두면
+    // xterm.js의 빈 스크롤백만 긁어서 아무 일도 일어나지 않는다.
+    term.attachCustomWheelEventHandler((e) => {
+      if (!persistentRef.current) return true;
+      const id = sessionIdRef.current;
+      if (!id) return true;
+      // Shift/Ctrl 조합은 폰트 확대나 페이지 단위 스크롤 관례라 건드리지 않는다.
+      if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return true;
+      if (e.deltaY === 0) return true;
+      const data = e.deltaY < 0 ? TMUX_SCROLL_UP : TMUX_SCROLL_DOWN;
+      void invoke('ssh_write', { id, data }).catch(() => {});
+      return false; // xterm.js 기본 스크롤을 막는다
     });
 
     // 창 제목(OSC 0/2)에서 원격 작업 디렉터리를 읽어 올려보낸다.
@@ -263,7 +305,14 @@ export function TerminalView({
     }
     reconnectedRef.current = true;
 
-    return attachSink(sessionId, (bytes) => term.write(bytes));
+    // 출력이 화면에 반영된 뒤 프롬프트에서 cwd를 읽는다.
+    // tmux(지속 세션)는 창 제목을 바깥으로 흘려보내지 않으므로 이 경로가 유일한 단서다.
+    return attachSink(sessionId, (bytes) => {
+      term.write(bytes, () => {
+        const cwd = findCwdOnScreen(term.buffer.active);
+        if (cwd) onCwdDetectedRef.current?.(cwd);
+      });
+    });
   }, [sessionId]);
 
   // --- 앱 안내 메시지를 터미널 버퍼에 찍기 ---

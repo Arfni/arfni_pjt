@@ -18,6 +18,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
   const [host, setHost] = useState('');
   const [user, setUser] = useState('ubuntu');
   const [pemPath, setPemPath] = useState('');
+  const [persistentSession, setPersistentSession] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +31,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
       setHost(editServer.host);
       setUser(editServer.user);
       setPemPath(editServer.pem_path);
+      setPersistentSession(editServer.persistent_session);
       setTestSuccess(false);
       setError(null);
     } else {
@@ -38,6 +40,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
       setHost('');
       setUser('ubuntu');
       setPemPath('');
+      setPersistentSession(false);
       setTestSuccess(false);
       setError(null);
     }
@@ -155,6 +158,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
           host: host.trim(),
           user: user.trim(),
           pemPath: pemPath.trim(),
+          persistent_session: persistentSession,
         });
       } else {
         // 추가 모드
@@ -163,6 +167,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
           host: host.trim(),
           user: user.trim(),
           pemPath: pemPath.trim(),
+          persistent_session: persistentSession,
         });
       }
 
@@ -171,6 +176,7 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
       setHost('');
       setUser('ubuntu');
       setPemPath('');
+      setPersistentSession(false);
       setTestSuccess(false);
 
       onServerAdded();
@@ -289,6 +295,24 @@ export function AddServerModal({ isOpen, onClose, onServerAdded, editServer }: A
                   <Folder className="w-5 h-5" />
                 </button>
               </div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={persistentSession}
+                  onChange={(e) => setPersistentSession(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-700">
+                    {t('server.persistentSessionLabel')}
+                  </span>
+                  <span className="mt-1 block text-xs text-gray-500">
+                    {t('server.persistentSessionDescription')}
+                  </span>
+                </span>
+              </label>
             </div>
 
             {/* Test Connection Button */}
