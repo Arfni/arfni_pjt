@@ -39,7 +39,13 @@
     "reconnected": "[Reconnected. This is a fresh shell — anything running before the drop is already gone.]",
     "connectFailed": "Connection failed: {{error}}",
     "reconnectScheduled": "[Reconnecting in {{seconds}}s. ({{attempt}}/{{max}})]",
-    "reconnectGaveUp": "[Auto-reconnect failed after {{max}} attempts. Use Connect to retry.]"
+    "reconnectGaveUp": "[Auto-reconnect failed after {{max}} attempts. Use Connect to retry.]",
+    "agentDoneTitle": "{{name}} — task finished",
+    "agentDoneBody": "The task running in this terminal finished. ({{seconds}}s)",
+    "agentDoneBodyPlain": "The task running in this terminal finished.",
+    "agentDoneBadge": "Task finished. Open this tab to check.",
+    "agentBusy": "working",
+    "agentBusyHint": "An agent task is detected as running. You will be notified when it finishes."
   },
   "sftp": {
     "title": "SFTP",
@@ -59,6 +65,8 @@
     "notConnected": "SFTP session is not connected.",
     "noServerInfo": "EC2 server information not available.",
     "connect": "Connect",
+    "reconnect": "Reconnect",
+    "reconnecting": "Reconnecting...",
     "followPause": "Stop following (browse elsewhere)",
     "followResume": "Follow the terminal folder again",
     "terminalPath": "Terminal: {{path}}",

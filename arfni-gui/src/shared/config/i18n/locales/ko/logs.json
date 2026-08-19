@@ -39,7 +39,13 @@
     "reconnected": "[재접속했습니다. 새 셸이라서 끊기기 전에 실행 중이던 프로그램은 이미 종료되었습니다.]",
     "connectFailed": "연결 실패: {{error}}",
     "reconnectScheduled": "[{{seconds}}초 후 자동 재접속을 시도합니다. ({{attempt}}/{{max}})]",
-    "reconnectGaveUp": "[자동 재접속을 {{max}}회 시도했지만 실패했습니다. Connect로 직접 다시 시도하세요.]"
+    "reconnectGaveUp": "[자동 재접속을 {{max}}회 시도했지만 실패했습니다. Connect로 직접 다시 시도하세요.]",
+    "agentDoneTitle": "{{name}} — 작업 완료",
+    "agentDoneBody": "터미널에서 실행한 작업이 끝났습니다. ({{seconds}}초 소요)",
+    "agentDoneBodyPlain": "터미널에서 실행한 작업이 끝났습니다.",
+    "agentDoneBadge": "작업이 끝났습니다. 탭을 열어 확인하세요.",
+    "agentBusy": "작업 중",
+    "agentBusyHint": "에이전트가 작업 중인 것으로 감지됐습니다. 끝나면 알림이 옵니다."
   },
   "sftp": {
     "title": "SFTP",
@@ -59,6 +65,8 @@
     "notConnected": "SFTP 세션이 연결되지 않았습니다.",
     "noServerInfo": "EC2 서버 정보가 없습니다.",
     "connect": "연결",
+    "reconnect": "다시 연결",
+    "reconnecting": "다시 연결 중...",
     "followPause": "따라가기 끄기 (다른 폴더 둘러보기)",
     "followResume": "터미널 위치 다시 따라가기",
     "terminalPath": "터미널: {{path}}",

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { computeDropdownPosition, DropdownPosition } from '@shared/lib/dropdownPosition';
-import { FolderTree, Network, Plus, X, Terminal as TerminalIcon, Server } from 'lucide-react';
+import { FolderTree, Network, Plus, X, Terminal as TerminalIcon, Server, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Project, EC2Server, ec2ServerCommands } from '@shared/api/tauri/commands';
 import { SshTab, tabDisplayLabel } from '../model/sshTabs';
 import { parseCwdFromTitle } from '../model/terminalTitle';
+import { AgentDoneEvent, shouldNotifyAgentDone } from '../model/agentActivity';
+import { notifyDesktop, isWindowFocused } from '@shared/lib/desktopNotify';
 import { TerminalView } from './TerminalView';
 import { SftpPanel } from './SftpPanel';
 import { TunnelPanel } from './TunnelPanel';
@@ -34,6 +36,11 @@ const MIN_WIDTH = 260;
 const MIN_TERMINAL_WIDTH = 320;
 const PICKER_WIDTH = 256;
 const PICKER_MAX_HEIGHT = 288;
+/**
+ * Typing into that terminal within this window counts as the user being present,
+ * which is the only case where the notification is skipped.
+ */
+const RECENT_INPUT_MS = 15000;
 
 export function TerminalWorkspace({
   project,
@@ -73,6 +80,11 @@ export function TerminalWorkspace({
   const [dragging, setDragging] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [servers, setServers] = useState<EC2Server[]>([]);
+  /**
+   * Tabs whose agent task finished while the user was not watching. The badge on the
+   * tab label keeps the session findable even when the notification was missed.
+   */
+  const [attention, setAttention] = useState<Record<string, boolean>>({});
 
   const activeTab = useMemo(
     () => tabs.find((tb) => tb.tabId === activeTabId) ?? null,
@@ -90,6 +102,70 @@ export function TerminalWorkspace({
       previous[tabId] === path ? previous : { ...previous, [tabId]: path }
     );
   }, []);
+  /**
+   * Handles an agent task completion.
+   *
+   * Silence needs a narrow set of conditions: the tab is active, the window has focus
+   * and that terminal was typed into moments ago. With only the first two, a user who
+   * had stepped away missed codex waiting on an approval prompt. A window being on
+   * screen does not mean anyone is looking at it.
+   */
+  const handleAgentDone = useCallback(
+    (tab: SshTab, event: AgentDoneEvent) => {
+      const label = tabDisplayLabel(tabs, tab);
+      const seconds = Math.round(event.busyMs / 1000);
+
+      void (async () => {
+        const focused = await isWindowFocused();
+
+        // The badge is left unconditionally, so a missed or disabled toast still
+        // leaves a way to find the session.
+        setAttention((previous) => ({ ...previous, [tab.tabId]: true }));
+
+        const notify = shouldNotifyAgentDone({
+          tabActive: tab.tabId === activeTabId,
+          workspaceHidden: !!hidden,
+          windowFocused: focused,
+          sinceUserInputMs: event.sinceUserInputMs,
+          recentInputMs: RECENT_INPUT_MS,
+        });
+        if (!notify) return;
+
+        await notifyDesktop({
+          title: t('terminal.agentDoneTitle', { name: label }),
+          body:
+            event.body ??
+            (seconds > 0
+              ? t('terminal.agentDoneBody', { seconds })
+              : t('terminal.agentDoneBodyPlain')),
+          skipWhenFocused: false, // 여기까지 왔으면 보고 있지 않다고 판단한 것이다
+          // Flash the taskbar when the window sits behind another app; the toast is
+          // gone in seconds.
+          flashTaskbar: !focused,
+        });
+      })();
+    },
+    [tabs, activeTabId, hidden, t]
+  );
+
+  // Clear the badge once the user actually looks at that tab.
+  useEffect(() => {
+    if (!activeTabId || hidden) return;
+    setAttention((previous) =>
+      previous[activeTabId] ? { ...previous, [activeTabId]: false } : previous
+    );
+  }, [activeTabId, hidden]);
+
+  // Drop badge state for closed tabs so the map does not grow with tab churn.
+  useEffect(() => {
+    setAttention((previous) => {
+      const live = Object.keys(previous).filter((tabId) =>
+        tabs.some((tb) => tb.tabId === tabId)
+      );
+      if (live.length === Object.keys(previous).length) return previous;
+      return Object.fromEntries(live.map((tabId) => [tabId, previous[tabId]]));
+    });
+  }, [tabs]);
 
   useEffect(() => {
     localStorage.setItem(PANEL_KEY, sidePanel ?? '');
@@ -265,6 +341,12 @@ export function TerminalWorkspace({
               }`}
             />
             <span className="truncate">{tabDisplayLabel(tabs, tab)}</span>
+            {attention[tab.tabId] && tab.tabId !== activeTabId && (
+              // A title attribute on an svg is not a tooltip, it needs the span.
+              <span className="flex-shrink-0" title={t('terminal.agentDoneBadge')}>
+                <Bell className="w-3 h-3 text-amber-500" />
+              </span>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -363,6 +445,7 @@ export function TerminalWorkspace({
               // 탭마다 자기 경로를 계속 기록하고, SFTP는 활성 탭 것만 읽어 간다.
               onTitleChange={(title) => rememberCwd(tab.tabId, parseCwdFromTitle(title))}
               onCwdDetected={(path) => rememberCwd(tab.tabId, path)}
+              onAgentDone={(event) => handleAgentDone(tab, event)}
               headerExtra={headerExtra}
             />
           ))

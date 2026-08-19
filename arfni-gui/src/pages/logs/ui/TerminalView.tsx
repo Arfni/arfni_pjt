@@ -4,6 +4,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { attachSink, startSshDataBus } from '../model/sshDataBus';
 import { findCwdOnScreen } from '../model/terminalTitle';
 import { sanitizePasteText } from '../model/pasteText';
+import {
+  createAgentActivityDetector,
+  AgentActivityDetector,
+  AgentDoneEvent,
+} from '../model/agentActivity';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
@@ -37,6 +42,11 @@ interface TerminalViewProps {
   onCwdDetected?: (path: string) => void;
   /** 헤더 우측 버튼 영역에 끼워넣을 추가 컨트롤 (예: SFTP 패널 토글) */
   headerExtra?: React.ReactNode;
+  /**
+   * Fired when a coding agent (claude, codex, ...) in this terminal finishes.
+   * See `agentActivity` for how that is decided.
+   */
+  onAgentDone?: (event: AgentDoneEvent) => void;
 }
 
 const THEME = {
@@ -90,6 +100,7 @@ export function TerminalView({
   onTitleChange,
   onCwdDetected,
   headerExtra,
+  onAgentDone,
 }: TerminalViewProps) {
   const { t } = useTranslation('logs');
   const hostRef = useRef<HTMLDivElement>(null);
@@ -114,10 +125,18 @@ export function TerminalView({
   useEffect(() => {
     onCwdDetectedRef.current = onCwdDetected;
   }, [onCwdDetected]);
+  const onAgentDoneRef = useRef(onAgentDone);
+  useEffect(() => {
+    onAgentDoneRef.current = onAgentDone;
+  }, [onAgentDone]);
+  /** Completion detector, sharing its lifetime with the terminal instance. */
+  const agentRef = useRef<AgentActivityDetector | null>(null);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  /** Whether an agent is detected as working. Drives the header indicator only. */
+  const [agentBusy, setAgentBusy] = useState(false);
 
 
   // sessionId를 ref로 미러링 — onData 콜백은 마운트 시 한 번만 등록되므로 최신 값을 ref로 읽는다.
@@ -174,6 +193,9 @@ export function TerminalView({
     const dataSub = term.onData((data) => {
       const id = sessionIdRef.current;
       if (!id) return;
+      // Keystrokes end the current run: typing echo must not read as output flow,
+      // and this is also where "the user was just here" comes from.
+      agentRef.current?.noteUserInput();
       void invoke('ssh_write', { id, data }).catch(() => {});
     });
 
@@ -196,6 +218,33 @@ export function TerminalView({
     // 셸에 아무것도 주입하지 않고 SFTP 패널을 따라가게 할 수 있다.
     const titleSub = term.onTitleChange((title) => {
       onTitleChangeRef.current?.(title);
+    });
+
+    // --- coding agent completion detection ---
+    const agent = createAgentActivityDetector({
+      onDone: (event) => onAgentDoneRef.current?.(event),
+      // Header indicator: the only way to tell a failed detection from a deliberate
+      // silence when no notification arrives.
+      onBusyChange: setAgentBusy,
+    });
+    agentRef.current = agent;
+
+    // BEL from claude`s terminal_bell notification channel.
+    const bellSub = term.onBell(() => agent.signal('bell'));
+
+    // OSC 9 (iTerm2 family) and OSC 777 (notify;title;body). A codex `notify` hook or
+    // any remote script emitting these turns straight into a notification.
+    const osc9 = term.parser.registerOscHandler(9, (data) => {
+      // ConEmu progress (`9;4;...`) is not a notification, leave it to other handlers.
+      if (data.startsWith('4;')) return false;
+      agent.signal('osc', data.trim() || undefined);
+      return true;
+    });
+    const osc777 = term.parser.registerOscHandler(777, (data) => {
+      const parts = data.split(';');
+      if (parts[0] !== 'notify') return false;
+      agent.signal('osc', parts.slice(1).filter(Boolean).join(' - ') || undefined);
+      return true;
     });
 
     // 붙여넣기는 반드시 term.paste()를 거친다.
@@ -279,6 +328,11 @@ export function TerminalView({
       ro.disconnect();
       dataSub.dispose();
       titleSub.dispose();
+      bellSub.dispose();
+      osc9.dispose();
+      osc777.dispose();
+      agent.dispose();
+      agentRef.current = null;
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
@@ -307,7 +361,12 @@ export function TerminalView({
 
     // 출력이 화면에 반영된 뒤 프롬프트에서 cwd를 읽는다.
     // tmux(지속 세션)는 창 제목을 바깥으로 흘려보내지 않으므로 이 경로가 유일한 단서다.
+    // Detection needs the spinner frames as text, and UTF-8 can split on a chunk
+    // boundary, so one streaming decoder per session feeds it continuously.
+    const decoder = new TextDecoder('utf-8');
+
     return attachSink(sessionId, (bytes) => {
+      agentRef.current?.feed(decoder.decode(bytes, { stream: true }));
       term.write(bytes, () => {
         const cwd = findCwdOnScreen(term.buffer.active);
         if (cwd) onCwdDetectedRef.current?.(cwd);
@@ -411,6 +470,18 @@ export function TerminalView({
               </span>
             )}
           </div>
+          {/* Detection indicator. Never lighting up means detection failed; lighting
+              and going out with no notification points at the notify policy or OS
+              permission instead. */}
+          {agentBusy && (
+            <span
+              className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50 text-amber-700 text-xs font-medium flex-shrink-0"
+              title={t('terminal.agentBusyHint')}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              {t('terminal.agentBusy')}
+            </span>
+          )}
         </div>
 
         <div className="flex gap-2">
