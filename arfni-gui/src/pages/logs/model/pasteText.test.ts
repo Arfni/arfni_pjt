@@ -3,14 +3,14 @@ import { isMultilinePaste, sanitizePasteText } from './pasteText';
 
 describe('sanitizePasteText', () => {
   it('끝의 개행을 떼어내 즉시 실행을 막는다', () => {
-    // 이게 "우클릭했더니 명령이 바로 실행됨"의 원인
+    // This is what caused "right clicked and the command ran immediately"
     expect(sanitizePasteText('docker ps\n')).toBe('docker ps');
     expect(sanitizePasteText('docker ps\r\n')).toBe('docker ps');
     expect(sanitizePasteText('docker ps\n\n\n')).toBe('docker ps');
   });
 
   it('중간 개행은 그대로 둔다', () => {
-    // 여러 줄 붙여넣기는 bracketed paste가 처리한다. 내용을 바꾸면 안 된다.
+    // Bracketed paste handles multi-line input, so the content must not be altered.
     expect(sanitizePasteText('cd /opt\ndocker ps\n')).toBe('cd /opt\ndocker ps');
   });
 
@@ -19,7 +19,7 @@ describe('sanitizePasteText', () => {
   });
 
   it('앞뒤 공백은 건드리지 않는다', () => {
-    // 들여쓰기가 의미 있는 경우(YAML 등)를 깨면 안 된다
+    // Indentation that carries meaning, as in YAML, must survive
     expect(sanitizePasteText('  indented\n')).toBe('  indented');
     expect(sanitizePasteText('trailing spaces   \n')).toBe('trailing spaces   ');
   });

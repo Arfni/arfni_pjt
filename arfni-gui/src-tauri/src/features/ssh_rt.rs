@@ -26,29 +26,29 @@ pub struct SshParams {
   pub pem_path: String, // PEM 절대 경로
 }
 
-/// 상태/알림 계열 이벤트 (사람이 읽는 텍스트)
+/// Status and notice events, carrying human readable text
 #[derive(Debug, Clone, Serialize)]
 pub struct SshDataEvent {
   pub id: String,
   pub chunk: String,
 }
 
-/// 세션 종료 이벤트.
+/// Session close event.
 ///
-/// `clean`이 왜 필요한가: PTY EOF만 보면 "사용자가 셸에서 exit 했다"와
-/// "ServerAliveInterval 한도를 넘겨 연결이 끊겼다"가 완전히 같은 모양이다.
-/// 프론트가 이 둘을 구분하지 못하면 정상 종료한 탭까지 자동 재접속으로 되살린다.
+/// Why `clean` exists: a pty EOF looks identical for "the user typed exit" and "the
+/// link went past ServerAliveInterval and dropped". Unable to tell them apart, the
+/// frontend would revive tabs the user closed on purpose.
 #[derive(Debug, Clone, Serialize)]
 pub struct SshClosedEvent {
   pub id: String,
   pub chunk: String,
-  /// 원격 셸이 정상 종료했으면 true. 연결이 끊겨 ssh가 죽었으면 false.
+  /// True when the remote shell exited normally, false when ssh died with the link.
   pub clean: bool,
 }
 
-/// PTY 원본 바이트 스트림 이벤트.
-/// ANSI 이스케이프가 그대로 들어있으므로 프론트의 터미널 에뮬레이터(xterm.js)가 해석한다.
-/// UTF-8 경계가 청크 중간에서 잘릴 수 있어 base64로 전송한다.
+/// Raw pty byte stream event. ANSI escapes are left in place for the terminal emulator
+/// on the frontend (xterm.js) to interpret, and the payload is base64 because a UTF-8
+/// boundary can fall in the middle of a chunk.
 #[derive(Debug, Clone, Serialize)]
 pub struct SshBytesEvent {
   pub id: String,
@@ -70,24 +70,24 @@ struct SshHandle {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TunnelKind {
-  /// -L : 로컬 포트를 열고 원격 쪽에서 target_host:target_port로 연결
+  /// -L : opens a local port and connects to target_host:target_port from the remote side
   Local,
-  /// -R : 원격 포트를 열고 이쪽에서 target_host:target_port로 연결
+  /// -R : opens a remote port and connects to target_host:target_port from this side
   Remote,
-  /// -D : 로컬에 SOCKS5 프록시를 연다
+  /// -D : opens a SOCKS5 proxy locally
   Dynamic,
 }
 
-/// ssh의 -L/-R/-D 문법을 그대로 옮긴 형태.
-/// 필드 이름을 ssh 인자 순서(bind → target)에 맞춰야 -L/-R에서 방향이 헷갈리지 않는다.
+/// A direct transcription of ssh's -L, -R and -D syntax. The field names follow the ssh
+/// argument order (bind then target) so the direction of -L and -R stays unambiguous.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TunnelSpec {
   pub kind: TunnelKind,
-  /// -L/-D는 로컬에서, -R은 원격에서 바인드할 주소
+  /// Address to bind: locally for -L and -D, on the remote for -R
   #[serde(default)]
   pub bind_address: Option<String>,
   pub bind_port: u16,
-  /// -D에서는 쓰이지 않는다
+  /// Unused for -D
   #[serde(default)]
   pub target_host: Option<String>,
   #[serde(default)]
@@ -105,9 +105,9 @@ pub struct TunnelInfo {
   pub target_host: Option<String>,
   pub target_port: Option<u16>,
   pub label: Option<String>,
-  /// ssh 접속 대상 (user@host)
+  /// ssh target (user@host)
   pub via: String,
-  /// UI에 그대로 쓸 수 있는 한 줄 설명
+  /// One line description the UI can show as is
   pub description: String,
 }
 
@@ -119,17 +119,17 @@ struct TunnelHandle {
   child: StdChild,
   spec: TunnelSpec,
   via: String,
-  /// 종료 사유를 알려주기 위해 stderr 마지막 줄들을 들고 있는다
+  /// Keeps the last stderr lines so the exit reason can be reported
   stderr_tail: Arc<Mutex<Vec<String>>>,
 }
 
-// 글로벌 세션 맵
+// Global session map
 static SESSIONS: OnceCell<Mutex<HashMap<Uuid, SshHandle>>> = OnceCell::new();
 fn sessions() -> &'static Mutex<HashMap<Uuid, SshHandle>> {
   SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-// 글로벌 터널 맵
+// Global tunnel map
 static TUNNELS: OnceCell<Mutex<HashMap<Uuid, TunnelHandle>>> = OnceCell::new();
 fn tunnels() -> &'static Mutex<HashMap<Uuid, TunnelHandle>> {
   TUNNELS.get_or_init(|| Mutex::new(HashMap::new()))
@@ -137,10 +137,10 @@ fn tunnels() -> &'static Mutex<HashMap<Uuid, TunnelHandle>> {
 
 // ============ Session API ============
 
-/// tmux 세션 이름으로 쓸 수 있게 식별자를 다듬는다.
+/// Sanitises an identifier so it can serve as a tmux session name.
 ///
-/// 이 값은 원격 셸 명령 문자열에 그대로 박히므로 셸 메타문자가 절대 들어가면 안 된다.
-/// tmux 자체도 세션 이름에 `.`과 `:`를 허용하지 않는다.
+/// The value is pasted straight into a remote shell command, so no shell metacharacter
+/// may survive. tmux itself also rejects `.` and `:` in session names.
 fn sanitize_session_key(key: &str) -> String {
   let cleaned: String = key
     .chars()
@@ -154,16 +154,17 @@ fn sanitize_session_key(key: &str) -> String {
   }
 }
 
-/// 연결이 끊겨도 원격 작업이 살아남도록 셸을 tmux로 감싸는 원격 명령을 만든다.
+/// Builds the remote command that wraps the shell in tmux so work survives a drop.
 ///
-/// 설계 이유:
-/// - `new-session -A`: 세션이 있으면 붙고 없으면 만든다. 재접속이 곧 복원이 된다.
-/// - `mouse off`: tmux가 마우스를 가져가면 xterm.js의 드래그 선택과 우클릭
-///   복사/붙여넣기가 전부 죽는다. 마우스는 프론트가 계속 소유해야 한다.
-/// - 대신 Alt+위/아래에만 스크롤을 걸어 둔다. 프론트가 휠을 이 키로 바꿔 보내면
-///   마우스를 뺏기지 않고도 스크롤백을 볼 수 있다. `copy-mode -e`라서 바닥에
-///   닿으면 스스로 빠져나온다.
-/// - tmux가 없는 서버에서는 조용히 평소 로그인 셸로 떨어진다.
+/// Reasoning:
+/// - `new-session -A`: attach if it exists, create otherwise, which turns a reconnect
+///   into a restore.
+/// - `mouse off`: once tmux owns the mouse, xterm.js loses drag selection and right
+///   click copy and paste. The frontend has to keep the mouse.
+/// - scrolling is bound to Alt with up and down instead, so the frontend can translate
+///   the wheel into those keys and reach the scrollback without giving up the mouse.
+///   `copy-mode -e` also leaves itself once it hits the bottom.
+/// - on a server without tmux this falls back quietly to the normal login shell.
 fn tmux_wrapped_command(session_key: &str) -> String {
   let name = format!("arfni-{}", sanitize_session_key(session_key));
   format!(
@@ -178,11 +179,13 @@ fn tmux_wrapped_command(session_key: &str) -> String {
   )
 }
 
-/// 로컬 PTY(윈도우는 ConPTY) 안에서 ssh를 띄우고, PTY 출력 전체를 원본 바이트로 스트리밍한다.
+/// Spawns ssh inside a local pty (ConPTY on Windows) and streams all of its output as
+/// raw bytes.
 ///
-/// 이전 구현은 `Stdio::piped()` + `BufReader::lines()` 였다. 그 경우
-/// - 개행이 오기 전까지 아무것도 emit되지 않아 codex/vim/htop 같은 full-screen TUI가 화면에 뜨지 않고
-/// - 로컬에 tty가 없어 rows/cols 협상이 불가능했다.
+/// The previous implementation used `Stdio::piped()` with `BufReader::lines()`, where
+/// - nothing was emitted until a newline arrived, so full screen tuis such as codex, vim
+///   or htop never appeared, and
+/// - without a local tty there was no way to negotiate rows and cols.
 pub fn start_interactive_session(
   app: AppHandle,
   params: SshParams,
@@ -215,10 +218,10 @@ pub fn start_interactive_session(
   cmd.arg("-o");
   cmd.arg("ServerAliveCountMax=3");
   cmd.arg(&target);
-  // BatchMode는 켜지 않는다. 패스프레이즈/호스트키 프롬프트를 터미널에서 직접 입력할 수 있어야 한다.
+  // BatchMode stays off so passphrase and host key prompts can be answered in the terminal.
 
-  // 원격 명령을 붙이면 로그인 셸 대신 그 명령이 실행된다.
-  // tmux가 죽거나 없는 경우까지 명령 안에서 처리하므로 여기서 분기하지 않는다.
+  // A remote command replaces the login shell. The command itself handles a missing or
+  // dying tmux, so there is no branch here.
   if persistent {
     let wrapped = tmux_wrapped_command(session_key.unwrap_or("default"));
     println!("[ssh_rt] persistent session enabled (tmux)");
@@ -232,8 +235,8 @@ pub fn start_interactive_session(
     .spawn_command(cmd)
     .context("failed to spawn ssh inside pty")?;
 
-  // slave는 자식에게 넘어갔으므로 부모 쪽 핸들은 즉시 닫는다.
-  // (닫지 않으면 자식이 죽어도 master 쪽 read가 EOF를 보지 못한다)
+  // The slave went to the child, so the parent handle is closed at once; kept open, the
+  // master side would never see EOF even after the child dies.
   drop(pair.slave);
 
   let mut reader = pair
@@ -247,9 +250,9 @@ pub fn start_interactive_session(
 
   let id = Uuid::new_v4();
 
-  // 리더 스레드보다 먼저 맵에 등록한다.
-  // 순서가 뒤바뀌면 ssh가 즉시 실패했을 때 리더가 remove(None)을 보고 ssh:closed를 못 쏘고,
-  // 그 뒤 insert된 핸들이 맵에 좀비로 남는다.
+  // Registered in the map before the reader thread starts. The other order means an ssh
+  // that fails instantly makes the reader see remove(None), skip ssh:closed, and leave
+  // the handle inserted afterwards as a zombie.
   sessions().lock().insert(
     id,
     SshHandle {
@@ -260,7 +263,7 @@ pub fn start_interactive_session(
     },
   );
 
-  // --- PTY reader: 원본 바이트 그대로 밀어올린다 ---
+  // --- pty reader: pushes raw bytes upwards ---
   let app_reader = app.clone();
   thread::spawn(move || {
     let mut buf = [0u8; 8192];
@@ -281,13 +284,14 @@ pub fn start_interactive_session(
       }
     }
 
-    // 세션 정리 + 종료 통지.
-    // close_session()이 먼저 지웠다면 여기서는 아무것도 하지 않는다 (ssh:closed 중복 방지).
+    // Cleans up the session and reports the close. When close_session() already removed
+    // it, nothing happens here, which keeps ssh:closed from firing twice.
     let removed = sessions().lock().remove(&id);
     if let Some(mut h) = removed {
-      // 자식을 거둬 종료 코드를 확인한다. EOF가 이미 왔으므로 즉시 반환된다.
-      // ssh(1)은 연결 실패/끊김에 255를 쓰고, 그 외에는 원격 셸의 종료 코드를 그대로 돌려준다.
-      // 그래서 255가 아니면 사용자가 exit 등으로 끝낸 것이고, 자동 재접속으로 되살리면 안 된다.
+      // Reaps the child for its exit code, returning immediately since EOF already came.
+      // ssh(1) uses 255 for a failed or dropped connection and otherwise passes the remote
+      // shell's code through, so anything else means the user ended it and it must not be
+      // revived.
       let clean = matches!(h.child.wait(), Ok(status) if status.exit_code() != 255);
       let _ = app_reader.emit(
         "ssh:closed",
@@ -306,8 +310,8 @@ pub fn start_interactive_session(
   Ok(id)
 }
 
-/// 키 입력을 PTY에 원본 그대로 write 한다.
-/// 개행을 임의로 붙이지 않는다 — Ctrl+C(0x03), ESC 시퀀스, Tab 자동완성이 그대로 전달되어야 한다.
+/// Writes key input to the pty verbatim, adding no newline of its own: Ctrl+C (0x03),
+/// escape sequences and tab completion all have to pass through untouched.
 pub fn write_bytes(id: Uuid, data: &[u8]) -> Result<()> {
   let mut map = sessions().lock();
   let h = map.get_mut(&id).context("session not found")?;
@@ -316,7 +320,7 @@ pub fn write_bytes(id: Uuid, data: &[u8]) -> Result<()> {
   Ok(())
 }
 
-/// 터미널 크기 변경을 PTY에 전파한다 (원격으로 SIGWINCH가 전달된다).
+/// Propagates a terminal resize to the pty, which sends SIGWINCH to the remote.
 pub fn resize_session(id: Uuid, rows: u16, cols: u16) -> Result<()> {
   let map = sessions().lock();
   let h = map.get(&id).context("session not found")?;
@@ -331,13 +335,13 @@ pub fn resize_session(id: Uuid, rows: u16, cols: u16) -> Result<()> {
   Ok(())
 }
 
-/// 세션 종료: 해당 세션의 자식 프로세스만 죽인다.
+/// Closes a session, killing only that session's child process.
 pub fn close_session(app: &AppHandle, id: Uuid) -> Result<()> {
   let removed = sessions().lock().remove(&id);
   if let Some(mut h) = removed {
     let _ = h.child.kill();
     let _ = h.child.wait();
-    // 사용자가 직접 끊었으므로 정상 종료다. 되살리지 않는다.
+    // The user disconnected, so this is a clean exit and nothing is revived.
     let _ = app.emit(
       "ssh:closed",
       SshClosedEvent {
@@ -353,7 +357,7 @@ pub fn close_session(app: &AppHandle, id: Uuid) -> Result<()> {
   }
 }
 
-/// 앱 종료 시, 이 앱이 띄운 세션만 정리한다.
+/// On app shutdown, cleans up only the sessions this app started.
 pub fn close_all_sessions(app: &AppHandle) {
   let ids: Vec<Uuid> = sessions().lock().keys().cloned().collect();
   for id in ids {
@@ -390,7 +394,7 @@ pub fn tunnel_target_host(spec: &TunnelSpec) -> String {
     .to_string()
 }
 
-/// TunnelSpec을 ssh 인자 한 쌍으로 바꾼다. 순수 함수라 단독으로 검증할 수 있다.
+/// Turns a TunnelSpec into the pair of ssh arguments. Pure, so it can be tested alone.
 ///
 /// - Local:   `-L bind:bindPort:target:targetPort`
 /// - Remote:  `-R bind:bindPort:target:targetPort`
@@ -402,7 +406,7 @@ pub fn build_forward_arg(spec: &TunnelSpec) -> Result<(&'static str, String)> {
 
   let bind = tunnel_bind_address(spec);
   if bind.contains(':') {
-    // ssh의 -L 문법은 콜론으로 필드를 나눈다. IPv6 리터럴은 그대로 못 쓴다.
+    // ssh's -L syntax splits fields on colons, so an IPv6 literal cannot be used as is.
     anyhow::bail!("bind address must not contain ':' (got {bind})");
   }
 
@@ -423,7 +427,7 @@ pub fn build_forward_arg(spec: &TunnelSpec) -> Result<(&'static str, String)> {
   }
 }
 
-/// UI/로그에 그대로 쓰는 한 줄 설명.
+/// One line description used directly in the UI and logs.
 pub fn describe_tunnel(spec: &TunnelSpec, via: &str) -> String {
   let bind = tunnel_bind_address(spec);
   match spec.kind {
@@ -443,8 +447,8 @@ pub fn describe_tunnel(spec: &TunnelSpec, via: &str) -> String {
   }
 }
 
-/// 로컬에 바인드하는 터널은 미리 포트를 잡아본다.
-/// 안 하면 ssh가 "bind: Address already in use"만 남기고 죽어서 원인을 알기 어렵다.
+/// A tunnel that binds locally probes the port first. Without it ssh just dies leaving
+/// "bind: Address already in use", which says little about the cause.
 fn ensure_local_port_free(spec: &TunnelSpec) -> Result<()> {
   if matches!(spec.kind, TunnelKind::Remote) {
     return Ok(()); // -R은 원격에서 바인드한다
@@ -476,7 +480,7 @@ fn tunnel_info(id: Uuid, h: &TunnelHandle) -> TunnelInfo {
   }
 }
 
-/// SSH 터널 생성 (포트 포워딩만, 명령 실행 없음)
+/// Creates an ssh tunnel: port forwarding only, no command execution.
 pub fn open_tunnel(app: AppHandle, params: SshParams, spec: TunnelSpec) -> Result<Uuid> {
   let (flag, forward) = build_forward_arg(&spec)?;
   ensure_local_port_free(&spec)?;
@@ -510,7 +514,7 @@ pub fn open_tunnel(app: AppHandle, params: SshParams, spec: TunnelSpec) -> Resul
     .stdout(Stdio::piped())
     .stderr(Stdio::piped());
 
-  // Windows에서 콘솔 창 숨김
+  // Hides the console window on Windows
   #[cfg(target_os = "windows")]
   {
     const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -522,7 +526,7 @@ pub fn open_tunnel(app: AppHandle, params: SshParams, spec: TunnelSpec) -> Resul
   let id = Uuid::new_v4();
   let stderr_tail: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
 
-  // stderr 모니터링. 이벤트로 올리는 동시에 종료 사유용으로 마지막 줄들을 남긴다.
+  // Watches stderr, both emitting events and keeping the last lines as an exit reason.
   if let Some(stderr) = child.stderr.take() {
     let app_stderr = app.clone();
     let tail = stderr_tail.clone();
@@ -573,7 +577,7 @@ pub fn open_tunnel(app: AppHandle, params: SshParams, spec: TunnelSpec) -> Resul
   Ok(id)
 }
 
-/// monitoring.rs용 단축 헬퍼: 로컬 포트 → 원격 localhost 포트
+/// Shorthand for monitoring.rs: local port to remote localhost port
 pub fn open_local_tunnel(
   app: AppHandle,
   params: SshParams,
@@ -601,7 +605,7 @@ pub fn list_tunnels() -> Vec<TunnelInfo> {
   out
 }
 
-/// 터널 종료
+/// Closes a tunnel
 pub fn close_tunnel(app: &AppHandle, id: Uuid) -> Result<()> {
   let removed = tunnels().lock().remove(&id);
   if let Some(mut h) = removed {
@@ -621,7 +625,7 @@ pub fn close_tunnel(app: &AppHandle, id: Uuid) -> Result<()> {
   }
 }
 
-/// 모든 터널 종료 (이 앱이 띄운 것만)
+/// Closes every tunnel this app started
 pub fn close_all_tunnels(app: &AppHandle) {
   let ids: Vec<Uuid> = tunnels().lock().keys().cloned().collect();
   for id in ids {
@@ -629,12 +633,12 @@ pub fn close_all_tunnels(app: &AppHandle) {
   }
 }
 
-/// 종료된 ssh 프로세스를 가진 터널을 맵에서 걷어내고 종료 사유를 돌려준다.
+/// Removes tunnels whose ssh process exited from the map and returns the exit reason.
 ///
-/// 이게 없으면 네트워크가 끊기거나 원격이 포워딩을 거부해서 ssh가 죽어도
-/// 맵에는 계속 "열림"으로 남아 UI가 거짓말을 한다.
+/// Without it, an ssh killed by a dropped network or a refused forwarding stays "open"
+/// in the map and the UI lies about it.
 ///
-/// emit과 분리해 둔 이유는 AppHandle 없이 단독으로 검증하기 위해서다.
+/// Kept apart from the emit so it can be verified without an AppHandle.
 fn reap_dead_tunnels() -> Vec<(Uuid, String)> {
   let mut dead = Vec::new();
   let mut map = tunnels().lock();
@@ -698,10 +702,10 @@ mod tests {
     }
   }
 
-  // ---- tmux 영속 세션 ----
+  // ---- tmux persistent sessions ----
   //
-  // sanitize_session_key의 결과는 원격 셸이 해석하는 명령 문자열에 그대로 들어간다.
-  // 여기서 새는 문자가 하나라도 있으면 원격 명령 실행이다.
+  // The result of sanitize_session_key goes straight into a command string the remote
+  // shell parses; a single leaked character is remote command execution.
 
   #[test]
   fn session_key_keeps_ordinary_identifiers() {
@@ -716,7 +720,7 @@ mod tests {
 
   #[test]
   fn session_key_strips_shell_metacharacters() {
-    // 통과하면 tmux 세션 이름 자리에서 임의 명령이 실행된다
+    // getting through here would run an arbitrary command in the session name slot
     for (input, expected) in [
       ("a; rm -rf /", "arm-rf"),
       ("a && whoami", "awhoami"),
@@ -735,14 +739,14 @@ mod tests {
 
   #[test]
   fn session_key_strips_characters_tmux_rejects() {
-    // tmux는 세션 이름에 '.'과 ':'를 허용하지 않는다
+    // tmux does not allow '.' or ':' in a session name
     assert_eq!(sanitize_session_key("ec2-1-2-3-4.compute.amazonaws.com"), "ec2-1-2-3-4computeamazonawscom");
     assert_eq!(sanitize_session_key("host:22"), "host22");
   }
 
   #[test]
   fn session_key_falls_back_when_nothing_survives() {
-    // 빈 이름을 넘기면 `tmux new-session -A -s arfni-` 가 되어 명령이 깨진다
+    // an empty name would produce `tmux new-session -A -s arfni-` and break the command
     assert_eq!(sanitize_session_key(""), "default");
     assert_eq!(sanitize_session_key("...:::"), "default");
     assert_eq!(sanitize_session_key("한글만"), "default");
@@ -759,9 +763,9 @@ mod tests {
   fn tmux_command_uses_the_sanitized_name_and_falls_back_to_login_shell() {
     let cmd = tmux_wrapped_command("web-01");
     assert!(cmd.contains("new-session -A -s arfni-web-01"), "{cmd}");
-    // tmux가 없는 서버에서도 로그인 셸로 떨어져야 한다
+    // a server without tmux still has to fall back to the login shell
     assert!(cmd.contains(r#"exec "$SHELL" -l"#), "{cmd}");
-    // 마우스를 tmux가 가져가면 xterm의 드래그 선택/우클릭이 죽는다
+    // tmux owning the mouse would kill xterm's drag selection and right click
     assert!(cmd.contains("mouse off"), "{cmd}");
   }
 
@@ -769,7 +773,7 @@ mod tests {
   fn tmux_command_does_not_let_the_key_escape() {
     let cmd = tmux_wrapped_command("evil; rm -rf /");
     assert!(cmd.contains("arfni-evilrm-rf"), "{cmd}");
-    // 정제 후 이름 뒤에는 원래 명령 구분자만 남아야 한다
+    // after sanitising, only the original command separators may follow the name
     assert!(!cmd.contains("rm -rf /"), "{cmd}");
   }
 
@@ -782,7 +786,7 @@ mod tests {
 
   #[test]
   fn local_forward_can_reach_a_third_host() {
-    // EC2에서만 보이는 RDS 같은 경우
+    // e.g. an RDS instance only reachable from the EC2 host
     let mut s = spec(TunnelKind::Local, 5432, Some(5432));
     s.target_host = Some("db.internal".into());
     let (flag, arg) = build_forward_arg(&s).unwrap();
@@ -815,7 +819,7 @@ mod tests {
   fn local_forward_requires_a_target_port() {
     let err = build_forward_arg(&spec(TunnelKind::Local, 9091, None)).unwrap_err();
     assert!(err.to_string().contains("target port"), "{err}");
-    // 0도 미지정과 같게 취급해야 ssh에 ":0"이 넘어가지 않는다
+    // zero has to read as unset, otherwise ":0" reaches ssh
     assert!(build_forward_arg(&spec(TunnelKind::Local, 9091, Some(0))).is_err());
   }
 
@@ -826,7 +830,7 @@ mod tests {
 
   #[test]
   fn colons_in_hosts_are_rejected() {
-    // ssh 인자는 콜론으로 필드를 나눈다. 통과시키면 포워딩 대상이 조용히 바뀐다.
+    // ssh arguments split on colons; letting one through silently retargets the forward
     let mut s = spec(TunnelKind::Local, 9091, Some(9090));
     s.bind_address = Some("::1".into());
     assert!(build_forward_arg(&s).is_err());
@@ -857,17 +861,17 @@ mod tests {
     let err = ensure_local_port_free(&busy).unwrap_err();
     assert!(err.to_string().contains("not available"), "{err}");
 
-    // -R은 원격에서 바인드하므로 로컬 점유와 무관해야 한다
+    // -R binds on the remote, so a local occupant is irrelevant
     assert!(ensure_local_port_free(&spec(TunnelKind::Remote, port, Some(9090))).is_ok());
 
     drop(listener);
   }
 
-  /// ssh가 죽으면 터널이 목록에서 사라져야 한다.
-  /// 수거가 없으면 UI가 끊어진 터널을 계속 "열림"으로 보여준다.
+  /// A dead ssh has to disappear from the list; without reaping, the UI keeps showing a
+  /// broken tunnel as "open".
   #[test]
   fn reaper_removes_tunnels_whose_ssh_exited() {
-    // 바로 종료되는 프로세스를 ssh 대신 세워 종료 감지만 검증한다.
+    // Stands in a process that exits immediately for ssh, to test only the detection.
     let mut cmd = if cfg!(windows) {
       let mut c = Command::new("cmd.exe");
       c.args(["/c", "exit", "3"]);
@@ -896,10 +900,10 @@ mod tests {
       },
     );
 
-    // 살아 있는 동안에는 목록에 있어야 한다
+    // while alive it must stay in the list
     assert!(list_tunnels().iter().any(|t| t.id == id.to_string()));
 
-    // 자식이 실제로 끝날 때까지 기다린다
+    // wait until the child has really finished
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     let mut reaped: Vec<(Uuid, String)> = Vec::new();
     while std::time::Instant::now() < deadline {
@@ -915,11 +919,11 @@ mod tests {
       .find(|(rid, _)| *rid == id)
       .expect("죽은 터널이 수거되지 않았다");
 
-    // 종료 사유(stderr 마지막 줄)가 메시지에 실려야 원인을 알 수 있다
+    // the exit reason (last stderr lines) has to ride along or the cause is lost
     assert!(chunk.contains("closed unexpectedly"), "{chunk}");
     assert!(chunk.contains("Address already in use"), "{chunk}");
 
-    // 맵에서도 빠져야 한다
+    // it must be gone from the map as well
     assert!(!list_tunnels().iter().any(|t| t.id == id.to_string()));
   }
 }

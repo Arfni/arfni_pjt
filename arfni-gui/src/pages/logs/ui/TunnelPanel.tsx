@@ -60,7 +60,7 @@ export function TunnelPanel({ server, onClose }: TunnelPanelProps) {
     void refresh();
   }, [refresh]);
 
-  // 터널이 열리거나(수동/자동) ssh가 죽어서 reaper가 수거하면 목록을 다시 읽는다.
+  // Refetch the list when a tunnel opens, manually or not, or the reaper collects a dead ssh.
   useEffect(() => {
     const subs = ['tunnel:opened', 'tunnel:closed'].map((evt) =>
       listen(evt, () => void refresh())
@@ -85,7 +85,7 @@ export function TunnelPanel({ server, onClose }: TunnelPanelProps) {
 
     const invalid = validateSpec(spec);
     if (invalid) {
-      // params.field는 필드 이름의 i18n 키다. 한 번 더 번역해서 넣는다.
+      // params.field is the i18n key of the field name, so it is translated once more.
       setError(
         t(invalid.key, invalid.params ? { field: t(invalid.params.field) } : undefined)
       );

@@ -1,15 +1,15 @@
 import { listen } from '@tauri-apps/api/event';
 
 /**
- * PTY 출력 버스.
+ * Pty output bus.
  *
- * Rust의 reader 스레드는 `ssh_start`가 IPC로 돌아오기 **전에** 이미 `ssh:data`를 쏘기 시작한다.
- * 반면 프론트가 "내 세션 id"를 아는 시점은 invoke가 resolve되고 React가 리렌더된 뒤다.
- * 그 사이에 도착한 바이트를 버리면 SSH 배너와 첫 프롬프트가 통째로 사라져서,
- * 접속은 됐는데 화면이 빈 채 멈춘 것처럼 보인다.
+ * The Rust reader thread starts emitting `ssh:data` **before** `ssh_start` returns over
+ * IPC, while the frontend only learns its own session id after that invoke resolves and
+ * React re-renders. Dropping the bytes in between loses the ssh banner and the first
+ * prompt, which looks like a connected session stuck on an empty screen.
  *
- * 그래서 구독은 모듈 로드 시점에 한 번만 걸어 두고, 아직 주인이 없는 세션의 출력은
- * 버퍼에 쌓아 두었다가 `attachSink`가 붙는 순간 순서대로 흘려준다.
+ * So the subscription is installed once at module load, and output for a session with
+ * no owner yet is buffered and replayed in order the moment `attachSink` arrives.
  */
 
 type Sink = (bytes: Uint8Array) => void;
@@ -17,7 +17,7 @@ type Sink = (bytes: Uint8Array) => void;
 const sinks = new Map<string, Sink>();
 const pending = new Map<string, Uint8Array[]>();
 
-/** 주인 없는 세션 버퍼가 무한정 늘어나지 않도록 상한을 둔다. */
+/** Cap so an unowned session buffer cannot grow without bound. */
 const MAX_PENDING_CHUNKS = 2048;
 
 export function b64ToBytes(b64: string): Uint8Array {
@@ -27,7 +27,7 @@ export function b64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
-/** 이벤트 페이로드를 버스에 넣는다. */
+/** Pushes an event payload onto the bus. */
 export function pushSessionData(id: string, bytes: Uint8Array) {
   const sink = sinks.get(id);
   if (sink) {
@@ -40,8 +40,8 @@ export function pushSessionData(id: string, bytes: Uint8Array) {
 }
 
 /**
- * 세션 출력을 받을 소비자를 등록한다.
- * 붙기 전에 도착해 있던 바이트를 먼저 순서대로 재생한 뒤, 이후 것을 이어서 준다.
+ * Registers the consumer for a session's output, first replaying in order whatever
+ * arrived before it attached, then forwarding the rest.
  */
 export function attachSink(id: string, sink: Sink): () => void {
   sinks.set(id, sink);
@@ -57,20 +57,20 @@ export function attachSink(id: string, sink: Sink): () => void {
   };
 }
 
-/** 세션이 끝나면 소비자와 남은 버퍼를 모두 버린다. */
+/** Drops the consumer and any buffered output once the session ends. */
 export function dropSession(id: string) {
   sinks.delete(id);
   pending.delete(id);
 }
 
-/** 테스트용 초기화. */
+/** Reset hook for tests. */
 export function resetBusForTest() {
   sinks.clear();
   pending.clear();
 }
 
 let started = false;
-/** 모듈 로드 시 한 번만 구독한다. 세션이 생기기 전부터 듣고 있어야 놓치지 않는다. */
+/** Subscribes once at module load; listening before any session exists is what keeps output. */
 export function startSshDataBus() {
   if (started) return;
   started = true;

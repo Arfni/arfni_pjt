@@ -15,7 +15,7 @@ describe('disconnectReasonFromClose', () => {
   });
 
   it('원격 셸에서 exit 한 정상 종료는 되살리지 않는다', () => {
-    // 이걸 remote로 보면 사용자가 방금 exit로 닫은 셸이 3초 뒤에 혼자 열린다
+    // Reading this as remote reopens the shell the user just exited, three seconds later
     expect(disconnectReasonFromClose(true)).toBe('user');
     expect(planReconnect(disconnectReasonFromClose(true), 0)).toEqual({ action: 'stop' });
   });
@@ -35,7 +35,7 @@ describe('nextRetryDelay', () => {
   });
 
   it('60초에서 상한을 건다', () => {
-    // 상한이 없으면 96초, 192초로 늘어나 사실상 재시도가 멈춘 것처럼 보인다
+    // Without a ceiling this grows to 96s then 192s and retries look stopped
     expect(nextRetryDelay(6)).toBe(60_000);
     expect(nextRetryDelay(7)).toBe(60_000);
     expect(nextRetryDelay(100)).toBe(60_000);
@@ -47,7 +47,7 @@ describe('nextRetryDelay', () => {
   });
 
   it('0회차 이하는 첫 간격으로 취급한다', () => {
-    // 호출부 오프바이원으로 0이 넘어와도 즉시 재시도(0ms)로 폭주하면 안 된다
+    // An off-by-one passing zero must not collapse into an immediate 0ms retry storm
     expect(nextRetryDelay(0)).toBe(RECONNECT_BASE_MS);
     expect(nextRetryDelay(-1)).toBe(RECONNECT_BASE_MS);
   });
@@ -68,7 +68,7 @@ describe('planReconnect', () => {
   });
 
   it('사용자가 직접 끊으면 재시도하지 않는다', () => {
-    // 끊으려고 누른 걸 다시 붙이면 사용자가 통제권을 잃는다
+    // Reconnecting what the user pressed to disconnect takes their control away
     expect(planReconnect('user', 0)).toEqual({ action: 'stop' });
     expect(planReconnect('user', 3)).toEqual({ action: 'stop' });
   });
@@ -85,7 +85,7 @@ describe('planReconnect', () => {
   });
 
   it('한도를 넘기면 포기한다', () => {
-    // 무한 재시도는 죽은 서버에 계속 붙으려 하며 로그만 채운다
+    // Endless retries keep hammering a dead server and only fill the log
     expect(planReconnect('remote', MAX_RECONNECT_ATTEMPTS)).toEqual({
       action: 'give-up',
       attempt: MAX_RECONNECT_ATTEMPTS,
@@ -104,7 +104,7 @@ describe('planReconnect', () => {
   });
 
   it('성공 후 0으로 초기화되면 다시 첫 간격부터 시작한다', () => {
-    // 재접속 성공 시 카운터를 리셋해야 다음 장애에서 60초를 기다리지 않는다
+    // Resetting the counter on success is what keeps the next failure from waiting 60s
     expect(planReconnect('remote', 0)).toEqual({
       action: 'retry',
       attempt: 1,

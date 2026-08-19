@@ -10,7 +10,7 @@ const HOME = '/home/ubuntu';
 
 describe('parseCwdFromTitle', () => {
   it('Ubuntu 기본 bash 제목에서 절대 경로를 뽑는다', () => {
-    // 기본 PS1이 만드는 형태: \u@\h: \w
+    // The shape the default PS1 produces: \u@\h: \w
     expect(parseCwdFromTitle('ubuntu@large-instance: /opt/hermes', HOME)).toBe('/opt/hermes');
     expect(parseCwdFromTitle('ec2-user@ip-10-0-0-1: /var/log', HOME)).toBe('/var/log');
   });
@@ -33,7 +33,7 @@ describe('parseCwdFromTitle', () => {
   });
 
   it('경로가 아닌 제목은 무시한다', () => {
-    // vim/htop 같은 프로그램이 제목을 바꾸면 경로가 아니다. 따라가면 안 된다.
+    // A title set by vim or htop is not a path and must not be followed.
     expect(parseCwdFromTitle('vim app.py', HOME)).toBeNull();
     expect(parseCwdFromTitle('ubuntu@large-instance: vim', HOME)).toBeNull();
     expect(parseCwdFromTitle('', HOME)).toBeNull();
@@ -41,7 +41,7 @@ describe('parseCwdFromTitle', () => {
   });
 
   it('home을 모르면 ~ 는 포기한다', () => {
-    // 잘못 추측해서 엉뚱한 디렉터리로 이동시키느니 아무것도 안 하는 게 낫다
+    // Doing nothing beats guessing wrong and navigating somewhere unrelated
     expect(parseCwdFromTitle('ubuntu@host: ~', undefined)).toBeNull();
     expect(parseCwdFromTitle('ubuntu@host: ~/x', '')).toBeNull();
   });
@@ -57,7 +57,7 @@ describe('parseCwdFromTitle', () => {
   });
 });
 describe('parseCwdFromPromptLine', () => {
-  // 창 제목을 갱신하지 않는 서버에서는 이 프롬프트 파싱이 유일한 경로 단서다.
+  // On a server that never updates the window title, this parse is the only clue.
 
   it('bash 프롬프트에서 절대 경로를 읽는다', () => {
     expect(parseCwdFromPromptLine('ubuntu@large-instance:/opt/hermes$ ')).toBe('/opt/hermes');
@@ -69,7 +69,7 @@ describe('parseCwdFromPromptLine', () => {
   });
 
   it('~ 는 펴지 않고 그대로 넘긴다', () => {
-    // 홈 경로는 SFTP 세션만 안다. 여기서 추측하면 엉뚱한 디렉터리로 이동한다.
+    // Only the SFTP session knows the home path; guessing here navigates elsewhere.
     expect(parseCwdFromPromptLine('ubuntu@host:~$ ')).toBe('~');
     expect(parseCwdFromPromptLine('ubuntu@host:~/work/app$ ')).toBe('~/work/app');
   });
@@ -80,8 +80,8 @@ describe('parseCwdFromPromptLine', () => {
   });
 
   it('프롬프트가 아닌 줄은 무시한다', () => {
-    // codex/vim 같은 TUI 화면이나 명령 출력 한 줄을 경로로 오인하면
-    // SFTP가 엉뚱한 곳으로 튀거나 마지막 경로를 잃는다.
+    // Mistaking a tui screen such as codex or vim, or a single line of output, for a
+    // path throws the SFTP panel elsewhere or loses the last known directory.
     expect(parseCwdFromPromptLine('codex> ')).toBeNull();
     expect(parseCwdFromPromptLine('total 48')).toBeNull();
     expect(parseCwdFromPromptLine('ubuntu@host:/opt/hermes')).toBeNull();
@@ -89,13 +89,14 @@ describe('parseCwdFromPromptLine', () => {
   });
 
   it('명령을 입력하는 중에는 경로로 보지 않는다', () => {
-    // 입력 중인 줄까지 경로로 읽으면 타이핑마다 SFTP가 흔들린다.
+    // Reading the line being typed as a path would shake the SFTP panel on every key.
     expect(parseCwdFromPromptLine('ubuntu@host:/opt/hermes$ ls -al')).toBeNull();
   });
 });
 describe('findCwdOnScreen', () => {
-  // 이번 버그의 진짜 원인이 여기 있었다. cursorY(뷰포트 기준)를 getLine(절대 인덱스)에
-  // 그대로 넣으면 스크롤이 생긴 뒤로는 항상 접속 배너를 읽어서 경로가 영원히 안 바뀐다.
+  // The real cause of that bug lived here: passing cursorY (viewport relative) straight
+  // into getLine (absolute index) keeps reading the login banner once anything scrolled,
+  // so the path never changed again.
   function bufferOf(lines: string[], baseY: number, cursorY: number): TerminalBufferLike {
     return {
       baseY,
@@ -113,7 +114,7 @@ describe('findCwdOnScreen', () => {
       'Last login: Mon Aug  4 10:00:00 2025',
       'ubuntu@large-instance:/opt/hermes$ ',
     ];
-    // 뷰포트가 마지막 한 줄만 보이는 상태 = baseY 2, cursorY 0
+    // A viewport showing only the last line means baseY 2 and cursorY 0
     expect(findCwdOnScreen(bufferOf(screen, 2, 0))).toBe('/opt/hermes');
   });
 
@@ -135,7 +136,7 @@ describe('findCwdOnScreen', () => {
   });
 
   it('훑는 범위 밖의 프롬프트는 보지 않는다', () => {
-    // 화면이 출력으로 가득 차면 옛 경로를 되살리지 않고 마지막 값을 유지해야 한다.
+    // A screen full of output must keep the last value instead of reviving an old path.
     const screen = ['ubuntu@host:/opt/hermes$ ls -R', ...Array(10).fill('file.txt')];
     expect(findCwdOnScreen(bufferOf(screen, 0, 10))).toBeNull();
   });

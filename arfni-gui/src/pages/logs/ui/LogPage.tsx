@@ -26,7 +26,7 @@ export default function LogPage() {
   const project = locationState?.project ?? projectFromStore;
   const [ec2Server, setEc2Server] = useState<EC2Server | null>(null);
 
-  // SSH 터미널 탭. 세션은 Rust 쪽에 살아 있고 탭 목록은 모듈 스토어가 들고 있다.
+  // Ssh terminal tabs; the sessions live on the Rust side and the tab list in a module store.
   const {
     tabs,
     activeTabId,
@@ -42,8 +42,8 @@ export default function LogPage() {
 
   const connected = isServerConnected(ec2Server?.id);
 
-  // Tunnel 상태. LogPage가 직접 관리하는 건 모니터링용 Prometheus 터널 하나뿐이고,
-  // 사용자가 TunnelPanel에서 연 터널들은 백엔드 맵이 진짜 소유자다.
+  // Tunnel state. LogPage only manages the Prometheus tunnel for monitoring; tunnels the
+  // user opened from TunnelPanel are really owned by the backend map.
   const [tunnelId, setTunnelId] = useState<string | null>(null);
   const [tunnelOpen, setTunnelOpen] = useState(false);
   const tunnelIdRef = useRef<string | null>(null);
@@ -51,7 +51,7 @@ export default function LogPage() {
     tunnelIdRef.current = tunnelId;
   }, [tunnelId]);
 
-  // Container 상태
+  // Container state
   interface Container {
     id: string;
     name: string;
@@ -65,12 +65,12 @@ export default function LogPage() {
   const [loadingContainers, setLoadingContainers] = useState(false);
   const [deletingContainerId, setDeletingContainerId] = useState<string | null>(null);
 
-  // 좌측 사이드바 뷰 상태 (location state에서 selectedView가 있으면 사용, 없으면 기본값 'terminal')
+  // Sidebar view state, taken from location state when it carries selectedView, else 'terminal'
   const [selectedView, setSelectedView] = useState<'containers' | 'terminal' | 'monitor' | 'analyze'>(
     locationState?.selectedView ?? 'terminal'
   );
 
-  // 터널 이벤트 → 현재 보고 있는 탭의 알림으로
+  // Tunnel events become notices on the currently visible tab
   useEffect(() => {
     const unlistenTunnelOpen = listen('tunnel:opened', (e) => {
       const payload = e.payload as { id: string; chunk: string };
@@ -85,7 +85,7 @@ export default function LogPage() {
     const unlistenTunnelClose = listen('tunnel:closed', (e) => {
       const payload = e.payload as { id: string; chunk: string };
       noticeActiveTab(`🚇 ${payload.chunk}`);
-      // 남의 터널이 닫힌 걸로 모니터링 터널 상태를 뒤집으면 안 된다.
+      // Someone else's tunnel closing must not flip the monitoring tunnel's state.
       if (payload.id !== tunnelIdRef.current) return;
       setTunnelOpen(false);
       setTunnelId(null);
@@ -98,7 +98,7 @@ export default function LogPage() {
     };
   }, [noticeActiveTab]);
 
-  // EC2 서버 정보 로드
+  // Load the EC2 server info
   useEffect(() => {
     const loadEc2Server = async () => {
       if (project?.environment === 'ec2' && project?.ec2_server_id) {
@@ -117,7 +117,7 @@ export default function LogPage() {
     loadEc2Server();
   }, [project]);
 
-  // 터널 열기 (Prometheus: localhost:9091 -> remote:9090)
+  // Open the tunnel (Prometheus: localhost:9091 -> remote:9090)
   const openTunnel = async () => {
     if (!ec2Server) {
       noticeActiveTab('❌ EC2 서버 정보가 없습니다.');
@@ -146,7 +146,7 @@ export default function LogPage() {
     }
   };
 
-  // 터널 닫기
+  // Close the tunnel
   const closeTunnel = async () => {
     if (!tunnelId) return;
     try {
@@ -157,7 +157,7 @@ export default function LogPage() {
     }
   };
 
-  // 컨테이너 시작
+  // Start a container
   const startContainer = async (containerId: string, containerName: string) => {
     if (!ec2Server) return;
     try {
@@ -169,7 +169,7 @@ export default function LogPage() {
     }
   };
 
-  // 컨테이너 중지
+  // Stop a container
   const stopContainer = async (containerId: string, containerName: string) => {
     if (!ec2Server) return;
     try {
@@ -181,7 +181,7 @@ export default function LogPage() {
     }
   };
 
-  // 컨테이너 삭제
+  // Remove a container
   const removeContainer = async (containerId: string, containerName: string) => {
     console.log('[REMOVE_CONTAINER] Called with:', containerId, containerName);
     if (!ec2Server) return;
@@ -204,7 +204,7 @@ export default function LogPage() {
     }
   };
 
-  // 컨테이너 재시작
+  // Restart a container
   const restartContainer = async (containerId: string, containerName: string) => {
     if (!ec2Server) return;
     try {
@@ -216,7 +216,7 @@ export default function LogPage() {
     }
   };
 
-  // 모든 컨테이너 시작
+  // Start every container
   const startAllContainers = async () => {
     if (!ec2Server || containers.length === 0) return;
     try {
@@ -228,7 +228,7 @@ export default function LogPage() {
     }
   };
 
-  // 모든 컨테이너 중지
+  // Stop every container
   const stopAllContainers = async () => {
     if (!ec2Server || containers.length === 0) return;
     if (!await confirm(t('containers.confirmStopAll'))) return;
@@ -241,7 +241,7 @@ export default function LogPage() {
     }
   };
 
-  // 컨테이너 목록 가져오기 (로딩 표시 없이)
+  // Fetch the container list without showing a loading state
   const fetchContainersQuietly = async () => {
     if (!ec2Server) return;
 
@@ -263,7 +263,7 @@ export default function LogPage() {
     }
   };
 
-  // 컨테이너 목록 가져오기 (로딩 표시 포함)
+  // Fetch the container list with a loading state
   const fetchContainers = async () => {
     if (!ec2Server) return;
 
@@ -275,7 +275,7 @@ export default function LogPage() {
     }
   };
 
-  // SSH 연결 성공 시 컨테이너 목록 자동 로드
+  // Load the container list automatically once ssh connects
   useEffect(() => {
     if (connected && ec2Server) {
       fetchContainers();

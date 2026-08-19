@@ -1,37 +1,37 @@
 /**
- * 자동 재접속 정책.
+ * Automatic reconnect policy.
  *
- * 순수 함수로 분리한 이유: 타이머와 IPC가 얽힌 곳에 규칙을 묻어 두면
- * "몇 초 뒤에 몇 번까지 재시도하는가"를 검증할 방법이 없어진다.
+ * Kept as pure functions: buried among timers and IPC, "how long until the next retry
+ * and how many of them" has no way of being verified.
  */
 
-/** 첫 재시도까지 기다리는 시간 */
+/** Delay before the first retry */
 export const RECONNECT_BASE_MS = 3_000;
 
-/** 지수 증가의 상한. 이게 없으면 몇 분씩 벌어져 사실상 멈춘 것처럼 보인다. */
+/** Ceiling on the exponential growth; without it the gaps reach minutes and look dead. */
 export const RECONNECT_MAX_MS = 60_000;
 
-/** 이 횟수를 넘기면 포기한다. 죽은 서버에 무한히 붙으려 하지 않는다. */
+/** Give up past this count rather than hammering a dead server forever. */
 export const MAX_RECONNECT_ATTEMPTS = 6;
 
-/** 왜 끊겼는지. 재시도 여부가 여기서 갈린다. */
+/** Why the session ended; this is what decides whether to retry. */
 export type DisconnectReason =
-  /** 원격이 끊었거나 네트워크가 죽었다 */
+  /** The remote hung up or the network died */
   | 'remote'
-  /** 사용자가 Disconnect를 눌렀다 */
+  /** The user pressed Disconnect */
   | 'user'
-  /** 탭이 닫혔다 */
+  /** The tab was closed */
   | 'tab-closed';
 
 /**
- * `ssh:closed` 이벤트를 재접속 판단용 사유로 옮긴다.
+ * Maps an `ssh:closed` event onto a reason the reconnect logic can act on.
  *
- * PTY EOF만으로는 "사용자가 셸에서 exit 했다"와 "연결이 끊겨 ssh가 죽었다"가
- * 완전히 같은 모양이라 구분할 수 없다. 그래서 Rust가 ssh 종료 코드를 보고
- * `clean`을 실어 보낸다 (`ssh_rt.rs`의 SshClosedEvent).
+ * A pty EOF cannot tell "the user typed exit" from "the link dropped and ssh died":
+ * both look identical. So Rust inspects the ssh exit code and ships `clean` along with
+ * the event (SshClosedEvent in `ssh_rt.rs`).
  *
- * `clean`이 없으면 되살리지 않는 쪽으로 기운다.
- * 멋대로 세션을 다시 여는 것이 안 여는 것보다 나쁘다.
+ * Without `clean` the decision leans towards not reviving: reopening a session nobody
+ * asked for is worse than leaving it closed.
  */
 export function disconnectReasonFromClose(
   clean: boolean | undefined
@@ -45,8 +45,9 @@ export type ReconnectPlan =
   | { action: 'stop' };
 
 /**
- * n번째 재시도까지 기다릴 시간. `attempt`는 1부터 센다.
- * 호출부 오프바이원으로 0 이하가 들어와도 즉시 재시도(0ms)로 폭주하지 않게 첫 간격을 준다.
+ * Delay before the nth retry, with `attempt` counted from one.
+ * An off-by-one at the call site must not turn into an immediate 0ms retry storm, so
+ * anything below one falls back to the first interval.
  */
 export function nextRetryDelay(attempt: number): number {
   const n = Math.max(1, Math.floor(attempt));
@@ -55,14 +56,14 @@ export function nextRetryDelay(attempt: number): number {
 }
 
 /**
- * 끊긴 이유와 지금까지의 실패 횟수로 다음 행동을 정한다.
- * `previousAttempts`는 이미 실패한 재시도 횟수(성공 시 0으로 리셋).
+ * Picks the next action from the disconnect reason and the failures so far.
+ * `previousAttempts` counts retries that already failed, reset to zero on success.
  */
 export function planReconnect(
   reason: DisconnectReason,
   previousAttempts: number
 ): ReconnectPlan {
-  // 사용자가 의도적으로 끊었거나 탭이 사라졌으면 되살리지 않는다.
+  // Never revive after a deliberate disconnect or a tab that is gone.
   if (reason !== 'remote') {
     return { action: 'stop' };
   }

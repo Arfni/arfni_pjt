@@ -59,12 +59,12 @@ describe('tabDisplayLabel', () => {
     const tabs = [tab('a', s1), tab('b', server('s2', 'dev')), tab('c', s1)];
     expect(tabDisplayLabel(tabs, tabs[0])).toBe('prod (1)');
     expect(tabDisplayLabel(tabs, tabs[2])).toBe('prod (2)');
-    // 사이에 낀 다른 서버는 영향을 받지 않는다
+    // an unrelated server in between is unaffected
     expect(tabDisplayLabel(tabs, tabs[1])).toBe('dev');
   });
 
   it('서버 객체가 매번 새로 만들어져도 id 기준으로 묶는다', () => {
-    // getAllServers()가 매번 새 객체를 주므로 참조 동일성에 의존하면 안 된다
+    // getAllServers() returns fresh objects every time, so reference equality is out
     const tabs = [tab('a', server('s1', 'prod')), tab('b', server('s1', 'prod'))];
     expect(tabDisplayLabel(tabs, tabs[0])).toBe('prod (1)');
     expect(tabDisplayLabel(tabs, tabs[1])).toBe('prod (2)');

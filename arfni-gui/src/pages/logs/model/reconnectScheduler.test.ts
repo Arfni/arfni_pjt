@@ -28,7 +28,7 @@ describe('createReconnectScheduler', () => {
     vi.advanceTimersByTime(3_000);
     expect(connect).toHaveBeenCalledTimes(1);
 
-    // 재시도가 또 끊겼다
+    // the retry dropped again
     s.onDisconnected('t1', 'remote');
     vi.advanceTimersByTime(3_000);
     expect(connect).toHaveBeenCalledTimes(1); // 아직 6초가 안 됨
@@ -57,14 +57,14 @@ describe('createReconnectScheduler', () => {
 
     s.onConnected('t1');
 
-    // 리셋됐으니 다시 3초
+    // reset, so back to three seconds
     s.onDisconnected('t1', 'remote');
     vi.advanceTimersByTime(3_000);
     expect(connect).toHaveBeenCalledTimes(3);
   });
 
   it('대기 중에 탭을 닫으면 예약이 취소된다', () => {
-    // 취소를 안 하면 닫힌 탭에 세션이 다시 열려 아무도 안 닫는 PTY가 남는다
+    // Without the cancel, a closed tab reopens a session and leaks its pty
     const connect = vi.fn();
     const s = createReconnectScheduler({ connect });
 
@@ -97,7 +97,7 @@ describe('createReconnectScheduler', () => {
   });
 
   it('중복 예약을 만들지 않는다', () => {
-    // 같은 세션에 대해 이벤트가 두 번 오더라도 타이머는 하나여야 한다
+    // Two events for the same session must still leave a single timer
     const connect = vi.fn();
     const s = createReconnectScheduler({ connect });
 

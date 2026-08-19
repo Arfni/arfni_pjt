@@ -12,8 +12,8 @@ describe('sshDataBus', () => {
   beforeEach(() => resetBusForTest());
 
   it('소비자가 붙기 전에 도착한 출력을 순서대로 재생한다', () => {
-    // 이게 이번 버그의 핵심. Rust reader 스레드는 ssh_start가 IPC로 돌아오기 전에
-    // 이미 배너를 쏘기 시작한다. 그때 버리면 화면이 빈 채로 멈춘 것처럼 보인다.
+    // The heart of that bug: the Rust reader thread starts sending the banner before
+    // ssh_start returns over IPC, and dropping it looks like a stuck empty screen.
     pushSessionData('s1', bytes('Welcome to Ubuntu'));
     pushSessionData('s1', bytes(' 24.04\r\n'));
     pushSessionData('s1', bytes('ubuntu@host:~$ '));
@@ -71,7 +71,7 @@ describe('sshDataBus', () => {
   });
 
   it('detach가 나중에 붙은 다른 소비자를 떼어내지 않는다', () => {
-    // 탭을 빠르게 껐다 켤 때 이전 detach가 새 소비자를 죽이면 다시 화면이 멈춘다
+    // Toggling a tab quickly, an old detach killing the new consumer stalls the screen again
     const older: Uint8Array[] = [];
     const detachOld = attachSink('s1', (x) => older.push(x));
 
@@ -95,7 +95,7 @@ describe('sshDataBus', () => {
   });
 
   it('주인 없는 세션 버퍼는 상한을 넘지 않는다', () => {
-    // 아무도 안 붙는 세션이 있어도 메모리가 무한정 늘면 안 된다
+    // A session nobody attaches to must not grow memory without bound
     for (let i = 0; i < 5000; i += 1) pushSessionData('ghost', bytes('x'));
 
     const got: Uint8Array[] = [];

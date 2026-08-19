@@ -22,25 +22,24 @@ interface TerminalViewProps {
   server: EC2Server | null;
   connected: boolean;
   sessionId: string | null;
-  /** 앱이 생성한 안내/오류 메시지. 터미널 버퍼에 그대로 찍는다. */
+  /** Notices and errors from the app, printed straight into the terminal buffer */
   notices: string[];
-  /** 실제 터미널 크기를 넘겨받아 세션을 연다. */
+  /** Opens the session with the terminal's real size */
   onConnect: (rows: number, cols: number) => void;
   onDisconnect: () => void;
   onClearNotices: () => void;
-  /** 언마운트 대신 숨김. 탭을 바꿔도 xterm 스크롤백이 살아 있어야 한다. */
+  /** Hidden instead of unmounted; the xterm scrollback has to survive a tab switch */
   hidden?: boolean;
-  /** 터미널이 준비되는 대로 한 번 자동 접속 */
+  /** Connect once automatically as soon as the terminal is ready */
   autoConnect?: boolean;
-  /** 원격 셸이 설정한 창 제목(OSC 0/2). 제목을 갱신하는 서버에서만 온다. */
+  /** Window title set by the remote shell (OSC 0/2); only from servers that update it */
   onTitleChange?: (title: string) => void;
   /**
-   * 화면에서 읽어낸 원격 작업 디렉터리.
-   * tmux는 창 제목(OSC)을 바깥 터미널로 흘려보내지 않으므로,
-   * 지속 세션에서는 프롬프트 파싱이 유일한 단서다.
+   * Remote working directory read off the screen. tmux never forwards the window title
+   * outwards, so parsing the prompt is the only clue in a persistent session.
    */
   onCwdDetected?: (path: string) => void;
-  /** 헤더 우측 버튼 영역에 끼워넣을 추가 컨트롤 (예: SFTP 패널 토글) */
+  /** Extra controls for the right side of the header, e.g. the SFTP panel toggle */
   headerExtra?: React.ReactNode;
   /**
    * Fired when a coding agent (claude, codex, ...) in this terminal finishes.
@@ -74,17 +73,17 @@ const THEME = {
 };
 
 /**
- * tmux로 감싼 세션에서 휠을 대신할 키.
+ * Keys that stand in for the wheel inside a tmux-wrapped session.
  *
- * tmux의 마우스 모드는 켜지 않는다. 켜는 순간 드래그 선택도 우클릭 복사/붙여넣기도
- * 전부 tmux가 가져가 버린다. 그래서 마우스는 xterm.js가 계속 소유하고,
- * 휠만 여기서 가로채 tmux 스크롤 키로 바꿔 보낸다.
- * 원격 tmux 쪽에 Alt+위/아래가 `copy-mode -e` 스크롤로 바인딩돼 있다(ssh_rt.rs).
+ * tmux mouse mode stays off: enabling it hands drag selection and right-click copy and
+ * paste to tmux entirely. So xterm.js keeps the mouse and only the wheel is intercepted
+ * here and translated into tmux scroll keys. On the remote side Alt with up and down is
+ * bound to `copy-mode -e` scrolling (see ssh_rt.rs).
  */
 const TMUX_SCROLL_UP = '\x1b[1;3A';
 const TMUX_SCROLL_DOWN = '\x1b[1;3B';
 
-// 세션이 생기기 전부터 듣고 있어야 첫 출력을 놓치지 않는다.
+// Listening before any session exists is what keeps the first output.
 startSshDataBus();
 
 export function TerminalView({
@@ -109,14 +108,14 @@ export function TerminalView({
   const searchRef = useRef<SearchAddon | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const writtenNoticesRef = useRef(0);
-  /** 같은 탭에서 두 번째 이후로 붙는 세션인지 (재접속 시 화면 모드 정리용) */
+  /** Whether this is a second or later session in the same tab, for screen mode cleanup */
   const reconnectedRef = useRef(false);
-  /** tmux로 감싼 세션인지. 휠 처리를 바꿔야 해서 콜백에서 최신 값을 읽는다. */
+  /** Whether the session is tmux-wrapped; the wheel handler reads the latest value */
   const persistentRef = useRef(false);
   useEffect(() => {
     persistentRef.current = server?.persistent_session === true;
   }, [server]);
-  /** 콜백들은 매 렌더 새 함수라 ref로 받는다 (터미널 재생성 방지) */
+  /** Callbacks are new functions per render, so refs keep the terminal from rebuilding */
   const onTitleChangeRef = useRef(onTitleChange);
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
@@ -139,18 +138,18 @@ export function TerminalView({
   const [agentBusy, setAgentBusy] = useState(false);
 
 
-  // sessionId를 ref로 미러링 — onData 콜백은 마운트 시 한 번만 등록되므로 최신 값을 ref로 읽는다.
+  // sessionId mirrored into a ref: onData is registered once on mount and reads it there.
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
 
-  /** 숨겨진(display:none) 상태에서는 크기가 0이라 fit 결과가 쓰레기가 된다. */
+  /** While display:none the size is zero, which makes any fit result garbage. */
   const isVisible = useCallback(() => {
     const el = hostRef.current;
     return !!el && el.clientWidth > 0 && el.clientHeight > 0;
   }, []);
 
-  // --- 터미널 인스턴스 생성 (마운트당 1회) ---
+  // --- terminal instance, once per mount ---
   useEffect(() => {
     if (!hostRef.current) return;
 
@@ -174,7 +173,7 @@ export function TerminalView({
 
     term.open(hostRef.current);
 
-    // WebGL은 일부 WebView에서 컨텍스트 생성이 실패할 수 있다. 실패해도 canvas 렌더러로 동작한다.
+    // WebGL context creation fails in some webviews; the canvas renderer still works.
     try {
       const webgl = new WebglAddon();
       webgl.onContextLoss(() => webgl.dispose());
@@ -189,7 +188,7 @@ export function TerminalView({
     fitRef.current = fit;
     searchRef.current = search;
 
-    // 키 입력 → PTY로 원본 전달 (Ctrl+C, 방향키, Tab 자동완성 포함)
+    // Key input forwarded to the pty verbatim, Ctrl+C, arrows and tab completion included
     const dataSub = term.onData((data) => {
       const id = sessionIdRef.current;
       if (!id) return;
@@ -199,13 +198,13 @@ export function TerminalView({
       void invoke('ssh_write', { id, data }).catch(() => {});
     });
 
-    // tmux 세션에서는 스크롤백이 원격 tmux 안에 있다. 휠을 그대로 두면
-    // xterm.js의 빈 스크롤백만 긁어서 아무 일도 일어나지 않는다.
+    // In a tmux session the scrollback lives inside the remote tmux, so an untouched
+    // wheel only scrapes xterm.js's empty scrollback and nothing happens.
     term.attachCustomWheelEventHandler((e) => {
       if (!persistentRef.current) return true;
       const id = sessionIdRef.current;
       if (!id) return true;
-      // Shift/Ctrl 조합은 폰트 확대나 페이지 단위 스크롤 관례라 건드리지 않는다.
+      // Shift and Ctrl combinations are font zoom and page scroll by convention, left alone.
       if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return true;
       if (e.deltaY === 0) return true;
       const data = e.deltaY < 0 ? TMUX_SCROLL_UP : TMUX_SCROLL_DOWN;
@@ -213,9 +212,9 @@ export function TerminalView({
       return false; // xterm.js 기본 스크롤을 막는다
     });
 
-    // 창 제목(OSC 0/2)에서 원격 작업 디렉터리를 읽어 올려보낸다.
-    // Ubuntu 기본 PS1이 제목을 "user@host: /경로"로 계속 갱신하므로,
-    // 셸에 아무것도 주입하지 않고 SFTP 패널을 따라가게 할 수 있다.
+    // Reads the remote working directory out of the window title (OSC 0/2). The default
+    // PS1 on Ubuntu keeps that title as "user@host: /path", so the SFTP panel can follow
+    // along without injecting anything into the shell.
     const titleSub = term.onTitleChange((title) => {
       onTitleChangeRef.current?.(title);
     });
@@ -247,11 +246,12 @@ export function TerminalView({
       return true;
     });
 
-    // 붙여넣기는 반드시 term.paste()를 거친다.
-    // - ssh_write로 원문을 직접 밀면 bracketed paste(\e[200~)가 빠져서
-    //   여러 줄 붙여넣기가 줄마다 즉시 실행된다.
-    // - 브라우저 기본 붙여넣기까지 같이 돌면 두 번 입력된다. preventDefault가 필수.
-    // - 끝 개행을 떼어내 붙여넣자마자 실행되는 사고를 막는다.
+    // Paste always goes through term.paste():
+    // - pushing the raw text with ssh_write drops bracketed paste (\e[200~), which runs a
+    //   multi-line paste line by line
+    // - letting the browser's own paste run as well types everything twice, hence
+    //   preventDefault
+    // - the trailing newline is stripped so a paste cannot execute on arrival
     const paste = (e: KeyboardEvent) => {
       e.preventDefault();
       void navigator.clipboard.readText().then((txt) => {
@@ -272,8 +272,8 @@ export function TerminalView({
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return true;
 
-      // Ctrl+C: 선택 영역이 있으면 복사, 없으면 그대로 흘려보내 SIGINT가 되게 한다.
-      // (Windows Terminal / MobaXterm과 같은 규칙)
+      // Ctrl+C copies when there is a selection and otherwise passes through as SIGINT,
+      // the same rule as Windows Terminal and MobaXterm.
       if (!e.shiftKey && e.code === 'KeyC') {
         return !copySelection();
       }
@@ -289,7 +289,7 @@ export function TerminalView({
         paste(e);
         return false;
       }
-      // 터미널 관례: Ctrl+Insert 복사 / Shift+Insert 붙여넣기
+      // Terminal convention: Ctrl+Insert copies, Shift+Insert pastes
       if (e.code === 'Insert') {
         if (e.ctrlKey) {
           copySelection();
@@ -308,10 +308,10 @@ export function TerminalView({
       return true;
     });
 
-    // 컨테이너 크기 변화 → fit → PTY resize (원격에 SIGWINCH)
+    // Container resize, then fit, then pty resize which sends SIGWINCH remotely
     const ro = new ResizeObserver(() => {
-      // 뷰가 숨겨지면(display:none) 크기가 0이 된다.
-      // 이때 fit하면 0행/0열로 리사이즈되어 원격 TUI 레이아웃이 망가진다.
+      // A hidden view (display:none) measures zero, and fitting then resizes to zero rows
+      // and columns, which wrecks the remote tui layout.
       if (!isVisible()) return;
       try {
         fit.fit();
@@ -341,26 +341,26 @@ export function TerminalView({
     };
   }, [isVisible]);
 
-  // --- PTY 출력 수신 ---
+  // --- pty output ---
   //
-  // 세션 id를 알기 전에 도착한 바이트도 잃지 않기 위해 버스를 거친다.
-  // Rust reader 스레드는 ssh_start가 IPC로 돌아오기 전에 이미 emit을 시작하므로,
-  // 여기서 sessionId를 직접 필터링하면 배너와 첫 프롬프트가 통째로 사라진다.
+  // Routed through the bus so bytes that arrive before the session id is known are not
+  // lost: the Rust reader thread emits before ssh_start returns over IPC, so filtering on
+  // sessionId here would drop the banner and the first prompt.
   useEffect(() => {
     if (!sessionId) return;
 
     const term = termRef.current;
     if (!term) return;
 
-    // 이전 세션이 남긴 화면 모드(alt screen, bracketed paste, SGR)를 정리한다.
-    // 안 그러면 재접속 후 vim을 쓰다 끊은 흔적 때문에 화면이 깨진 채로 시작한다.
+    // Clears screen modes left by the previous session (alt screen, bracketed paste,
+    // SGR); otherwise a reconnect starts broken because of the vim that was cut off.
     if (reconnectedRef.current) {
       term.write('\x1b[?1049l\x1b[?2004l\x1b[0m\r\n');
     }
     reconnectedRef.current = true;
 
-    // 출력이 화면에 반영된 뒤 프롬프트에서 cwd를 읽는다.
-    // tmux(지속 세션)는 창 제목을 바깥으로 흘려보내지 않으므로 이 경로가 유일한 단서다.
+    // The cwd is read from the prompt after the output lands on screen. tmux never
+    // forwards the window title outwards, so this is the only clue in a persistent session.
     // Detection needs the spinner frames as text, and UTF-8 can split on a chunk
     // boundary, so one streaming decoder per session feeds it continuously.
     const decoder = new TextDecoder('utf-8');
@@ -374,7 +374,7 @@ export function TerminalView({
     });
   }, [sessionId]);
 
-  // --- 앱 안내 메시지를 터미널 버퍼에 찍기 ---
+  // --- app notices printed into the terminal buffer ---
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
@@ -391,7 +391,7 @@ export function TerminalView({
     const term = termRef.current;
     const fit = fitRef.current;
     if (!term || !fit) return;
-    // 숨겨진 상태에서 연결을 누를 수는 없지만, 0x0으로 세션이 열리는 것만은 확실히 막는다.
+    // Connect cannot be pressed while hidden, but this makes a 0x0 session impossible.
     if (isVisible()) {
       try {
         fit.fit();
@@ -403,11 +403,11 @@ export function TerminalView({
     onConnect(term.rows, term.cols);
   }, [onConnect, isVisible]);
 
-  // 탭이 새로 열리면 터미널이 준비된 뒤 한 번 자동 접속한다.
-  // xterm이 실제 행/열을 알려준 뒤여야 PTY 크기가 처음부터 맞는다.
+  // A new tab connects once after the terminal is ready: only after xterm reports real
+  // rows and cols does the pty size start out correct.
   //
-  // hidden을 의존성에 넣는 이유: 컨테이너 탭에서 시작해 터미널을 나중에 여는 경우처럼
-  // 처음에는 숨겨져 있어(크기 0) 접속을 미뤄야 하고, 보이게 된 시점에 다시 시도해야 한다.
+  // hidden is a dependency because a session that starts on the container view is hidden
+  // at first (size zero), so the connect has to wait and be retried once it is visible.
   useEffect(() => {
     if (!autoConnect || sessionId || !server || hidden) return;
     if (!isVisible()) return;
@@ -430,8 +430,8 @@ export function TerminalView({
     []
   );
 
-  // 우클릭: 선택 영역이 있으면 복사, 없으면 붙여넣기 (PuTTY/MobaXterm 관례).
-  // 무조건 붙여넣으면 실수로 우클릭했을 때 명령이 들어간다.
+  // Right click copies when there is a selection and pastes otherwise, the PuTTY and
+  // MobaXterm convention. Always pasting would type a command on an accidental click.
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const term = termRef.current;

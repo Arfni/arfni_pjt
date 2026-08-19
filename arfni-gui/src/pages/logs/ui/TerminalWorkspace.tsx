@@ -14,7 +14,7 @@ import { TunnelPanel } from './TunnelPanel';
 
 interface TerminalWorkspaceProps {
   project: Project | null;
-  /** 프로젝트에 연결된 기본 서버. 첫 탭을 자동으로 여는 데 쓰인다. */
+  /** Default server of the project, used to open the first tab automatically */
   defaultServer: EC2Server | null;
   tabs: SshTab[];
   activeTabId: string | null;
@@ -24,7 +24,7 @@ interface TerminalWorkspaceProps {
   onConnectTab: (tabId: string, rows: number, cols: number) => void;
   onDisconnectTab: (tabId: string) => void;
   onClearNotices: (tabId: string) => void;
-  /** 언마운트 대신 숨김. 뷰를 바꿔도 세션과 스크롤백을 유지한다. */
+  /** Hidden instead of unmounted, so sessions and scrollback survive a view change */
   hidden?: boolean;
 }
 
@@ -67,10 +67,9 @@ export function TerminalWorkspace({
     return stored === 'sftp' || stored === 'tunnels' ? stored : null;
   });
   /**
-   * 탭별 원격 작업 디렉터리. SFTP 패널이 활성 탭을 따라간다.
+   * Remote working directory per tab; the SFTP panel follows the active one.
    *
-   * 탭마다 따로 들고 있어야 한다. 하나로 공유하면 A탭에서 cd 한 경로가
-   * B탭 SFTP에 그대로 남는다.
+   * It has to be per tab: shared, a cd in tab A would linger in tab B's SFTP panel.
    */
   const [termCwds, setTermCwds] = useState<Record<string, string | null>>({});
   const [panelWidth, setPanelWidth] = useState(() => {
@@ -91,10 +90,10 @@ export function TerminalWorkspace({
     [tabs, activeTabId]
   );
   /**
-   * 파싱된 경로만 기록한다.
+   * Only parsed paths are recorded.
    *
-   * `null`은 "경로를 못 알아봤다"는 뜻이지 "홈으로 돌아갔다"는 뜻이 아니다.
-   * codex/vim이 화면을 채우는 동안 null로 덮어쓰면 SFTP가 시작 경로로 튄다.
+   * `null` means "could not read a path", not "went back home". Overwriting with null
+   * while codex or vim fills the screen would throw the SFTP panel back to its start.
    */
   const rememberCwd = useCallback((tabId: string, path: string | null) => {
     if (path === null) return;
@@ -175,7 +174,7 @@ export function TerminalWorkspace({
     localStorage.setItem(WIDTH_KEY, String(panelWidth));
   }, [panelWidth]);
 
-  // 프로젝트 서버가 정해지면 첫 탭을 자동으로 연다.
+  // Open the first tab automatically once the project server is known.
   const openedDefaultRef = useRef(false);
   useEffect(() => {
     if (!isEc2 || !defaultServer || openedDefaultRef.current) return;
@@ -187,7 +186,7 @@ export function TerminalWorkspace({
     onOpenTab(defaultServer);
   }, [isEc2, defaultServer, tabs.length, onOpenTab]);
 
-  // 서버 목록은 피커를 열 때만 읽는다.
+  // The server list is only fetched when the picker opens.
   useEffect(() => {
     if (!pickerOpen) return;
     let cancelled = false;
@@ -204,7 +203,7 @@ export function TerminalWorkspace({
     };
   }, [pickerOpen, defaultServer]);
 
-  // 피커 위치 계산. 포털+fixed라 좌표를 직접 잡아야 한다.
+  // Picker placement: portalled and fixed, so the coordinates are computed here.
   const [pickerPos, setPickerPos] = useState<DropdownPosition | null>(null);
   useEffect(() => {
     if (!pickerOpen) {
@@ -228,7 +227,7 @@ export function TerminalWorkspace({
     return () => window.removeEventListener('resize', place);
   }, [pickerOpen]);
 
-  // 피커 바깥 클릭으로 닫기 (버튼 자신은 토글이므로 제외)
+  // Close on an outside click, excluding the button itself which toggles.
   useEffect(() => {
     if (!pickerOpen) return;
     const onDown = (e: MouseEvent) => {
@@ -241,7 +240,7 @@ export function TerminalWorkspace({
     return () => window.removeEventListener('mousedown', onDown);
   }, [pickerOpen]);
 
-  // 스플리터 드래그. 터미널은 ResizeObserver로 스스로 fit + PTY resize 한다.
+  // Splitter drag; the terminal fits and resizes its pty on its own via ResizeObserver.
   useEffect(() => {
     if (!dragging) return;
 
@@ -426,9 +425,10 @@ export function TerminalWorkspace({
             </div>
           </div>
         ) : (
-          // 모든 탭을 마운트한 채로 두고 숨긴다. 언마운트하면 xterm 스크롤백이 날아간다.
-          // hidden에 워크스페이스 숨김까지 합쳐야, 컨테이너 뷰에서 시작한 경우에도
-          // 터미널이 보이는 시점에 자동 접속이 다시 시도된다.
+          // Every tab stays mounted and is hidden instead, because unmounting loses the
+          // xterm scrollback. Folding the workspace's own hidden flag in is what retries
+          // the automatic connect once the terminal becomes visible, even for sessions
+          // that started on the container view.
           tabs.map((tab) => (
             <TerminalView
               key={tab.tabId}
@@ -441,8 +441,9 @@ export function TerminalWorkspace({
               onConnect={(rows, cols) => onConnectTab(tab.tabId, rows, cols)}
               onDisconnect={() => onDisconnectTab(tab.tabId)}
               onClearNotices={() => onClearNotices(tab.tabId)}
-              // 활성 탭만 추적하면 뒤에서 cd 한 탭으로 돌아왔을 때 옛 경로가 남는다.
-              // 탭마다 자기 경로를 계속 기록하고, SFTP는 활성 탭 것만 읽어 간다.
+              // Tracking only the active tab would leave a stale path after returning to
+              // a tab that cd'd in the background, so every tab records its own and SFTP
+              // reads the active one.
               onTitleChange={(title) => rememberCwd(tab.tabId, parseCwdFromTitle(title))}
               onCwdDetected={(path) => rememberCwd(tab.tabId, path)}
               onAgentDone={(event) => handleAgentDone(tab, event)}

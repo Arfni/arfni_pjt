@@ -9,11 +9,11 @@ use crate::features::ssh_rt::{
   start_interactive_session, write_bytes, SshParams, TunnelInfo, TunnelSpec,
 };
 
-/// 세션 시작. rows/cols는 프론트 xterm.js의 실제 크기를 그대로 받는다.
+/// Starts a session; rows and cols come straight from xterm.js's real size.
 ///
-/// `persistent`가 켜져 있으면 원격 셸을 tmux로 감싼다. 연결이 끊겨도 원격
-/// 프로세스가 SIGHUP으로 죽지 않고, 재접속하면 화면이 그대로 복원된다.
-/// `session_key`는 어느 tmux 세션에 다시 붙을지 정하는 탭별 식별자다.
+/// With `persistent` on, the remote shell is wrapped in tmux so a dropped link does not
+/// SIGHUP the remote process and a reconnect restores the screen as it was.
+/// `session_key` is the per-tab identifier deciding which tmux session to reattach to.
 #[tauri::command]
 pub async fn ssh_start(
   app: AppHandle,
@@ -35,15 +35,15 @@ pub async fn ssh_start(
   .map_err(|e| e.to_string())
 }
 
-/// 키 입력 원본 전달. `data`는 xterm의 onData 문자열(UTF-8)이다.
-/// 개행을 붙이지 않으므로 Ctrl+C / 방향키 / Tab이 그대로 전달된다.
+/// Forwards key input verbatim; `data` is xterm's onData string (UTF-8). No newline is
+/// added, so Ctrl+C, arrows and tab pass through as they are.
 #[tauri::command]
 pub async fn ssh_write(id: String, data: String) -> Result<(), String> {
   let id = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
   write_bytes(id, data.as_bytes()).map_err(|e| e.to_string())
 }
 
-/// 터미널 리사이즈 → PTY로 전파 → 원격에 SIGWINCH
+/// Terminal resize, propagated to the pty, which sends SIGWINCH to the remote
 #[tauri::command]
 pub async fn ssh_resize(id: String, rows: u16, cols: u16) -> Result<(), String> {
   let id = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
@@ -67,7 +67,7 @@ pub async fn tunnel_open(
     .map_err(|e| e.to_string())
 }
 
-/// 살아 있는 터널 목록. reaper가 죽은 터널을 걷어내므로 항상 실제 상태와 맞는다.
+/// Live tunnels; the reaper removes dead ones so this always matches reality.
 #[tauri::command]
 pub async fn tunnel_list() -> Result<Vec<TunnelInfo>, String> {
   Ok(list_tunnels())
@@ -79,7 +79,7 @@ pub async fn tunnel_close(app: AppHandle, id: String) -> Result<(), String> {
   close_tunnel(&app, id).map_err(|e| e.to_string())
 }
 
-/// ✅ Tauri v2에서 동작하는 정식 버전
+/// The supported version for Tauri v2
 #[allow(dead_code)]
 pub fn register() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
   tauri::generate_handler![

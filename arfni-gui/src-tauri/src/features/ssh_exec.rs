@@ -22,7 +22,7 @@ pub fn exec_once_via_system_ssh(host: &str, user: &str, pem: &str, cmd: &str) ->
     let mut command = Command::new("ssh");
     command.args([
             "-i", pem,
-            // 최초 접속 시 known_hosts 자동 등록. 보안정책에 맞춰 조정 가능
+            // Records known_hosts on first contact; tighten this if policy requires it
             "-o", "StrictHostKeyChecking=accept-new",
             &target,
             cmd,
@@ -46,12 +46,12 @@ pub fn exec_once_via_system_ssh(host: &str, user: &str, pem: &str, cmd: &str) ->
 }
 
 pub fn list_ec2_listening_ports(host: &str, user: &str, pem: &str) -> Result<Vec<u16>> {
-    // EC2 내부에서 실행할 명령
+    // Command to run inside the EC2 host
     let cmd = "sudo ss -tuln";
 
     let output = exec_once_via_system_ssh(host, user, pem, cmd)?;
 
-    // 예: "tcp   LISTEN 0 4096 0.0.0.0:3306  ..."
+    // e.g. "tcp   LISTEN 0 4096 0.0.0.0:3306  ..."
     let re = Regex::new(r":(\d+)\s+").unwrap();
     let mut ports = vec![];
 
@@ -73,9 +73,9 @@ pub fn list_ec2_listening_ports(host: &str, user: &str, pem: &str) -> Result<Vec
     Ok(ports)
 }
 
-/// 실제 서버가 있어야 도는 수동 테스트. host/pem을 채운 뒤
-/// `cargo test -- --ignored test_ssh_via_system` 으로 실행한다.
-/// 자격증명이 비어 있어 기본 실행에서는 항상 실패하므로 스위트에서 제외한다.
+/// Manual test that needs a real server: fill in host and pem, then run
+/// `cargo test -- --ignored test_ssh_via_system`. Excluded from the suite because the
+/// empty credentials make it fail on a normal run.
 #[test]
 #[ignore = "requires a live host and pem path"]
 fn test_ssh_via_system() {
@@ -89,7 +89,7 @@ fn test_ssh_via_system() {
 }
 
 
-//파일 경로 체크
+// File path checks
 fn data_dir_near_exe() -> anyhow::Result<PathBuf> {
     let exe = std::env::current_exe()?;
     let exe_dir = exe.parent().ok_or_else(|| anyhow::anyhow!("no exe parent"))?;
@@ -101,17 +101,17 @@ fn data_dir_near_exe() -> anyhow::Result<PathBuf> {
     Ok(base)
 }
 
-//json 파일 경로
+// Path of the json file
 fn json_path() -> Result<PathBuf> {
     Ok(data_dir_near_exe()?.join(FILE_NAME))
 }
 
-/// 파일 존재 여부만 체크
+/// Existence check only
 fn ssh_file_check() -> Result<bool> {
     Ok(json_path()?.exists())
 }
 
-/// 파일 읽기(없으면 빈 벡터)
+/// Reads the file, returning an empty vector when it is missing
 fn load_all() -> Result<Vec<SshParams>> {
     let path = json_path()?;
     if !path.exists() {
@@ -143,30 +143,30 @@ fn save_all(list: &[SshParams]) -> Result<()> {
     Ok(())
 }
 
-/// 항목 추가(중복 host+user이면 pem_path만 갱신)
+/// Adds an entry; a duplicate host and user only updates pem_path
 pub fn add_or_update_entry(new_item: SshParams) -> Result<()> {
     let mut list = load_all()?;
 
     if let Some(existing) = list.iter_mut()
         .find(|x| x.host == new_item.host && x.user == new_item.user) {
-        // 중복이면 업데이트(예: pem 경로 변경)
+        // A duplicate is an update, e.g. the pem path changed
         existing.pem_path = new_item.pem_path;
     } else {
         list.push(new_item);
     }
 
-    // 정렬(보기 좋게 host, user 순)
+    // Sorted by host then user for readability
     list.sort_by(|a, b| (a.host.as_str(), a.user.as_str())
         .cmp(&(b.host.as_str(), b.user.as_str())));
     save_all(&list)
 }
 
-/// 전체 조회
+/// Reads every entry
 pub fn read_all_entries() -> Result<Vec<SshParams>> {
     load_all()
 }
 
-/// 삭제(host+user 기준)
+/// Deletes by host and user
 pub fn delete_entry(host: &str, user: &str) -> Result<bool> {
     let mut list = load_all()?;
     let before = list.len();
@@ -178,7 +178,7 @@ pub fn delete_entry(host: &str, user: &str) -> Result<bool> {
     Ok(changed)
 }
 
-/// 부분 수정(존재 시 원하는 필드만 변경)
+/// Partial update: changes only the given fields when the entry exists
 pub fn update_entry(host: &str, user: &str, new_pem_path: Option<String>) -> Result<bool> {
     let mut list = load_all()?;
     let mut changed = false;

@@ -47,7 +47,7 @@ export function ContainersView({
   const [openHeaderDropdown, setOpenHeaderDropdown] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // 드롭다운 외부 클릭 시 닫기
+  // Close the dropdown on an outside click
   useEffect(() => {
     const handleClickOutside = () => {
       if (openHeaderDropdown) {
@@ -89,7 +89,7 @@ export function ContainersView({
               <RefreshCw className={`w-5 h-5 ${loadingContainers ? 'animate-spin' : ''}`} />
             </button>
 
-            {/* 헤더 삼점 메뉴 */}
+            {/* header kebab menu */}
             <div className="relative">
               <button
                 onClick={(e) => {
@@ -102,7 +102,7 @@ export function ContainersView({
                 <MoreVertical className="w-5 h-5" />
               </button>
 
-              {/* 헤더 드롭다운 메뉴 */}
+              {/* header dropdown menu */}
               {openHeaderDropdown && (
                 <div
                   className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10"
@@ -251,7 +251,7 @@ export function ContainersView({
                     </div>
                   </div>
 
-                  {/* 상세 정보 (펼쳤을 때만 표시) */}
+                  {/* details, only while expanded */}
                   {isExpanded && (
                     <div className="mt-3 ml-6 pt-3 border-t border-gray-100 space-y-1.5">
                       <div className="text-xs">
