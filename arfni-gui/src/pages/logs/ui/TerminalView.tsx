@@ -365,13 +365,23 @@ export function TerminalView({
     // boundary, so one streaming decoder per session feeds it continuously.
     const decoder = new TextDecoder('utf-8');
 
-    return attachSink(sessionId, (bytes) => {
+    // Detection state must not cross a session boundary in either direction: entering
+    // clears whatever the previous session left, and the cleanup below runs when the
+    // session drops, which cancels a busy window the remote has already killed.
+    agentRef.current?.resetForNewSession();
+
+    const detach = attachSink(sessionId, (bytes) => {
       agentRef.current?.feed(decoder.decode(bytes, { stream: true }));
       term.write(bytes, () => {
         const cwd = findCwdOnScreen(term.buffer.active);
         if (cwd) onCwdDetectedRef.current?.(cwd);
       });
     });
+
+    return () => {
+      detach();
+      agentRef.current?.resetForNewSession();
+    };
   }, [sessionId]);
 
   // --- app notices printed into the terminal buffer ---

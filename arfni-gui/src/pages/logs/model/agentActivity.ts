@@ -56,6 +56,15 @@ export interface AgentActivityDetector {
   feed(text: string): void;
   signal(reason: 'bell' | 'osc', body?: string): void;
   noteUserInput(): void;
+  /**
+   * Called when the ssh session ends or a new one attaches.
+   *
+   * Nothing may cross a session boundary. The remote sshd SIGHUPs the agent the moment
+   * the link drops, so a busy window left open fires a completion for work that is
+   * already dead, and that phantom notification also arms the cooldown, which then
+   * swallows the real completion after the reconnect.
+   */
+  resetForNewSession(): void;
   dispose(): void;
 }
 
@@ -332,6 +341,18 @@ export function createAgentActivityDetector(
     signal(reason, body) {
       if (disposed) return;
       emit(reason, body);
+    },
+    resetForNewSession() {
+      if (disposed) return;
+      endBusy();
+      sawMarker = false;
+      tail = '';
+      lastOutputAt = 0;
+      lastDoneAt = 0;
+      lastUserInputAt = 0;
+      // A fresh shell is not known to run an agent: without tmux the process is gone, and
+      // with tmux the reattach redraw re-arms this within a frame.
+      agentSeen = false;
     },
     noteUserInput() {
       if (disposed) return;

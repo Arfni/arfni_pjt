@@ -354,6 +354,51 @@ describe('createAgentActivityDetector', () => {
     d.dispose();
   });
 
+  it('연결이 끊기면 대기 중이던 완료 판정을 버린다', () => {
+    // The remote sshd SIGHUPs the agent the moment the link drops, so a busy window left
+    // open at that point must not become a completion for work that no longer exists.
+    const d = make();
+    d.feed('$ codex\r\n');
+    vi.advanceTimersByTime(3000);
+    stream(d, CODEX_FRAME, 6000);
+
+    d.resetForNewSession(); // the session closed
+    vi.advanceTimersByTime(10000);
+
+    expect(events).toHaveLength(0);
+    expect(busy[busy.length - 1]).toBe(false); // the indicator goes out with the session
+    d.dispose();
+  });
+
+  it('재접속 뒤에도 완료를 정상적으로 잡는다', () => {
+    // Regression: with no reset the phantom completion above set the cooldown, and a
+    // reconnect landing inside that window swallowed the notification that mattered.
+    const d = make();
+    d.feed('$ codex\r\n');
+    vi.advanceTimersByTime(3000);
+    stream(d, CODEX_FRAME, 6000);
+    d.resetForNewSession(); // dropped
+    vi.advanceTimersByTime(1000); // reconnected well inside the cooldown
+
+    stream(d, CODEX_FRAME, 6000); // the reattached agent works, then stops
+    vi.advanceTimersByTime(2000);
+
+    expect(events.map((e) => e.reason)).toEqual(['idle']);
+    d.dispose();
+  });
+
+  it('이전 세션의 꼬리가 새 세션 첫 청크와 이어지지 않는다', () => {
+    // Otherwise the tail of a dead session could complete a marker in the new one.
+    const d = make();
+    d.feed('⠋ Working  Esc to in');
+    d.resetForNewSession();
+    d.feed('terrupt\x1b[0m');
+    vi.advanceTimersByTime(5000);
+
+    expect(busy).toEqual([]); // no busy window was ever opened
+    d.dispose();
+  });
+
   it('dispose 후에는 아무것도 알리지 않는다', () => {
     const d = make();
     stream(d, CODEX_FRAME, 6000);
