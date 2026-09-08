@@ -61,7 +61,7 @@ async fn start_monitoring_with_tunnel(
     app: AppHandle,
     target: Target,
 ) -> Result<String, String> {
-    use crate::features::ssh_rt::{SshParams, open_tunnel};
+    use crate::features::ssh_rt::{SshParams, open_local_tunnel};
 
     let ssh_params = SshParams {
         host: target.host.clone(),
@@ -74,13 +74,13 @@ async fn start_monitoring_with_tunnel(
     println!("  User: {}", target.user);
 
     // Prometheus 터널: EC2:9090 -> localhost:9091
-    let prometheus_tunnel_id = open_tunnel(app.clone(), ssh_params.clone(), 9091, 9090)
+    let prometheus_tunnel_id = open_local_tunnel(app.clone(), ssh_params.clone(), 9091, 9090)
         .map_err(|e| format!("Failed to create Prometheus tunnel: {}", e))?;
 
     println!("[start_monitoring_with_tunnel] Prometheus tunnel created: {}", prometheus_tunnel_id);
 
     // Grafana 터널: EC2:3200 -> localhost:3200
-    let grafana_tunnel_id = open_tunnel(app.clone(), ssh_params, 3200, 3200)
+    let grafana_tunnel_id = open_local_tunnel(app.clone(), ssh_params, 3200, 3200)
         .map_err(|e| format!("Failed to create Grafana tunnel: {}", e))?;
 
     println!("[start_monitoring_with_tunnel] Grafana tunnel created: {}", grafana_tunnel_id);
@@ -679,7 +679,7 @@ pub async fn check_monitoring_running(
 
 /// 모니터링 스택 종료
 #[command]
-pub async fn stop_monitoring_stack() -> Result<String, String> {
+pub async fn stop_monitoring_stack(app: AppHandle) -> Result<String, String> {
     #[cfg(target_os = "windows")]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -767,23 +767,10 @@ pub async fn stop_monitoring_stack() -> Result<String, String> {
         }
     }
 
-    // 4. SSH 터널 프로세스 종료 (Windows)
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        let mut kill_cmd = Command::new("taskkill");
-        kill_cmd.args(&["/F", "/IM", "ssh.exe"]);
-        kill_cmd.creation_flags(CREATE_NO_WINDOW);
-        let _ = kill_cmd.output();
-    }
-
-    // SSH 터널 프로세스 종료 (Unix)
-    #[cfg(not(target_os = "windows"))]
-    {
-        let mut kill_cmd = Command::new("pkill");
-        kill_cmd.args(&["-f", "ssh.*9090"]);
-        let _ = kill_cmd.output();
-    }
+    // 4. SSH 터널은 프로세스 이름으로 죽이지 않는다.
+    //    `taskkill /F /IM ssh.exe` / `pkill -f ssh.*9090`은 사용자가 직접 띄운 세션까지 죽인다.
+    //    이 앱이 만든 터널은 ssh_rt::close_tunnel(child PID 단위)로 정리한다.
+    crate::features::ssh_rt::close_all_tunnels(&app);
 
     println!("[stop_monitoring_stack] Cleanup completed");
     Ok("Monitoring stack stopped".to_string())

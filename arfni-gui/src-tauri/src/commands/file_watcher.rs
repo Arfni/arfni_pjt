@@ -48,15 +48,27 @@ pub fn watch_stack_yaml(app: AppHandle, db: State<Database>, project_path: Strin
         let (tx, rx) = channel();
 
         // 파일 감시자 생성
-        let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+        // 파일 감시자 생성.
+        // 여기서 unwrap하면 감시자 생성/등록 실패가 곧 스레드 패닉이다.
+        // 파일이 지워지거나 권한이 없을 때 흔히 나는 오류라 정상 종료로 처리한다.
+        let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
             if let Ok(event) = res {
                 tx.send(event).unwrap_or(());
             }
-        }).map_err(|e| format!("파일 감시자 생성 실패: {}", e)).unwrap();
+        });
+        let mut watcher = match watcher {
+            Ok(w) => w,
+            Err(e) => {
+                eprintln!("[file_watcher] 감시자 생성 실패: {e}");
+                return;
+            }
+        };
 
         // stack.yaml 파일 감시 시작
-        watcher.watch(&stack_yaml_path, RecursiveMode::NonRecursive)
-            .map_err(|e| format!("파일 감시 시작 실패: {}", e)).unwrap();
+        if let Err(e) = watcher.watch(&stack_yaml_path, RecursiveMode::NonRecursive) {
+            eprintln!("[file_watcher] 감시 시작 실패 ({stack_yaml_path:?}): {e}");
+            return;
+        }
 
         // 이벤트 처리 루프
         loop {

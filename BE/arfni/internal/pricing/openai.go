@@ -626,6 +626,7 @@ CRITICAL: Budget tier는 최소 %.1f GB RAM 이상 인스턴스를 사용해야 
 				float64(minRequiredMemoryMB)/1024,
 				float64(minRequiredMemoryMB)/1024,
 				float64(minRequiredMemoryMB)/1024,
+				float64(minRequiredMemoryMB)/1024,
 				float64(minRequiredMemoryMB)/1024)
 		} else {
 			memoryBreakdown = fmt.Sprintf(`
@@ -647,6 +648,7 @@ Instance selection MUST meet this memory requirement.
 
 `,
 				minRequiredMemoryMB,
+				float64(minRequiredMemoryMB)/1024,
 				float64(minRequiredMemoryMB)/1024,
 				float64(minRequiredMemoryMB)/1024,
 				float64(minRequiredMemoryMB)/1024,

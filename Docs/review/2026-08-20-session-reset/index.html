@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>알림 로직 정리 · 재접속 버그 수정 리뷰</title>
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2128; --line:#30363d; --fg:#e6edf3;
+    --dim:#9198a1; --accent:#58a6ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+    --mono:"Cascadia Mono",Consolas,"D2Coding",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);line-height:1.7;
+    font-family:"Pretendard","Malgun Gothic",system-ui,sans-serif}
+  code,pre{font-family:var(--mono)}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:.9em}
+  pre{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px 16px;
+    overflow-x:auto;font-size:13px;line-height:1.55}
+  header{padding:38px 24px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{margin:0 0 6px;font-size:25px}
+  header p{margin:0;color:var(--dim)}
+  nav{position:sticky;top:0;z-index:9;background:rgba(13,17,23,.93);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);padding:10px 24px;display:flex;gap:6px;flex-wrap:wrap}
+  nav a{font-size:13px;color:var(--dim);text-decoration:none;padding:5px 10px;
+    border:1px solid var(--line);border-radius:999px}
+  nav a:hover{color:var(--fg);border-color:var(--accent)}
+  main{max-width:1020px;margin:0 auto;padding:30px 24px 90px}
+  section{margin:0 0 54px}
+  h2{font-size:21px;margin:0 0 6px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:26px 0 8px}
+  .lede{color:var(--dim);margin:0 0 18px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:12px 0}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);font-weight:600}
+  td.n{font-family:var(--mono);white-space:nowrap}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px 18px;margin:14px 0}
+  .bad{color:var(--bad)}.ok{color:var(--ok)}.warn{color:var(--warn)}.dim{color:var(--dim)}
+  .flow{font-family:var(--mono);font-size:12.5px;white-space:pre;overflow-x:auto;
+    background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px}
+  .q{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px 18px;margin:14px 0}
+  .q h4{margin:0 0 10px;font-size:15px}
+  .opts{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}
+  .opts button{text-align:left;background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+    border-radius:6px;padding:8px 12px;cursor:pointer;font:inherit;font-size:13.5px}
+  .opts button:hover{border-color:var(--accent)}
+  .opts button.pick-ok{border-color:var(--ok);background:#0e2a16}
+  .opts button.pick-bad{border-color:var(--bad);background:#2d1113}
+  .opts button.show-ok{border-color:var(--ok)}
+  .expl{display:none;border-left:3px solid var(--accent);padding:8px 12px;background:var(--panel2);
+    border-radius:0 6px 6px 0;font-size:13.5px}
+  .score{position:sticky;bottom:16px;margin-top:22px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:12px 16px;font-size:14px}
+  ul{padding-left:22px}li{margin:4px 0}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);
+    color:var(--dim);margin-right:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>알림 로직 정리 &amp; 재접속 버그 수정</h1>
+  <p>커밋 <code>92499d7</code> (로컬, 푸시 전) · 기준 <code>8a29900</code> · 테스트 134개 통과 · 2026-08-20</p>
+</header>
+
+<nav>
+  <a href="#pipeline">1. 전체 파이프라인</a>
+  <a href="#signals">2. 신호 4종</a>
+  <a href="#gate">3. 판정 관문</a>
+  <a href="#policy">4. 알림 정책</a>
+  <a href="#delivery">5. 전달 방식</a>
+  <a href="#bug">6. 이번 버그</a>
+  <a href="#fix">7. 수정</a>
+  <a href="#quiz">8. 문제</a>
+</nav>
+
+<main>
+
+<section id="pipeline">
+  <h2>1. 알림이 만들어지는 전체 경로</h2>
+  <p class="lede">원격에서 온 바이트 하나가 토스트가 되기까지 지나는 단계 전부.</p>
+  <div class="flow">
+원격 셸 (claude / codex)
+  │  stdout / stderr
+  ▼
+ssh (로컬 PTY 안에서 실행, Windows는 ConPTY)
+  │
+  ▼
+Rust reader 스레드  ssh_rt.rs           8KB 버퍼로 read
+  │  emit("ssh:data", { id, base64 })
+  ▼
+sshDataBus  (모듈 로드 시 1회 구독)      세션 id를 모를 때 도착한 바이트도 버퍼에 보관
+  │  attachSink(sessionId, sink)
+  ▼
+TerminalView  sink
+  ├─ TextDecoder(stream) ──▶ detector.feed(text)     ← 감지 전용 (화면 출력과 무관)
+  └─ term.write(bytes) ────▶ xterm.js 렌더           ← 화면
+                                │
+                                ├─ onBell           ─▶ detector.signal('bell')
+                                ├─ OSC 9  핸들러     ─▶ detector.signal('osc', body)
+                                ├─ OSC 777 핸들러    ─▶ detector.signal('osc', body)
+                                └─ onData(키 입력)   ─▶ detector.noteUserInput()
+  │
+  ▼
+detector  (agentActivity.ts)
+  │  onBusyChange(true/false) ─▶ 헤더 표시등 ● 작업 중
+  │  onDone({ reason, busyMs, sawMarker, sinceUserInputMs, body? })
+  ▼
+TerminalWorkspace.handleAgentDone
+  ├─ setAttention(tab) = true                        ← 탭 배지 (항상)
+  └─ shouldNotifyAgentDone({탭·창·입력}) ?
+        ├─ false → 침묵 (사람이 그 터미널 앞에 있음)
+        └─ true  → notifyDesktop()
+                     ├─ requestUserAttention  ← 창이 뒤에 있을 때 작업표시줄 깜빡임
+                     └─ sendNotification      ← OS 토스트
+  </div>
+</section>
+
+<section id="signals">
+  <h2>2. 완료를 알아내는 신호 4종</h2>
+  <p class="lede">PTY는 "명령이 끝났다"를 알려주지 않는다. 에이전트는 셸을 떠나지 않는 장수 프로세스라
+  프로세스 종료도, 새 프롬프트도 신호가 아니다. 바이트 스트림에 남는 흔적만 쓴다.</p>
+  <table>
+    <tr><th>#</th><th>신호</th><th>어디서 오는가</th><th>조건</th><th>지연</th></tr>
+    <tr><td class="n">1</td><td>OSC 9 / OSC 777</td>
+      <td>에이전트가 직접 쏘는 알림 이스케이프. <code>9;4;</code>(ConEmu 진행률)는 제외</td>
+      <td class="ok">무조건 전달 (작업 중이 아니어도)</td><td class="n">즉시</td></tr>
+    <tr><td class="n">2</td><td>BEL (0x07)</td><td>claude <code>terminal_bell</code> 채널</td>
+      <td class="warn">작업 중이었을 때만 — 셸 탭완성 실패에도 울림</td><td class="n">즉시</td></tr>
+    <tr><td class="n">3</td><td>진행 표시 소멸</td>
+      <td><code>esc to interrupt</code> / <code>esc to cancel</code> / <code>ctrl+c to stop</code></td>
+      <td>busy 진입 후 2초 침묵 + 총 4초 이상</td><td class="n">~2초</td></tr>
+    <tr><td class="n">4</td><td>출력 정지</td>
+      <td>에이전트 세션에서 출력이 연달아(≤1.5초 간격) 흐르다 멈춤</td>
+      <td>세션 확정 + 에코 아님 + 총 8초 이상</td><td class="n">~2초</td></tr>
+  </table>
+  <div class="card">
+    <b>세션 확정(<code>agentSeen</code>)</b>은 4번의 안전장치다. 프롬프트나 런처 뒤의 실행 위치에서만
+    이름을 인정한다 — <code>$ codex</code>, <code>npx @anthropic-ai/claude-code</code>, <code>❯ codex resume</code>.
+    <code>tokens used</code>, <code>⏎ send</code>, 진행 힌트도 확정 신호다.
+    <span class="dim">로그 본문에 이름만 스친 <code>INFO starting codex-service</code>는 인정하지 않는다 —
+    인정하면 그 뒤 모든 로그 스트림이 멈출 때마다 알림이 나간다.</span>
+  </div>
+</section>
+
+<section id="gate">
+  <h2>3. 판정에 쓰는 값과 관문</h2>
+  <table>
+    <tr><th>상수</th><th>값</th><th>역할</th><th>근거</th></tr>
+    <tr><td class="n">gapMs</td><td class="n">1500</td><td>"출력이 이어진다"의 상한</td>
+      <td>토큰 스트리밍 간격(수십~수백ms) + SSH 왕복 지연·지터 여유</td></tr>
+    <tr><td class="n">idleMs</td><td class="n">2000</td><td>완료로 보는 침묵</td>
+      <td>스피너 재렌더 주기(최대 1초)의 2배</td></tr>
+    <tr><td class="n">minBusyMs</td><td class="n">4000</td><td>마커 봤을 때 최소 작업</td>
+      <td>이보다 짧으면 사용자가 보며 기다리는 범위 = 소음. <span class="warn">판단값</span></td></tr>
+    <tr><td class="n">minStreamMs</td><td class="n">8000</td><td>마커 없을 때 최소 작업</td>
+      <td>근거가 약해 의도적으로 2배. <span class="warn">판단값</span></td></tr>
+    <tr><td class="n">echoWindowMs</td><td class="n">700</td><td>키 입력 후 에코 제외 창</td>
+      <td>TUI가 키 하나에 입력 상자를 여러 청크로 다시 그린다</td></tr>
+    <tr><td class="n">cooldownMs</td><td class="n">3000</td><td>중복 알림 억제</td>
+      <td>idleMs보다 커야 BEL과 idle 판정을 하나로 묶는다</td></tr>
+    <tr><td class="n">TAIL_KEEP</td><td class="n">80</td><td>청크 경계 마커 복원</td>
+      <td>최장 마커 약 30자의 2배 여유. 8KB 전체 복사를 피한다</td></tr>
+    <tr><td class="n">RECENT_INPUT_MS</td><td class="n">15000</td><td>"사람이 앞에 있다" 창</td>
+      <td>입력 직후 15초는 프롬프트를 읽고 반응하는 범위</td></tr>
+  </table>
+  <h3>불변식 (테스트로 고정)</h3>
+  <pre>gapMs(1.5s) &lt; idleMs(2s) &lt; cooldownMs(3s)     minBusyMs(4s) &lt; minStreamMs(8s)     idleMs &lt; minBusyMs</pre>
+  <h3>값싼 1차 관문</h3>
+  <p><code>feed</code>는 PTY 바이트 전부가 지나간다. 지문 정규식을 무조건 돌리면 낭비라, 지문 테이블에서
+  생성한 리터럴 관문을 <b>청크당 한 번만</b> 스캔한다. 세션이 확정되면 이름 리터럴이 빠진 좁은 관문으로 교체한다.</p>
+  <table>
+    <tr><th>경로</th><th>비용(8KB 청크)</th><th>처리량</th></tr>
+    <tr><td>세션 확정 후 (정상 상태)</td><td class="n">3.49 µs</td><td class="n">2,237 MB/s</td></tr>
+    <tr><td>세션 미확정</td><td class="n">7.31 µs</td><td class="n">1,069 MB/s</td></tr>
+    <tr><td>실제 스피너 프레임 (65B)</td><td class="n">1.40 µs</td><td>—</td></tr>
+  </table>
+</section>
+
+<section id="policy">
+  <h2>4. 알릴지 말지 — <code>shouldNotifyAgentDone</code></h2>
+  <pre>const present =
+  tabActive &amp;&amp; !workspaceHidden &amp;&amp; windowFocused &amp;&amp; sinceUserInputMs &lt; 15000;
+return !present;   // present = 사람이 그 터미널 앞에 있다 → 침묵</pre>
+  <table>
+    <tr><th>상황</th><th>탭 활성</th><th>창 포커스</th><th>15초 내 입력</th><th>결과</th></tr>
+    <tr><td>그 터미널을 방금 쓰고 있었다</td><td>O</td><td>O</td><td>O</td><td class="dim">침묵 (배지만)</td></tr>
+    <tr><td>화면엔 떠 있지만 손을 뗀 지 오래</td><td>O</td><td>O</td><td class="bad">X</td><td class="ok">알림</td></tr>
+    <tr><td>다른 탭을 보는 중</td><td class="bad">X</td><td>O</td><td>—</td><td class="ok">알림</td></tr>
+    <tr><td>다른 뷰(컨테이너·모니터링)를 보는 중</td><td>—</td><td>—</td><td>—</td><td class="ok">알림</td></tr>
+    <tr><td>창이 다른 앱 뒤에 있다</td><td>—</td><td class="bad">X</td><td>—</td><td class="ok">알림 + 작업표시줄 깜빡임</td></tr>
+  </table>
+  <div class="card">두 번째 행이 첫 구현에서 빠져 있었다. 창이 떠 있으면 보고 있다고 단정해서,
+  자리를 비운 사이 codex의 승인 질문을 통째로 놓쳤다. <b>화면에 떠 있는 것과 사람이 보는 것은 다르다.</b></div>
+</section>
+
+<section id="delivery">
+  <h2>5. 전달 방식 4가지</h2>
+  <table>
+    <tr><th>수단</th><th>언제</th><th>지속</th><th>목적</th></tr>
+    <tr><td>OS 토스트</td><td>알림 판정이 true일 때</td><td>몇 초</td><td>즉시 인지</td></tr>
+    <tr><td>작업표시줄 깜빡임</td><td>창이 포커스가 아닐 때</td><td>포커스까지</td><td>토스트를 놓쳐도 남는 흔적</td></tr>
+    <tr><td>탭 벨 배지</td><td class="ok">판정과 무관하게 항상</td><td>그 탭을 볼 때까지</td><td>어느 세션인지 찾기</td></tr>
+    <tr><td>헤더 <code>● 작업 중</code></td><td>busy 진입/해제</td><td>작업 중 내내</td><td>감지 자체가 되는지 눈으로 확인</td></tr>
+  </table>
+  <p>알림 권한은 <b>허용만 캐시</b>한다. 거부를 캐시하면 나중에 OS 설정에서 켜도 앱 재시작 전까지 영원히 조용하다.</p>
+</section>
+
+<section id="bug">
+  <h2>6. 이번에 발견한 문제</h2>
+  <p class="lede">보고: <b>"연결이 끊긴 다음 다시 연결해서 진행하면 알림이 정상적으로 안 뜬다."</b></p>
+  <p>원인은 하나였다. 감지기는 <b>터미널 인스턴스당 한 번</b> 생성되고, 세션이 바뀌어도 아무 통보를 받지 않았다.
+  그래서 끊김 경계를 상태가 그대로 넘어갔다.</p>
+  <div class="flow">
+ 시간 ─────────────────────────────────────────────────────────────────────────▶
+
+ [세션 A]  에이전트 작업 중  ██████████████  busy=true, 2초 타이머 대기
+                                          │
+                              링크 끊김 ───┤ 원격 sshd가 에이전트에 SIGHUP → 작업은 이미 죽었다
+                                          │ 그런데 busy 구간과 타이머는 살아 있다
+                                +2초 ─────▶ ① 유령 완료 알림 발화  (죽은 작업에 대한 알림)
+                                          │  lastDoneAt = now  → ② 쿨다운 3초 켜짐
+                                          │
+                        자동 재접속 +3초 ──▶ reconnectPolicy의 첫 간격이 정확히 3초
+ [세션 B]  tmux 재부착, 에이전트 계속 작업  ████
+                                          │
+                              작업 완료 ───▶ ③ 알림이 쿨다운에 먹혀 사라짐  ← "알림이 안 뜬다"
+  </div>
+  <h3>부수 피해</h3>
+  <ul>
+    <li><b>꼬리 오염</b> — 이전 세션의 <code>tail</code> 80자가 새 세션 첫 청크와 이어져 엉뚱한 마커를 만든다.</li>
+    <li><b>하한 오적용</b> — <code>sawMarker</code>가 남아 다음 완료 판정에 8초가 아니라 4초 하한이 쓰인다.</li>
+    <li><b>표시등 잔류</b> — 세션이 죽었는데 <code>● 작업 중</code>이 켜진 채로 남는다.</li>
+  </ul>
+</section>
+
+<section id="fix">
+  <h2>7. 수정</h2>
+  <p><code>resetForNewSession()</code>을 추가하고 <b>세션 경계 양쪽</b>에서 호출한다.</p>
+  <pre>// TerminalView.tsx — sink 이펙트
+agentRef.current?.resetForNewSession();      // ① 새 세션 부착 시
+
+const detach = attachSink(sessionId, (bytes) =&gt; { ... });
+
+return () =&gt; {
+  detach();
+  agentRef.current?.resetForNewSession();    // ② 세션이 끊길 때 (대기 타이머 취소)
+};</pre>
+  <table>
+    <tr><th>리셋 대상</th><th>왜</th></tr>
+    <tr><td><code>busySince</code> + 타이머</td><td>죽은 작업에 대한 유령 완료를 막는다 (표시등도 함께 꺼짐)</td></tr>
+    <tr><td><code>lastDoneAt</code></td><td>쿨다운이 재접속 후 진짜 완료를 삼키지 않게</td></tr>
+    <tr><td><code>tail</code></td><td>이전 세션 꼬리가 새 세션에서 마커를 완성하지 않게</td></tr>
+    <tr><td><code>lastOutputAt</code>, <code>lastUserInputAt</code></td><td>옛 타임스탬프로 간격·에코를 오판하지 않게</td></tr>
+    <tr><td><code>sawMarker</code></td><td>다음 판정에 하한이 잘못 적용되지 않게</td></tr>
+    <tr><td><code>agentSeen</code></td><td>새 셸이 에이전트 세션이라는 보장이 없다. tmux면 재부착 리드로우가 한 프레임 안에 다시 켠다</td></tr>
+  </table>
+  <h3>검증 — 구현 전 실패를 먼저 확인한 테스트 3개</h3>
+  <ul>
+    <li><code>연결이 끊기면 대기 중이던 완료 판정을 버린다</code> — 유령 알림 차단</li>
+    <li><code>재접속 뒤에도 완료를 정상적으로 잡는다</code> — 쿨다운 안에서 재접속해도 알림이 나감 (보고된 케이스)</li>
+    <li><code>이전 세션의 꼬리가 새 세션 첫 청크와 이어지지 않는다</code></li>
+  </ul>
+  <p>전체 <b>134개 통과</b>, <code>tsc --noEmit</code> 통과.
+  <span class="warn">지금 설치된 앱은 08-19 20:41 빌드라 이 수정과 에코 가드가 들어 있지 않다 — 재빌드 후 덮어 설치해야 적용된다.</span></p>
+</section>
+
+<section id="quiz">
+  <h2>8. 문제</h2>
+  <p class="lede">고르면 정답과 해설이 열린다.</p>
+  <div id="quiz-root"></div>
+  <div class="score" id="score">진행 0 / 10 · 정답 0</div>
+</section>
+
+</main>
+
+<script>
+const QUESTIONS = [
+  {
+    q: "PTY에서 claude/codex의 완료를 프로세스 종료로 감지할 수 없는 이유는?",
+    opts: [
+      "SSH가 종료 코드를 전달하지 않기 때문",
+      "에이전트가 셸을 떠나지 않는 장수 프로세스라 작업이 끝나도 종료하지 않기 때문",
+      "PTY가 SIGCHLD를 막기 때문",
+      "xterm.js가 종료 이벤트를 삼키기 때문"
+    ],
+    a: 1,
+    e: "에이전트는 하나의 대화형 세션에서 여러 작업을 처리한다. 프로세스도 안 죽고 새 프롬프트도 안 나오므로 '종료'라는 신호 자체가 존재하지 않는다."
+  },
+  {
+    q: "링크가 끊긴 순간, 수정 전 감지기의 busy 구간은 어떻게 되었나?",
+    opts: [
+      "즉시 해제되고 타이머도 취소됐다",
+      "그대로 살아남아 2초 뒤 이미 죽은 작업에 대한 완료 알림을 냈다",
+      "다음 세션이 붙을 때까지 정지 상태로 대기했다",
+      "세션 id가 바뀌면서 감지기가 새로 만들어졌다"
+    ],
+    a: 1,
+    e: "감지기는 터미널 인스턴스당 한 번만 생성되고 세션 변경을 통보받지 않았다. 원격 sshd가 SIGHUP으로 에이전트를 죽였는데도 busy와 타이머는 살아 있어 유령 완료가 발화했다."
+  },
+  {
+    q: "그 유령 알림이 왜 '재접속 후 알림이 안 뜨는' 원인이 되었나?",
+    opts: [
+      "알림 권한이 취소되기 때문",
+      "탭 배지가 이미 켜져 있어 중복으로 판단하기 때문",
+      "유령 알림이 3초 쿨다운을 켜고, 자동 재접속의 첫 간격이 정확히 3초라서 재접속 직후의 진짜 완료가 쿨다운에 먹혔기 때문",
+      "세션 id가 달라 이벤트가 다른 탭으로 갔기 때문"
+    ],
+    a: 2,
+    e: "cooldownMs=3000이고 reconnectPolicy의 첫 재시도 간격도 3초다. 두 숫자가 겹쳐서, 유령 알림이 켠 억제 창 안에 재접속과 실제 완료가 들어가 버렸다."
+  },
+  {
+    q: "세션 리셋에서 agentSeen까지 지우는 이유는?",
+    opts: [
+      "메모리를 절약하기 위해",
+      "새 셸이 에이전트 세션이라는 보장이 없기 때문. tmux면 재부착 리드로우가 한 프레임 안에 다시 켜준다",
+      "agentSeen이 켜져 있으면 벤더 마커를 못 잡기 때문",
+      "테스트를 통과시키기 위해"
+    ],
+    a: 1,
+    e: "agentSeen이 켜져 있으면 '출력 정지 = 완료' 경로가 열린 상태다. tmux 없이 재접속하면 에이전트는 이미 죽었으므로 그 문을 열어둘 근거가 없다. tmux면 재부착 화면의 푸터(⏎ send 등)가 즉시 다시 켠다."
+  },
+  {
+    q: "네 가지 신호 중 '작업 중이 아니어도' 그대로 알림이 되는 것은?",
+    opts: [
+      "BEL",
+      "진행 표시 소멸",
+      "출력 정지",
+      "OSC 9 / OSC 777"
+    ],
+    a: 3,
+    e: "OSC 9/777은 에이전트가 '알림을 띄워라'라고 명시적으로 보낸 시퀀스라 그대로 전달한다. BEL은 셸 탭완성 실패로도 울리므로 작업 중이었을 때만 인정한다."
+  },
+  {
+    q: "벤더 진행 힌트를 못 본 상태에서 완료를 판정하려면 최소 몇 초가 필요한가?",
+    opts: ["2초", "4초", "8초", "15초"],
+    a: 2,
+    e: "minStreamMs=8000. 마커를 봤을 때(minBusyMs=4000)의 2배다. 근거가 약한 판정에 더 긴 증거를 요구하는 것이고, docker logs -f 같은 스트림이 잠깐 조용해지는 것과 구분하는 완충이다."
+  },
+  {
+    q: "에코 창(700ms)이 필요한 이유는?",
+    opts: [
+      "SSH 왕복 지연을 흡수하기 위해",
+      "TUI가 키 하나에 입력 상자를 여러 청크로 다시 그려서, 그 청크 간격이 스트리밍과 똑같이 보이기 때문",
+      "붙여넣기 시 bracketed paste를 기다리기 위해",
+      "토스트 중복을 막기 위해"
+    ],
+    a: 1,
+    e: "키 입력마다 noteUserInput이 구간을 끊지만, 같은 리드로우의 두 번째 청크가 첫 청크와의 간격으로 busy를 열어버렸다. 그래서 타이핑만으로 표시등이 켜졌다."
+  },
+  {
+    q: "토스트를 생략하는 조건은?",
+    opts: [
+      "창이 포커스이면",
+      "그 탭이 활성이면",
+      "탭 활성 + 창 포커스 + 15초 내 그 터미널에 입력, 세 가지가 모두 참일 때",
+      "탭 배지가 이미 켜져 있을 때"
+    ],
+    a: 2,
+    e: "세 증거가 모두 있을 때만 사람이 그 터미널 앞에 있다고 본다. 앞의 두 개만으로 판단했다가 자리를 비운 사용자가 승인 질문을 놓쳤다."
+  },
+  {
+    q: "헤더의 `● 작업 중` 표시등이 있는 목적은?",
+    opts: [
+      "연결 상태를 보여주기 위해",
+      "알림이 안 왔을 때 '감지 실패'인지 '정책상 침묵'인지 가르기 위해",
+      "CPU 사용량을 표시하기 위해",
+      "tmux 세션 여부를 표시하기 위해"
+    ],
+    a: 1,
+    e: "표시등이 아예 안 켜지면 감지가 안 된 것이고, 켜졌다 꺼졌는데 조용하면 알림 정책이나 OS 권한 문제다. 진단 수단이므로 거짓 신호(타이핑에 켜짐)를 내면 존재 이유가 없어진다."
+  },
+  {
+    q: "탭 배지를 알림 판정과 무관하게 항상 남기는 이유는?",
+    opts: [
+      "구현이 간단해서",
+      "토스트를 놓쳤거나 OS에서 알림을 껐어도 어느 세션에서 끝났는지 찾을 수 있어야 하기 때문",
+      "React 상태를 갱신해야 리렌더가 되기 때문",
+      "쿨다운을 우회하기 위해"
+    ],
+    a: 1,
+    e: "토스트는 몇 초 뒤 사라지고 권한이 없으면 아예 안 뜬다. 배지는 그 탭을 볼 때까지 남는 유일한 흔적이라 조건 없이 남긴다."
+  }
+];
+
+const root = document.getElementById('quiz-root');
+const scoreEl = document.getElementById('score');
+let answered = 0, correct = 0;
+
+QUESTIONS.forEach((item, qi) => {
+  const box = document.createElement('div');
+  box.className = 'q';
+  const h = document.createElement('h4');
+  h.textContent = 'Q' + (qi + 1) + '. ' + item.q;
+  box.appendChild(h);
+
+  const opts = document.createElement('div');
+  opts.className = 'opts';
+  const expl = document.createElement('div');
+  expl.className = 'expl';
+
+  item.opts.forEach((text, oi) => {
+    const b = document.createElement('button');
+    b.textContent = 'ABCD'[oi] + '. ' + text;
+    b.addEventListener('click', () => {
+      if (box.dataset.done) return;
+      box.dataset.done = '1';
+      answered += 1;
+      const right = oi === item.a;
+      if (right) correct += 1;
+      b.className = right ? 'pick-ok' : 'pick-bad';
+      Array.from(opts.children).forEach((el, i) => {
+        if (i === item.a && !right) el.className = 'show-ok';
+        el.disabled = true;
+      });
+      expl.style.display = 'block';
+      expl.innerHTML = '<b>' + (right ? '정답' : '오답') + '</b> — 정답은 ' + 'ABCD'[item.a] + '. ' + item.e;
+      scoreEl.textContent = '진행 ' + answered + ' / ' + QUESTIONS.length + ' · 정답 ' + correct;
+      if (answered === QUESTIONS.length) {
+        scoreEl.textContent += correct === QUESTIONS.length
+          ? ' · 전부 맞았습니다.'
+          : ' · 틀린 항목의 해설에 해당하는 절을 다시 보세요.';
+      }
+    });
+    opts.appendChild(b);
+  });
+
+  box.appendChild(opts);
+  box.appendChild(expl);
+  root.appendChild(box);
+});
+</script>
+</body>
+</html>

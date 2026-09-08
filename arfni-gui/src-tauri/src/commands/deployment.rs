@@ -890,7 +890,9 @@ pub fn test_ssh_connection(host: String, user: String, key_path: String) -> Resu
     command
         .arg("-i")
         .arg(&key_path)
-        .arg("-o").arg("StrictHostKeyChecking=no")
+        // accept-new: 처음 보는 호스트만 등록하고, 이후 키가 바뀌면 거부한다.
+        // `no`는 검증 자체를 끄는 것이라 중간자 공격을 그대로 통과시킨다.
+        .arg("-o").arg("StrictHostKeyChecking=accept-new")
         .arg("-o").arg("BatchMode=yes")
         .arg("-o").arg("ConnectTimeout=10")
         .arg("-o").arg("LogLevel=ERROR")
@@ -1636,11 +1638,19 @@ pub async fn smart_deploy(
         "github_actions" => {
             println!("[Smart Deploy] Deploying via GitHub Actions...");
             // GitHub Actions deployment: trigger workflow via API
-            trigger_github_workflow(
-                project.github_repo_url.as_ref().unwrap().clone(),
-                github_branch,
-                project.github_access_token.unwrap()
-            ).await
+            // DB에서 온 Option을 unwrap하면 토큰/URL이 비어 있을 때 커맨드가 패닉한다.
+            // 패닉은 프론트에 원인이 전달되지 않아 "아무 일도 안 일어남"으로 보인다.
+            let repo_url = project
+                .github_repo_url
+                .as_ref()
+                .ok_or("GitHub repository URL is not set for this project")?
+                .clone();
+            let token = project
+                .github_access_token
+                .clone()
+                .ok_or("GitHub access token is not set for this project")?;
+
+            trigger_github_workflow(repo_url, github_branch, token).await
         }
         "docker_compose" => {
             println!("[Smart Deploy] Deploying via Docker Compose...");
@@ -1653,51 +1663,13 @@ pub async fn smart_deploy(
 }
 
 // Helper functions
-async fn read_ec2_file_via_ssh(
-    host: &str,
-    user: &str,
-    ssh_key: &str,
-    file_path: &str,
-) -> Result<String, String> {
-    use std::fs;
-    use std::path::PathBuf;
-    use tokio::process::Command;
-
-    // Write SSH key to temp file
-    let temp_key_path = std::env::temp_dir().join(format!("arfni_key_{}.pem", chrono::Utc::now().timestamp_millis()));
-    fs::write(&temp_key_path, ssh_key)
-        .map_err(|e| format!("Failed to write temp SSH key: {}", e))?;
-
-    // Set permissions (Unix only)
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&temp_key_path, fs::Permissions::from_mode(0o600))
-            .map_err(|e| format!("Failed to set key permissions: {}", e))?;
-    }
-
-    // Read file from EC2
-    let output = Command::new("ssh")
-        .args(&[
-            "-i", temp_key_path.to_str().unwrap(),
-            "-o", "StrictHostKeyChecking=no",
-            &format!("{}@{}", user, host),
-            &format!("cat {}", file_path)
-        ])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to execute SSH command: {}", e))?;
-
-    // Cleanup temp key
-    let _ = fs::remove_file(&temp_key_path);
-
-    if output.status.success() {
-        String::from_utf8(output.stdout)
-            .map_err(|e| format!("Failed to parse output: {}", e))
-    } else {
-        Err(format!("SSH command failed: {}", String::from_utf8_lossy(&output.stderr)))
-    }
-}
+//
+// read_ec2_file_via_ssh는 삭제했다. 호출부가 없는 죽은 코드였는데
+//   - PEM을 공용 temp 디렉터리에 평문으로 쓰고 (Windows에서는 ACL 제한 없음)
+//   - to_str().unwrap()으로 패닉 가능
+//   - StrictHostKeyChecking=no 로 호스트키 검증을 껐고
+//   - `cat {file_path}`로 원격 셸에 경로를 그대로 넘겼다
+// 필요해지면 ssh_rt/sftp의 안전한 경로를 쓴다.
 
 fn extract_repo_name(repo_url: &str) -> Result<String, String> {
     // Extract repo name from URL (e.g., "https://github.com/user/repo" -> "repo")

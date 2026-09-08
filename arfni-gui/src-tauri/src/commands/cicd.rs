@@ -286,63 +286,154 @@ pub async fn setup_cicd(
     Ok(format!("CI/CD setup completed successfully for {}", config.repository_url))
 }
 
-/// Load template from bundled resources
-fn load_template(app: &AppHandle, framework: &str) -> Result<String, String> {
-    let template_name = match framework {
-        "springboot" => "springboot.yml.tmpl",
-        "nodejs" => "nodejs.yml.tmpl",
-        "react" => "react.yml.tmpl",
-        "nextjs" => "nextjs.yml.tmpl",
-        "python" | "fastapi" | "flask" => "python.yml.tmpl",
-        _ => return Err(format!("Unsupported framework: {}", framework)),
-    };
-
-    // Try to load from resource directory
-    let resource_path = app
-        .path()
-        .resource_dir()
-        .map_err(|e| format!("Failed to get resource dir: {}", e))?
-        .join("plugins")
-        .join("bundled")
-        .join("cicd")
-        .join(template_name);
-
-    if resource_path.exists() {
-        std::fs::read_to_string(&resource_path)
-            .map_err(|e| format!("Failed to read template: {}", e))
-    } else {
-        // 템플릿은 tauri.conf.json의 resources에 번들링되어야 함
-        // Bundle CI/CD templates via tauri.conf.json resources before shipping
-        Err(format!("Template not found: {}. Expected at: {:?}", template_name, resource_path))
+/// Bundled CI/CD workflow template for a framework.
+/// The file name must match what actually ships in
+/// `resources/plugins/bundled/cicd/`.
+fn template_file_name(framework: &str) -> Result<&'static str, String> {
+    match framework {
+        "springboot" | "spring" => Ok("spring.yaml.tmpl"),
+        "nodejs" | "react" | "nextjs" | "python" | "fastapi" | "flask" => Err(format!(
+            "No CI/CD workflow template is bundled for '{}' yet (only Spring Boot is available).",
+            framework
+        )),
+        _ => Err(format!("Unsupported framework: {}", framework)),
     }
 }
 
-/// Render template with configuration values
-fn render_template(template: &str, config: &CICDConfiguration) -> Result<String, String> {
-    let mut rendered = template.to_string();
+/// Directory holding the bundled CI/CD templates.
+/// `tauri.conf.json` bundles `resources/plugins/**/*`, so Tauri keeps the
+/// `resources/` prefix inside the resource dir. This must stay in sync with
+/// the plugin loader in `commands::plugin`.
+fn cicd_template_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let base: PathBuf = if cfg!(debug_assertions) {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    } else {
+        app.path()
+            .resource_dir()
+            .map_err(|e| format!("Failed to get resource dir: {}", e))?
+    };
 
-    // Replace common variables
-    rendered = rendered.replace("{{ .branch }}", &config.branch);
-    rendered = rendered.replace("{{ .deploy_root }}", &config.deploy_root);
-    rendered = rendered.replace("{{ .docker_service }}", &config.docker_service);
+    Ok(base
+        .join("resources")
+        .join("plugins")
+        .join("bundled")
+        .join("cicd"))
+}
 
-    // Framework-specific replacements
-    match config.framework.as_str() {
-        "springboot" => {
-            let java_version = config.java_version.as_deref().unwrap_or("17");
-            rendered = rendered.replace("{{ .java_version }}", java_version);
-        }
-        "nodejs" | "react" | "nextjs" => {
-            let node_version = config.node_version.as_deref().unwrap_or("20");
-            rendered = rendered.replace("{{ .node_version }}", node_version);
-        }
-        "python" | "fastapi" | "flask" => {
-            let python_version = config.python_version.as_deref().unwrap_or("3.11");
-            rendered = rendered.replace("{{ .python_version }}", python_version);
-        }
-        _ => {}
+/// Load template from bundled resources
+fn load_template(app: &AppHandle, framework: &str) -> Result<String, String> {
+    let template_name = template_file_name(framework)?;
+    let template_path = cicd_template_dir(app)?.join(template_name);
+
+    if !template_path.exists() {
+        return Err(format!(
+            "Template not found: {}. Expected at: {:?}",
+            template_name, template_path
+        ));
     }
 
+    std::fs::read_to_string(&template_path)
+        .map_err(|e| format!("Failed to read template: {}", e))
+}
+
+/// Template variables exposed to the bundled CI/CD templates.
+fn template_vars(config: &CICDConfiguration) -> Vec<(&'static str, String)> {
+    vec![
+        ("BRANCH", config.branch.clone()),
+        ("DEPLOY_ROOT", config.deploy_root.clone()),
+        ("DOCKER_SERVICE", config.docker_service.clone()),
+        ("EC2_HOST", config.ec2_host.clone()),
+        ("EC2_USER", config.ec2_user.clone()),
+        (
+            "JAVA_VERSION",
+            config.java_version.clone().unwrap_or_else(|| "17".to_string()),
+        ),
+        ("JAVA_DIST", "temurin".to_string()),
+        (
+            "NODE_VERSION",
+            config.node_version.clone().unwrap_or_else(|| "20".to_string()),
+        ),
+        (
+            "PYTHON_VERSION",
+            config
+                .python_version
+                .clone()
+                .unwrap_or_else(|| "3.11".to_string()),
+        ),
+    ]
+}
+
+/// Find the end of a `{{ ... }}` action, skipping quoted spans so that
+/// literals such as {{ `{{.Names}}` }} are not cut in half.
+/// Returns the trimmed action body and the number of bytes consumed
+/// (including the closing `}}`).
+fn scan_action(s: &str) -> Result<(&str, usize), String> {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+
+    while i < bytes.len() {
+        match bytes[i] {
+            quote @ (b'`' | b'"') => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != quote {
+                    i += 1;
+                }
+                if i >= bytes.len() {
+                    return Err("Unterminated quote in template action".to_string());
+                }
+                i += 1;
+            }
+            b'}' if i + 1 < bytes.len() && bytes[i + 1] == b'}' => {
+                return Ok((s[..i].trim(), i + 2));
+            }
+            _ => i += 1,
+        }
+    }
+
+    Err("Unterminated template action: missing '}}'".to_string())
+}
+
+/// Resolve a single template action to its output text.
+fn resolve_action(body: &str, vars: &[(&'static str, String)]) -> Result<String, String> {
+    // Quoted literal: `{{ "{{" }}` / {{ `{{.Names}}` }} emit the inner text
+    // verbatim so GitHub Actions expressions survive rendering.
+    for quote in ['"', '`'] {
+        if body.len() >= 2 && body.starts_with(quote) && body.ends_with(quote) {
+            return Ok(body[1..body.len() - 1].to_string());
+        }
+    }
+
+    if let Some(name) = body.strip_prefix('.') {
+        let name = name.trim();
+        return vars
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.clone())
+            .ok_or_else(|| format!("Unknown template variable: {{{{ .{} }}}}", name));
+    }
+
+    Err(format!("Unsupported template action: {{{{ {} }}}}", body))
+}
+
+/// Render template with configuration values.
+/// Implements the subset of Go `text/template` the bundled templates use:
+/// `{{ .VAR }}` substitution and quoted literals.
+fn render_template(template: &str, config: &CICDConfiguration) -> Result<String, String> {
+    let vars = template_vars(config);
+
+    let mut rendered = String::with_capacity(template.len());
+    let mut rest = template;
+
+    while let Some(start) = rest.find("{{") {
+        rendered.push_str(&rest[..start]);
+
+        let after = &rest[start + 2..];
+        let (body, consumed) = scan_action(after)?;
+        rendered.push_str(&resolve_action(body, &vars)?);
+        rest = &after[consumed..];
+    }
+
+    rendered.push_str(rest);
     Ok(rendered)
 }
 
@@ -411,15 +502,8 @@ async fn configure_github_secrets(
     for (secret_name, secret_value) in secrets {
         println!("[CI/CD] Setting secret: {} (value length: {} bytes)", secret_name, secret_value.len());
 
-        // Debug: Print first and last line of SSH key (for debugging)
-        if secret_name == "EC2_SSH_KEY" {
-            let lines: Vec<&str> = secret_value.lines().collect();
-            if !lines.is_empty() {
-                println!("[CI/CD] SSH Key first line: {}", lines.first().unwrap_or(&""));
-                println!("[CI/CD] SSH Key last line: {}", lines.last().unwrap_or(&""));
-                println!("[CI/CD] SSH Key total lines: {}", lines.len());
-            }
-        }
+        // 비밀 값의 내용은 어떤 형태로도 로그에 남기지 않는다.
+        // 헤더/푸터만으로도 키 종류가 드러나고, 로그 파일은 평문으로 남는다.
 
         let encrypted = encrypt_secret(secret_value, key)?;
         println!("[CI/CD] Secret {} encrypted successfully (encrypted length: {} bytes)", secret_name, encrypted.len());
@@ -1088,4 +1172,115 @@ pub async fn check_cicd_status(
 
     // If status is 200, workflow exists
     Ok(response.status().is_success())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_config() -> CICDConfiguration {
+        CICDConfiguration {
+            platform: "github".to_string(),
+            repository_url: "https://github.com/owner/repo".to_string(),
+            branch: "develop".to_string(),
+            framework: "springboot".to_string(),
+            java_version: Some("21".to_string()),
+            node_version: None,
+            python_version: None,
+            ec2_host: "10.0.0.1".to_string(),
+            ec2_user: "ubuntu".to_string(),
+            deploy_root: "/home/ubuntu/arfni-deploy".to_string(),
+            docker_service: "spring".to_string(),
+        }
+    }
+
+    fn bundled_template(name: &str) -> String {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join("plugins")
+            .join("bundled")
+            .join("cicd")
+            .join(name);
+        std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("missing bundled template {:?}: {}", path, e))
+    }
+
+    #[test]
+    fn springboot_maps_to_the_file_that_actually_ships() {
+        let name = template_file_name("springboot").expect("springboot must be supported");
+        assert_eq!(name, "spring.yaml.tmpl");
+        // Fails loudly if the bundled resource is renamed or dropped.
+        assert!(!bundled_template(name).is_empty());
+    }
+
+    #[test]
+    fn frameworks_without_a_bundled_template_are_rejected_explicitly() {
+        for framework in ["nodejs", "react", "nextjs", "python", "fastapi", "flask"] {
+            let err = template_file_name(framework).unwrap_err();
+            assert!(err.contains("No CI/CD workflow template is bundled"), "{}", err);
+        }
+        assert!(template_file_name("cobol")
+            .unwrap_err()
+            .contains("Unsupported framework"));
+    }
+
+    #[test]
+    fn variables_are_substituted_and_none_are_left_behind() {
+        let rendered = render_template(&bundled_template("spring.yaml.tmpl"), &sample_config())
+            .expect("bundled template must render");
+
+        assert!(rendered.contains("branches: [\"develop\"]"));
+        assert!(rendered.contains("JAVA_VERSION: \"21\""));
+        assert!(rendered.contains("JAVA_DIST: \"temurin\""));
+        assert!(rendered.contains("DEPLOY_ROOT: \"/home/ubuntu/arfni-deploy\""));
+        assert!(rendered.contains("${DOCKER_COMPOSE} build spring"));
+        assert!(!rendered.contains("{{ ."), "unrendered variable left in output");
+    }
+
+    #[test]
+    fn github_expressions_survive_rendering() {
+        let rendered = render_template(&bundled_template("spring.yaml.tmpl"), &sample_config())
+            .expect("bundled template must render");
+
+        assert!(rendered.contains("${{ secrets.EC2_HOST }}"));
+        assert!(rendered.contains("${{ secrets.EC2_SSH_KEY }}"));
+        assert!(rendered.contains("${{ env.JAVA_VERSION }}"));
+        // Docker's own {{...}} format strings must stay literal.
+        assert!(rendered.contains("table {{.Names}}\\t{{.Image}}\\t{{.Status}}"));
+    }
+
+    #[test]
+    fn rendered_workflow_is_valid_yaml_with_a_job() {
+        let rendered = render_template(&bundled_template("spring.yaml.tmpl"), &sample_config())
+            .expect("bundled template must render");
+
+        let doc: serde_yaml::Value =
+            serde_yaml::from_str(&rendered).expect("rendered workflow must be valid YAML");
+        let jobs = doc
+            .get("jobs")
+            .and_then(|jobs| jobs.as_mapping())
+            .expect("workflow must declare jobs");
+        assert!(jobs.contains_key(serde_yaml::Value::from("build_and_deploy")));
+    }
+
+    #[test]
+    fn unknown_variables_fail_instead_of_shipping_broken_yaml() {
+        let err = render_template("value: {{ .NOPE }}", &sample_config()).unwrap_err();
+        assert!(err.contains("Unknown template variable"), "{}", err);
+
+        let err = render_template("value: {{ .BRANCH ", &sample_config()).unwrap_err();
+        assert!(err.contains("Unterminated template action"), "{}", err);
+    }
+
+    #[test]
+    fn repo_name_is_extracted_from_url_forms() {
+        assert_eq!(
+            extract_repo_name("https://github.com/owner/repo").unwrap(),
+            "owner/repo"
+        );
+        assert_eq!(
+            extract_repo_name("https://github.com/owner/repo.git/").unwrap(),
+            "owner/repo"
+        );
+    }
 }

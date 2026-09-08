@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    # URL will be set based on deployment mode:
+    # - All-in-one mode (both on EC2): http://prometheus:9090 (docker network)
+    # - Hybrid mode (Grafana local, Prometheus on EC2): http://<EC2_IP>:9090
+    # - Local mode (both local): http://host.docker.internal:9090 or http://prometheus:9090
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"

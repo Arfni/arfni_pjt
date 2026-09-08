@@ -30,7 +30,7 @@ export default function MonitoringPage() {
   const [isStarting, setIsStarting] = useState(false);
   const [startupMessage, setStartupMessage] = useState<string>('');
 
-  // 모니터링 설정 로드 및 자동 시작
+  // Load the monitoring config and start it automatically
   useEffect(() => {
     const loadConfig = async () => {
       if (!project?.path) {
@@ -40,7 +40,7 @@ export default function MonitoringPage() {
       }
 
       try {
-        // 1. 모니터링 설정 로드
+        // 1. load the monitoring config
         setIsStarting(true);
         setStartupMessage(t('monitoring.loadingConfig', { percentage: 5 }));
 
@@ -50,7 +50,7 @@ export default function MonitoringPage() {
         setConfig(monitoringConfig);
         setStartupMessage(t('monitoring.loadingConfig', { percentage: 10 }));
 
-        // 2. Grafana가 실행 중인지 확인
+        // 2. check whether Grafana is running
         setStartupMessage(t('monitoring.checkingStatus', { percentage: 15 }));
         const isRunning = await invoke<boolean>('check_monitoring_running', {
           grafanaUrl: monitoringConfig.grafana_url
@@ -58,7 +58,7 @@ export default function MonitoringPage() {
         setStartupMessage(t('monitoring.checkingStatus', { percentage: 20 }));
 
         if (!isRunning) {
-          // 3. 실행 중이 아니면 자동으로 시작
+          // 3. start it automatically when it is not
           setStartupMessage(t('monitoring.startingStack', { percentage: 30 }));
 
           const startResult = await invoke<string>('start_monitoring_stack', {
@@ -68,7 +68,7 @@ export default function MonitoringPage() {
           console.log(startResult);
           setStartupMessage(t('monitoring.startingStack', { percentage: 40 }));
 
-          // 4. Grafana가 준비될 때까지 대기 (최대 30초)
+          // 4. wait for Grafana to become ready, up to 30 seconds
           let attempts = 0;
           const maxAttempts = 30; // 30초
           while (attempts < maxAttempts) {
@@ -85,7 +85,7 @@ export default function MonitoringPage() {
             }
 
             attempts++;
-            // 40%에서 시작해서 100%까지 (60% 범위)
+            // from 40% up to 100%, a 60% span
             const percentage = 40 + Math.round((attempts / maxAttempts) * 60);
             setStartupMessage(t('monitoring.preparingGrafana', { percentage }));
           }
@@ -227,7 +227,7 @@ export default function MonitoringPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={async () => {
-                // Cleanup 후 navigate
+                // navigate after the cleanup
                 await invoke('stop_monitoring_stack').catch(console.error);
                 navigate('/logs', { state: { project, selectedView: 'monitor' } });
               }}
@@ -245,7 +245,7 @@ export default function MonitoringPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Grafana 새 탭에서 열기 */}
+            {/* open Grafana in a new tab */}
             <button
               onClick={async () => {
                 try {

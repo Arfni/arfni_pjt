@@ -1,0 +1,45 @@
+version: "3.8"
+services:
+    grafana:
+        image: grafana/grafana:latest
+        environment:
+            GF_AUTH_ANONYMOUS_ENABLED: "true"
+            GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+            GF_AUTH_DISABLE_LOGIN_FORM: "true"
+            GF_SECURITY_ADMIN_PASSWORD: admin
+            GF_SECURITY_ALLOW_EMBEDDING: "true"
+            GF_SECURITY_COOKIE_SAMESITE: none
+            GF_SECURITY_COOKIE_SECURE: "false"
+            GF_SERVER_HTTP_PORT: "3200"
+        ports:
+            - 3200:3200
+        volumes:
+            - ./grafana/provisioning:/etc/grafana/provisioning
+            - grafana-data:/var/lib/grafana
+    node-exporter:
+        image: prom/node-exporter:latest
+        ports:
+            - 9100:9100
+        volumes:
+            - /:/host
+            - /var/lib/node_exporter/textfile_collector:/var/lib/node_exporter/textfile_collector
+        command:
+            - --path.rootfs=/host
+            - --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
+    prometheus:
+        image: prom/prometheus:latest
+        ports:
+            - 9090:9090
+        volumes:
+            - ./prometheus.yml:/etc/prometheus/prometheus.yml
+            - prometheus-data:/prometheus
+        command:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=30d
+            - --storage.tsdb.retention.size=5GB
+            - --web.console.libraries=/usr/share/prometheus/console_libraries
+            - --web.console.templates=/usr/share/prometheus/consoles
+volumes:
+    grafana-data: null
+    prometheus-data: null

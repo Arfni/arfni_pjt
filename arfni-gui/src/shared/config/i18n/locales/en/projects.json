@@ -132,6 +132,8 @@
     "pemKeyLabel": "PEM Key File *",
     "pemKeyPlaceholder": "Select PEM file...",
     "browsePemFile": "Browse PEM file",
+    "persistentSessionLabel": "Keep work running after disconnects (tmux)",
+    "persistentSessionDescription": "Programs running remotely stay alive when Wi-Fi disconnects or you close your laptop, and the same screen is restored when you reconnect. This is automatically disabled if tmux is not installed on the server.",
     "testConnection": "Test SSH Connection",
     "testingConnection": "Testing Connection...",
     "connectionSuccessful": "✅ Connection Successful",

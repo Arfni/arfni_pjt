@@ -29,6 +29,7 @@ export interface EC2Server {
   created_at: string;
   updated_at: string;
   last_connected_at?: string;
+  persistent_session: boolean;
 }
 
 export interface StackYamlData {
@@ -217,6 +218,7 @@ export const ec2ServerCommands = {
     host: string;
     user: string;
     pemPath: string;
+    persistent_session?: boolean;
   }): Promise<EC2Server> => {
     return await invoke('create_ec2_server', {
       params: {
@@ -224,6 +226,7 @@ export const ec2ServerCommands = {
         host: params.host,
         user: params.user,
         pem_path: params.pemPath,  // snake_case로 변경
+        persistent_session: params.persistent_session,
       }
     });
   },
@@ -245,6 +248,7 @@ export const ec2ServerCommands = {
     host?: string;
     user?: string;
     pemPath?: string;
+    persistent_session?: boolean;
   }): Promise<EC2Server> => {
     // Rust의 UpdateEC2ServerParams 구조체에 맞게 변환
     const rustParams = {
@@ -253,6 +257,7 @@ export const ec2ServerCommands = {
       host: params.host,
       user: params.user,
       pem_path: params.pemPath, // camelCase -> snake_case
+      persistent_session: params.persistent_session,
     };
     return await invoke('update_ec2_server', { params: rustParams });
   },

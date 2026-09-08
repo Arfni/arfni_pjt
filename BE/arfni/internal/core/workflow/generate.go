@@ -151,6 +151,9 @@ func GenerateDockerComposeWithTarget(s *stack.Stack, projectDir string, targetTy
 				// Convert volume format
 				// Volumes are relative to project directory (where docker-compose runs from)
 				volumeStr := fmt.Sprintf("%s:%s", vol.Host, vol.Mount)
+				if vol.ReadOnly {
+					volumeStr += ":ro"
+				}
 				dcService.Volumes = append(dcService.Volumes, volumeStr)
 
 				// Check if this is a named volume (not a path)

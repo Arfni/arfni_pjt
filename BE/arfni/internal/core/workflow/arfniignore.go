@@ -26,6 +26,7 @@ func LoadArfniIgnore(projectDir string) (*ArfniIgnore, error) {
 	// If .arfniignore doesn't exist, use default patterns in memory
 	if _, err := os.Stat(ignoreFile); os.IsNotExist(err) {
 		ai.patterns = getDefaultIgnorePatterns()
+		ai.patterns = append(ai.patterns, getBuiltinIgnorePatterns()...)
 		return ai, nil
 	}
 
@@ -52,7 +53,24 @@ func LoadArfniIgnore(projectDir string) (*ArfniIgnore, error) {
 		return nil, err
 	}
 
+	// 사용자 파일에 적혀 있든 없든 반드시 제외해야 하는 항목을 덧붙인다.
+	// 기존 프로젝트의 .arfniignore는 예전 템플릿으로 만들어져 .arfni가 없기 때문이다.
+	ai.patterns = append(ai.patterns, getBuiltinIgnorePatterns()...)
+
 	return ai, nil
+}
+
+// getBuiltinIgnorePatterns returns patterns that are always applied, regardless of
+// whether the project has a .arfniignore file or what it contains.
+//
+// .arfni is arfni's own state directory (lock file, canvas state, generated compose).
+// The GUI holds .arfni/.lock open with an exclusive share mode on Windows, so if the
+// directory is included in a build context, scp fails on that file with "Broken pipe".
+// It is never part of the user's application and must not be uploaded.
+func getBuiltinIgnorePatterns() []string {
+	return []string{
+		".arfni",
+	}
 }
 
 // ShouldIgnore checks if a file or directory should be ignored

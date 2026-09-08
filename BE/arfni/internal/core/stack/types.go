@@ -164,6 +164,10 @@ func (b *BuildSpec) IsEmpty() bool {
 type Volume struct {
 	Host  string `yaml:"host"`
 	Mount string `yaml:"mount"`
+	// ReadOnly는 컨테이너가 이 마운트에 쓰지 못하게 한다 (docker의 `:ro`).
+	// 호스트 경로를 넘기는 마운트에서 특히 중요하다 — 읽기만 하는 컨테이너에
+	// 쓰기를 열어 두면 컨테이너 장악이 호스트 장악으로 번진다.
+	ReadOnly bool `yaml:"readOnly,omitempty"`
 }
 
 // HealthCheck는 헬스체크 설정입니다

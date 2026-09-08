@@ -1,6 +1,6 @@
 [package]
 name = "arfni-gui"
-version = "0.2.1"
+version = "0.5.1"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -17,7 +17,6 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
-ssh2 = "0.9.5"
 anyhow = "1.0.100"
 tauri-plugin-dialog = "2"
 uuid = { version = "1.6", features = ["v4", "serde"] }
@@ -32,3 +31,7 @@ regex = "1.12.2"
 dirs = "5.0"
 sodiumoxide = "0.2"
 tauri-plugin-shell = "2.3.3"
+tauri-plugin-notification = "2"
+portable-pty = "0.8"
+base64 = "0.22"
+russh-sftp = "2.3"

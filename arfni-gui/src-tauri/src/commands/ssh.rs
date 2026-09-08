@@ -14,6 +14,7 @@ pub struct EC2Server {
     pub created_at: String,
     pub updated_at: String,
     pub last_connected_at: Option<String>,
+    pub persistent_session: bool,
 }
 
 #[derive(Deserialize)]
@@ -30,6 +31,7 @@ pub struct CreateEC2ServerParams {
     pub host: String,
     pub user: String,
     pub pem_path: String,
+    pub persistent_session: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -39,6 +41,7 @@ pub struct UpdateEC2ServerParams {
     pub host: Option<String>,
     pub user: Option<String>,
     pub pem_path: Option<String>,
+    pub persistent_session: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -80,14 +83,15 @@ pub fn create_ec2_server(db: State<Database>, params: CreateEC2ServerParams) -> 
         created_at: created_at.clone(),
         updated_at: created_at.clone(),
         last_connected_at: None,
+        persistent_session: params.persistent_session.unwrap_or(false),
     };
 
     let conn = db.get_conn();
     let conn = conn.lock().unwrap();
 
     conn.execute(
-        "INSERT INTO ec2_servers (id, name, host, user, pem_path, created_at, updated_at, last_connected_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO ec2_servers (id, name, host, user, pem_path, created_at, updated_at, last_connected_at, persistent_session)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             &server.id,
             &server.name,
@@ -97,6 +101,7 @@ pub fn create_ec2_server(db: State<Database>, params: CreateEC2ServerParams) -> 
             &server.created_at,
             &server.updated_at,
             &server.last_connected_at,
+            &server.persistent_session,
         ],
     )
     .map_err(|e| {
@@ -118,7 +123,7 @@ pub fn get_all_ec2_servers(db: State<Database>) -> Result<Vec<EC2Server>, String
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, host, user, pem_path, created_at, updated_at, last_connected_at
+            "SELECT id, name, host, user, pem_path, created_at, updated_at, last_connected_at, persistent_session
              FROM ec2_servers ORDER BY updated_at DESC",
         )
         .map_err(|e| format!("쿼리 준비 실패: {}", e))?;
@@ -134,6 +139,7 @@ pub fn get_all_ec2_servers(db: State<Database>) -> Result<Vec<EC2Server>, String
                 created_at: row.get(5)?,
                 updated_at: row.get(6)?,
                 last_connected_at: row.get(7)?,
+                persistent_session: row.get(8)?,
             })
         })
         .map_err(|e| format!("EC2 서버 조회 실패: {}", e))?
@@ -151,7 +157,7 @@ pub fn get_ec2_server_by_id(db: State<Database>, server_id: String) -> Result<EC
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, host, user, pem_path, created_at, updated_at, last_connected_at
+            "SELECT id, name, host, user, pem_path, created_at, updated_at, last_connected_at, persistent_session
              FROM ec2_servers WHERE id = ?1",
         )
         .map_err(|e| format!("쿼리 준비 실패: {}", e))?;
@@ -167,6 +173,7 @@ pub fn get_ec2_server_by_id(db: State<Database>, server_id: String) -> Result<EC
                 created_at: row.get(5)?,
                 updated_at: row.get(6)?,
                 last_connected_at: row.get(7)?,
+                persistent_session: row.get(8)?,
             })
         })
         .map_err(|e| format!("EC2 서버 조회 실패: {}", e))?;
@@ -201,6 +208,11 @@ pub fn update_ec2_server(db: State<Database>, params: UpdateEC2ServerParams) -> 
     if let Some(pem_path) = &params.pem_path {
         conn.execute("UPDATE ec2_servers SET pem_path = ?1, updated_at = ?2 WHERE id = ?3",
             params![pem_path, &updated_at, &params.id])
+            .map_err(|e| format!("서버 업데이트 실패: {}", e))?;
+    }
+    if let Some(persistent_session) = &params.persistent_session {
+        conn.execute("UPDATE ec2_servers SET persistent_session = ?1, updated_at = ?2 WHERE id = ?3",
+            params![persistent_session, &updated_at, &params.id])
             .map_err(|e| format!("서버 업데이트 실패: {}", e))?;
     }
 

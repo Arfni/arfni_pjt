@@ -132,6 +132,8 @@
     "pemKeyLabel": "PEM 키 파일 *",
     "pemKeyPlaceholder": "PEM 파일을 선택하세요...",
     "browsePemFile": "PEM 파일 찾아보기",
+    "persistentSessionLabel": "연결이 끊겨도 작업 유지 (tmux)",
+    "persistentSessionDescription": "와이파이가 끊기거나 노트북을 닫아도 원격에서 돌던 프로그램이 살아있고, 다시 접속하면 화면이 그대로 복원됩니다. 서버에 tmux가 없으면 자동으로 꺼집니다.",
     "testConnection": "SSH 연결 테스트",
     "testingConnection": "연결 테스트 중...",
     "connectionSuccessful": "✅ 연결 성공",

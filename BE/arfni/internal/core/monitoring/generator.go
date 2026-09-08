@@ -31,6 +31,9 @@ type PluginSpec struct {
 				Volumes []struct {
 					Host  string `yaml:"host"`
 					Mount string `yaml:"mount"`
+					// Mirrors stack.Volume.ReadOnly — a host mount the container
+					// only reads must not be writable.
+					ReadOnly bool `yaml:"readOnly,omitempty"`
 				} `yaml:"volumes"`
 				Command []string          `yaml:"command,omitempty"`
 				Env     map[string]string `yaml:"env,omitempty"`
@@ -129,6 +132,9 @@ func GenerateDockerComposeFromPlugins(pluginsDir string, mode MonitoringMode, ou
 					// Named volume - add to volumes section and use as-is
 					compose.Volumes[hostPath] = nil
 					volumeStr := fmt.Sprintf("%s:%s", hostPath, vol.Mount)
+					if vol.ReadOnly {
+						volumeStr += ":ro"
+					}
 					composeService.Volumes = append(composeService.Volumes, volumeStr)
 				} else {
 					// Host path - replace relative paths with absolute paths
@@ -139,6 +145,9 @@ func GenerateDockerComposeFromPlugins(pluginsDir string, mode MonitoringMode, ou
 						hostPath = filepath.Join(outputDir, relativePath)
 					}
 					volumeStr := fmt.Sprintf("%s:%s", hostPath, vol.Mount)
+					if vol.ReadOnly {
+						volumeStr += ":ro"
+					}
 					composeService.Volumes = append(composeService.Volumes, volumeStr)
 				}
 			}
