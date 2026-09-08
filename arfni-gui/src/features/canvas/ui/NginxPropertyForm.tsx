@@ -57,6 +57,13 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
               placeholder={t('nginx.placeholders.serverName')}
             />
           </FormField>
+          <FormField label={t('nginx.labels.maxBodySize')} tooltip={t('nginx.tooltips.maxBodySize')}>
+            <Input
+              value={data.maxBodySize ?? ''}
+              onChange={(e) => update('maxBodySize', e.target.value)}
+              placeholder={t('nginx.placeholders.maxBodySize')}
+            />
+          </FormField>
         </div>
       </details>
 

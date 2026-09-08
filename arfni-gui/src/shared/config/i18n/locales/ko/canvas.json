@@ -362,14 +362,16 @@
       "cacheEnabled": "Cache-Control 헤더",
       "maxAge": "max-age (초)",
       "keepalive": "Keepalive 커넥션 수",
-      "lbMethod": "방식"
+      "lbMethod": "방식",
+      "maxBodySize": "최대 업로드 크기"
     },
     "placeholders": {
       "serverName": "myapp.com 또는 _",
       "email": "admin@example.com",
       "certPath": "/etc/nginx/certs/cert.pem",
       "keyPath": "/etc/nginx/certs/key.pem",
-      "corsOrigin": "* 또는 https://myapp.com"
+      "corsOrigin": "* 또는 https://myapp.com",
+      "maxBodySize": "예: 20m (비우면 1MB)"
     },
     "tooltips": {
       "listenPort": "Nginx가 외부 요청을 수신하는 포트입니다. HTTP는 80, HTTPS는 443을 주로 사용합니다.",
@@ -388,7 +390,8 @@
       "cacheEnabled": "정적 파일에 Cache-Control 헤더를 추가하여 브라우저 캐싱을 활성화합니다.",
       "maxAge": "브라우저가 캐시를 유지하는 시간(초)입니다. 3600 = 1시간, 86400 = 1일입니다.",
       "keepalive": "업스트림 서버와 유지할 유휴 연결 수입니다. 연결 재사용으로 지연 시간을 줄여줍니다.",
-      "lbMethod": "여러 업스트림 서버에 트래픽을 분산하는 방식입니다. 서버가 1대인 경우 기본값(Round Robin)을 사용하세요."
+      "lbMethod": "여러 업스트림 서버에 트래픽을 분산하는 방식입니다. 서버가 1대인 경우 기본값(Round Robin)을 사용하세요.",
+      "maxBodySize": "한 요청으로 받을 수 있는 본문의 최대 크기입니다. 비워 두면 nginx 기본값 1MB가 적용되어, 그보다 큰 업로드는 앱에 닿기 전에 413으로 거절됩니다. 예: 20m"
     },
     "lbMethods": {
       "roundRobin": "Round Robin (기본)",

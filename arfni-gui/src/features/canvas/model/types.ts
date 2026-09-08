@@ -67,6 +67,8 @@ export interface NginxNodeData {
   target?: string;
   listenPort: number;
   serverName: string;
+  // nginx size string ("20m"). Left blank, nginx keeps its 1MB default and rejects larger uploads with 413 before the app sees them.
+  maxBodySize?: string;
   ssl: {
     enabled: boolean;
     auto?: boolean;

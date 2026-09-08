@@ -362,14 +362,16 @@
       "cacheEnabled": "Cache-Control Headers",
       "maxAge": "max-age (seconds)",
       "keepalive": "Keepalive Connections",
-      "lbMethod": "Method"
+      "lbMethod": "Method",
+      "maxBodySize": "Max upload size"
     },
     "placeholders": {
       "serverName": "myapp.com or _",
       "email": "admin@example.com",
       "certPath": "/etc/nginx/certs/cert.pem",
       "keyPath": "/etc/nginx/certs/key.pem",
-      "corsOrigin": "* or https://myapp.com"
+      "corsOrigin": "* or https://myapp.com",
+      "maxBodySize": "e.g. 20m (blank = 1MB)"
     },
     "tooltips": {
       "listenPort": "The port Nginx listens on for incoming requests. Use port 80 for HTTP and 443 for HTTPS.",
@@ -388,7 +390,8 @@
       "cacheEnabled": "Add Cache-Control headers to static files to enable browser caching.",
       "maxAge": "Duration in seconds for browser cache validity. 3600 = 1 hour, 86400 = 1 day.",
       "keepalive": "Number of idle connections to maintain to upstream servers. Reusing connections reduces latency.",
-      "lbMethod": "Strategy for distributing traffic across upstream servers. Use Round Robin (default) for single-server setups."
+      "lbMethod": "Strategy for distributing traffic across upstream servers. Use Round Robin (default) for single-server setups.",
+      "maxBodySize": "Largest request body nginx will accept. Left blank, nginx keeps its 1MB default and rejects anything larger with 413 before the app sees it. Example: 20m"
     },
     "lbMethods": {
       "roundRobin": "Round Robin (Default)",

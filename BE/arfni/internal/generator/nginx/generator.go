@@ -17,6 +17,24 @@ var domainPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-\.]+$`)
 // ValidateServerName은 serverName이 인증서 경로 및 nginx 설정에 안전한 값인지 검증한다.
 // serverName은 stack.yaml 사용자 입력에서 오므로 호출자가 BuildConfigWithSSL 또는
 // 파일 시스템 경로 생성 전에 반드시 호출해야 한다.
+// sizePattern matches an nginx size string: digits with an optional k/m/g
+// suffix. The value is interpolated straight into nginx.conf, so anything
+// looser would let a stray ";" inject directives.
+var sizePattern = regexp.MustCompile(`^[0-9]+[kKmMgG]?$`)
+
+// ValidateMaxBodySize rejects a client_max_body_size value nginx would not
+// accept, or one carrying injection characters. An empty value is allowed and
+// means "leave nginx at its default".
+func ValidateMaxBodySize(size string) error {
+	if size == "" {
+		return nil
+	}
+	if !sizePattern.MatchString(size) {
+		return fmt.Errorf("invalid maxBodySize: %q (expected e.g. \"20m\")", size)
+	}
+	return nil
+}
+
 func ValidateServerName(name string) error {
 	if name == "" || name == "_" {
 		return nil // 기본값(와일드카드)은 경로 생성에 사용되지 않으므로 허용
@@ -110,6 +128,13 @@ func BuildConfigWithSSL(cfg *stack.NginxConfig) (string, error) {
 	b.WriteString("http {\n")
 	b.WriteString("    include       /etc/nginx/mime.types;\n")
 	b.WriteString("    default_type  application/octet-stream;\n\n")
+
+	if err := ValidateMaxBodySize(cfg.MaxBodySize); err != nil {
+		return "", err
+	}
+	if cfg.MaxBodySize != "" {
+		fmt.Fprintf(&b, "    client_max_body_size %s;\n\n", cfg.MaxBodySize)
+	}
 
 	if cfg.RateLimit != nil && cfg.RateLimit.Enabled {
 		rate := cfg.RateLimit.Rate
@@ -246,6 +271,13 @@ func buildConfig(cfg *stack.NginxConfig) (string, error) {
 	b.WriteString("http {\n")
 	b.WriteString("    include       /etc/nginx/mime.types;\n")
 	b.WriteString("    default_type  application/octet-stream;\n\n")
+
+	if err := ValidateMaxBodySize(cfg.MaxBodySize); err != nil {
+		return "", err
+	}
+	if cfg.MaxBodySize != "" {
+		fmt.Fprintf(&b, "    client_max_body_size %s;\n\n", cfg.MaxBodySize)
+	}
 
 	// ── global rate-limit zone ───────────────────────────────────────────────
 	if cfg.RateLimit != nil && cfg.RateLimit.Enabled {

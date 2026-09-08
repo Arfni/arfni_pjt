@@ -57,6 +57,10 @@ type ServiceSpec struct {
 type NginxConfig struct {
 	ListenPort    int               `yaml:"listenPort,omitempty"`
 	ServerName    string            `yaml:"serverName,omitempty"`
+	// MaxBodySize caps the request body nginx will accept, as an nginx size
+	// string ("20m"). nginx defaults to 1m, so an app that accepts larger
+	// uploads gets 413 at the gateway before its own limit is consulted.
+	MaxBodySize   string            `yaml:"maxBodySize,omitempty"`
 	Upstreams     []NginxUpstream   `yaml:"upstreams,omitempty"`
 	SSL           *NginxSSL         `yaml:"ssl,omitempty"`
 	RateLimit     *NginxRateLimit   `yaml:"rateLimit,omitempty"`

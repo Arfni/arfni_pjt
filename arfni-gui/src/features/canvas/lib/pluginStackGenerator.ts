@@ -1358,6 +1358,7 @@ export class PluginStackGenerator {
         nginx: {
           listenPort,
           serverName: data.serverName || '_',
+          ...(data.maxBodySize ? { maxBodySize: data.maxBodySize } : {}),
           upstreams,
           ssl: data.ssl?.enabled ? data.ssl : undefined,
           rateLimit: data.rateLimit?.enabled ? data.rateLimit : undefined,
