@@ -275,6 +275,15 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
+# Arfni internal state (lock file, canvas state, generated compose) - never upload
+.arfni/
+
+# Agent and tooling state (not needed to build or run)
+.claude/
+.agents/
+openspec/
+.githooks/
+
 # Documentation (optional, uncomment if you don't want to upload docs)
 # docs/
 # documentation/
