@@ -85,8 +85,8 @@ export function SuccessModal({
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="max-w-2xl w-full bg-white rounded-lg shadow-xl border border-gray-200 max-h-[80vh] flex flex-col">
-          {/* 콘텐츠 영역 */}
-          <div className="px-8 pt-8">
+          {/* 콘텐츠 영역 — 카드 높이를 넘으면 이 영역만 스크롤된다 */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-8 pt-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
               <Check className="w-7 h-7 text-white" />
@@ -139,7 +139,7 @@ export function SuccessModal({
         {endpoints.length > 0 && (
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">{t('success.endpoints')}</h3>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
+            <div className="space-y-2">
               {endpoints.map((endpoint, index) => (
                 <div key={index} className="bg-gray-100 rounded p-3 border border-gray-200">
                   <div className="flex flex-col gap-2">
@@ -177,8 +177,8 @@ export function SuccessModal({
         )}
           </div>
 
-          {/* 확인 버튼 */}
-          <div className="px-8 pb-8 pt-4">
+          {/* 확인 버튼 — 스크롤과 무관하게 항상 보이는 푸터 */}
+          <div className="flex-shrink-0 border-t border-gray-200 bg-white px-8 pb-8 pt-4">
           <button
             onClick={onClose}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
