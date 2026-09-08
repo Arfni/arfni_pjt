@@ -11,6 +11,11 @@ import { NodePalette } from '@widgets/node-palette';
 import { YamlEditor } from '@widgets/yaml-editor';
 import { PropertyPanel } from '@widgets/property-panel';
 
+// 패널 폭은 토글 버튼 위치와 반드시 같아야 한다. 따로 적으면 한쪽만 바뀔 때
+// 버튼이 패널 경계에서 떨어져 공중에 뜬다.
+const LEFT_PANEL_WIDTH = '15rem'; // NodePalette
+const RIGHT_PANEL_WIDTH = '20rem'; // PropertyPanel
+
 export function CanvasPage() {
   const { t } = useTranslation('canvas');
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
@@ -109,7 +114,10 @@ export function CanvasPage() {
       <Toolbar />
       <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
         {/* 왼쪽: Blocks 팔레트 */}
-        <div className={`transition-all duration-300 ease-in-out ${showLeftSidebar ? 'w-60' : 'w-0'} overflow-hidden`}>
+        <div
+          className="flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out"
+          style={{ width: showLeftSidebar ? LEFT_PANEL_WIDTH : 0 }}
+        >
           <NodePalette />
         </div>
 
@@ -117,7 +125,7 @@ export function CanvasPage() {
         <button
           onClick={() => setShowLeftSidebar(!showLeftSidebar)}
           className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r-lg shadow-md p-1.5 hover:bg-gray-50 transition-colors"
-          style={{ left: showLeftSidebar ? '15rem' : '0' }}
+          style={{ left: showLeftSidebar ? LEFT_PANEL_WIDTH : '0' }}
           title={showLeftSidebar ? t('page.toggleBlocksPalette.hide') : t('page.toggleBlocksPalette.show')}
         >
           {showLeftSidebar ? (
@@ -128,7 +136,7 @@ export function CanvasPage() {
         </button>
 
         {/* 중앙: Canvas + 하단 YAML */}
-        <div className="flex-1 flex flex-col" style={{ pointerEvents: 'auto' }}>
+        <div className="flex-1 min-w-0 flex flex-col" style={{ pointerEvents: 'auto' }}>
           {/* Canvas 영역 */}
           <div className="flex-1 bg-white" style={{ height: `calc(100% - ${yamlHeight}px)` }}>
             <CanvasEditor />
@@ -156,7 +164,7 @@ export function CanvasPage() {
         <button
           onClick={() => setShowRightSidebar(!showRightSidebar)}
           className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-l-lg shadow-md p-1.5 hover:bg-gray-50 transition-colors"
-          style={{ right: showRightSidebar ? '20rem' : '0' }}
+          style={{ right: showRightSidebar ? RIGHT_PANEL_WIDTH : '0' }}
           title={showRightSidebar ? t('page.toggleProperties.hide') : t('page.toggleProperties.show')}
         >
           {showRightSidebar ? (
@@ -167,7 +175,10 @@ export function CanvasPage() {
         </button>
 
         {/* 오른쪽: Properties */}
-        <div className={`transition-all duration-300 ease-in-out ${showRightSidebar ? 'w-80' : 'w-0'} overflow-hidden border-l border-gray-200 bg-white`}>
+        <div
+          className="flex-shrink-0 overflow-hidden border-l border-gray-200 bg-white transition-all duration-300 ease-in-out"
+          style={{ width: showRightSidebar ? RIGHT_PANEL_WIDTH : 0 }}
+        >
           <PropertyPanel />
         </div>
       </div>
