@@ -11,7 +11,7 @@
 use anyhow::{anyhow, Context, Result};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
-use russh_sftp::client::SftpSession;
+use russh_sftp::client::{error::Error as SftpError, SftpSession};
 use serde::Serialize;
 use std::{
   collections::HashMap,
@@ -115,6 +115,8 @@ impl AsyncWrite for SshPipe {
 struct SftpHandle {
   session: Arc<SftpSession>,
   child: Child,
+  /// 끊긴 세션을 같은 id로 다시 살리기 위해 접속 정보를 들고 있는다.
+  params: SshParams,
 }
 
 static SFTP: OnceCell<Mutex<HashMap<Uuid, SftpHandle>>> = OnceCell::new();
@@ -131,9 +133,101 @@ fn session_of(id: Uuid) -> Result<Arc<SftpSession>> {
     .ok_or_else(|| anyhow!("sftp session not found"))
 }
 
+// ============ Auto Reconnect ============
+
+/// 세션이 죽어서 생긴 에러인지 판별한다.
+///
+/// `ssh -s sftp` 자식이 죽으면(네트워크 끊김, 절전, 서버측 타임아웃) russh-sftp의
+/// 쓰기 채널이 닫히고 이후 모든 요청이 "session closed"로 실패한다.
+/// 서버가 정상적으로 돌려준 Status(파일 없음, 권한 없음 등)는 재연결 대상이 아니다.
+fn is_disconnected(e: &SftpError) -> bool {
+  use russh_sftp::client::error::Error as E;
+  match e {
+    E::IO(_) | E::Timeout => true,
+    E::UnexpectedBehavior(msg) => {
+      let msg = msg.to_lowercase();
+      msg.contains("session closed")
+        || msg.contains("sender dropped")
+        || msg.contains("senderror")
+        || msg.contains("recverror")
+    }
+    _ => false,
+  }
+}
+
+/// 죽은 세션을 같은 id로 되살린다.
+///
+/// 여러 작업이 동시에 끊김을 감지할 수 있으므로, 저장된 세션이 이미 교체됐으면
+/// 그 세션을 그대로 쓴다. 교체로 밀려난 자식 프로세스는 여기서 정리한다.
+async fn reconnect(id: Uuid, failed: &Arc<SftpSession>) -> Result<Arc<SftpSession>> {
+  let params = {
+    let map = store().lock();
+    let handle = map
+      .get(&id)
+      .ok_or_else(|| anyhow!("sftp session not found"))?;
+    if !Arc::ptr_eq(&handle.session, failed) {
+      // 다른 작업이 이미 재연결했다.
+      return Ok(handle.session.clone());
+    }
+    handle.params.clone()
+  };
+
+  let (session, child) = spawn_session(&params).await?;
+  let session = Arc::new(session);
+
+  let replaced = store().lock().insert(
+    id,
+    SftpHandle {
+      session: session.clone(),
+      child,
+      params,
+    },
+  );
+  if let Some(mut old) = replaced {
+    let _ = old.child.start_kill();
+  }
+
+  println!("[sftp] session {id} reconnected");
+  Ok(session)
+}
+
+/// 세션 작업을 실행하고, 세션이 죽어 있었으면 한 번 재연결한 뒤 다시 시도한다.
+async fn with_session<T, F, Fut>(id: Uuid, op: F) -> std::result::Result<T, SftpError>
+where
+  F: Fn(Arc<SftpSession>) -> Fut,
+  Fut: std::future::Future<Output = std::result::Result<T, SftpError>>,
+{
+  let session = session_of(id).map_err(|e| SftpError::UnexpectedBehavior(e.to_string()))?;
+
+  match op(session.clone()).await {
+    Ok(value) => Ok(value),
+    Err(e) if is_disconnected(&e) => {
+      println!("[sftp] session {id} dropped ({e}), reconnecting...");
+      let fresh = reconnect(id, &session)
+        .await
+        .map_err(|re| SftpError::UnexpectedBehavior(format!("{e}; reconnect failed: {re}")))?;
+      op(fresh).await
+    }
+    Err(e) => Err(e),
+  }
+}
+
+/// 전송처럼 스트리밍 핸들을 오래 쥐는 작업은 재시도가 위험하므로,
+/// 시작 전에 세션이 살아 있는지만 확인하고 필요하면 되살린다.
+async fn live_session(id: Uuid) -> Result<Arc<SftpSession>> {
+  with_session(id, |s| async move {
+    s.canonicalize(".").await?;
+    Ok(s)
+  })
+  .await
+  .map_err(|e| anyhow!("sftp session is not usable: {e}"))
+}
+
 // ============ Connect / Disconnect ============
 
-pub async fn connect(params: &SshParams) -> Result<Uuid> {
+/// `ssh -s sftp` 자식을 띄우고 SFTP 핸드셰이크까지 끝낸다.
+/// 최초 연결과 자동 재연결이 같은 경로를 쓰도록 분리해 둔다.
+async fn spawn_session(params: &SshParams) -> Result<(SftpSession, Child)> {
   let target = format!("{}@{}", params.user, params.host);
 
   let mut cmd = Command::new("ssh");
@@ -212,16 +306,23 @@ pub async fn connect(params: &SshParams) -> Result<Uuid> {
     }
   };
 
+  Ok((session, child))
+}
+
+pub async fn connect(params: &SshParams) -> Result<Uuid> {
+  let (session, child) = spawn_session(params).await?;
+
   let id = Uuid::new_v4();
   store().lock().insert(
     id,
     SftpHandle {
       session: Arc::new(session),
       child,
+      params: params.clone(),
     },
   );
 
-  println!("[sftp] session {id} connected to {target}");
+  println!("[sftp] session {id} connected to {}@{}", params.user, params.host);
   Ok(id)
 }
 
@@ -250,30 +351,33 @@ pub fn kill_all_sessions() {
 // ============ Filesystem Ops ============
 
 pub async fn home(id: Uuid) -> Result<String> {
-  let s = session_of(id)?;
-  s.canonicalize(".")
+  with_session(id, |s| async move { s.canonicalize(".").await })
     .await
     .map_err(|e| anyhow!("failed to resolve home: {e}"))
 }
 
 pub async fn canonicalize(id: Uuid, path: &str) -> Result<String> {
-  let s = session_of(id)?;
-  s.canonicalize(path)
-    .await
-    .map_err(|e| anyhow!("failed to resolve {path}: {e}"))
+  with_session(id, |s| {
+    let path = path.to_string();
+    async move { s.canonicalize(path).await }
+  })
+  .await
+  .map_err(|e| anyhow!("failed to resolve {path}: {e}"))
 }
 
 pub async fn list(id: Uuid, path: &str) -> Result<Vec<SftpEntry>> {
-  let s = session_of(id)?;
-  let base = s
-    .canonicalize(path)
-    .await
-    .map_err(|e| anyhow!("failed to resolve {path}: {e}"))?;
-
-  let dir = s
-    .read_dir(&base)
-    .await
-    .map_err(|e| anyhow!("failed to list {base}: {e}"))?;
+  // 경로 확인과 목록 조회를 한 작업으로 묶어야, 중간에 세션이 끊겨도
+  // 재연결 후 처음부터 다시 시도된다.
+  let (base, dir) = with_session(id, |s| {
+    let path = path.to_string();
+    async move {
+      let base = s.canonicalize(path).await?;
+      let dir = s.read_dir(&base).await?;
+      Ok((base, dir))
+    }
+  })
+  .await
+  .map_err(|e| anyhow!("failed to list {path}: {e}"))?;
 
   let mut out: Vec<SftpEntry> = Vec::new();
   for entry in dir {
@@ -309,22 +413,26 @@ pub async fn list(id: Uuid, path: &str) -> Result<Vec<SftpEntry>> {
 }
 
 pub async fn mkdir(id: Uuid, path: &str) -> Result<()> {
-  let s = session_of(id)?;
-  s.create_dir(path)
-    .await
-    .map_err(|e| anyhow!("failed to create {path}: {e}"))
+  with_session(id, |s| {
+    let path = path.to_string();
+    async move { s.create_dir(path).await }
+  })
+  .await
+  .map_err(|e| anyhow!("failed to create {path}: {e}"))
 }
 
 pub async fn rename(id: Uuid, from: &str, to: &str) -> Result<()> {
-  let s = session_of(id)?;
-  s.rename(from, to)
-    .await
-    .map_err(|e| anyhow!("failed to rename {from} -> {to}: {e}"))
+  with_session(id, |s| {
+    let (from, to) = (from.to_string(), to.to_string());
+    async move { s.rename(from, to).await }
+  })
+  .await
+  .map_err(|e| anyhow!("failed to rename {from} -> {to}: {e}"))
 }
 
 /// 파일/디렉터리 삭제. 디렉터리는 재귀적으로 지운다.
 pub async fn remove(id: Uuid, path: &str) -> Result<()> {
-  let s = session_of(id)?;
+  let s = live_session(id).await?;
   let meta = s
     .symlink_metadata(path)
     .await
@@ -379,11 +487,12 @@ fn remove_dir_recursive<'a>(
 
 /// 텍스트 미리보기. `max_bytes`를 넘으면 잘라서 돌려준다.
 pub async fn read_text(id: Uuid, path: &str, max_bytes: usize) -> Result<SftpTextPreview> {
-  let s = session_of(id)?;
-  let bytes = s
-    .read(path)
-    .await
-    .map_err(|e| anyhow!("failed to read {path}: {e}"))?;
+  let bytes = with_session(id, |s| {
+    let path = path.to_string();
+    async move { s.read(path).await }
+  })
+  .await
+  .map_err(|e| anyhow!("failed to read {path}: {e}"))?;
 
   let size = bytes.len() as u64;
   let truncated = bytes.len() > max_bytes;
@@ -410,7 +519,7 @@ pub async fn download(
   remote_path: &str,
   local_path: &str,
 ) -> Result<u64> {
-  let s = session_of(id)?;
+  let s = live_session(id).await?;
   let transfer_id = Uuid::new_v4().to_string();
   let name = base_name(remote_path);
 
@@ -470,7 +579,7 @@ pub async fn upload(
   local_path: &str,
   remote_path: &str,
 ) -> Result<u64> {
-  let s = session_of(id)?;
+  let s = live_session(id).await?;
   let transfer_id = Uuid::new_v4().to_string();
   let name = base_name(local_path);
 
@@ -600,6 +709,51 @@ fn mode_string(perms: Option<u32>, is_dir: bool, is_symlink: bool) -> String {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  /// `ssh -s sftp` 자식이 죽었을 때 나오는 에러만 재연결 대상이어야 한다.
+  /// 서버가 정상 응답한 Status(파일 없음 등)에 재연결이 걸리면
+  /// 멀쩡한 세션을 계속 다시 띄우게 된다.
+  #[test]
+  fn only_transport_failures_trigger_reconnect() {
+    use russh_sftp::protocol::{Status, StatusCode};
+
+    // russh-sftp가 쓰기 채널이 닫혔을 때 내는 실제 메시지
+    assert!(is_disconnected(&SftpError::UnexpectedBehavior(
+      "session closed".into()
+    )));
+    assert!(is_disconnected(&SftpError::UnexpectedBehavior(
+      "sender dropped".into()
+    )));
+    assert!(is_disconnected(&SftpError::IO("broken pipe".into())));
+    assert!(is_disconnected(&SftpError::Timeout));
+
+    // 서버가 돌려준 정상적인 실패는 재연결 대상이 아니다.
+    assert!(!is_disconnected(&SftpError::Status(Status {
+      id: 1,
+      status_code: StatusCode::NoSuchFile,
+      error_message: "No such file".into(),
+      language_tag: String::new(),
+    })));
+    assert!(!is_disconnected(&SftpError::Status(Status {
+      id: 2,
+      status_code: StatusCode::PermissionDenied,
+      error_message: "Permission denied".into(),
+      language_tag: String::new(),
+    })));
+    assert!(!is_disconnected(&SftpError::UnexpectedPacket));
+  }
+
+  /// 모르는 세션 id는 재연결 시도 없이 즉시 실패해야 한다.
+  #[tokio::test]
+  async fn unknown_session_fails_without_reconnect() {
+    let err = canonicalize(Uuid::new_v4(), "/opt/hermes")
+      .await
+      .expect_err("등록되지 않은 세션은 실패해야 한다");
+    assert!(
+      err.to_string().contains("sftp session not found"),
+      "예상과 다른 에러: {err}"
+    );
+  }
 
   #[test]
   fn join_remote_uses_posix_separator() {
