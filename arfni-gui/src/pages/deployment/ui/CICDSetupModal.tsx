@@ -44,6 +44,26 @@ import {
 
 import type { Project } from '@shared/api/tauri/commands';
 
+// Frameworks offered in the setup wizard. `supported` mirrors the workflow
+// templates bundled in src-tauri/resources/plugins/bundled/cicd — selecting an
+// unbundled framework would fail during setup, so it is disabled here instead.
+const FRAMEWORK_OPTIONS = [
+  { value: 'springboot', label: 'Spring Boot', dockerService: 'spring', supported: true },
+  { value: 'nodejs', label: 'Node.js', dockerService: 'nodejs', supported: false },
+  { value: 'react', label: 'React', dockerService: 'frontend', supported: false },
+  { value: 'nextjs', label: 'Next.js', dockerService: 'nextjs', supported: false },
+  { value: 'python', label: 'Python', dockerService: 'python', supported: false },
+  { value: 'fastapi', label: 'FastAPI', dockerService: 'fastapi', supported: false },
+  { value: 'flask', label: 'Flask', dockerService: 'flask', supported: false },
+] as const;
+
+const DOCKER_SERVICE_BY_FRAMEWORK: Record<string, string> = Object.fromEntries(
+  FRAMEWORK_OPTIONS.map((option) => [option.value, option.dockerService])
+);
+
+const isFrameworkSupported = (framework: string): boolean =>
+  FRAMEWORK_OPTIONS.some((option) => option.value === framework && option.supported);
+
 interface CICDSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -100,21 +120,25 @@ export function CICDSetupModal({
   }, [isOpen, dispatch]);
 
   useEffect(() => {
-    // Auto-detect framework from project name or default to springboot
-    if (projectName) {
-      if (projectName.toLowerCase().includes('react')) {
-        setFramework('react');
-        setDockerService('frontend');
-      } else if (projectName.toLowerCase().includes('next')) {
-        setFramework('nextjs');
-        setDockerService('nextjs');
-      } else if (projectName.toLowerCase().includes('node')) {
-        setFramework('nodejs');
-        setDockerService('nodejs');
-      } else if (projectName.toLowerCase().includes('python') || projectName.toLowerCase().includes('fastapi')) {
-        setFramework('python');
-        setDockerService('python');
-      }
+    // Auto-detect framework from project name.
+    // Only frameworks with a bundled workflow template can be selected,
+    // so an unsupported guess is ignored instead of failing at setup time.
+    if (!projectName) return;
+
+    const name = projectName.toLowerCase();
+    const detected = name.includes('react')
+      ? 'react'
+      : name.includes('next')
+        ? 'nextjs'
+        : name.includes('node')
+          ? 'nodejs'
+          : name.includes('python') || name.includes('fastapi')
+            ? 'python'
+            : null;
+
+    if (detected && isFrameworkSupported(detected)) {
+      setFramework(detected);
+      setDockerService(DOCKER_SERVICE_BY_FRAMEWORK[detected] ?? detected);
     }
   }, [projectName]);
 
@@ -504,26 +528,21 @@ export function CICDSetupModal({
                     onChange={(e) => {
                       setFramework(e.target.value);
                       // Auto-update docker service based on framework
-                      const serviceMap: Record<string, string> = {
-                        springboot: 'spring',
-                        nodejs: 'nodejs',
-                        react: 'frontend',
-                        nextjs: 'nextjs',
-                        python: 'python',
-                        fastapi: 'fastapi',
-                        flask: 'flask',
-                      };
-                      setDockerService(serviceMap[e.target.value] || e.target.value);
+                      setDockerService(
+                        DOCKER_SERVICE_BY_FRAMEWORK[e.target.value] ?? e.target.value
+                      );
                     }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   >
-                    <option value="springboot">Spring Boot</option>
-                    <option value="nodejs">Node.js</option>
-                    <option value="react">React</option>
-                    <option value="nextjs">Next.js</option>
-                    <option value="python">Python</option>
-                    <option value="fastapi">FastAPI</option>
-                    <option value="flask">Flask</option>
+                    {FRAMEWORK_OPTIONS.map((option) => (
+                      <option
+                        key={option.value}
+                        value={option.value}
+                        disabled={!option.supported}
+                      >
+                        {option.supported ? option.label : `${option.label} (준비 중)`}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
