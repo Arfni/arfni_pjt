@@ -167,6 +167,16 @@ export function SftpPanel({ ec2Server, followPath, onClose }: SftpPanelProps) {
     }
   }, [ec2Server, connecting, loadDir]);
 
+  // 백엔드는 끊긴 세션을 같은 id로 알아서 되살린다.
+  // 그래도 서버 자체가 내려가 있으면 실패하므로, 패널을 다시 열지 않고
+  // 여기서 직접 새 세션을 붙일 수 있어야 한다.
+  const reconnect = useCallback(async () => {
+    const stale = sessionIdRef.current;
+    setSessionId(null);
+    if (stale) void sftpCommands.disconnect(stale).catch(() => {});
+    await connect();
+  }, [connect]);
+
   // 패널이 열리면 자동 연결, 언마운트 시 세션 정리
   useEffect(() => {
     void connect();
@@ -518,6 +528,13 @@ export function SftpPanel({ ec2Server, followPath, onClose }: SftpPanelProps) {
           <pre className="text-xs text-red-700 whitespace-pre-wrap break-all flex-1 font-mono">
             {error}
           </pre>
+          <button
+            onClick={() => void reconnect()}
+            disabled={connecting || !ec2Server}
+            className="flex-shrink-0 px-2 py-0.5 text-xs rounded border border-red-300 text-red-700 hover:bg-red-100 disabled:opacity-50"
+          >
+            {connecting ? t('sftp.reconnecting') : t('sftp.reconnect')}
+          </button>
           <button onClick={() => setError(null)} className="flex-shrink-0">
             <X className="w-3.5 h-3.5 text-red-600" />
           </button>
