@@ -334,7 +334,9 @@
     "locationPlaceholder": "/api/",
     "locationHint": "e.g. /api/ or /",
     "websocketLabel": "Enable WebSocket",
-    "websocketHint": "Adds Upgrade/Connection headers to support WebSocket connections through nginx."
+    "websocketHint": "Adds Upgrade/Connection headers to support WebSocket connections through nginx.",
+    "streamingLabel": "Streaming response (SSE)",
+    "streamingHint": "Turn on when the server sends its response in pieces. Left off, nginx holds the whole response and nothing appears until it finishes."
   },
   "nginx": {
     "sections": {
@@ -363,7 +365,8 @@
       "maxAge": "max-age (seconds)",
       "keepalive": "Keepalive Connections",
       "lbMethod": "Method",
-      "maxBodySize": "Max upload size"
+      "maxBodySize": "Max upload size",
+      "proxyReadTimeout": "Upstream read timeout"
     },
     "placeholders": {
       "serverName": "myapp.com or _",
@@ -371,7 +374,8 @@
       "certPath": "/etc/nginx/certs/cert.pem",
       "keyPath": "/etc/nginx/certs/key.pem",
       "corsOrigin": "* or https://myapp.com",
-      "maxBodySize": "e.g. 20m (blank = 1MB)"
+      "maxBodySize": "e.g. 20m (blank = 1MB)",
+      "proxyReadTimeout": "e.g. 180s (blank = 60s)"
     },
     "tooltips": {
       "listenPort": "The port Nginx listens on for incoming requests. Use port 80 for HTTP and 443 for HTTPS.",
@@ -391,7 +395,8 @@
       "maxAge": "Duration in seconds for browser cache validity. 3600 = 1 hour, 86400 = 1 day.",
       "keepalive": "Number of idle connections to maintain to upstream servers. Reusing connections reduces latency.",
       "lbMethod": "Strategy for distributing traffic across upstream servers. Use Round Robin (default) for single-server setups.",
-      "maxBodySize": "Largest request body nginx will accept. Left blank, nginx keeps its 1MB default and rejects anything larger with 413 before the app sees it. Example: 20m"
+      "maxBodySize": "Largest request body nginx will accept. Left blank, nginx keeps its 1MB default and rejects anything larger with 413 before the app sees it. Example: 20m",
+      "proxyReadTimeout": "How long the proxy waits for the backend. Left blank, nginx keeps its 60s default and cuts longer requests off with 504. Example: 180s"
     },
     "lbMethods": {
       "roundRobin": "Round Robin (Default)",

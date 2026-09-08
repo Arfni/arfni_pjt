@@ -25,6 +25,23 @@ var sizePattern = regexp.MustCompile(`^[0-9]+[kKmMgG]?$`)
 // ValidateMaxBodySize rejects a client_max_body_size value nginx would not
 // accept, or one carrying injection characters. An empty value is allowed and
 // means "leave nginx at its default".
+// durationPattern matches an nginx time string: digits with an optional unit.
+// Interpolated into nginx.conf, so anything looser would let a stray ";"
+// inject directives.
+var durationPattern = regexp.MustCompile(`^[0-9]+(ms|s|m|h|d)?$`)
+
+// ValidateProxyTimeout rejects a value nginx would not accept as a time.
+// An empty value is allowed and means "leave nginx at its default".
+func ValidateProxyTimeout(d string) error {
+	if d == "" {
+		return nil
+	}
+	if !durationPattern.MatchString(d) {
+		return fmt.Errorf("invalid proxyReadTimeout: %q (expected e.g. \"180s\")", d)
+	}
+	return nil
+}
+
 func ValidateMaxBodySize(size string) error {
 	if size == "" {
 		return nil
@@ -130,6 +147,9 @@ func BuildConfigWithSSL(cfg *stack.NginxConfig) (string, error) {
 	b.WriteString("    default_type  application/octet-stream;\n\n")
 
 	if err := ValidateMaxBodySize(cfg.MaxBodySize); err != nil {
+		return "", err
+	}
+	if err := ValidateProxyTimeout(cfg.ProxyReadTimeout); err != nil {
 		return "", err
 	}
 	if cfg.MaxBodySize != "" {
@@ -239,6 +259,18 @@ func BuildConfigWithSSL(cfg *stack.NginxConfig) (string, error) {
 		b.WriteString("            proxy_set_header X-Real-IP $remote_addr;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-Proto $scheme;\n")
+		// The upstream block declares a keepalive pool, which nginx only honours
+		// over HTTP/1.1 with the Connection header cleared. Left at the default
+		// HTTP/1.0 the proxied response stalls until a timeout fires.
+		b.WriteString("            proxy_http_version 1.1;\n")
+		b.WriteString("            proxy_set_header Connection \"\";\n")
+		if up.Streaming {
+			b.WriteString("            proxy_buffering off;\n")
+		}
+		if cfg.ProxyReadTimeout != "" {
+			fmt.Fprintf(&b, "            proxy_read_timeout %s;\n", cfg.ProxyReadTimeout)
+			fmt.Fprintf(&b, "            proxy_send_timeout %s;\n", cfg.ProxyReadTimeout)
+		}
 		if up.WebSocket {
 			writeWebSocketHeaders(&b)
 		}
@@ -273,6 +305,9 @@ func buildConfig(cfg *stack.NginxConfig) (string, error) {
 	b.WriteString("    default_type  application/octet-stream;\n\n")
 
 	if err := ValidateMaxBodySize(cfg.MaxBodySize); err != nil {
+		return "", err
+	}
+	if err := ValidateProxyTimeout(cfg.ProxyReadTimeout); err != nil {
 		return "", err
 	}
 	if cfg.MaxBodySize != "" {
@@ -390,6 +425,18 @@ func buildConfig(cfg *stack.NginxConfig) (string, error) {
 		b.WriteString("            proxy_set_header X-Real-IP $remote_addr;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 		b.WriteString("            proxy_set_header X-Forwarded-Proto $scheme;\n")
+		// The upstream block declares a keepalive pool, which nginx only honours
+		// over HTTP/1.1 with the Connection header cleared. Left at the default
+		// HTTP/1.0 the proxied response stalls until a timeout fires.
+		b.WriteString("            proxy_http_version 1.1;\n")
+		b.WriteString("            proxy_set_header Connection \"\";\n")
+		if up.Streaming {
+			b.WriteString("            proxy_buffering off;\n")
+		}
+		if cfg.ProxyReadTimeout != "" {
+			fmt.Fprintf(&b, "            proxy_read_timeout %s;\n", cfg.ProxyReadTimeout)
+			fmt.Fprintf(&b, "            proxy_send_timeout %s;\n", cfg.ProxyReadTimeout)
+		}
 		if up.WebSocket {
 			writeWebSocketHeaders(&b)
 		}

@@ -61,6 +61,10 @@ type NginxConfig struct {
 	// string ("20m"). nginx defaults to 1m, so an app that accepts larger
 	// uploads gets 413 at the gateway before its own limit is consulted.
 	MaxBodySize   string            `yaml:"maxBodySize,omitempty"`
+	// ProxyReadTimeout caps how long nginx waits on the upstream, as an nginx
+	// time string ("180s"). nginx defaults to 60s, so an app allowed a longer
+	// budget of its own gets 504 at the gateway before it ever gives up.
+	ProxyReadTimeout string         `yaml:"proxyReadTimeout,omitempty"`
 	Upstreams     []NginxUpstream   `yaml:"upstreams,omitempty"`
 	SSL           *NginxSSL         `yaml:"ssl,omitempty"`
 	RateLimit     *NginxRateLimit   `yaml:"rateLimit,omitempty"`
@@ -78,6 +82,10 @@ type NginxUpstream struct {
 	Port      int    `yaml:"port"`                // 컨테이너 포트
 	Route     string `yaml:"route"`               // location 경로 (예: /api/)
 	WebSocket bool   `yaml:"websocket,omitempty"` // WebSocket 프록시 헤더 활성화
+	// Streaming turns off response buffering for this route. Server-sent
+	// events need it: with buffering on nginx holds the whole response and
+	// the client sees nothing until the stream ends.
+	Streaming bool   `yaml:"streaming,omitempty"`
 }
 
 // NginxSSL은 SSL/TLS 설정입니다

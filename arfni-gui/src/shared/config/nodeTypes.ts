@@ -94,6 +94,7 @@ export interface NginxNodeData {
   // nginx size string ("20m"). Left blank, nginx keeps its 1MB default and
   // rejects larger uploads with 413 before the app sees them.
   maxBodySize?: string;
+  proxyReadTimeout?: string;
   ssl: { enabled: boolean; certPath?: string; keyPath?: string };
   rateLimit: { enabled: boolean; rate: string; burst: number };
   cors: { enabled: boolean; origin: string };
@@ -117,6 +118,7 @@ export const createNginxNode = (
     target: data.target || defaultTarget || 'local',
     listenPort: data.listenPort ?? 80,
     maxBodySize: data.maxBodySize ?? '',
+    proxyReadTimeout: data.proxyReadTimeout ?? '',
     serverName: data.serverName ?? '_',
     ssl: data.ssl ?? { enabled: false },
     rateLimit: data.rateLimit ?? { enabled: false, rate: '10r/s', burst: 20 },

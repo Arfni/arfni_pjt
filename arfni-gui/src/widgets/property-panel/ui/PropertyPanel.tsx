@@ -78,6 +78,21 @@ export function PropertyPanel() {
               </label>
             </div>
             <p className="text-xs text-gray-400">{t('nginxEdge.websocketHint')}</p>
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="streaming-toggle"
+                className="w-4 h-4 accent-blue-500 cursor-pointer"
+                checked={(selectedEdge.data as any)?.streaming ?? false}
+                onChange={(e) =>
+                  dispatch(updateEdgeData({ id: selectedEdge.id, data: { streaming: e.target.checked } }))
+                }
+              />
+              <label htmlFor="streaming-toggle" className="text-xs font-medium text-gray-700 cursor-pointer select-none">
+                {t('nginxEdge.streamingLabel')}
+              </label>
+            </div>
+            <p className="text-xs text-gray-400">{t('nginxEdge.streamingHint')}</p>
           </div>
         ) : (
           <div className="flex items-center justify-center h-full p-4 text-gray-400">

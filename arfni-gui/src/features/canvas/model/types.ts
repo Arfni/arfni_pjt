@@ -69,6 +69,9 @@ export interface NginxNodeData {
   serverName: string;
   // nginx size string ("20m"). Left blank, nginx keeps its 1MB default and rejects larger uploads with 413 before the app sees them.
   maxBodySize?: string;
+  // nginx time string ("180s"). Left blank, nginx keeps its 60s default and
+  // returns 504 before an app with a longer budget of its own gives up.
+  proxyReadTimeout?: string;
   ssl: {
     enabled: boolean;
     auto?: boolean;

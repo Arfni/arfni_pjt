@@ -64,6 +64,13 @@ export function NginxPropertyForm({ node }: NginxPropertyFormProps) {
               placeholder={t('nginx.placeholders.maxBodySize')}
             />
           </FormField>
+          <FormField label={t('nginx.labels.proxyReadTimeout')} tooltip={t('nginx.tooltips.proxyReadTimeout')}>
+            <Input
+              value={data.proxyReadTimeout ?? ''}
+              onChange={(e) => update('proxyReadTimeout', e.target.value)}
+              placeholder={t('nginx.placeholders.proxyReadTimeout')}
+            />
+          </FormField>
         </div>
       </details>
 

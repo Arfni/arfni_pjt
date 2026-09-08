@@ -1341,8 +1341,9 @@ export class PluginStackGenerator {
         // route and websocket come from edge metadata (set via edge click UI)
         const route: string = (edge.data as any)?.route || '/';
         const websocket: boolean = (edge.data as any)?.websocket || false;
+        const streaming: boolean = (edge.data as any)?.streaming || false;
 
-        return { name, service: name, port, route, ...(websocket && { websocket }) };
+        return { name, service: name, port, route, ...(websocket && { websocket }), ...(streaming && { streaming }) };
       })
       .filter(Boolean);
 
@@ -1359,6 +1360,7 @@ export class PluginStackGenerator {
           listenPort,
           serverName: data.serverName || '_',
           ...(data.maxBodySize ? { maxBodySize: data.maxBodySize } : {}),
+          ...(data.proxyReadTimeout ? { proxyReadTimeout: data.proxyReadTimeout } : {}),
           upstreams,
           ssl: data.ssl?.enabled ? data.ssl : undefined,
           rateLimit: data.rateLimit?.enabled ? data.rateLimit : undefined,

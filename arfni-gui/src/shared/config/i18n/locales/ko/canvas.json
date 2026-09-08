@@ -334,7 +334,9 @@
     "locationPlaceholder": "/api/",
     "locationHint": "예: /api/ 또는 /",
     "websocketLabel": "WebSocket 활성화",
-    "websocketHint": "활성화하면 Upgrade/Connection 헤더를 추가하여 WebSocket 연결을 지원합니다."
+    "websocketHint": "활성화하면 Upgrade/Connection 헤더를 추가하여 WebSocket 연결을 지원합니다.",
+    "streamingLabel": "스트리밍 응답 (SSE)",
+    "streamingHint": "서버가 조금씩 흘려보내는 응답이면 켜십시오. 끄면 nginx가 응답 전체를 모아 두므로, 답이 다 끝날 때까지 화면에 아무것도 안 보입니다."
   },
   "nginx": {
     "sections": {
@@ -363,7 +365,8 @@
       "maxAge": "max-age (초)",
       "keepalive": "Keepalive 커넥션 수",
       "lbMethod": "방식",
-      "maxBodySize": "최대 업로드 크기"
+      "maxBodySize": "최대 업로드 크기",
+      "proxyReadTimeout": "업스트림 응답 대기 시간"
     },
     "placeholders": {
       "serverName": "myapp.com 또는 _",
@@ -371,7 +374,8 @@
       "certPath": "/etc/nginx/certs/cert.pem",
       "keyPath": "/etc/nginx/certs/key.pem",
       "corsOrigin": "* 또는 https://myapp.com",
-      "maxBodySize": "예: 20m (비우면 1MB)"
+      "maxBodySize": "예: 20m (비우면 1MB)",
+      "proxyReadTimeout": "예: 180s (비우면 60초)"
     },
     "tooltips": {
       "listenPort": "Nginx가 외부 요청을 수신하는 포트입니다. HTTP는 80, HTTPS는 443을 주로 사용합니다.",
@@ -391,7 +395,8 @@
       "maxAge": "브라우저가 캐시를 유지하는 시간(초)입니다. 3600 = 1시간, 86400 = 1일입니다.",
       "keepalive": "업스트림 서버와 유지할 유휴 연결 수입니다. 연결 재사용으로 지연 시간을 줄여줍니다.",
       "lbMethod": "여러 업스트림 서버에 트래픽을 분산하는 방식입니다. 서버가 1대인 경우 기본값(Round Robin)을 사용하세요.",
-      "maxBodySize": "한 요청으로 받을 수 있는 본문의 최대 크기입니다. 비워 두면 nginx 기본값 1MB가 적용되어, 그보다 큰 업로드는 앱에 닿기 전에 413으로 거절됩니다. 예: 20m"
+      "maxBodySize": "한 요청으로 받을 수 있는 본문의 최대 크기입니다. 비워 두면 nginx 기본값 1MB가 적용되어, 그보다 큰 업로드는 앱에 닿기 전에 413으로 거절됩니다. 예: 20m",
+      "proxyReadTimeout": "프록시가 백엔드 응답을 기다리는 시간입니다. 비워 두면 nginx 기본값 60초가 적용되어, 더 오래 걸리는 요청은 504로 끊깁니다. 예: 180s"
     },
     "lbMethods": {
       "roundRobin": "Round Robin (기본)",
