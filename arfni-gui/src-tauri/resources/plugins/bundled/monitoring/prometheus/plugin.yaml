@@ -18,7 +18,7 @@ contributes:
       spec:
         image: "prom/prometheus:latest"
         ports:
-          - "9090:9090"
+          - "127.0.0.1:9090:9090"
         volumes:
           - host: "./prometheus.yml"
             mount: "/etc/prometheus/prometheus.yml"
