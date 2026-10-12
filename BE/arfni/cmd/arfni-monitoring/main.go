@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"time"
 
-	"gopkg.in/yaml.v2"
 	"github.com/arfni/arfni/internal/core/monitoring"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -31,6 +31,13 @@ const (
 	colorWhite  = "\033[37m"
 )
 
+func monitoringRuntimeDir(defaultDir string) (string, bool) {
+	if dir := os.Getenv("ARFNI_MONITORING_RUNTIME_DIR"); dir != "" {
+		return dir, false
+	}
+	return defaultDir, true
+}
+
 // Config 구조체 - JSON 파일 또는 CLI 플래그로 설정
 type Config struct {
 	SSH struct {
@@ -39,11 +46,11 @@ type Config struct {
 		PemPath string `json:"pem_path"`
 	} `json:"ssh"`
 	Monitoring struct {
-		Mode              monitoring.MonitoringMode `json:"mode"`
-		StackPath         string         `json:"stack_path"`
-		PrometheusPort    int            `json:"prometheus_port"`
-		GrafanaPort       int            `json:"grafana_port"`
-		NodeExporterPort  int            `json:"node_exporter_port"`
+		Mode             monitoring.MonitoringMode `json:"mode"`
+		StackPath        string                    `json:"stack_path"`
+		PrometheusPort   int                       `json:"prometheus_port"`
+		GrafanaPort      int                       `json:"grafana_port"`
+		NodeExporterPort int                       `json:"node_exporter_port"`
 	} `json:"monitoring"`
 	Options struct {
 		AutoOpenBrowser bool `json:"auto_open_browser"`
@@ -137,6 +144,7 @@ func main() {
 	// Cleanup 함수
 	var tunnelCmd *exec.Cmd
 	var composeDir string
+	var generatedTempDir string
 	cleanup := func() {
 		fmt.Println()
 		fmt.Printf("%s🧹 Cleaning up...%s\n", colorYellow, colorReset)
@@ -154,6 +162,9 @@ func main() {
 			cmd.Dir = composeDir
 			cmd.Run()
 		}
+		if generatedTempDir != "" {
+			os.RemoveAll(generatedTempDir)
+		}
 
 		fmt.Printf("%s✅ Cleanup complete%s\n", colorGreen, colorReset)
 	}
@@ -168,10 +179,14 @@ func main() {
 	}()
 
 	// Step 1: Docker Desktop 확인
-	if err := checkDockerDesktop(ctx); err != nil {
-		fmt.Printf("%s❌ %s%s\n", colorRed, err.Error(), colorReset)
-		pressEnterToExit()
-		os.Exit(1)
+	// All-in-one은 Prometheus·Grafana가 모두 EC2에서 돌고 로컬 컨테이너를 하나도 띄우지
+	// 않는다. 그 모드에서 로컬 Docker를 요구하면 정상 환경을 실행조차 못 하게 막는다.
+	if cfg.Monitoring.Mode != monitoring.ModeAllInOne {
+		if err := checkDockerDesktop(ctx); err != nil {
+			fmt.Printf("%s❌ %s%s\n", colorRed, err.Error(), colorReset)
+			pressEnterToExit()
+			os.Exit(1)
+		}
 	}
 
 	// Step 2: 포트 확인
@@ -207,17 +222,23 @@ func main() {
 	fmt.Printf("%s📦 Using plugins from: %s%s\n", colorCyan, pluginsDir, colorReset)
 
 	// 임시 디렉토리에 docker-compose.yml 생성
-	tempDir := filepath.Join(os.TempDir(), "arfni-monitoring-"+time.Now().Format("20060102-150405"))
+	tempDir, removeOnExit := monitoringRuntimeDir(filepath.Join(os.TempDir(), "arfni-monitoring-"+time.Now().Format("20060102-150405")))
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		fmt.Printf("%s❌ Failed to create temp directory: %v%s\n", colorRed, err, colorReset)
 		pressEnterToExit()
 		os.Exit(1)
 	}
-	defer os.RemoveAll(tempDir) // Clean up on exit
+	if removeOnExit {
+		generatedTempDir = tempDir // Remove only after docker compose down.
+	}
 
 	// 플러그인에서 docker-compose.yml 생성
 	monitoringMode := cfg.Monitoring.Mode
 	if err := monitoring.PrepareMonitoringStack(pluginsDir, monitoringMode, tempDir); err != nil {
+		if !removeOnExit {
+			fmt.Fprintf(os.Stderr, "%s❌ Failed to generate monitoring stack in %s: %v%s\n", colorRed, tempDir, err, colorReset)
+			os.Exit(1) // The managed runtime must not start containers from a different compose directory.
+		}
 		// Fallback to legacy monitoring directory
 		fmt.Printf("%s⚠️  Failed to use plugins, falling back to legacy monitoring: %v%s\n", colorYellow, err, colorReset)
 		composeDir = findMonitoringDirectory()
@@ -234,7 +255,7 @@ func main() {
 
 	// Step 6: Docker Compose Up (모드에 따라 다르게 실행)
 	fmt.Printf("%s🚀 Starting monitoring stack (mode: %s)...%s\n", colorBlue, cfg.Monitoring.Mode, colorReset)
-	if err := dockerComposeUp(ctx, composeDir, cfg.Monitoring.Mode); err != nil {
+	if err := dockerComposeUp(ctx, composeDir, cfg.Monitoring.Mode, cfg.Monitoring.PrometheusPort, cfg.Monitoring.GrafanaPort); err != nil {
 		fmt.Printf("%s❌ Failed to start monitoring stack: %v%s\n", colorRed, err, colorReset)
 		pressEnterToExit()
 		os.Exit(1)
@@ -309,7 +330,7 @@ func loadConfig(configFile, host, user, key, stackPath, mode string, args []stri
 	cfg.Monitoring.GrafanaPort = 3200
 	cfg.Monitoring.NodeExporterPort = 9100
 	cfg.Monitoring.Mode = monitoring.ModeLocal // 기본 모드
-	cfg.Options.AutoOpenBrowser = false  // GUI에서 iframe으로 보여주므로 브라우저 자동 열기 비활성화
+	cfg.Options.AutoOpenBrowser = false        // GUI에서 iframe으로 보여주므로 브라우저 자동 열기 비활성화
 	cfg.Options.CleanupOnExit = true
 
 	// 1. JSON 파일에서 로드 (있으면)
@@ -630,14 +651,16 @@ Please check and try again.`, keyPath, host)
 }
 
 // docker-compose up -d 실행 (모드별로 다른 서비스 실행)
-func dockerComposeUp(ctx context.Context, dir string, mode monitoring.MonitoringMode) error {
+func dockerComposeUp(ctx context.Context, dir string, mode monitoring.MonitoringMode, prometheusPort, grafanaPort int) error {
 	switch mode {
 	case monitoring.ModeAllInOne:
 		// All-in-One: Docker Compose 실행 안 함
+		// 터널이 실제로 바인딩한 로컬 포트를 그대로 찍는다. 하드코딩된 3000은 Grafana를
+		// 3200에 띄우는 기본 스택에서 사용자를 빈 페이지로 보냈다.
 		fmt.Printf("%s   ✓ Prometheus and Grafana are running on EC2%s\n", colorGreen, colorReset)
 		fmt.Println("   Access via SSH tunnel:")
-		fmt.Println("     - Prometheus: http://localhost:9090")
-		fmt.Println("     - Grafana:    http://localhost:3000")
+		fmt.Printf("     - Prometheus: http://localhost:%d\n", prometheusPort)
+		fmt.Printf("     - Grafana:    http://localhost:%d\n", grafanaPort)
 		return nil
 
 	case monitoring.ModeHybrid:

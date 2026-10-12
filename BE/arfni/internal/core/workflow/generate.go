@@ -2,8 +2,6 @@ package workflow
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -176,27 +174,10 @@ func GenerateDockerComposeWithTarget(s *stack.Stack, projectDir string, targetTy
 	return string(data), nil
 }
 
-// WriteDockerCompose writes docker-compose.yml to disk
-func WriteDockerCompose(s *stack.Stack, projectDir string) error {
-	content, err := GenerateDockerCompose(s, projectDir)
-	if err != nil {
-		return err
-	}
-
-	// Create .arfni directory
-	arfniDir := filepath.Join(projectDir, ".arfni")
-	if err := os.MkdirAll(arfniDir, 0755); err != nil {
-		return fmt.Errorf("failed to create .arfni directory: %w", err)
-	}
-
-	// Write docker-compose.yml to project root (for correct build context resolution)
-	composeFile := filepath.Join(projectDir, "docker-compose.yml")
-	if err := os.WriteFile(composeFile, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write docker-compose.yml: %w", err)
-	}
-
-	return nil
-}
+// WriteDockerCompose was removed: it had no callers and wrote the compose at 0644 with
+// no chmod, bypassing the owner-only rule Runner.generateFiles enforces. The compose
+// holds every env value from stack.yaml in plain text, so there must be exactly one way
+// to write it. Callers that need the content use GenerateDockerCompose.
 
 // Note: Grafana provisioning has been moved to arfni-monitoring.exe
 // which handles it at runtime with better support for:

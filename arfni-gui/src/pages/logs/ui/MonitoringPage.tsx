@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Activity, ExternalLink } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Project, EC2Server } from '@shared/api/tauri/commands';
 import { useTranslation } from 'react-i18next';
 
@@ -29,9 +29,24 @@ export default function MonitoringPage() {
   const [error, setError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [startupMessage, setStartupMessage] = useState<string>('');
+  const [retry, setRetry] = useState(0);
+  const startup = useRef<Promise<void>>(Promise.resolve());
+  const cancelStartup = useRef(() => {});
+
+  const leaveMonitoring = async () => {
+    cancelStartup.current();
+    // A pending start must finish before stop, otherwise it can reopen the ports after leaving.
+    await startup.current;
+    if (project?.path) {
+      await invoke('stop_monitoring_stack', { projectPath: project.path }).catch(console.error);
+    }
+    navigate('/logs', { state: { project, selectedView: 'monitor' } });
+  };
 
   // Load the monitoring config and start it automatically
   useEffect(() => {
+    let cancelled = false;
+    cancelStartup.current = () => { cancelled = true; };
     const loadConfig = async () => {
       if (!project?.path) {
         setError(t('monitoring.projectMissing'));
@@ -41,31 +56,41 @@ export default function MonitoringPage() {
 
       try {
         // 1. load the monitoring config
+        setLoading(true);
+        setError(null);
         setIsStarting(true);
         setStartupMessage(t('monitoring.loadingConfig', { percentage: 5 }));
 
         const monitoringConfig = await invoke<MonitoringConfig>('get_monitoring_config', {
           projectPath: project.path
         });
+        if (cancelled) return;
         setConfig(monitoringConfig);
         setStartupMessage(t('monitoring.loadingConfig', { percentage: 10 }));
+
+        // A healthy localhost URL may belong to a different server or a manual tunnel.
+        // Let the backend establish or reuse this project's own tunnels first.
+        if (monitoringConfig.mode === 'all-in-one') {
+          await invoke('start_monitoring_stack', { projectPath: project.path });
+          if (cancelled) return;
+        }
 
         // 2. check whether Grafana is running
         setStartupMessage(t('monitoring.checkingStatus', { percentage: 15 }));
         const isRunning = await invoke<boolean>('check_monitoring_running', {
           grafanaUrl: monitoringConfig.grafana_url
         });
+        if (cancelled) return;
         setStartupMessage(t('monitoring.checkingStatus', { percentage: 20 }));
 
         if (!isRunning) {
           // 3. start it automatically when it is not
           setStartupMessage(t('monitoring.startingStack', { percentage: 30 }));
 
-          const startResult = await invoke<string>('start_monitoring_stack', {
-            projectPath: project.path
-          });
-
-          console.log(startResult);
+          if (monitoringConfig.mode !== 'all-in-one') {
+            await invoke('start_monitoring_stack', { projectPath: project.path });
+            if (cancelled) return;
+          }
           setStartupMessage(t('monitoring.startingStack', { percentage: 40 }));
 
           // 4. wait for Grafana to become ready, up to 30 seconds
@@ -73,10 +98,12 @@ export default function MonitoringPage() {
           const maxAttempts = 30; // 30초
           while (attempts < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
+            if (cancelled) return;
 
             const ready = await invoke<boolean>('check_monitoring_running', {
               grafanaUrl: monitoringConfig.grafana_url
             });
+            if (cancelled) return;
 
             if (ready) {
               setIsStarting(false);
@@ -91,23 +118,32 @@ export default function MonitoringPage() {
           }
 
           if (attempts >= maxAttempts) {
+            // Returning matters: the setError(null) below runs in the same tick and would
+            // wipe this, leaving the page to render an iframe against a Grafana that never
+            // came up.
             setError(t('monitoring.timeoutError'));
             setIsStarting(false);
+            return;
           }
         }
 
         setError(null);
       } catch (err) {
+        if (cancelled) return;
         console.error('Failed to load monitoring config:', err);
         setError(`${err}`);
         setIsStarting(false);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setIsStarting(false);
+          setLoading(false);
+        }
       }
     };
 
-    loadConfig();
-  }, [project]);
+    startup.current = loadConfig();
+    return () => { cancelled = true; };
+  }, [project?.path, retry]);
 
   if (loading || isStarting) {
     return (
@@ -115,10 +151,7 @@ export default function MonitoringPage() {
         <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
-              onClick={async () => {
-                await invoke('stop_monitoring_stack').catch(console.error);
-                navigate('/logs', { state: { project, selectedView: 'monitor' } });
-              }}
+              onClick={leaveMonitoring}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -149,7 +182,7 @@ export default function MonitoringPage() {
         <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/logs', { state: { project, selectedView: 'monitor' } })}
+              onClick={leaveMonitoring}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -168,10 +201,20 @@ export default function MonitoringPage() {
             <div className="mt-6 space-y-3 text-left bg-white p-4 rounded border border-red-100">
               <p className="text-sm font-semibold text-gray-700">{t('monitoring.troubleshooting')}</p>
               <ol className="text-sm text-gray-600 list-decimal list-inside space-y-2 ml-2">
-                <li>
-                  <strong>{t('monitoring.checkDocker')}</strong>
-                  <p className="ml-6 mt-1 text-xs text-gray-500">{t('monitoring.dockerNote')}</p>
-                </li>
+                {/* All-in-one runs Prometheus and Grafana on the server and reaches them
+                    over an SSH tunnel; local Docker is never involved, so telling the user
+                    to check Docker Desktop sends them the wrong way. */}
+                {config?.mode === 'all-in-one' ? (
+                  <li>
+                    <strong>{t('monitoring.checkTunnel')}</strong>
+                    <p className="ml-6 mt-1 text-xs text-gray-500">{t('monitoring.tunnelNote')}</p>
+                  </li>
+                ) : (
+                  <li>
+                    <strong>{t('monitoring.checkDocker')}</strong>
+                    <p className="ml-6 mt-1 text-xs text-gray-500">{t('monitoring.dockerNote')}</p>
+                  </li>
+                )}
                 <li>
                   <strong>{t('monitoring.checkStackFile')}</strong>
                   <p className="ml-6 mt-1 text-xs text-gray-500">
@@ -196,7 +239,7 @@ export default function MonitoringPage() {
 
             <div className="mt-4 flex justify-center">
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => setRetry(value => value + 1)}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm"
               >
                 {t('monitoring.retry')}
@@ -226,11 +269,7 @@ export default function MonitoringPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              onClick={async () => {
-                // navigate after the cleanup
-                await invoke('stop_monitoring_stack').catch(console.error);
-                navigate('/logs', { state: { project, selectedView: 'monitor' } });
-              }}
+              onClick={leaveMonitoring}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />

@@ -13,15 +13,15 @@ import (
 type MonitoringMode string
 
 const (
-	ModeLocal     MonitoringMode = "local"
-	ModeHybrid    MonitoringMode = "hybrid"
-	ModeAllInOne  MonitoringMode = "all-in-one"
+	ModeLocal    MonitoringMode = "local"
+	ModeHybrid   MonitoringMode = "hybrid"
+	ModeAllInOne MonitoringMode = "all-in-one"
 )
 
 // PluginSpec represents a monitoring plugin specification
 type PluginSpec struct {
-	APIVersion string `yaml:"apiVersion"`
-	Name       string `yaml:"name"`
+	APIVersion  string `yaml:"apiVersion"`
+	Name        string `yaml:"name"`
 	Contributes struct {
 		Services map[string]struct {
 			Kind string `yaml:"kind"`
@@ -75,6 +75,10 @@ func LoadMonitoringPlugin(pluginPath string) (*PluginSpec, error) {
 
 	return &plugin, nil
 }
+
+// composeFileMode restricts the generated compose to its owner: it holds the monitoring
+// services' env values in plain text.
+const composeFileMode os.FileMode = 0600
 
 // GenerateDockerComposeFromPlugins generates a docker-compose.yml from plugin specs
 func GenerateDockerComposeFromPlugins(pluginsDir string, mode MonitoringMode, outputPath string) error {
@@ -185,8 +189,14 @@ func GenerateDockerComposeFromPlugins(pluginsDir string, mode MonitoringMode, ou
 		return fmt.Errorf("failed to marshal docker-compose: %w", err)
 	}
 
-	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+	// This compose carries the plugin env values verbatim, Grafana's admin password among
+	// them, so it is owner-only like the deploy compose. WriteFile only applies the mode
+	// when it creates the file, so an existing 0644 file needs the explicit chmod.
+	if err := os.WriteFile(outputPath, data, composeFileMode); err != nil {
 		return fmt.Errorf("failed to write docker-compose.yml: %w", err)
+	}
+	if err := os.Chmod(outputPath, composeFileMode); err != nil {
+		return fmt.Errorf("failed to restrict docker-compose.yml permissions: %w", err)
 	}
 
 	return nil
@@ -200,57 +210,68 @@ func CopyAndUpdateProvisioningFiles(pluginsDir, outputDir string, mode Monitorin
 	outputProvDir := filepath.Join(outputDir, "grafana", "provisioning")
 
 	// Create directories
-	os.MkdirAll(filepath.Join(outputProvDir, "datasources"), 0755)
-	os.MkdirAll(filepath.Join(outputProvDir, "dashboards"), 0755)
+	if err := os.MkdirAll(filepath.Join(outputProvDir, "datasources"), 0755); err != nil {
+		return fmt.Errorf("failed to create datasource directory: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Join(outputProvDir, "dashboards"), 0755); err != nil {
+		return fmt.Errorf("failed to create dashboard directory: %w", err)
+	}
 
 	// Copy datasource
 	datasourcePath := filepath.Join(grafanaProvDir, "datasources", "datasource.yml")
-	if data, err := os.ReadFile(datasourcePath); err == nil {
-		// Update Prometheus URL based on mode
-		content := string(data)
-		if mode == ModeHybrid {
-			// For hybrid mode, Prometheus is on EC2
-			content = strings.ReplaceAll(content, "http://prometheus:9090", "http://host.docker.internal:9090")
-		}
-
-		outputPath := filepath.Join(outputProvDir, "datasources", "datasource.yml")
-		if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil {
-			return fmt.Errorf("failed to write datasource.yml: %w", err)
-		}
+	data, err := os.ReadFile(datasourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to read datasource.yml: %w", err)
+	}
+	content := string(data)
+	if mode == ModeHybrid {
+		content = strings.ReplaceAll(content, "http://prometheus:9090", "http://host.docker.internal:9090")
+	}
+	outputPath := filepath.Join(outputProvDir, "datasources", "datasource.yml")
+	if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write datasource.yml: %w", err)
 	}
 
 	// Copy dashboard configuration
 	dashboardPath := filepath.Join(grafanaProvDir, "dashboards", "dashboard.yml")
-	if data, err := os.ReadFile(dashboardPath); err == nil {
-		outputPath := filepath.Join(outputProvDir, "dashboards", "dashboard.yml")
-		if err := os.WriteFile(outputPath, data, 0644); err != nil {
-			return fmt.Errorf("failed to write dashboard.yml: %w", err)
-		}
+	data, err = os.ReadFile(dashboardPath)
+	if err != nil {
+		return fmt.Errorf("failed to read dashboard.yml: %w", err)
+	}
+	outputPath = filepath.Join(outputProvDir, "dashboards", "dashboard.yml")
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write dashboard.yml: %w", err)
 	}
 
 	// Copy dashboard JSON files
 	dashboardsDir := filepath.Join(grafanaProvDir, "dashboards")
-	if files, err := os.ReadDir(dashboardsDir); err == nil {
-		for _, file := range files {
-			if strings.HasSuffix(file.Name(), ".json") {
-				src := filepath.Join(dashboardsDir, file.Name())
-				dst := filepath.Join(outputProvDir, "dashboards", file.Name())
-				if data, err := os.ReadFile(src); err == nil {
-					os.WriteFile(dst, data, 0644)
-				}
+	files, err := os.ReadDir(dashboardsDir)
+	if err != nil {
+		return fmt.Errorf("failed to list dashboards: %w", err)
+	}
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".json") {
+			src := filepath.Join(dashboardsDir, file.Name())
+			dst := filepath.Join(outputProvDir, "dashboards", file.Name())
+			data, err := os.ReadFile(src)
+			if err != nil {
+				return fmt.Errorf("failed to read dashboard %s: %w", file.Name(), err)
+			}
+			if err := os.WriteFile(dst, data, 0644); err != nil {
+				return fmt.Errorf("failed to write dashboard %s: %w", file.Name(), err)
 			}
 		}
 	}
 
 	// Copy Prometheus configuration
 	prometheusPath := filepath.Join(pluginsDir, "prometheus", "prometheus.yml")
-	if data, err := os.ReadFile(prometheusPath); err == nil {
-		// No changes needed - node-exporter:9100 works in Docker network
-		// Docker Compose automatically creates a network where services can communicate by name
-		outputPath := filepath.Join(outputDir, "prometheus.yml")
-		if err := os.WriteFile(outputPath, data, 0644); err != nil {
-			return fmt.Errorf("failed to write prometheus.yml: %w", err)
-		}
+	data, err = os.ReadFile(prometheusPath)
+	if err != nil {
+		return fmt.Errorf("failed to read prometheus.yml: %w", err)
+	}
+	outputPath = filepath.Join(outputDir, "prometheus.yml")
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write prometheus.yml: %w", err)
 	}
 
 	return nil

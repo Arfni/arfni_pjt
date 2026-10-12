@@ -184,6 +184,8 @@
     "troubleshooting": "문제 해결:",
     "checkDocker": "Docker Desktop 실행 확인",
     "dockerNote": "모니터링 스택은 Docker 컨테이너로 실행됩니다.",
+    "checkTunnel": "SSH 터널 확인",
+    "tunnelNote": "All-in-one 모드에서는 Grafana가 서버의 127.0.0.1에만 열려 있어 SSH 터널로만 접근합니다. 로컬 Docker는 사용하지 않습니다. 위 메시지에 ssh 실패 원인이 표시됩니다.",
     "checkStackFile": "stack.yaml 파일 확인",
     "stackFilePath": "경로:",
     "startStack": "모니터링 스택 시작",

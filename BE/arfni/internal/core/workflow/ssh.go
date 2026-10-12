@@ -15,9 +15,9 @@ import (
 
 // SSHClient는 EC2 SSH 연결을 관리합니다
 type SSHClient struct {
-	target       stack.Target
-	projectDir   string
-	arfniIgnore  *ArfniIgnore
+	target      stack.Target
+	projectDir  string
+	arfniIgnore *ArfniIgnore
 }
 
 // NewSSHClient는 새로운 SSH 클라이언트를 생성합니다.
@@ -267,7 +267,7 @@ fi
 }
 
 // workdirForbiddenPatterns는 validateWorkdir가 차단하는 셸 메타문자 및 경로 탈출 패턴이다.
-var workdirForbiddenPatterns = []string{"&&", "&", ";", "|", "`", "$", ">", "<", "(", ")", "\n", "\r", ".."}
+var workdirForbiddenPatterns = []string{"&&", "&", ";", "|", "`", "$", ">", "<", "(", ")", "\n", "\r", "..", " ", "\t", "'", "\"", "\\", "*", "?", "[", "]", "{", "}"}
 
 // validateWorkdir는 workdir 경로에 셸 인젝션에 사용될 수 있는 문자가 없는지 검증한다.
 // workdir는 stack.yaml 사용자 입력에서 오므로 셸 명령에 삽입하기 전에 반드시 검증해야 한다.

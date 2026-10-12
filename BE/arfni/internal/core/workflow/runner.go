@@ -78,8 +78,44 @@ func (r *Runner) ExecuteWithPlugins(stream *events.Stream, pluginsDir, bundledPl
 	return nil
 }
 
+// secretFileMode restricts a file to its owner.
+//
+// docker-compose.yml carries the env values from stack.yaml verbatim, so it holds
+// every secret the stack declares. At 0644 any other account on the machine can read
+// them — including containers this same stack deploys, such as node-exporter, which
+// mounts the whole host filesystem.
+const secretFileMode os.FileMode = 0600
+
+// remoteSecretChmodCmd restricts a file on the deploy host to its owner.
+//
+// remotePath is built from workdir, which validateWorkdir has already cleared of shell
+// metacharacters, so it is interpolated unquoted like the surrounding commands.
+func remoteSecretChmodCmd(remotePath string) string {
+	return fmt.Sprintf("chmod 600 %s", remotePath)
+}
+
 // generateFiles는 docker-compose.yml과 Dockerfile들을 생성합니다
 func (r *Runner) generateFiles(stream *events.Stream) error {
+	if err := r.auditStackSecrets(stream); err != nil {
+		return err
+	}
+
+	// All-in-one puts Grafana on the deploy host, where it cannot read provisioning files
+	// out of the workdir. Resolving the replacement location before generating the compose
+	// keeps the mount and the uploaded files pointing at the same directory.
+	mode := r.detectDeploymentMode()
+	var grafanaLayout *grafanaProvisioningLayout
+	if mode == "all-in-one" {
+		layout, err := r.prepareGrafanaProvisioningDir(stream)
+		if err != nil {
+			return fmt.Errorf("failed to prepare Grafana provisioning directory: %w", err)
+		}
+		if redirectGrafanaProvisioningVolume(r.stack, layout.Dir) {
+			stream.Info(fmt.Sprintf("Grafana provisioning mount repointed to %s", layout.Dir))
+		}
+		grafanaLayout = &layout
+	}
+
 	stream.Info("Generating docker-compose.yml...")
 
 	// For local deployment, include all services (no filtering)
@@ -91,8 +127,14 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 
 	// Write docker-compose.yml
 	composeFile := filepath.Join(r.projectDir, "docker-compose.yml")
-	if err := os.WriteFile(composeFile, []byte(content), 0644); err != nil {
+	r.warnBeforeOverwritingTrackedCompose(stream, composeFile)
+	if err := os.WriteFile(composeFile, []byte(content), secretFileMode); err != nil {
 		return fmt.Errorf("failed to write docker-compose.yml: %w", err)
+	}
+	// WriteFile only applies its mode when it creates the file, so a compose left at
+	// 0644 by an earlier version would keep leaking the env values forever.
+	if err := os.Chmod(composeFile, secretFileMode); err != nil {
+		return fmt.Errorf("failed to restrict docker-compose.yml permissions: %w", err)
 	}
 
 	stream.Success(fmt.Sprintf("Generated docker-compose.yml for %d services", len(r.stack.Services)))
@@ -173,18 +215,65 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 	}
 
 	// Generate Grafana provisioning files for All-in-one mode
-	mode := r.detectDeploymentMode()
-	if mode == "all-in-one" {
+	if grafanaLayout != nil {
 		stream.Info("Detected All-in-one mode: Preparing Grafana provisioning...")
-		if err := r.prepareGrafanaProvisioning(stream); err != nil {
-			stream.Info(fmt.Sprintf("Warning: Failed to prepare Grafana provisioning: %v", err))
-			// Don't fail the deployment, just warn
-		} else {
-			stream.Success("Grafana provisioning files prepared")
+		// This used to warn and continue. A stack whose monitoring never came up was then
+		// reported as a successful deployment, and the empty Grafana was discovered days
+		// later — the failure has to stop the deploy that caused it.
+		if err := r.prepareGrafanaProvisioning(stream, *grafanaLayout); err != nil {
+			return fmt.Errorf("failed to prepare Grafana provisioning: %w", err)
 		}
+		stream.Success("Grafana provisioning files prepared")
 	}
 
 	return nil
+}
+
+// auditStackSecrets reports env values that carry a credential in plain text.
+//
+// generate.go copies env values into docker-compose.yml verbatim, so a literal token in
+// stack.yaml becomes a literal token in a file that gets uploaded, logged, and — when the
+// target project tracks its compose in git — staged for commit.
+func (r *Runner) auditStackSecrets(stream *events.Stream) error {
+	findings := ScanStackForLiteralSecrets(r.stack)
+	if len(findings) == 0 {
+		return nil
+	}
+
+	message := FormatSecretFindings(findings)
+	if strictSecretsEnabled() {
+		return fmt.Errorf("%s\n(%s is set, so this is an error)", message, strictSecretsEnv)
+	}
+
+	stream.Warning(message, map[string]interface{}{
+		"literal_secrets": len(findings),
+		"strict_env":      strictSecretsEnv,
+	})
+	return nil
+}
+
+// warnBeforeOverwritingTrackedCompose tells the operator when the compose about to be
+// regenerated is a file their repository tracks.
+//
+// arfni owns the generated compose, but the target project may have written its own and
+// committed it. Overwriting it silently destroys hand written configuration, and any
+// literal secret from stack.yaml lands in a tracked file one `git commit -a` away from
+// being published.
+func (r *Runner) warnBeforeOverwritingTrackedCompose(stream *events.Stream, composeFile string) {
+	if _, err := os.Stat(composeFile); err != nil {
+		return // nothing to overwrite
+	}
+	if !isGitTracked(composeFile) {
+		return
+	}
+
+	stream.Warning(
+		fmt.Sprintf("%s is tracked by git and arfni is about to regenerate it from stack.yaml. "+
+			"Your committed version will be replaced in the working tree; run `git diff -- %s` "+
+			"before committing, and `git checkout -- %s` to restore it.",
+			composeFile, filepath.Base(composeFile), filepath.Base(composeFile)),
+		map[string]interface{}{"tracked_compose": composeFile},
+	)
 }
 
 // getTargetType은 서비스들이 사용하는 target type을 반환합니다
@@ -380,6 +469,14 @@ func (r *Runner) buildImagesEC2(stream *events.Stream) error {
 
 	if err := sshClient.UploadFile(stream, composeFile, remoteComposeFile); err != nil {
 		return fmt.Errorf("failed to upload docker-compose.yml: %w", err)
+	}
+
+	// scp carries the local mode inconsistently across platforms, so set it on the host
+	// explicitly. This fails the deploy rather than warning: a world readable compose
+	// exposes the stack's secrets to every account on the deploy host, and a warning in
+	// a long log is how that goes unnoticed.
+	if err := sshClient.RunCommand(stream, remoteSecretChmodCmd(remoteComposeFile)); err != nil {
+		return fmt.Errorf("failed to restrict docker-compose.yml permissions on the host: %w", err)
 	}
 
 	// Collect EC2 services that need building
@@ -1024,7 +1121,14 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 		return fmt.Errorf("no containers are running on EC2")
 	}
 
-	stream.Success(fmt.Sprintf("Found running containers on EC2"))
+	stream.Success("Found running containers on EC2")
+
+	// Containers being up says nothing about Grafana having loaded its dashboards.
+	if r.detectDeploymentMode() == "all-in-one" {
+		if err := r.verifyGrafanaDashboards(stream, sshClient, workdir); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -1108,9 +1212,51 @@ func ensureDockerRunning(stream *events.Stream) error {
 	return fmt.Errorf("Docker is not running and auto-start is only supported on Windows")
 }
 
-// prepareGrafanaProvisioning generates Grafana provisioning files for All-in-one mode
-func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
-	// Use monitoring package's PrepareMonitoringStack
+// grafanaSSHClient returns an SSH client for the EC2 target that hosts the stack, plus
+// its validated workdir.
+func (r *Runner) grafanaSSHClient() (*SSHClient, stack.Target, string, error) {
+	var ec2Target stack.Target
+	var found bool
+	for _, svc := range r.stack.Services {
+		if target, exists := r.stack.Targets[svc.Target]; exists {
+			if target.Type == "ec2.ssh" || target.Type == "ec2" {
+				ec2Target = target
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		return nil, stack.Target{}, "", fmt.Errorf("no EC2 target found for file upload")
+	}
+
+	sshClient, err := NewSSHClient(ec2Target, r.projectDir)
+	if err != nil {
+		return nil, stack.Target{}, "", err
+	}
+
+	workdir := sshClient.GetWorkdir()
+	if err := validateWorkdir(workdir); err != nil {
+		return nil, stack.Target{}, "", fmt.Errorf("invalid workdir: %w", err)
+	}
+
+	return sshClient, ec2Target, workdir, nil
+}
+
+// prepareGrafanaProvisioningDir decides where provisioning files will live on the deploy
+// host and creates that directory.
+func (r *Runner) prepareGrafanaProvisioningDir(stream *events.Stream) (grafanaProvisioningLayout, error) {
+	sshClient, target, workdir, err := r.grafanaSSHClient()
+	if err != nil {
+		return grafanaProvisioningLayout{}, err
+	}
+	return r.resolveGrafanaProvisioningLayout(stream, sshClient, workdir, target.User)
+}
+
+// prepareGrafanaProvisioning generates Grafana provisioning files for All-in-one mode and
+// uploads them into the layout resolved by prepareGrafanaProvisioningDir.
+func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream, layout grafanaProvisioningLayout) error {
+	// Use monitoring package's provisioning generator
 	outputDir := filepath.Join(r.projectDir, "grafana")
 
 	// AllInOne mode: Prometheus is in the same Docker network
@@ -1123,76 +1269,29 @@ func (r *Runner) prepareGrafanaProvisioning(stream *events.Stream) error {
 		return fmt.Errorf("failed to copy provisioning files: %w", err)
 	}
 
-	// Find EC2 target for upload
-	var ec2Target stack.Target
-	var found bool
-	for _, svc := range r.stack.Services {
-		if target, exists := r.stack.Targets[svc.Target]; exists {
-			if target.Type == "ec2.ssh" || target.Type == "ec2" {
-				ec2Target = target
-				found = true
-				break
-			}
-		}
-	}
-
-	if !found {
-		return fmt.Errorf("no EC2 target found for file upload")
-	}
-
-	// Create SSH client and upload
-	sshClient, err := NewSSHClient(ec2Target, r.projectDir)
+	sshClient, target, _, err := r.grafanaSSHClient()
 	if err != nil {
 		return err
 	}
 
-	workdir := sshClient.GetWorkdir()
-	if err := validateWorkdir(workdir); err != nil {
-		return fmt.Errorf("invalid workdir: %w", err)
-	}
-
-	// Ensure grafana directory exists with correct ownership before upload
-	stream.Info("Preparing grafana directory on EC2...")
-	// Use forward slashes for remote Linux paths (even when running on Windows/Mac)
-	remoteGrafanaDir := workdir + "/grafana"
-	createDirCmd := fmt.Sprintf("mkdir -p %s/provisioning/datasources %s/provisioning/dashboards", remoteGrafanaDir, remoteGrafanaDir)
-	if err := sshClient.RunCommand(stream, createDirCmd); err != nil {
-		stream.Info(fmt.Sprintf("Warning: Failed to create grafana directories: %v", err))
-	}
-
-	// Fix ownership if needed (in case it was created by Docker as root)
-	chownCmd := fmt.Sprintf("sudo chown -R %s:%s %s", ec2Target.User, ec2Target.User, remoteGrafanaDir)
-	if err := sshClient.RunCommand(stream, chownCmd); err != nil {
-		stream.Info(fmt.Sprintf("Warning: Failed to fix grafana ownership: %v", err))
-	}
-
 	stream.Info("Uploading Grafana provisioning files to EC2...")
-	// Upload provisioning directory (outputDir/provisioning -> remoteGrafanaDir/provisioning)
 	localProvisioningDir := filepath.Join(outputDir, "provisioning") // Local path (OS-specific)
-	remoteProvisioningDir := remoteGrafanaDir + "/provisioning"      // Remote Linux path (always forward slash)
-	if err := sshClient.UploadDirectory(stream, localProvisioningDir, remoteProvisioningDir); err != nil {
+	if err := sshClient.UploadDirectory(stream, localProvisioningDir, layout.Dir); err != nil {
 		return fmt.Errorf("failed to upload grafana provisioning: %w", err)
 	}
 
-	// Fix permissions so Grafana container can read the files
+	// Fix ownership and modes so the Grafana container can read the files. scp writes them
+	// as the deploy user with its own group, which is not what Grafana runs as.
 	stream.Info("Setting permissions for Grafana provisioning files...")
-	// Set permissions on all files and directories
-	chmodCmd := fmt.Sprintf("chmod -R 755 %s && chmod 755 %s/dashboards %s/datasources",
-		remoteProvisioningDir, remoteProvisioningDir, remoteProvisioningDir)
-	if err := sshClient.RunCommand(stream, chmodCmd); err != nil {
-		stream.Info(fmt.Sprintf("Warning: Failed to set permissions: %v", err))
+	if err := sshClient.RunCommand(stream, remoteProvisioningHardenCmd(layout, target.User)); err != nil {
+		// Unreadable provisioning is the exact failure that produced an empty Grafana while
+		// the deploy reported success, so it stops the deploy.
+		return fmt.Errorf("failed to set permissions on %s: %w", layout.Root, err)
 	}
 
-	// Restart Grafana container to reload provisioning files
-	stream.Info("Restarting Grafana to apply provisioning changes...")
-	restartCmd := fmt.Sprintf("cd %s && docker compose restart grafana", workdir)
-	if err := sshClient.RunCommand(stream, restartCmd); err != nil {
-		stream.Info(fmt.Sprintf("Warning: Failed to restart Grafana: %v", err))
-		stream.Info("Note: You may need to restart Grafana manually for changes to take effect")
-	} else {
-		stream.Success("Grafana restarted successfully")
-	}
-
+	// No restart here: the compose file now points at this directory, and the deploy phase
+	// that follows recreates the container with `up -d`. A restart would only reload the
+	// old mount.
 	stream.Success("Grafana provisioning files uploaded to EC2")
 	return nil
 }

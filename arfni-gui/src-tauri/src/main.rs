@@ -65,9 +65,10 @@ fn main() {
                     crate::features::sftp::kill_all_sessions();
 
                     // 백그라운드에서 cleanup 실행
+                    let cleanup_app = app_handle_clone.clone();
                     std::thread::spawn(move || {
                         println!("[main.rs] Starting cleanup in background...");
-                        cleanup_monitoring_stack();
+                        crate::commands::monitoring::cleanup_owned_monitoring_on_exit(&cleanup_app);
                         println!("[main.rs] Cleanup completed");
 
                         // cleanup 완료 후 프로세스 종료
@@ -239,96 +240,4 @@ fn main() {
     ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
-}
-
-fn cleanup_monitoring_stack() {
-    use std::process::Command;
-    use std::fs::OpenOptions;
-    use std::io::Write;
-
-    #[cfg(target_os = "windows")]
-    use std::os::windows::process::CommandExt;
-
-    #[cfg(target_os = "windows")]
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-    // 로그 파일 생성
-    let log_path = std::env::temp_dir().join("arfni_cleanup.log");
-    let mut log_file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)
-        .ok();
-
-    let mut log = |msg: &str| {
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
-        let log_msg = format!("[{}] {}\n", timestamp, msg);
-        println!("{}", log_msg.trim());
-        if let Some(ref mut f) = log_file {
-            let _ = f.write_all(log_msg.as_bytes());
-        }
-    };
-
-    log(&format!("Cleanup started. Log file: {}", log_path.display()));
-
-    // 1. arfni-monitoring.exe 프로세스 종료
-    #[cfg(target_os = "windows")]
-    {
-        let mut kill_monitoring = Command::new("taskkill");
-        kill_monitoring.args(&["/F", "/IM", "arfni-monitoring.exe"]);
-        kill_monitoring.creation_flags(CREATE_NO_WINDOW);
-        match kill_monitoring.output() {
-            Ok(_) => log("Killed arfni-monitoring.exe"),
-            Err(e) => log(&format!("Failed to kill arfni-monitoring.exe: {}", e)),
-        }
-    }
-
-    // 2. 모니터링 관련 Docker 컨테이너 정리
-    let name_patterns = vec!["grafana", "prometheus", "node-exporter"];
-
-    for pattern in &name_patterns {
-        log(&format!("Searching for containers with name pattern: {}", pattern));
-
-        let mut list_cmd = Command::new("docker");
-        list_cmd.args(&["ps", "-aq", "--filter", &format!("name={}", pattern)]);
-
-        #[cfg(target_os = "windows")]
-        {
-            list_cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-
-        match list_cmd.output() {
-            Ok(output) => {
-                let container_ids = String::from_utf8_lossy(&output.stdout);
-                let ids: Vec<&str> = container_ids.lines()
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .collect();
-
-                log(&format!("Found {} containers for pattern '{}'", ids.len(), pattern));
-
-                for container_id in ids {
-                    let mut rm_cmd = Command::new("docker");
-                    rm_cmd.args(&["rm", "-f", container_id]);
-
-                    #[cfg(target_os = "windows")]
-                    {
-                        rm_cmd.creation_flags(CREATE_NO_WINDOW);
-                    }
-
-                    match rm_cmd.output() {
-                        Ok(_) => log(&format!("Removed container: {}", container_id)),
-                        Err(e) => log(&format!("Failed to remove {}: {}", container_id, e)),
-                    }
-                }
-            }
-            Err(e) => log(&format!("Failed to list containers: {}", e)),
-        }
-    }
-
-    // 3. SSH 프로세스는 여기서 건드리지 않는다.
-    //    `taskkill /F /IM ssh.exe`는 사용자가 따로 띄운 SSH 세션까지 전부 죽인다.
-    //    이 앱이 소유한 세션/터널은 CloseRequested 핸들러에서 child PID 단위로 정리된다.
-
-    log("Cleanup completed");
 }

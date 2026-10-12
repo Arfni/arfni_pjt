@@ -5,6 +5,192 @@ use std::process::{Command, Stdio};
 use std::path::PathBuf;
 use std::collections::HashMap;
 use tauri::{AppHandle, Manager};
+use once_cell::sync::OnceCell;
+use parking_lot::Mutex as ParkingMutex;
+use tokio::sync::Mutex;
+
+static MONITORING_START_STOP_LOCK: OnceCell<Mutex<()>> = OnceCell::new();
+fn monitoring_start_stop_lock() -> &'static Mutex<()> {
+    MONITORING_START_STOP_LOCK.get_or_init(|| Mutex::new(()))
+}
+
+#[derive(Clone)]
+struct LocalMonitoringRuntime {
+    runtime_dir: PathBuf,
+    project_name: String,
+}
+
+struct LocalMonitoringChild {
+    child: std::process::Child,
+    runtime: LocalMonitoringRuntime,
+}
+
+static LOCAL_MONITORING_CHILDREN: OnceCell<ParkingMutex<HashMap<String, LocalMonitoringChild>>> = OnceCell::new();
+fn local_monitoring_children() -> &'static ParkingMutex<HashMap<String, LocalMonitoringChild>> {
+    LOCAL_MONITORING_CHILDREN.get_or_init(|| ParkingMutex::new(HashMap::new()))
+}
+
+fn local_monitoring_runtime(project_path: &str) -> Result<LocalMonitoringRuntime, String> {
+    let canonical = std::fs::canonicalize(project_path)
+        .map_err(|e| format!("Failed to resolve project path {}: {}", project_path, e))?;
+    let normalized = if cfg!(windows) {
+        canonical.to_string_lossy().to_lowercase()
+    } else {
+        canonical.to_string_lossy().into_owned()
+    };
+    let hash = normalized.as_bytes().iter().fold(0xcbf29ce484222325u64, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+    });
+    Ok(LocalMonitoringRuntime {
+        runtime_dir: canonical.join(".arfni").join("monitoring"),
+        project_name: format!("arfni{:016x}", hash),
+    })
+}
+
+fn compose_down_command(compose_file: &std::path::Path, project_name: &str) -> Command {
+    let mut command = Command::new("docker");
+    command.args(["compose", "-p", project_name, "-f"])
+        .arg(compose_file)
+        .arg("down");
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    command
+}
+
+fn configure_local_monitoring_command(command: &mut Command, runtime: &LocalMonitoringRuntime) {
+    command.env("ARFNI_MONITORING_RUNTIME_DIR", &runtime.runtime_dir)
+        .env("COMPOSE_PROJECT_NAME", &runtime.project_name);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+}
+
+#[cfg(windows)]
+fn owned_process_tree_command(pid: u32) -> Command {
+    use std::os::windows::process::CommandExt;
+    let mut command = Command::new("taskkill");
+    command.args(["/PID", &pid.to_string(), "/T", "/F"]);
+    command.creation_flags(0x08000000);
+    command
+}
+
+#[cfg(unix)]
+fn owned_process_group_command(pid: u32, signal: &str) -> Command {
+    let mut command = Command::new("kill");
+    command.args([signal, "--", &format!("-{}", pid)]);
+    command
+}
+
+fn stop_local_child_tree(child: &mut std::process::Child) -> Result<(), String> {
+    match child.try_wait() {
+        Ok(Some(_)) => return Ok(()),
+        Ok(None) => {},
+        Err(e) => return Err(format!("Failed to inspect monitoring process: {}", e)),
+    }
+
+    #[cfg(windows)]
+    let result = owned_process_tree_command(child.id()).output();
+    #[cfg(unix)]
+    let result = owned_process_group_command(child.id(), "-KILL").output();
+    #[cfg(not(any(windows, unix)))]
+    {
+        child.kill().map_err(|e| format!("Failed to stop monitoring process: {}", e))?;
+        child.wait().map_err(|e| format!("Failed to wait for monitoring process: {}", e))?;
+        return Ok(());
+    }
+
+    #[cfg(any(windows, unix))]
+    {
+        let output = result.map_err(|e| format!("Failed to terminate monitoring process tree: {}", e))?;
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to terminate monitoring process tree: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        child.wait().map_err(|e| format!("Failed to wait for monitoring process: {}", e))?;
+        Ok(())
+    }
+}
+
+fn spawn_owned_local_monitoring(
+    mut command: Command,
+    project_path: &str,
+    runtime: LocalMonitoringRuntime,
+) -> Result<(), String> {
+    configure_local_monitoring_command(&mut command, &runtime);
+    let child = command.spawn()
+        .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
+    local_monitoring_children().lock().insert(
+        project_path.to_string(),
+        LocalMonitoringChild { child, runtime },
+    );
+    Ok(())
+}
+
+fn stop_owned_monitoring(app: &AppHandle, project_path: &str) -> Result<String, String> {
+    crate::features::ssh_rt::close_owned_tunnels(app, project_path);
+
+    let runtime = {
+        let mut children = local_monitoring_children().lock();
+        if let Some(owned) = children.get_mut(project_path) {
+            stop_local_child_tree(&mut owned.child)?;
+            Some(owned.runtime.clone())
+        } else {
+            local_monitoring_runtime(project_path).ok()
+        }
+    };
+
+    if let Some(runtime) = runtime {
+        let compose_file = runtime.runtime_dir.join("docker-compose.yml");
+        if compose_file.exists() {
+            let output = compose_down_command(&compose_file, &runtime.project_name)
+                .output()
+                .map_err(|e| format!("Failed to stop project monitoring containers: {}", e))?;
+            if !output.status.success() {
+                return Err(format!(
+                    "Failed to stop project monitoring containers: {}",
+                    String::from_utf8_lossy(&output.stderr).trim()
+                ));
+            }
+        }
+    }
+    local_monitoring_children().lock().remove(project_path);
+    Ok("Project monitoring stopped".to_string())
+}
+
+pub fn cleanup_owned_monitoring_on_exit(app: &AppHandle) {
+    // App exit runs on a background thread; let any pending start register its children first.
+    let _guard = monitoring_start_stop_lock().blocking_lock();
+    crate::features::ssh_rt::close_all_tunnels(app);
+    let projects: Vec<String> = local_monitoring_children().lock().keys().cloned().collect();
+    for project in projects {
+        if let Err(error) = stop_owned_monitoring(app, &project) {
+            eprintln!("[monitoring] cleanup failed for {}: {}", project, error);
+        }
+    }
+}
+
+fn finish_monitoring_pair(
+    prometheus: crate::features::ssh_rt::TunnelOpen,
+    grafana: anyhow::Result<crate::features::ssh_rt::TunnelOpen>,
+    rollback: impl FnOnce(uuid::Uuid),
+) -> Result<(uuid::Uuid, uuid::Uuid), String> {
+    match grafana {
+        Ok(grafana) => Ok((prometheus.id, grafana.id)),
+        Err(error) => {
+            if prometheus.created {
+                rollback(prometheus.id);
+            }
+            Err(format!("Failed to create Grafana tunnel: {:#}", error))
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrometheusMetric {
@@ -56,12 +242,57 @@ struct Service {
     target: String,
 }
 
+/// Opens the pair of tunnels all-in-one monitoring needs, rolling back on failure.
+///
+/// Leaving a half-open pair behind poisoned every later attempt: the tunnel that did come
+/// up kept holding its local port, so the next call failed on that port instead of on the
+/// real problem, and the UI only ever showed the generic connection-failed panel. A tunnel
+/// that was reused rather than created belongs to whoever opened it, so it is not rolled
+/// back here.
+fn open_monitoring_tunnels(
+    app: &AppHandle,
+    params: crate::features::ssh_rt::SshParams,
+    project_path: &str,
+    prometheus_port: u16,
+    grafana_port: u16,
+) -> Result<(uuid::Uuid, uuid::Uuid), String> {
+    use crate::features::ssh_rt::{close_tunnel, open_local_tunnel_owned, retire_outdated_owned_tunnels};
+
+    retire_outdated_owned_tunnels(app, project_path, &params, prometheus_port, grafana_port);
+
+    // Prometheus on EC2:9090 -> configured local port.
+    let prometheus = open_local_tunnel_owned(app.clone(), params.clone(), prometheus_port, 9090, project_path.to_string())
+        .map_err(|e| format!("Failed to create Prometheus tunnel: {:#}", e))?;
+    println!(
+        "[open_monitoring_tunnels] Prometheus tunnel {} ({})",
+        prometheus.id,
+        if prometheus.created { "created" } else { "reused" }
+    );
+
+    // Grafana on EC2:3200 -> configured local port.
+    let grafana = open_local_tunnel_owned(app.clone(), params, grafana_port, 3200, project_path.to_string());
+    if let Ok(tunnel) = &grafana {
+        println!(
+            "[open_monitoring_tunnels] Grafana tunnel {} ({})",
+            tunnel.id,
+            if tunnel.created { "created" } else { "reused" }
+        );
+    }
+    finish_monitoring_pair(prometheus, grafana, |id| {
+        println!("[open_monitoring_tunnels] rolling back tunnel {}", id);
+        let _ = close_tunnel(app, id);
+    })
+}
+
 /// All-in-one 모드에서 SSH 터널을 통한 모니터링 시작
 async fn start_monitoring_with_tunnel(
     app: AppHandle,
     target: Target,
+    project_path: String,
+    prometheus_port: u16,
+    grafana_port: u16,
 ) -> Result<String, String> {
-    use crate::features::ssh_rt::{SshParams, open_local_tunnel};
+    use crate::features::ssh_rt::SshParams;
 
     let ssh_params = SshParams {
         host: target.host.clone(),
@@ -73,29 +304,23 @@ async fn start_monitoring_with_tunnel(
     println!("  Host: {}", target.host);
     println!("  User: {}", target.user);
 
-    // Prometheus 터널: EC2:9090 -> localhost:9091
-    let prometheus_tunnel_id = open_local_tunnel(app.clone(), ssh_params.clone(), 9091, 9090)
-        .map_err(|e| format!("Failed to create Prometheus tunnel: {}", e))?;
+    // open_monitoring_tunnels waits for each forward to actually serve, so it blocks for
+    // as long as the ssh handshake takes; keep it off the async runtime.
+    let (prometheus_tunnel_id, grafana_tunnel_id) = {
+        let app = app.clone();
+        tokio::task::spawn_blocking(move || open_monitoring_tunnels(&app, ssh_params, &project_path, prometheus_port, grafana_port))
+            .await
+            .map_err(|e| format!("Tunnel setup task failed: {}", e))??
+    };
 
-    println!("[start_monitoring_with_tunnel] Prometheus tunnel created: {}", prometheus_tunnel_id);
-
-    // Grafana 터널: EC2:3200 -> localhost:3200
-    let grafana_tunnel_id = open_local_tunnel(app.clone(), ssh_params, 3200, 3200)
-        .map_err(|e| format!("Failed to create Grafana tunnel: {}", e))?;
-
-    println!("[start_monitoring_with_tunnel] Grafana tunnel created: {}", grafana_tunnel_id);
-
-    // 터널이 준비될 때까지 대기
-    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-
-    println!("[start_monitoring_with_tunnel] SSH tunnels are ready. Access Grafana at http://localhost:3200");
+    println!("[start_monitoring_with_tunnel] SSH tunnels are ready. Access Grafana at http://localhost:{}", grafana_port);
 
     Ok(format!(
         "All-in-one monitoring started via SSH tunnels\n\
-        Prometheus: http://localhost:9091\n\
-        Grafana: http://localhost:3200\n\
+        Prometheus: http://localhost:{}\n\
+        Grafana: http://localhost:{}\n\
         Tunnel IDs: prometheus={}, grafana={}",
-        prometheus_tunnel_id, grafana_tunnel_id
+        prometheus_port, grafana_port, prometheus_tunnel_id, grafana_tunnel_id
     ))
 }
 
@@ -147,6 +372,25 @@ fn detect_deployment_mode(stack_yaml_path: &PathBuf) -> Result<(String, Option<T
     } else {
         Ok(("none".to_string(), None))
     }
+}
+
+fn monitoring_ports(stack: &serde_yaml::Value, mode: &str) -> Result<(u16, u16), String> {
+    let monitoring = stack.get("metadata").and_then(|m| m.get("monitoring"));
+    let port = |name: &str, default: u16| -> Result<u16, String> {
+        match monitoring.and_then(|m| m.get(name)) {
+            None => Ok(default),
+            Some(value) => value.as_u64()
+                .and_then(|n| u16::try_from(n).ok())
+                .filter(|n| *n > 0)
+                .ok_or_else(|| format!("metadata.monitoring.{} must be a port from 1 to 65535", name)),
+        }
+    };
+    let prometheus = port("prometheus_port", if mode == "all-in-one" { 9091 } else { 9090 })?;
+    let grafana = port("grafana_port", 3200)?;
+    if prometheus == grafana {
+        return Err("Prometheus and Grafana local ports must differ".to_string());
+    }
+    Ok((prometheus, grafana))
 }
 
 /// Prometheus API에서 PromQL 쿼리 실행
@@ -285,55 +529,27 @@ pub async fn get_monitoring_config(
     app: AppHandle,
     project_path: String,
 ) -> Result<MonitoringConfig, String> {
-    // project_path는 디렉토리이므로 stack.yaml 경로를 구성
-    let stack_yaml_path = std::path::Path::new(&project_path).join("stack.yaml");
+    let stack_yaml_path = PathBuf::from(project_path).join("stack.yaml");
+    let mut config = monitoring_config_for_stack(&stack_yaml_path)?;
+    config.dashboard_uid = read_dashboard_uid(&app);
+    Ok(config)
+}
 
-    // stack.yaml 파일 읽기
-    let stack_content = std::fs::read_to_string(&stack_yaml_path)
+fn monitoring_config_for_stack(stack_yaml_path: &PathBuf) -> Result<MonitoringConfig, String> {
+    let stack_content = std::fs::read_to_string(stack_yaml_path)
         .map_err(|e| format!("Failed to read stack.yaml at {:?}: {}", stack_yaml_path, e))?;
-
-    // YAML 파싱
     let stack: serde_yaml::Value = serde_yaml::from_str(&stack_content)
         .map_err(|e| format!("Failed to parse stack.yaml: {}", e))?;
-
-    // metadata.monitoring.mode 가져오기
-    let mode = stack
-        .get("metadata")
-        .and_then(|m| m.get("monitoring"))
-        .and_then(|mon| mon.get("mode"))
-        .and_then(|m| m.as_str())
-        .unwrap_or("local")
-        .to_string();
-
-    // 포트 설정 (기본값 또는 사용자 정의)
-    let prometheus_port = stack
-        .get("metadata")
-        .and_then(|m| m.get("monitoring"))
-        .and_then(|mon| mon.get("prometheus_port"))
-        .and_then(|p| p.as_u64())
-        .unwrap_or(9090) as u16;
-
-    let grafana_port = stack
-        .get("metadata")
-        .and_then(|m| m.get("monitoring"))
-        .and_then(|mon| mon.get("grafana_port"))
-        .and_then(|p| p.as_u64())
-        .unwrap_or(3200) as u16;
-
-    // URL 구성
-    let prometheus_url = format!("http://localhost:{}", prometheus_port);
-    let grafana_url = format!("http://localhost:{}", grafana_port);
-
-    // Grafana 대시보드 UID 읽기
-    let dashboard_uid = read_dashboard_uid(&app);
+    let (mode, _) = detect_deployment_mode(stack_yaml_path)?;
+    let (prometheus_port, grafana_port) = monitoring_ports(&stack, &mode)?;
 
     Ok(MonitoringConfig {
         mode,
-        prometheus_url,
-        grafana_url,
+        prometheus_url: format!("http://localhost:{}", prometheus_port),
+        grafana_url: format!("http://localhost:{}", grafana_port),
         prometheus_port,
         grafana_port,
-        dashboard_uid,
+        dashboard_uid: None,
     })
 }
 
@@ -372,6 +588,133 @@ fn read_dashboard_uid(app: &AppHandle) -> Option<String> {
             eprintln!("Failed to read dashboard JSON from both production and dev paths: {}", e);
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod monitoring_tests {
+    use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn local_stop_targets_only_the_owned_process_tree() {
+        let command = owned_process_tree_command(4242);
+        let args: Vec<String> = command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect();
+        assert_eq!(command.get_program(), "taskkill");
+        assert_eq!(args, ["/PID", "4242", "/T", "/F"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_stop_signals_only_the_spawned_process_group() {
+        let command = owned_process_group_command(4242, "-KILL");
+        let args: Vec<String> = command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect();
+        assert_eq!(command.get_program(), "kill");
+        assert_eq!(args, ["-KILL", "--", "-4242"]);
+    }
+
+    #[test]
+    fn local_runtime_is_unique_to_canonical_project() {
+        let base = std::env::temp_dir().join(format!("arfni-monitoring-runtime-{}", uuid::Uuid::new_v4()));
+        let a = base.join("a");
+        let b = base.join("b");
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+
+        let first = local_monitoring_runtime(a.to_str().unwrap()).unwrap();
+        let again = local_monitoring_runtime(a.to_str().unwrap()).unwrap();
+        let second = local_monitoring_runtime(b.to_str().unwrap()).unwrap();
+
+        assert_eq!(first.runtime_dir, a.canonicalize().unwrap().join(".arfni").join("monitoring"));
+        assert_eq!(first.project_name, again.project_name);
+        assert_ne!(first.project_name, second.project_name);
+        assert!(first.project_name.starts_with("arfni"));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn compose_down_command_names_only_the_project_runtime() {
+        let compose_file = PathBuf::from("example").join(".arfni").join("monitoring").join("docker-compose.yml");
+        let command = compose_down_command(&compose_file, "arfni1234");
+        let args: Vec<String> = command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect();
+
+        assert_eq!(args, vec!["compose", "-p", "arfni1234", "-f", compose_file.to_str().unwrap(), "down"]);
+    }
+
+    #[test]
+    fn local_monitoring_child_receives_owned_runtime_environment() {
+        let runtime = LocalMonitoringRuntime {
+            runtime_dir: PathBuf::from("example").join(".arfni").join("monitoring"),
+            project_name: "arfni1234".into(),
+        };
+        let mut command = Command::new("arfni-monitoring");
+        configure_local_monitoring_command(&mut command, &runtime);
+        let env: HashMap<String, String> = command.get_envs()
+            .filter_map(|(key, value)| Some((key.to_string_lossy().into_owned(), value?.to_string_lossy().into_owned())))
+            .collect();
+
+        assert_eq!(env.get("ARFNI_MONITORING_RUNTIME_DIR"), Some(&runtime.runtime_dir.to_string_lossy().into_owned()));
+        assert_eq!(env.get("COMPOSE_PROJECT_NAME"), Some(&"arfni1234".to_string()));
+    }
+
+    #[test]
+    fn second_tunnel_failure_rolls_back_only_a_new_first_tunnel() {
+        use crate::features::ssh_rt::TunnelOpen;
+        let id = uuid::Uuid::new_v4();
+        let mut closed = Vec::new();
+
+        let result = finish_monitoring_pair(
+            TunnelOpen { id, created: true },
+            Err(anyhow::anyhow!("Grafana bind failed")),
+            |id| closed.push(id),
+        );
+        assert!(result.is_err());
+        assert_eq!(closed, vec![id]);
+
+        closed.clear();
+        let result = finish_monitoring_pair(
+            TunnelOpen { id, created: false },
+            Err(anyhow::anyhow!("Grafana bind failed")),
+            |id| closed.push(id),
+        );
+        assert!(result.is_err());
+        assert!(closed.is_empty());
+    }
+
+    #[test]
+    fn config_infers_all_in_one_when_metadata_has_no_mode() {
+        let path = std::env::temp_dir().join(format!("arfni-monitoring-{}.yaml", uuid::Uuid::new_v4()));
+        std::fs::write(&path, "targets:\n  server:\n    type: ec2.ssh\n    host: example.com\n    user: ubuntu\n    sshKey: key.pem\nservices:\n  prometheus:\n    target: server\n  grafana:\n    target: server\nmetadata: {}\n").unwrap();
+
+        let config = monitoring_config_for_stack(&path).unwrap();
+        let _ = std::fs::remove_file(path);
+
+        assert_eq!(config.mode, "all-in-one");
+        assert_eq!(config.prometheus_url, "http://localhost:9091");
+        assert_eq!(config.grafana_url, "http://localhost:3200");
+    }
+
+    #[test]
+    fn all_in_one_config_defaults_to_tunnel_ports() {
+        let yaml: serde_yaml::Value = serde_yaml::from_str("metadata: {}\n").unwrap();
+        assert_eq!(monitoring_ports(&yaml, "all-in-one").unwrap(), (9091, 3200));
+        assert_eq!(monitoring_ports(&yaml, "local").unwrap(), (9090, 3200));
+    }
+
+    #[test]
+    fn custom_config_ports_are_used_for_local_tunnel_endpoints() {
+        let yaml: serde_yaml::Value = serde_yaml::from_str(
+            "metadata:\n  monitoring:\n    prometheus_port: 9191\n    grafana_port: 3300\n",
+        ).unwrap();
+        assert_eq!(monitoring_ports(&yaml, "all-in-one").unwrap(), (9191, 3300));
+    }
+
+    #[test]
+    fn invalid_config_port_is_rejected_instead_of_wrapping() {
+        let yaml: serde_yaml::Value = serde_yaml::from_str(
+            "metadata:\n  monitoring:\n    prometheus_port: 65536\n",
+        ).unwrap();
+        assert!(monitoring_ports(&yaml, "all-in-one").is_err());
     }
 }
 
@@ -525,6 +868,7 @@ pub async fn start_monitoring_stack(
     app: AppHandle,
     project_path: String,
 ) -> Result<String, String> {
+    let _guard = monitoring_start_stop_lock().lock().await;
     // project_path는 디렉토리이므로 stack.yaml 경로를 구성
     let stack_yaml_path = PathBuf::from(&project_path).join("stack.yaml");
 
@@ -540,13 +884,26 @@ pub async fn start_monitoring_stack(
     // All-in-one 모드: SSH 터널 생성
     if mode == "all-in-one" {
         if let Some(target) = ec2_target {
-            return start_monitoring_with_tunnel(app, target).await;
+            let config = monitoring_config_for_stack(&stack_yaml_path)?;
+            return start_monitoring_with_tunnel(app, target, project_path, config.prometheus_port, config.grafana_port).await;
         } else {
             return Err("All-in-one mode detected but EC2 target not found".to_string());
         }
     }
 
     // Hybrid/Local 모드: 로컬 Docker 사용
+    let runtime = local_monitoring_runtime(&project_path)?;
+    {
+        let mut children = local_monitoring_children().lock();
+        let running = children.get_mut(&project_path)
+            .map(|owned| matches!(owned.child.try_wait(), Ok(None)))
+            .unwrap_or(false);
+        if running {
+            return Ok("Project monitoring is already starting".to_string());
+        }
+        children.remove(&project_path);
+    }
+
     // Docker Desktop 확인 및 자동 시작
     ensure_docker_running().await?;
 
@@ -630,8 +987,11 @@ pub async fn start_monitoring_stack(
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
-        cmd.spawn()
-            .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
+        let project_key = project_path.clone();
+        let owned_runtime = runtime.clone();
+        tokio::task::spawn_blocking(move || spawn_owned_local_monitoring(cmd, &project_key, owned_runtime))
+            .await
+            .map_err(|e| format!("Monitoring startup task failed: {}", e))??;
 
         Ok(format!("Monitoring stack starting with {} (stack: {})", exe_path.display(), stack_yaml_path.display()))
     } else {
@@ -650,8 +1010,9 @@ pub async fn start_monitoring_stack(
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
-        cmd.spawn()
-            .map_err(|e| format!("Failed to start monitoring stack: {}", e))?;
+        tokio::task::spawn_blocking(move || spawn_owned_local_monitoring(cmd, &project_path, runtime))
+            .await
+            .map_err(|e| format!("Monitoring startup task failed: {}", e))??;
 
         Ok(format!("Monitoring stack starting with {}", exe_path.display()))
     }
@@ -679,99 +1040,9 @@ pub async fn check_monitoring_running(
 
 /// 모니터링 스택 종료
 #[command]
-pub async fn stop_monitoring_stack(app: AppHandle) -> Result<String, String> {
-    #[cfg(target_os = "windows")]
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-    println!("[stop_monitoring_stack] Starting cleanup...");
-
-    // 1. arfni-monitoring.exe 프로세스 종료 (Windows)
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        let mut kill_monitoring = Command::new("taskkill");
-        kill_monitoring.args(&["/F", "/IM", "arfni-monitoring.exe"]);
-        kill_monitoring.creation_flags(CREATE_NO_WINDOW);
-
-        match kill_monitoring.output() {
-            Ok(output) => {
-                println!("[stop_monitoring_stack] Killed arfni-monitoring.exe: {}",
-                    String::from_utf8_lossy(&output.stdout));
-            }
-            Err(e) => {
-                println!("[stop_monitoring_stack] Failed to kill arfni-monitoring.exe: {}", e);
-            }
-        }
-    }
-
-    // 2. 모니터링 관련 컨테이너 찾아서 정리 (이름 패턴 기반)
-    let name_patterns = vec!["grafana", "prometheus", "node-exporter"];
-
-    for pattern in name_patterns {
-        let mut list_cmd = Command::new("docker");
-        list_cmd.args(&["ps", "-aq", "--filter", &format!("name={}", pattern)]);
-
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            list_cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-
-        if let Ok(output) = list_cmd.output() {
-            let container_ids = String::from_utf8_lossy(&output.stdout);
-            let ids: Vec<&str> = container_ids.lines()
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .collect();
-
-            if !ids.is_empty() {
-                println!("[stop_monitoring_stack] Found {} containers matching name pattern '{}'", ids.len(), pattern);
-
-                for id in ids {
-                    let mut rm_cmd = Command::new("docker");
-                    rm_cmd.args(&["rm", "-f", id]);
-
-                    #[cfg(target_os = "windows")]
-                    {
-                        use std::os::windows::process::CommandExt;
-                        rm_cmd.creation_flags(CREATE_NO_WINDOW);
-                    }
-
-                    match rm_cmd.output() {
-                        Ok(_) => println!("[stop_monitoring_stack] Removed container: {}", id),
-                        Err(e) => println!("[stop_monitoring_stack] Failed to remove container {}: {}", id, e),
-                    }
-                }
-            }
-        }
-    }
-
-    // 3. Docker 네트워크 정리
-    println!("[stop_monitoring_stack] Cleaning up Docker networks...");
-    let mut prune_cmd = Command::new("docker");
-    prune_cmd.args(&["network", "prune", "-f"]);
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        prune_cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    match prune_cmd.output() {
-        Ok(output) => {
-            println!("[stop_monitoring_stack] Network prune output: {}",
-                String::from_utf8_lossy(&output.stdout));
-        }
-        Err(e) => {
-            println!("[stop_monitoring_stack] Failed to prune networks: {}", e);
-        }
-    }
-
-    // 4. SSH 터널은 프로세스 이름으로 죽이지 않는다.
-    //    `taskkill /F /IM ssh.exe` / `pkill -f ssh.*9090`은 사용자가 직접 띄운 세션까지 죽인다.
-    //    이 앱이 만든 터널은 ssh_rt::close_tunnel(child PID 단위)로 정리한다.
-    crate::features::ssh_rt::close_all_tunnels(&app);
-
-    println!("[stop_monitoring_stack] Cleanup completed");
-    Ok("Monitoring stack stopped".to_string())
+pub async fn stop_monitoring_stack(app: AppHandle, project_path: String) -> Result<String, String> {
+    let _guard = monitoring_start_stop_lock().lock().await;
+    tokio::task::spawn_blocking(move || stop_owned_monitoring(&app, &project_path))
+        .await
+        .map_err(|e| format!("Monitoring cleanup task failed: {}", e))?
 }

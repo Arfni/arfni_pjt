@@ -7,9 +7,11 @@ use serde::{Deserialize, Serialize};
 use std::{
   collections::HashMap,
   io::{BufRead, BufReader, Read, Write},
+  net::{SocketAddr, TcpStream, ToSocketAddrs},
   process::{Child as StdChild, Command, Stdio},
   sync::Arc,
   thread,
+  time::{Duration, Instant},
 };
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
@@ -111,6 +113,15 @@ pub struct TunnelInfo {
   pub description: String,
 }
 
+/// Result of a tunnel request.
+///
+/// `created` tells a caller that opens several tunnels which ones it is responsible for:
+/// a reused tunnel belongs to whoever opened it first and must not be rolled back.
+pub struct TunnelOpen {
+  pub id: Uuid,
+  pub created: bool,
+}
+
 // ============ Tunnel Handle ============
 
 struct TunnelHandle {
@@ -119,6 +130,8 @@ struct TunnelHandle {
   child: StdChild,
   spec: TunnelSpec,
   via: String,
+  pem_path: String,
+  owner: Option<String>,
   /// Keeps the last stderr lines so the exit reason can be reported
   stderr_tail: Arc<Mutex<Vec<String>>>,
 }
@@ -480,12 +493,151 @@ fn tunnel_info(id: Uuid, h: &TunnelHandle) -> TunnelInfo {
   }
 }
 
+/// How long to wait for a freshly spawned ssh to actually serve its forward.
+const FORWARD_READY_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// True when two tunnels would occupy the same local endpoint and forward to the same
+/// place through the same ssh target. Spawning the second is pointless: it can only fail
+/// on the port bind.
+fn tunnel_equivalent(a: &TunnelSpec, a_via: &str, b: &TunnelSpec, b_via: &str) -> bool {
+  a.kind == b.kind
+    && a_via == b_via
+    && tunnel_bind_address(a) == tunnel_bind_address(b)
+    && a.bind_port == b.bind_port
+    && match a.kind {
+      // -D has no target; the bind endpoint fully identifies it
+      TunnelKind::Dynamic => true,
+      _ => tunnel_target_host(a) == tunnel_target_host(b) && a.target_port == b.target_port,
+    }
+}
+
+fn forward_endpoint(spec: &TunnelSpec) -> Option<SocketAddr> {
+  let bind = tunnel_bind_address(spec);
+  (bind.as_str(), spec.bind_port).to_socket_addrs().ok()?.next()
+}
+
+/// Confirms the forwarded port accepts connections.
+///
+/// `ensure_local_port_free` only proves nothing else holds the port; this proves ssh is
+/// serving it. For -L that is true as soon as ssh listens, so this does not depend on the
+/// remote service being up.
+fn probe_forward(spec: &TunnelSpec) -> bool {
+  if matches!(spec.kind, TunnelKind::Remote) {
+    return true; // bound on the server, nothing to probe from here
+  }
+  forward_endpoint(spec)
+    .map(|addr| TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok())
+    .unwrap_or(false)
+}
+
+/// Returns a live, working tunnel equivalent to `spec`, dropping a stale match so the
+/// caller can spawn a fresh one.
+///
+/// A match whose ssh is alive but whose forward no longer answers is worse than no match:
+/// it holds the port while serving nothing.
+fn reuse_live_tunnel(spec: &TunnelSpec, via: &str) -> Option<Uuid> {
+  reuse_tunnel_for(spec, via, None, None)
+}
+
+fn reuse_owned_tunnel(spec: &TunnelSpec, via: &str, pem_path: &str, owner: &str) -> Option<Uuid> {
+  reuse_tunnel_for(spec, via, Some(pem_path), Some(owner))
+}
+
+fn reuse_tunnel_for(spec: &TunnelSpec, via: &str, pem_path: Option<&str>, owner: Option<&str>) -> Option<Uuid> {
+  let mut map = tunnels().lock();
+  let found = map.iter().find_map(|(id, h)| {
+    if tunnel_equivalent(&h.spec, &h.via, spec, via)
+      && h.owner.as_deref() == owner
+      && pem_path.map_or(true, |key| h.pem_path == key)
+    {
+      Some(*id)
+    } else {
+      None
+    }
+  })?;
+
+  let alive = map
+    .get_mut(&found)
+    .map(|h| !matches!(h.child.try_wait(), Ok(Some(_))))
+    .unwrap_or(false);
+  if alive && probe_forward(spec) {
+    return Some(found);
+  }
+
+  if let Some(mut h) = map.remove(&found) {
+    println!("[ssh_rt] dropping stale tunnel {found}: {}", describe_tunnel(&h.spec, &h.via));
+    let _ = h.child.kill();
+    let _ = h.child.wait();
+  }
+  None
+}
+
+/// Blocks until the forward serves, the ssh process dies, or the timeout expires.
+///
+/// `open_tunnel` used to return as soon as ssh was spawned, so a forward the server
+/// refused — `ExitOnForwardFailure` kills ssh milliseconds later — was reported as
+/// success, and the caller only discovered it when its own requests failed.
+fn wait_for_forward(
+  child: &mut StdChild,
+  spec: &TunnelSpec,
+  stderr_tail: &Arc<Mutex<Vec<String>>>,
+) -> Result<()> {
+  if matches!(spec.kind, TunnelKind::Remote) {
+    return Ok(());
+  }
+  let reason = || {
+    let tail = stderr_tail.lock().join("; ");
+    if tail.is_empty() {
+      String::new()
+    } else {
+      format!(": {tail}")
+    }
+  };
+
+  let deadline = Instant::now() + FORWARD_READY_TIMEOUT;
+  loop {
+    if let Ok(Some(status)) = child.try_wait() {
+      anyhow::bail!("ssh exited before the forward was ready ({status}){}", reason());
+    }
+    if probe_forward(spec) {
+      return Ok(());
+    }
+    if Instant::now() >= deadline {
+      anyhow::bail!(
+        "timed out after {}s waiting for the forward to accept connections{}",
+        FORWARD_READY_TIMEOUT.as_secs(),
+        reason()
+      );
+    }
+    thread::sleep(Duration::from_millis(150));
+  }
+}
+
 /// Creates an ssh tunnel: port forwarding only, no command execution.
 pub fn open_tunnel(app: AppHandle, params: SshParams, spec: TunnelSpec) -> Result<Uuid> {
+  open_tunnel_ex(app, params, spec).map(|t| t.id)
+}
+
+/// Same as [`open_tunnel`], but reports whether the tunnel was newly spawned or reused.
+pub fn open_tunnel_ex(app: AppHandle, params: SshParams, spec: TunnelSpec) -> Result<TunnelOpen> {
+  open_tunnel_for(app, params, spec, None)
+}
+
+fn open_tunnel_for(app: AppHandle, params: SshParams, spec: TunnelSpec, owner: Option<String>) -> Result<TunnelOpen> {
   let (flag, forward) = build_forward_arg(&spec)?;
+  let via = format!("{}@{}", params.user, params.host);
+
+  let reused = match owner.as_deref() {
+    Some(project) => reuse_owned_tunnel(&spec, &via, &params.pem_path, project),
+    None => reuse_live_tunnel(&spec, &via),
+  };
+  if let Some(id) = reused {
+    println!("[ssh_rt] reusing tunnel {id}: {flag} {forward}");
+    return Ok(TunnelOpen { id, created: false });
+  }
+
   ensure_local_port_free(&spec)?;
 
-  let via = format!("{}@{}", params.user, params.host);
   println!("[ssh_rt] creating tunnel: {flag} {forward}");
 
   let mut cmd = Command::new("ssh");
@@ -551,6 +703,13 @@ pub fn open_tunnel(app: AppHandle, params: SshParams, spec: TunnelSpec) -> Resul
     });
   }
 
+  // Confirmed before registering: a tunnel in the map is one the UI is told is open.
+  if let Err(e) = wait_for_forward(&mut child, &spec, &stderr_tail) {
+    let _ = child.kill();
+    let _ = child.wait();
+    return Err(e.context(format!("tunnel {flag} {forward} failed")));
+  }
+
   let description = describe_tunnel(&spec, &via);
   tunnels().lock().insert(
     id,
@@ -559,6 +718,8 @@ pub fn open_tunnel(app: AppHandle, params: SshParams, spec: TunnelSpec) -> Resul
       child,
       spec,
       via,
+      pem_path: params.pem_path,
+      owner,
       stderr_tail,
     },
   );
@@ -574,17 +735,17 @@ pub fn open_tunnel(app: AppHandle, params: SshParams, spec: TunnelSpec) -> Resul
   );
 
   println!("[ssh_rt] tunnel {id} opened: {description}");
-  Ok(id)
+  Ok(TunnelOpen { id, created: true })
 }
 
-/// Shorthand for monitoring.rs: local port to remote localhost port
-pub fn open_local_tunnel(
+pub fn open_local_tunnel_owned(
   app: AppHandle,
   params: SshParams,
   local_port: u16,
   remote_port: u16,
-) -> Result<Uuid> {
-  open_tunnel(
+  owner: String,
+) -> Result<TunnelOpen> {
+  open_tunnel_for(
     app,
     params,
     TunnelSpec {
@@ -595,7 +756,49 @@ pub fn open_local_tunnel(
       target_port: Some(remote_port),
       label: None,
     },
+    Some(owner),
   )
+}
+
+fn owned_tunnel_ids(owner: &str) -> Vec<Uuid> {
+  tunnels().lock().iter()
+    .filter_map(|(id, h)| (h.owner.as_deref() == Some(owner)).then_some(*id))
+    .collect()
+}
+
+pub fn close_owned_tunnels(app: &AppHandle, owner: &str) {
+  for id in owned_tunnel_ids(owner) {
+    let _ = close_tunnel(app, id);
+  }
+}
+
+fn outdated_owned_tunnel_ids(owner: &str, params: &SshParams, prometheus_port: u16, grafana_port: u16) -> Vec<Uuid> {
+  let via = format!("{}@{}", params.user, params.host);
+  tunnels().lock().iter()
+    .filter_map(|(id, h)| {
+      if h.owner.as_deref() != Some(owner) {
+        return None;
+      }
+      let expected_port = match h.spec.target_port {
+        Some(9090) => prometheus_port,
+        Some(3200) => grafana_port,
+        _ => return Some(*id),
+      };
+      let matches = h.via == via
+        && h.pem_path == params.pem_path
+        && h.spec.kind == TunnelKind::Local
+        && tunnel_bind_address(&h.spec) == "127.0.0.1"
+        && tunnel_target_host(&h.spec) == "localhost"
+        && h.spec.bind_port == expected_port;
+      (!matches).then_some(*id)
+    })
+    .collect()
+}
+
+pub fn retire_outdated_owned_tunnels(app: &AppHandle, owner: &str, params: &SshParams, prometheus_port: u16, grafana_port: u16) {
+  for id in outdated_owned_tunnel_ids(owner, params, prometheus_port, grafana_port) {
+    let _ = close_tunnel(app, id);
+  }
 }
 
 pub fn list_tunnels() -> Vec<TunnelInfo> {
@@ -690,6 +893,57 @@ fn ensure_tunnel_reaper(app: AppHandle) {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn monitoring_reuse_rejects_manual_and_other_project_tunnels() {
+    let owner = Uuid::new_v4().to_string();
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let s = spec(TunnelKind::Local, port, Some(3200));
+    let manual = insert_stub("ubuntu@shared-host", s.clone());
+
+    assert_eq!(reuse_owned_tunnel(&s, "ubuntu@shared-host", "key.pem", &owner), None);
+    assert_eq!(owned_tunnel_ids(&owner), Vec::<Uuid>::new());
+
+    forget_stub(manual);
+    drop(listener);
+  }
+
+  #[test]
+  fn monitoring_reuse_requires_same_project_and_ssh_key() {
+    let owner = Uuid::new_v4().to_string();
+    let other_owner = Uuid::new_v4().to_string();
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let s = spec(TunnelKind::Local, port, Some(3200));
+    let id = insert_owned_stub("ubuntu@shared-host", "old.pem", &owner, s.clone());
+
+    assert_eq!(reuse_owned_tunnel(&s, "ubuntu@shared-host", "old.pem", &owner), Some(id));
+    assert_eq!(reuse_owned_tunnel(&s, "ubuntu@shared-host", "new.pem", &owner), None);
+    assert_eq!(reuse_owned_tunnel(&s, "ubuntu@shared-host", "old.pem", &other_owner), None);
+    assert_eq!(owned_tunnel_ids(&owner), vec![id]);
+    assert_eq!(owned_tunnel_ids(&other_owner), Vec::<Uuid>::new());
+
+    forget_stub(id);
+    drop(listener);
+  }
+
+  #[test]
+  fn changed_monitoring_target_retires_only_that_projects_old_tunnels() {
+    let owner = Uuid::new_v4().to_string();
+    let other_owner = Uuid::new_v4().to_string();
+    let current = insert_owned_stub("ubuntu@new-host", "new.pem", &owner, spec(TunnelKind::Local, 39091, Some(9090)));
+    let old = insert_owned_stub("ubuntu@old-host", "old.pem", &owner, spec(TunnelKind::Local, 33200, Some(3200)));
+    let other = insert_owned_stub("ubuntu@new-host", "new.pem", &other_owner, spec(TunnelKind::Local, 43200, Some(3200)));
+    let manual = insert_stub("ubuntu@new-host", spec(TunnelKind::Local, 53200, Some(3200)));
+    let params = SshParams { host: "new-host".into(), user: "ubuntu".into(), pem_path: "new.pem".into() };
+
+    assert_eq!(outdated_owned_tunnel_ids(&owner, &params, 39091, 43200), vec![old]);
+
+    for id in [current, old, other, manual] {
+      forget_stub(id);
+    }
+  }
 
   fn spec(kind: TunnelKind, bind_port: u16, target_port: Option<u16>) -> TunnelSpec {
     TunnelSpec {
@@ -896,6 +1150,8 @@ mod tests {
         child,
         spec: spec(TunnelKind::Local, 59_991, Some(9090)),
         via: "ubuntu@ec2".into(),
+        pem_path: "key.pem".into(),
+        owner: None,
         stderr_tail: Arc::new(Mutex::new(vec!["bind: Address already in use".into()])),
       },
     );
@@ -925,5 +1181,188 @@ mod tests {
 
     // it must be gone from the map as well
     assert!(!list_tunnels().iter().any(|t| t.id == id.to_string()));
+  }
+
+  // ---- reuse and readiness ----
+  //
+  // Opening the monitoring pair used to leave a live tunnel behind whenever the second
+  // one failed, and reported a forward as open the instant ssh was spawned. Both made a
+  // single transient failure permanent.
+
+  /// A process that stays alive, standing in for a healthy ssh.
+  fn spawn_stub() -> StdChild {
+    let mut cmd = if cfg!(windows) {
+      let mut c = Command::new("cmd.exe");
+      c.args(["/c", "ping", "-n", "30", "127.0.0.1"]);
+      c
+    } else {
+      let mut c = Command::new("sh");
+      c.args(["-c", "sleep 30"]);
+      c
+    };
+    cmd
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("spawn failed")
+  }
+
+  fn insert_stub(via: &str, spec: TunnelSpec) -> Uuid {
+    let id = Uuid::new_v4();
+    tunnels().lock().insert(
+      id,
+      TunnelHandle {
+        id,
+        child: spawn_stub(),
+        spec,
+        via: via.into(),
+        pem_path: "key.pem".into(),
+        owner: None,
+        stderr_tail: Arc::new(Mutex::new(Vec::new())),
+      },
+    );
+    id
+  }
+
+  fn insert_owned_stub(via: &str, pem_path: &str, owner: &str, spec: TunnelSpec) -> Uuid {
+    let id = Uuid::new_v4();
+    tunnels().lock().insert(
+      id,
+      TunnelHandle {
+        id,
+        child: spawn_stub(),
+        spec,
+        via: via.into(),
+        pem_path: pem_path.into(),
+        owner: Some(owner.into()),
+        stderr_tail: Arc::new(Mutex::new(Vec::new())),
+      },
+    );
+    id
+  }
+
+  fn forget_stub(id: Uuid) {
+    if let Some(mut h) = tunnels().lock().remove(&id) {
+      let _ = h.child.kill();
+      let _ = h.child.wait();
+    }
+  }
+
+  #[test]
+  fn equivalent_tunnels_are_matched_by_endpoint_and_ssh_target() {
+    let a = spec(TunnelKind::Local, 3200, Some(3200));
+
+    assert!(tunnel_equivalent(&a, "ubuntu@ec2", &a, "ubuntu@ec2"));
+
+    // a different local port is a different tunnel
+    let other_bind = spec(TunnelKind::Local, 3201, Some(3200));
+    assert!(!tunnel_equivalent(&a, "ubuntu@ec2", &other_bind, "ubuntu@ec2"));
+
+    // same local port but forwarded elsewhere: reusing it would silently serve the
+    // wrong service
+    let other_target = spec(TunnelKind::Local, 3200, Some(9090));
+    assert!(!tunnel_equivalent(&a, "ubuntu@ec2", &other_target, "ubuntu@ec2"));
+
+    // same endpoint through a different server is also a different tunnel
+    assert!(!tunnel_equivalent(&a, "ubuntu@ec2", &a, "ubuntu@other"));
+
+    // -L and -D mean opposite things even on one port
+    let dynamic = spec(TunnelKind::Dynamic, 3200, None);
+    assert!(!tunnel_equivalent(&a, "ubuntu@ec2", &dynamic, "ubuntu@ec2"));
+
+    // -D carries no target, so the bind endpoint alone identifies it
+    let dynamic_with_target = spec(TunnelKind::Dynamic, 3200, Some(1080));
+    assert!(tunnel_equivalent(
+      &dynamic,
+      "ubuntu@ec2",
+      &dynamic_with_target,
+      "ubuntu@ec2"
+    ));
+  }
+
+  #[test]
+  fn a_working_tunnel_is_reused_instead_of_respawned() {
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let s = spec(TunnelKind::Local, port, Some(3200));
+    let id = insert_stub("ubuntu@reuse-ok", s.clone());
+
+    assert_eq!(reuse_live_tunnel(&s, "ubuntu@reuse-ok"), Some(id));
+
+    forget_stub(id);
+    drop(listener);
+  }
+
+  /// The failure that stranded the monitoring page: ssh still running while its forward
+  /// serves nothing. Holding the port without answering is worse than no tunnel at all,
+  /// so the stale one has to be dropped rather than handed back.
+  #[test]
+  fn a_tunnel_whose_forward_stopped_answering_is_dropped_not_reused() {
+    let port = {
+      let probe = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+      probe.local_addr().unwrap().port() // released again, so nothing listens
+    };
+    let s = spec(TunnelKind::Local, port, Some(3200));
+    let id = insert_stub("ubuntu@reuse-stale", s.clone());
+
+    assert_eq!(reuse_live_tunnel(&s, "ubuntu@reuse-stale"), None);
+    assert!(
+      !list_tunnels().iter().any(|t| t.id == id.to_string()),
+      "stale tunnel must be removed from the map"
+    );
+
+    forget_stub(id);
+  }
+
+  #[test]
+  fn waiting_reports_success_once_the_forward_accepts_connections() {
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+
+    let mut child = spawn_stub();
+    let tail = Arc::new(Mutex::new(Vec::new()));
+    let result = wait_for_forward(&mut child, &spec(TunnelKind::Local, port, Some(3200)), &tail);
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(result.is_ok(), "{:?}", result.err());
+    drop(listener);
+  }
+
+  /// ExitOnForwardFailure kills ssh milliseconds after a refused forward. Returning Ok
+  /// there is what let the UI claim a tunnel was open when it never was.
+  #[test]
+  fn waiting_fails_when_ssh_dies_before_the_forward_is_ready() {
+    let port = {
+      let probe = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+      probe.local_addr().unwrap().port()
+    };
+
+    let mut cmd = if cfg!(windows) {
+      let mut c = Command::new("cmd.exe");
+      c.args(["/c", "exit", "1"]);
+      c
+    } else {
+      let mut c = Command::new("sh");
+      c.args(["-c", "exit 1"]);
+      c
+    };
+    let mut child = cmd
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("spawn failed");
+
+    let tail = Arc::new(Mutex::new(vec![
+      "bind [127.0.0.1]:3200: Address already in use".to_string(),
+    ]));
+    let err = wait_for_forward(&mut child, &spec(TunnelKind::Local, port, Some(3200)), &tail)
+      .expect_err("a dead ssh must not be reported as ready");
+
+    assert!(err.to_string().contains("exited before the forward was ready"), "{err}");
+    // the real ssh error has to ride along, or the UI is left guessing
+    assert!(err.to_string().contains("Address already in use"), "{err}");
   }
 }

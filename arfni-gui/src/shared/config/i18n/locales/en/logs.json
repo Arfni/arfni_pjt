@@ -184,6 +184,8 @@
     "troubleshooting": "Troubleshooting:",
     "checkDocker": "Check Docker Desktop is running",
     "dockerNote": "Monitoring stack runs as Docker containers.",
+    "checkTunnel": "Check the SSH tunnel",
+    "tunnelNote": "In all-in-one mode Grafana listens only on 127.0.0.1 on the server, so the SSH tunnel is the only way in. Local Docker is not used. The message above carries the ssh failure reason.",
     "checkStackFile": "Check stack.yaml file",
     "stackFilePath": "Path:",
     "startStack": "Start monitoring stack",

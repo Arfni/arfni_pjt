@@ -1,6 +1,19 @@
 # Arfni v1.0.4 Release Notes
 
-**Release Date:** 2026-08-05
+**Version alignment and fixes:** 2026-10-12
+
+The app version and Git tag are aligned at `1.0.4`. This includes the SSH features below, subsequent develop Nginx changes, and these fixes:
+
+### Grafana connection and deployment fixes
+
+- Reuse only monitoring tunnels belonging to the same project and SSH identity; serialize duplicate starts.
+- Check tunnel readiness and roll back a newly created first tunnel if the second fails.
+- Fix indefinite loading when Grafana is already healthy and preserve startup timeout errors.
+- Retry without restarting the app. When leaving, wait for pending startup before closing that project's tunnels.
+- Leaving the monitoring page cleans up only that project's owned tunnels, local process and Compose stack, preserving manual forwards and unrelated containers.
+- Improve provisioning paths, permissions, and post-deployment dashboard verification.
+- Restrict generated Compose permissions and warn about literal secrets and overwriting Git-tracked Compose files.
+- Include Nginx upload limits, read timeout and SSE settings, plus the earlier Spring Boot CI/CD and SFTP recovery fixes.
 
 v1.0.4 improves the remote development experience with persistent SSH sessions, automatic reconnection, real PTY terminal handling, terminal-aware SFTP navigation, and more reliable Docker deployments.
 
@@ -135,9 +148,12 @@ When upgrading to v1.0.4:
 ## Verification
 
 - TypeScript compilation passed
-- 98 frontend tests passed
+- 141 frontend tests passed
 - Production frontend build passed
+- 56 Rust unit tests and 3 PTY integration tests passed; 1 live-SSH test ignored
+- Full Go suite and `go vet ./...` passed
+- Rebuilt all three Go executables and verified their bundled copies match
 
 ---
 
-**Full Changelog:** v0.3.0...v1.0.4
+Live remote-network interruption E2E tests and replacement of the installed app were not performed.
