@@ -86,6 +86,89 @@ fn owned_process_group_command(pid: u32, signal: &str) -> Command {
     command
 }
 
+fn wait_for_child(child: &mut std::process::Child, timeout: std::time::Duration) -> std::io::Result<std::process::ExitStatus> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok(status);
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "Monitoring command timed out"));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+}
+
+const PROCESS_STOP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const COMPOSE_DOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+const DOCKER_INFO_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+fn terminate_owned_command(child: &mut std::process::Child) -> std::io::Result<()> {
+    #[cfg(windows)]
+    let mut command = owned_process_tree_command(child.id());
+    #[cfg(unix)]
+    let mut command = owned_process_group_command(child.id(), "-KILL");
+    #[cfg(any(windows, unix))]
+    let tree_result = (|| {
+        // Do not use bounded_command_output here: a stuck tree killer must not recurse.
+        let mut killer = command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
+        match wait_for_child(&mut killer, PROCESS_STOP_TIMEOUT) {
+            Ok(status) if status.success() => Ok(()),
+            Ok(_) => Err(std::io::Error::other("Owned command tree termination failed")),
+            Err(error) => {
+                let _ = killer.kill();
+                wait_for_child(&mut killer, PROCESS_STOP_TIMEOUT)?;
+                Err(error)
+            }
+        }
+    })();
+    // kill can race with successful tree termination; try_wait/reap decides the outcome.
+    let _ = child.kill();
+    wait_for_child(child, PROCESS_STOP_TIMEOUT)?;
+    #[cfg(any(windows, unix))]
+    tree_result?;
+    Ok(())
+}
+
+fn bounded_command_output(command: &mut Command, timeout: std::time::Duration) -> std::io::Result<std::process::Output> {
+    use std::io::Read;
+    // A file avoids pipe backpressure and inherited pipe handles extending our deadline.
+    let path = std::env::temp_dir().join(format!("arfni-command-{}.log", uuid::Uuid::new_v4()));
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let stderr = options.open(&path)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let result = (|| {
+        command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(stderr);
+        let mut child = command.spawn()?;
+        let status = match wait_for_child(&mut child, timeout) {
+            Ok(status) => status,
+            Err(error) => {
+                if let Err(cleanup) = terminate_owned_command(&mut child) {
+                    return Err(std::io::Error::new(error.kind(), format!("{}; cleanup failed: {}", error, cleanup)));
+                }
+                return Err(error);
+            }
+        };
+        let mut stderr = Vec::new();
+        std::fs::File::open(&path)?.take(64 * 1024).read_to_end(&mut stderr)?;
+        Ok(std::process::Output { status, stdout: Vec::new(), stderr })
+    })();
+    // Release the command's file handle before deleting the temporary diagnostic file.
+    command.stderr(Stdio::null());
+    let _ = std::fs::remove_file(path);
+    result
+}
+
 fn stop_local_child_tree(child: &mut std::process::Child) -> Result<(), String> {
     match child.try_wait() {
         Ok(Some(_)) => return Ok(()),
@@ -94,13 +177,13 @@ fn stop_local_child_tree(child: &mut std::process::Child) -> Result<(), String> 
     }
 
     #[cfg(windows)]
-    let result = owned_process_tree_command(child.id()).output();
+    let result = bounded_command_output(&mut owned_process_tree_command(child.id()), PROCESS_STOP_TIMEOUT);
     #[cfg(unix)]
-    let result = owned_process_group_command(child.id(), "-KILL").output();
+    let result = bounded_command_output(&mut owned_process_group_command(child.id(), "-KILL"), PROCESS_STOP_TIMEOUT);
     #[cfg(not(any(windows, unix)))]
     {
         child.kill().map_err(|e| format!("Failed to stop monitoring process: {}", e))?;
-        child.wait().map_err(|e| format!("Failed to wait for monitoring process: {}", e))?;
+        wait_for_child(child, PROCESS_STOP_TIMEOUT).map_err(|e| format!("Failed to wait for monitoring process: {}", e))?;
         return Ok(());
     }
 
@@ -113,7 +196,7 @@ fn stop_local_child_tree(child: &mut std::process::Child) -> Result<(), String> 
                 String::from_utf8_lossy(&output.stderr).trim()
             ));
         }
-        child.wait().map_err(|e| format!("Failed to wait for monitoring process: {}", e))?;
+        wait_for_child(child, PROCESS_STOP_TIMEOUT).map_err(|e| format!("Failed to wait for monitoring process: {}", e))?;
         Ok(())
     }
 }
@@ -149,8 +232,9 @@ fn stop_owned_monitoring(app: &AppHandle, project_path: &str) -> Result<String, 
     if let Some(runtime) = runtime {
         let compose_file = runtime.runtime_dir.join("docker-compose.yml");
         if compose_file.exists() {
-            let output = compose_down_command(&compose_file, &runtime.project_name)
-                .output()
+            let output = bounded_command_output(
+                &mut compose_down_command(&compose_file, &runtime.project_name), COMPOSE_DOWN_TIMEOUT,
+            )
                 .map_err(|e| format!("Failed to stop project monitoring containers: {}", e))?;
             if !output.status.success() {
                 return Err(format!(
@@ -595,6 +679,96 @@ fn read_dashboard_uid(app: &AppHandle) -> Option<String> {
 mod monitoring_tests {
     use super::*;
 
+    // Removing the deadline must fail while the controlled child is still alive.
+    #[test]
+    fn child_wait_deadline_leaves_the_child_available_for_retry() {
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command.args(["--exact", "commands::monitoring::monitoring_tests::controlled_slow_child", "--ignored"])
+            .env("ARFNI_TIMEOUT_TEST_CHILD", "1")
+            .stdout(Stdio::null()).stderr(Stdio::null());
+        let mut child = command.spawn().unwrap();
+        let started = std::time::Instant::now();
+        let result = wait_for_child(&mut child, std::time::Duration::from_millis(100));
+        let alive = child.try_wait().unwrap().is_none();
+        let _ = child.kill();
+        let _ = child.wait();
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::TimedOut);
+        assert!(alive);
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    }
+
+    #[test]
+    fn command_deadline_kills_and_reaps_its_owned_child() {
+        let marker = std::env::temp_dir().join(format!("arfni-deadline-{}", uuid::Uuid::new_v4()));
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command.args(["--exact", "commands::monitoring::monitoring_tests::controlled_slow_child", "--ignored"])
+            .env("ARFNI_TIMEOUT_TEST_CHILD", "1")
+            .env("ARFNI_TIMEOUT_TEST_MARKER", &marker);
+        let started = std::time::Instant::now();
+        let result = bounded_command_output(&mut command, std::time::Duration::from_millis(100));
+        let elapsed = started.elapsed();
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        let survived = marker.exists();
+        let _ = std::fs::remove_file(marker);
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::TimedOut);
+        assert!(elapsed < std::time::Duration::from_secs(2));
+        assert!(!survived, "the timed-out owned child continued running");
+    }
+
+    #[test]
+    fn command_deadline_stops_owned_descendants() {
+        let marker = std::env::temp_dir().join(format!("arfni-descendant-{}", uuid::Uuid::new_v4()));
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command.args(["--exact", "commands::monitoring::monitoring_tests::controlled_slow_child", "--ignored"])
+            .env("ARFNI_TIMEOUT_TEST_CHILD", "tree")
+            .env("ARFNI_TIMEOUT_TEST_MARKER", &marker);
+        let result = bounded_command_output(&mut command, std::time::Duration::from_millis(500));
+        let descendant_started = marker.with_extension("ready").exists();
+        let _ = std::fs::remove_file(marker.with_extension("ready"));
+        std::thread::sleep(std::time::Duration::from_millis(3500));
+        let survived = marker.exists();
+        let _ = std::fs::remove_file(marker);
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::TimedOut);
+        assert!(descendant_started, "controlled descendant was not spawned before the deadline");
+        assert!(!survived, "the timed-out command's descendant continued running");
+    }
+
+    #[test]
+    fn bounded_command_preserves_failure_diagnostics_without_pipe_backpressure() {
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command.args(["--exact", "commands::monitoring::monitoring_tests::controlled_slow_child", "--ignored", "--nocapture"])
+            .env("ARFNI_TIMEOUT_TEST_CHILD", "failure");
+        let output = bounded_command_output(&mut command, std::time::Duration::from_secs(5)).unwrap();
+        assert_eq!(output.status.code(), Some(17));
+        assert_eq!(output.stderr, vec![b'x'; 64 * 1024]);
+    }
+
+    #[test]
+    #[ignore]
+    fn controlled_slow_child() {
+        if std::env::var("ARFNI_TIMEOUT_TEST_CHILD").as_deref() == Ok("tree") {
+            Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "commands::monitoring::monitoring_tests::controlled_slow_child", "--ignored"])
+                .env("ARFNI_TIMEOUT_TEST_CHILD", "1")
+                .spawn().unwrap();
+            let marker = PathBuf::from(std::env::var_os("ARFNI_TIMEOUT_TEST_MARKER").unwrap());
+            std::fs::write(marker.with_extension("ready"), "started").unwrap();
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            return;
+        }
+        if std::env::var("ARFNI_TIMEOUT_TEST_CHILD").as_deref() == Ok("failure") {
+            use std::io::Write;
+            std::io::stderr().write_all(&vec![b'x'; 128 * 1024]).unwrap();
+            std::process::exit(17);
+        }
+        if std::env::var_os("ARFNI_TIMEOUT_TEST_CHILD").is_some() {
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            if let Some(marker) = std::env::var_os("ARFNI_TIMEOUT_TEST_MARKER") {
+                std::fs::write(marker, "survived").unwrap();
+            }
+        }
+    }
+
     #[cfg(windows)]
     #[test]
     fn local_stop_targets_only_the_owned_process_tree() {
@@ -794,7 +968,8 @@ async fn ensure_docker_running() -> Result<(), String> {
         check_cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let result = check_cmd.output();
+    let result = tokio::task::spawn_blocking(move || bounded_command_output(&mut check_cmd, DOCKER_INFO_TIMEOUT))
+        .await.map_err(|e| format!("Docker check task failed: {}", e))?;
 
     // Docker가 실행 중이면 OK
     if result.is_ok() && result.unwrap().status.success() {
@@ -834,22 +1009,25 @@ async fn ensure_docker_running() -> Result<(), String> {
             .map_err(|e| format!("Docker Desktop 실행 실패: {}", e))?;
 
         // Docker가 준비될 때까지 대기 (최대 60초)
-        for i in 0..60 {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        while std::time::Instant::now() < deadline {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
 
             let mut check_cmd = Command::new("docker");
             check_cmd.arg("info");
             check_cmd.creation_flags(CREATE_NO_WINDOW);
 
-            if let Ok(output) = check_cmd.output() {
+            let result = tokio::task::spawn_blocking(move || {
+                bounded_command_output(&mut check_cmd, remaining.min(DOCKER_INFO_TIMEOUT))
+            }).await.map_err(|e| format!("Docker check task failed: {}", e))?;
+            if let Ok(output) = result {
                 if output.status.success() {
                     return Ok(());
                 }
-            }
-
-            // 5초마다 로그 출력
-            if i % 5 == 0 && i > 0 {
-                println!("Docker Desktop 시작 대기 중... ({}초)", i);
             }
         }
 

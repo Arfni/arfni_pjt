@@ -1,10 +1,16 @@
 package workflow
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/arfni/arfni/internal/events"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/arfni/arfni/internal/core/stack"
 )
@@ -246,19 +252,132 @@ func TestRemoteProvisioningCommandsQuoteDeployUser(t *testing.T) {
 	}
 }
 
-func TestFilterProvisioningErrors(t *testing.T) {
-	logs := strings.Join([]string{
-		`logger=settings t=1 level=info msg="Starting Grafana"`,
-		`logger=provisioning.dashboard t=2 level=error msg="can't read dashboard provisioning files from directory" error="permission denied"`,
-		`logger=http.server t=3 level=error msg="unrelated failure"`,
-		`logger=provisioning.datasources t=4 level=error msg="can't read datasource provisioning files"`,
-	}, "\n")
-
-	got := filterProvisioningErrors(logs)
-	if strings.Contains(got, "unrelated failure") || strings.Contains(got, "Starting Grafana") {
-		t.Errorf("filter kept unrelated lines:\n%s", got)
+func TestGrafanaHTTPPortTCPAndUnsafeMappings(t *testing.T) {
+	for _, tc := range []struct{ mapping, want string }{
+		{"3300:3000/tcp", "3300"}, {"127.0.0.1:3300:3000/tcp", "3300"},
+		{"[::1]:3300:3000/tcp", "3300"}, {"3300:3000/udp", ""},
+		{"bad;host:3300:3000", ""}, {"3300:3000/tcp;echo bad", ""},
+	} {
+		s := &stack.Stack{Services: map[string]stack.Service{"grafana": {Spec: stack.ServiceSpec{Ports: []string{tc.mapping}}}}}
+		if got := grafanaHTTPPort(s); got != tc.want {
+			t.Errorf("%q: got %q want %q", tc.mapping, got, tc.want)
+		}
 	}
-	if lines := strings.Split(got, "\n"); len(lines) != 2 {
-		t.Errorf("expected the 2 provisioning errors, got:\n%s", got)
+}
+
+func TestGrafanaSearchURL(t *testing.T) {
+	for _, tc := range []struct{ protocol, root, subpath, want string }{
+		{"https", "https://example.com/grafana/", "true", "https://localhost:3300/grafana/api/search?type=dash-db"},
+		{"http", "%(protocol)s://%(domain)s:%(http_port)s/grafana/", "true", "http://localhost:3300/grafana/api/search?type=dash-db"},
+		{"http", "https://example.com/grafana/", "false", "http://localhost:3300/api/search?type=dash-db"},
+		{"socket", "", "", ""}, {"https;echo bad", "", "", ""},
+		{"http", "https://user:secret@example.com/grafana/", "true", ""},
+	} {
+		s := &stack.Stack{Services: map[string]stack.Service{"grafana": {Spec: stack.ServiceSpec{Ports: []string{"3300:3000/tcp"}, Env: map[string]string{"GF_SERVER_PROTOCOL": tc.protocol, "GF_SERVER_ROOT_URL": tc.root, "GF_SERVER_SERVE_FROM_SUB_PATH": tc.subpath}}}}}
+		got, err := grafanaSearchURL(s)
+		if got != tc.want || (err != nil) != (tc.want == "") {
+			t.Errorf("protocol %q: got %q, err %v; want %q", tc.protocol, got, err, tc.want)
+		}
+	}
+}
+
+func TestGrafanaFallbackRootPerAccount(t *testing.T) {
+	a, b := grafanaFallbackRootFor("alice"), grafanaFallbackRootFor("bob")
+	if a == b || a != grafanaFallbackRootFor("alice") {
+		t.Fatal("fallback must be stable and account-specific")
+	}
+	unsafe := grafanaFallbackRootFor("name;echo bad/../")
+	if !strings.HasPrefix(unsafe, "/var/tmp/arfni-") || strings.ContainsAny(strings.TrimPrefix(unsafe, "/var/tmp/"), "/; ") {
+		t.Fatalf("unsafe root %q", unsafe)
+	}
+	layout := grafanaProvisioningLayoutFor(a, "/srv/app", false)
+	cmd := remoteProvisioningSetupCmd(layout, "alice")
+	if !strings.Contains(cmd, "test ! -L "+a) || !strings.Contains(cmd, "stat -c %u "+a) {
+		t.Fatal("missing account-root safety checks")
+	}
+}
+
+func TestPollGrafanaDashboards(t *testing.T) {
+	for _, tc := range []struct{ name, response, wantError string }{
+		{"verified", "[{\"uid\":\"expected\"}]\n200", ""},
+		{"unauthorized", "secret response\n401", "login required"},
+		{"forbidden", "secret response\n403", "login required"},
+		{"redirect", "secret response\n302", "redirect"},
+		{"missing", "[]\n200", "missing"},
+		{"invalid", "secret response\n200", "valid dashboard"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+			defer cancel()
+			err := pollGrafanaDashboards(ctx, []string{"expected"}, func(context.Context) (string, error) { return tc.response, nil })
+			if tc.wantError == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantError) || strings.Contains(err.Error(), "secret response") {
+				t.Fatalf("unsafe or wrong error: %v", err)
+			}
+		})
+	}
+}
+
+func TestPollGrafanaDashboardsBoundsBlockedSSH(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	err := pollGrafanaDashboards(ctx, []string{"expected"}, func(ctx context.Context) (string, error) { <-ctx.Done(); return "", ctx.Err() })
+	if err == nil || time.Since(start) > time.Second {
+		t.Fatalf("probe not bounded: %v", err)
+	}
+}
+
+func TestMonitoringVerificationEvents(t *testing.T) {
+	for _, verifyErr := range []error{nil, fmt.Errorf("Grafana login required")} {
+		old := os.Stdout
+		read, write, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.Stdout = write
+		reportGrafanaVerification(events.NewStream(true), verifyErr)
+		write.Close()
+		os.Stdout = old
+		raw, _ := io.ReadAll(read)
+		read.Close()
+		var event struct {
+			Type string                 `json:"type"`
+			Data map[string]interface{} `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &event); err != nil {
+			t.Fatal(err)
+		}
+		wantType, wantStatus := events.TypeSuccess, "verified"
+		if verifyErr != nil {
+			wantType, wantStatus = events.TypeWarning, "unverified"
+		}
+		if event.Type != wantType || event.Data["monitoring_verification"] != wantStatus {
+			t.Fatalf("unexpected event: %s", raw)
+		}
+	}
+}
+
+func TestSSHOutputHonorsCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := &SSHClient{}
+	_, err := client.RunCommandWithOutputContext(ctx, events.NewStream(false), "echo should-not-run")
+	if err == nil || !strings.Contains(err.Error(), "context canceled") {
+		t.Fatalf("SSH ignored cancelled context: %v", err)
+	}
+}
+
+func TestPollGrafanaRejectsExpiredContextSuccess(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := pollGrafanaDashboards(ctx, []string{"expected"}, func(context.Context) (string, error) { return "[{\"uid\":\"expected\"}]\n200", nil })
+	if err == nil {
+		t.Fatal("expired probe claimed verified")
 	}
 }

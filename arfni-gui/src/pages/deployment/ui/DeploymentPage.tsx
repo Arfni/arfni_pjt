@@ -14,6 +14,7 @@ import {
   selectDeploymentStats,
   selectDeploymentContainers,
   selectSslWarning,
+  selectMonitoringWarning,
   addLog,
   deploymentSuccess,
   deploymentFailed,
@@ -72,6 +73,7 @@ export function DeploymentPage() {
   const stats = useSelector(selectDeploymentStats);
   const containers = useSelector(selectDeploymentContainers);
   const sslWarning = useSelector(selectSslWarning);
+  const monitoringWarning = useSelector(selectMonitoringWarning);
 
   const [activeTab] = useState<'log' | 'canvas'>('log');
   const [activeLogTab, setActiveLogTab] = useState<'containers' | 'logs'>('logs');
@@ -350,6 +352,20 @@ export function DeploymentPage() {
                 </div>
               )}
 
+              {status === 'success' && monitoringWarning && (
+                <div role="alert" className="mb-4 p-4 bg-yellow-50 border border-yellow-300 rounded-lg text-yellow-900">
+                  <p className="font-semibold">{t('monitoringWarning.title')}</p>
+                  <p className="text-sm mt-1">{t('monitoringWarning.description')}</p>
+                  <button
+                    onClick={() => navigate('/monitoring', { state: { project: currentProject, ec2Server } })}
+                    disabled={!currentProject}
+                    className="mt-3 px-3 py-2 bg-white border border-yellow-500 rounded-lg text-sm disabled:opacity-50"
+                  >
+                    {t('monitoringWarning.open')}
+                  </button>
+                </div>
+              )}
+
               {sslWarning && (
                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg flex items-start gap-2">
                   <span className="text-yellow-500 text-lg flex-shrink-0">⚠️</span>
@@ -456,6 +472,7 @@ export function DeploymentPage() {
 
         {/* 배포 성공 모달 */}
         <SuccessModal
+          monitoringWarning={monitoringWarning}
           isOpen={showSuccessModal}
           onClose={handleConfirm}
           duration={duration}

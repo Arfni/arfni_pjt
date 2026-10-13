@@ -1,5 +1,20 @@
 # Arfni v1.0.4 Release Notes
 
+## 2026-10-13 follow-up (after the existing 1.0.4 tag)
+
+- Separate application deployment results from Grafana dashboard verification. Show unverified monitoring in both the result page and completion dialog.
+- Open monitoring for inspection without redeploying applications. A service without a public endpoint is no longer marked failed for that reason alone.
+- Accept `/tcp` port mappings and configured HTTP/HTTPS and subpaths. Distinguish authentication, redirects and missing dashboards without injecting credentials or disabling TLS verification.
+- Bound dashboard-verification SSH calls, Docker readiness checks and cleanup commands. Show cleanup progress and let users retry failed cleanup.
+- Use account-specific fallback provisioning paths on hosts without sudo. Do not automatically delete previous paths or data.
+- Keep default ports. Do not guess or automatically migrate legacy local data volumes; see the [monitoring operations guide](Docs/MONITORING_INTEGRATION.md) for identification steps.
+
+The existing `1.0.4` tag is not moved. Test counts below describe the tagged revision, not this follow-up.
+
+Follow-up verification: 152 frontend tests, 60 Rust unit tests and 3 PTY integration tests, all Go tests and vet, and the frontend production build passed. Two Rust entries are ignored in the ordinary run: a subprocess test fixture and the live SSH test. Rebuilt Go executables match their bundled copies. Docker was offline, so live containers and volume migration were not tested; Unix termination and live SSH/Grafana integration were not exercised.
+
+---
+
 **Version alignment and fixes:** 2026-10-12
 
 The app version and Git tag are aligned at `1.0.4`. This includes the SSH features below, subsequent develop Nginx changes, and these fixes:

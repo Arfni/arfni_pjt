@@ -32,15 +32,29 @@ export default function MonitoringPage() {
   const [retry, setRetry] = useState(0);
   const startup = useRef<Promise<void>>(Promise.resolve());
   const cancelStartup = useRef(() => {});
+  const leaving = useRef(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const [stopError, setStopError] = useState<string | null>(null);
 
   const leaveMonitoring = async () => {
+    if (leaving.current) return;
+    leaving.current = true;
+    setIsStopping(true);
+    setStopError(null);
     cancelStartup.current();
-    // A pending start must finish before stop, otherwise it can reopen the ports after leaving.
-    await startup.current;
-    if (project?.path) {
-      await invoke('stop_monitoring_stack', { projectPath: project.path }).catch(console.error);
+    try {
+      // A pending start must finish before stop, otherwise it can reopen the ports after leaving.
+      await startup.current;
+      if (project?.path) {
+        await invoke('stop_monitoring_stack', { projectPath: project.path });
+      }
+      navigate('/logs', { state: { project, selectedView: 'monitor' } });
+    } catch (err) {
+      setStopError(String(err));
+    } finally {
+      leaving.current = false;
+      setIsStopping(false);
     }
-    navigate('/logs', { state: { project, selectedView: 'monitor' } });
   };
 
   // Load the monitoring config and start it automatically
@@ -145,6 +159,34 @@ export default function MonitoringPage() {
     return () => { cancelled = true; };
   }, [project?.path, retry]);
 
+  if (isStopping || stopError) {
+    return (
+      <main className="h-screen flex flex-col items-center justify-center bg-gray-50 gap-4 p-6" aria-busy={isStopping}>
+        <h1 className="text-xl font-semibold">{t('monitoring.title')}</h1>
+        {isStopping ? <p role="status">{t('monitoring.stopping')}</p> : (
+          <div role="alert" className="text-red-700 text-center">
+            <p>{t('monitoring.stopFailed')}</p>
+            <p className="text-sm whitespace-pre-line">{stopError}</p>
+          </div>
+        )}
+        <button onClick={leaveMonitoring} disabled={isStopping} className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50">
+          {t('monitoring.retryStop')}
+        </button>
+        {stopError && !isStopping && (
+          <>
+            <p className="text-sm text-gray-600">{t('monitoring.cleanupIncomplete')}</p>
+            <button
+              onClick={() => navigate('/logs', { state: { project, selectedView: 'monitor' } })}
+              className="px-4 py-2 border border-gray-300 rounded-lg"
+            >
+              {t('monitoring.leaveWithoutCleanup')}
+            </button>
+          </>
+        )}
+      </main>
+    );
+  }
+
   if (loading || isStarting) {
     return (
       <div className="h-screen w-screen flex flex-col bg-gray-50">
@@ -152,6 +194,7 @@ export default function MonitoringPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={leaveMonitoring}
+              aria-label={t('monitoring.back')}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -183,6 +226,7 @@ export default function MonitoringPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={leaveMonitoring}
+              aria-label={t('monitoring.back')}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -270,6 +314,7 @@ export default function MonitoringPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={leaveMonitoring}
+              aria-label={t('monitoring.back')}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />

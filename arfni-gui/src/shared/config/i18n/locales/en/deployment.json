@@ -1,4 +1,9 @@
 {
+  "monitoringWarning": {
+    "title": "Services deployed; monitoring needs attention",
+    "description": "Monitoring verification did not finish successfully. Open monitoring to check it again without redeploying services.",
+    "open": "Open monitoring"
+  },
   "title": {
     "page": "Deployment",
     "inProgress": "Deployment in Progress...",

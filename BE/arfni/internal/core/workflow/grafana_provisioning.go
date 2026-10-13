@@ -1,9 +1,12 @@
 package workflow
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -31,14 +34,13 @@ const grafanaProvisioningMount = "/etc/grafana/provisioning"
 // traversable and arfni can create the leaves with the modes it wants.
 const grafanaManagedRoot = "/opt/arfni"
 
-// grafanaFallbackRoot is used when the deploy user has no passwordless sudo and
-// therefore cannot create anything under /opt.
-//
-// /var/tmp is 1777, survives reboots on mainstream distributions, and is traversable by
-// every uid, so Grafana can read from it without any privileged step. The cost is that
-// the provisioning files end up world readable; they contain dashboard JSON and a
-// datasource URL, never stack secrets, and the caller says so out loud.
+// The shared sticky parent is traversable by Grafana without opening the user's home.
 const grafanaFallbackRoot = "/var/tmp/arfni"
+
+func grafanaFallbackRootFor(user string) string {
+	digest := sha256.Sum256([]byte(user))
+	return fmt.Sprintf("%s-%x", grafanaFallbackRoot, digest[:16])
+}
 
 // grafanaDashboardTimeout bounds how long a deploy waits for Grafana to report the
 // dashboards it was just given.
@@ -136,11 +138,19 @@ func grafanaHTTPPort(s *stack.Stack) string {
 	}
 
 	for _, mapping := range service.Spec.Ports {
+		mapping = strings.TrimSuffix(mapping, "/tcp")
 		parts := strings.Split(mapping, ":")
 		if len(parts) < 2 {
 			return "" // Docker chooses an unknown published port.
 		}
 		hostPort, mappedContainerPort := parts[len(parts)-2], parts[len(parts)-1]
+		if len(parts) > 2 {
+			host := strings.TrimSuffix(mapping, ":"+hostPort+":"+mappedContainerPort)
+			address, _, err := net.SplitHostPort(host + ":1")
+			if err != nil || net.ParseIP(address) == nil {
+				return ""
+			}
+		}
 		if !validGrafanaPort(hostPort) || !validGrafanaPort(mappedContainerPort) {
 			return ""
 		}
@@ -158,6 +168,35 @@ func grafanaHTTPPort(s *stack.Stack) string {
 func validGrafanaPort(port string) bool {
 	n, err := strconv.Atoi(port)
 	return err == nil && n >= 1 && n <= 65535 && strconv.Itoa(n) == port
+}
+
+// Only protocol, published port and a validated path enter the host-side request.
+func grafanaSearchURL(s *stack.Stack) (string, error) {
+	port := grafanaHTTPPort(s)
+	if port == "" {
+		return "", fmt.Errorf("Grafana has no valid published host port for dashboard verification")
+	}
+	var env map[string]string
+	if s != nil {
+		env = s.Services["grafana"].Spec.Env
+	}
+	protocol := env["GF_SERVER_PROTOCOL"]
+	if protocol == "" {
+		protocol = "http"
+	}
+	if protocol != "http" && protocol != "https" {
+		return "", fmt.Errorf("Grafana protocol is unsupported for dashboard verification")
+	}
+	subpath := ""
+	if env["GF_SERVER_SERVE_FROM_SUB_PATH"] == "true" {
+		root := strings.NewReplacer("%(protocol)s", protocol, "%(domain)s", "localhost", "%(http_port)s", port).Replace(env["GF_SERVER_ROOT_URL"])
+		parsed, err := url.Parse(root)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+			return "", fmt.Errorf("Grafana root URL cannot be used safely for subpath verification")
+		}
+		subpath = strings.TrimRight(parsed.EscapedPath(), "/")
+	}
+	return protocol + "://localhost:" + port + subpath + "/api/search?type=dash-db", nil
 }
 
 // parseDashboardUIDs extracts dashboard uids from a Grafana /api/search response.
@@ -245,7 +284,7 @@ func remoteProvisioningSetupCmd(layout grafanaProvisioningLayout, user string) s
 		// /var/tmp is shared. A pre-created or symlinked root would let another
 		// account replace files Grafana trusts after upload.
 		return fmt.Sprintf("mkdir -p %s && test ! -L %s && test \"$(stat -c %%u %s)\" = \"$(id -u)\" && chmod 755 %s && %s",
-			grafanaFallbackRoot, grafanaFallbackRoot, grafanaFallbackRoot, grafanaFallbackRoot, mkdir)
+			path.Dir(layout.Root), path.Dir(layout.Root), path.Dir(layout.Root), path.Dir(layout.Root), mkdir)
 	}
 	// Own the tree as the deploy user so scp can write into it without sudo.
 	return fmt.Sprintf("sudo -n %s && sudo -n chown -R %s %s", mkdir, quoteRemoteShellArg(user), layout.Root)
@@ -287,82 +326,86 @@ func (r *Runner) resolveGrafanaProvisioningLayout(stream *events.Stream, sshClie
 		}
 	}
 
-	fallback := grafanaProvisioningLayoutFor(grafanaFallbackRoot, workdir, false)
+	fallback := grafanaProvisioningLayoutFor(grafanaFallbackRootFor(user), workdir, false)
 	if err := sshClient.RunCommand(stream, remoteProvisioningSetupCmd(fallback, user)); err != nil {
 		return grafanaProvisioningLayout{}, fmt.Errorf("failed to create Grafana provisioning directory %s: %w", fallback.Dir, err)
 	}
 
 	stream.Warning(
-		fmt.Sprintf("No passwordless sudo on the deploy host: Grafana provisioning falls back to %s, "+
-			"where the dashboard and datasource files are world readable. They carry no stack secrets, "+
-			"but grant sudo to the deploy user if you want them restricted to Grafana.", fallback.Dir),
+		fmt.Sprintf("Managed Grafana provisioning storage unavailable: falling back to %s, "+
+			"where all provisioning files are world readable. Custom datasource or alerting files may contain secrets; "+
+			"remove such secrets or configure restricted provisioning storage before deploying them.", fallback.Dir),
 		map[string]interface{}{"grafana_provisioning": "world_readable"},
 	)
 	return fallback, nil
 }
 
-// verifyGrafanaDashboards fails the deploy unless Grafana actually serves the dashboards
-// that were just provisioned.
-//
-// Checking the result rather than the cause is deliberate. Provisioning breaks from
-// unreadable files, a missing mount, and malformed dashboard JSON alike, and every one of
-// those used to end in a "deployment succeeded" message with an empty Grafana behind it.
-func (r *Runner) verifyGrafanaDashboards(stream *events.Stream, sshClient *SSHClient, workdir string) error {
-	port := grafanaHTTPPort(r.stack)
-	if port == "" {
-		return fmt.Errorf("Grafana has no valid published host port for dashboard verification")
-	}
-	expected, err := expectedGrafanaDashboardUIDs(filepath.Join(r.projectDir, "grafana", "provisioning", "dashboards"))
+// Verification is advisory: monitoring visibility does not determine app deployment success.
+func (r *Runner) verifyGrafanaDashboards(stream *events.Stream, sshClient *SSHClient) error {
+	searchURL, err := grafanaSearchURL(r.stack)
 	if err != nil {
 		return err
 	}
-	searchCmd := fmt.Sprintf("curl -s --max-time 5 'http://localhost:%s/api/search?type=dash-db'", port)
-
+	expected, err := expectedGrafanaDashboardUIDs(filepath.Join(r.projectDir, "grafana", "provisioning", "dashboards"))
+	if err != nil {
+		return fmt.Errorf("generated Grafana dashboard UIDs could not be read")
+	}
+	searchCmd := "curl -s --max-time 5 --write-out '\n%{http_code}' " + quoteRemoteShellArg(searchURL)
 	stream.Info("Verifying Grafana dashboards are provisioned...")
-
-	deadline := time.Now().Add(grafanaDashboardTimeout)
-	var lastBody string
-	for {
-		output, err := sshClient.RunCommandWithOutput(stream, searchCmd)
-		if err == nil {
-			lastBody = output
-			if len(missingGrafanaDashboardUIDs(output, expected)) == 0 {
-				stream.Success(fmt.Sprintf("Grafana serves the %d provisioned dashboard(s): %s", len(expected), strings.Join(expected, ", ")))
-				return nil
-			}
-		}
-
-		if time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(2 * time.Second)
-	}
-
-	// The provisioning errors are the actionable part, so surface them instead of making
-	// the operator go find them.
-	logCmd := fmt.Sprintf("cd %s && docker compose -f docker-compose.yml logs --tail 200 grafana", workdir)
-	if logs, logErr := sshClient.RunCommandWithOutput(stream, logCmd); logErr == nil {
-		if relevant := filterProvisioningErrors(logs); relevant != "" {
-			stream.Error(fmt.Sprintf("Grafana provisioning errors:\n%s", relevant), nil)
-		}
-	}
-
-	return fmt.Errorf("Grafana did not serve provisioned dashboard UID(s) %v within %s (last response: %q)",
-		missingGrafanaDashboardUIDs(lastBody, expected), grafanaDashboardTimeout, strings.TrimSpace(lastBody))
+	ctx, cancel := context.WithTimeout(context.Background(), grafanaDashboardTimeout)
+	defer cancel()
+	return pollGrafanaDashboards(ctx, expected, func(ctx context.Context) (string, error) {
+		return sshClient.RunCommandWithOutputContext(ctx, stream, searchCmd)
+	})
 }
 
-// filterProvisioningErrors keeps only the provisioning failures out of a Grafana log dump.
-func filterProvisioningErrors(logs string) string {
-	var kept []string
-	for _, line := range strings.Split(logs, "\n") {
-		lower := strings.ToLower(line)
-		if !strings.Contains(lower, "provisioning") {
-			continue
+func pollGrafanaDashboards(ctx context.Context, expected []string, request func(context.Context) (string, error)) error {
+	lastStatus := "Grafana could not be reached; check SSH, its published port and TLS configuration"
+	for {
+		if ctx.Err() != nil {
+			return fmt.Errorf("%s; verification deadline reached", lastStatus)
 		}
-		if !strings.Contains(lower, "level=error") && !strings.Contains(lower, "permission denied") {
-			continue
+		output, err := request(ctx)
+		if err == nil && ctx.Err() == nil {
+			// The body may span lines; curl appends the status after the final newline.
+			output = strings.TrimRight(output, "\r\n")
+			if i := strings.LastIndex(output, "\n"); i >= 0 {
+				body, code := output[:i], strings.TrimSpace(output[i+1:])
+				switch code {
+				case "401", "403":
+					return fmt.Errorf("Grafana login required (HTTP %s); verify provisioned dashboards after signing in", code)
+				case "301", "302", "303", "307", "308":
+					return fmt.Errorf("Grafana redirected the dashboard request; check login and server subpath configuration")
+				case "200":
+					if parseDashboardUIDs(body) == nil {
+						lastStatus = "Grafana has not returned a valid dashboard search response"
+						if strings.TrimSpace(body) == "[]" {
+							lastStatus = "Grafana provisioned dashboard UIDs are still missing"
+						}
+					} else if missing := missingGrafanaDashboardUIDs(body, expected); len(missing) == 0 {
+						return nil
+					} else {
+						lastStatus = "Grafana provisioned dashboard UIDs are still missing"
+					}
+				default:
+					lastStatus = "Grafana is not ready to serve dashboard searches"
+				}
+			}
 		}
-		kept = append(kept, strings.TrimSpace(line))
+		timer := time.NewTimer(2 * time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("%s; verification deadline reached", lastStatus)
+		case <-timer.C:
+		}
 	}
-	return strings.Join(kept, "\n")
+}
+
+func reportGrafanaVerification(stream *events.Stream, err error) {
+	if err != nil {
+		stream.Warning("Application deployment completed; monitoring remains unverified: "+err.Error(), map[string]interface{}{"monitoring_verification": "unverified"})
+		return
+	}
+	stream.Emit(events.TypeSuccess, "Grafana serves all provisioned dashboards", map[string]interface{}{"monitoring_verification": "verified"})
 }

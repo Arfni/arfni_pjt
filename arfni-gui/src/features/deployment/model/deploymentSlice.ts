@@ -7,6 +7,7 @@ export interface DeploymentLog {
   timestamp: string;
   level: 'info' | 'warning' | 'error' | 'success';
   message: string;
+  data?: Record<string, unknown>;
 }
 
 export interface DeploymentEndpoint {
@@ -34,6 +35,7 @@ export interface DeploymentState {
   endTime: string | null;
   error: string | null;
   sslWarning: string | null;
+  monitoringWarning: boolean;
 
   // 배포 컨테이너 정보
   containers: DeploymentContainer[];
@@ -54,6 +56,7 @@ const initialState: DeploymentState = {
   endTime: null,
   error: null,
   sslWarning: null,
+  monitoringWarning: false,
   containers: [],
   endpoints: [],
   serviceCount: 0,
@@ -75,6 +78,7 @@ const deploymentSlice = createSlice({
       state.endTime = null;
       state.error = null;
       state.sslWarning = null;
+      state.monitoringWarning = false;
       // state.containers는 초기화하지 않음 (loadContainersFromStack에서 설정한 값 유지)
       state.endpoints = [];
       state.serviceCount = 0;
@@ -102,6 +106,12 @@ const deploymentSlice = createSlice({
     // 로그 추가
     addLog: (state, action: PayloadAction<DeploymentLog>) => {
       state.logs.push(action.payload);
+      const verification = action.payload.data?.monitoring_verification;
+      if (action.payload.level === 'warning' && (verification === 'unverified' || verification === 'failed')) {
+        state.monitoringWarning = true;
+      } else if (action.payload.level === 'success' && verification === 'verified') {
+        state.monitoringWarning = false;
+      }
 
       // SSL 경고 감지
       if (action.payload.level === 'warning' && action.payload.message.includes('SSL')) {
@@ -168,13 +178,12 @@ const deploymentSlice = createSlice({
       if (action.payload.endpoints) {
         state.endpoints = action.payload.endpoints;
 
-        // 컨테이너 상태 업데이트: endpoints에 있으면 success, 없으면 failed
-        const endpointNames = new Set(action.payload.endpoints.map(e => e.name));
-        state.containers = state.containers.map(container => ({
-          ...container,
-          status: endpointNames.has(container.name) ? 'success' as const : 'failed' as const,
-        }));
       }
+      // Services without published endpoints can still deploy successfully.
+      state.containers = state.containers.map(container => ({
+        ...container,
+        status: container.status === 'failed' || container.status === 'stopped' ? container.status : 'success' as const,
+      }));
       if (action.payload.serviceCount !== undefined) {
         state.serviceCount = action.payload.serviceCount;
       }
@@ -270,3 +279,6 @@ export const selectDeploymentContainers = (state: { deployment: DeploymentState 
 
 export const selectSslWarning = (state: { deployment: DeploymentState }) =>
   state.deployment.sslWarning;
+
+export const selectMonitoringWarning = (state: { deployment: DeploymentState }) =>
+  state.deployment.monitoringWarning;

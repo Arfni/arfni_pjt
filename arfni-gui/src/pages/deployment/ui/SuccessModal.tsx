@@ -26,6 +26,7 @@ interface SuccessModalProps {
   };
   projectName?: string;
   projectPath?: string;
+  monitoringWarning?: boolean;
 }
 
 const formatDuration = (seconds: number | null) => {
@@ -45,6 +46,7 @@ export function SuccessModal({
   ec2Server,
   projectName,
   projectPath,
+  monitoringWarning = false,
 }: SuccessModalProps) {
   const { t } = useTranslation('deployment');
   const [showCICDSetup, setShowCICDSetup] = useState(false);
@@ -93,9 +95,15 @@ export function SuccessModal({
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-900">{t('success.completedTitle')}</h2>
-              <p className="text-gray-600">{t('success.completedMessage')}</p>
+              <p className="text-gray-600">{t(monitoringWarning ? 'monitoringWarning.description' : 'success.completedMessage')}</p>
             </div>
           </div>
+
+        {monitoringWarning && (
+          <p role="alert" className="mb-6 p-3 bg-yellow-50 border border-yellow-300 rounded-lg text-yellow-900 font-semibold">
+            {t('monitoringWarning.title')}
+          </p>
+        )}
 
         {/* 배포 통계 */}
         <div className="grid grid-cols-2 gap-4 mb-6">

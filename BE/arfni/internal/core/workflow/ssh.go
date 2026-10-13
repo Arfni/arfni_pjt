@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/arfni/arfni/internal/core/stack"
 	"github.com/arfni/arfni/internal/events"
@@ -179,6 +181,11 @@ func (c *SSHClient) RunCommand(stream *events.Stream, command string) error {
 
 // RunCommandWithOutput은 SSH 명령을 실행하고 출력을 반환합니다
 func (c *SSHClient) RunCommandWithOutput(stream *events.Stream, command string) (string, error) {
+	return c.RunCommandWithOutputContext(context.Background(), stream, command)
+}
+
+// RunCommandWithOutputContext bounds SSH itself, including connection and remote execution.
+func (c *SSHClient) RunCommandWithOutputContext(ctx context.Context, stream *events.Stream, command string) (string, error) {
 	stream.Info(fmt.Sprintf("Running: %s", command))
 
 	args := []string{
@@ -190,7 +197,8 @@ func (c *SSHClient) RunCommandWithOutput(stream *events.Stream, command string) 
 		command,
 	}
 
-	cmd := exec.Command("ssh", args...)
+	cmd := exec.CommandContext(ctx, "ssh", args...)
+	cmd.WaitDelay = time.Second
 
 	// Windows에서 콘솔 창 숨김 (더 강력한 설정)
 	if runtime.GOOS == "windows" {

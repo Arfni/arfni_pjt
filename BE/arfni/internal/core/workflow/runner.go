@@ -73,7 +73,7 @@ func (r *Runner) ExecuteWithPlugins(stream *events.Stream, pluginsDir, bundledPl
 	if err := r.healthChecks(stream); err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
-	stream.Success("All services healthy")
+	stream.Success("Deployment health checks completed")
 
 	return nil
 }
@@ -200,7 +200,7 @@ func (r *Runner) generateFiles(stream *events.Stream) error {
 
 			// Generate Dockerfile with buildConfig and pluginsDir
 			if err := WriteDockerfileWithBundled(r.projectDir, buildContext, buildType,
-			                         buildConfig, r.pluginsDir, r.bundledPluginsDir); err != nil {
+				buildConfig, r.pluginsDir, r.bundledPluginsDir); err != nil {
 				return fmt.Errorf("failed to write Dockerfile for '%s': %w", name, err)
 			}
 
@@ -1125,9 +1125,7 @@ func (r *Runner) healthChecksEC2(stream *events.Stream) error {
 
 	// Containers being up says nothing about Grafana having loaded its dashboards.
 	if r.detectDeploymentMode() == "all-in-one" {
-		if err := r.verifyGrafanaDashboards(stream, sshClient, workdir); err != nil {
-			return err
-		}
+		reportGrafanaVerification(stream, r.verifyGrafanaDashboards(stream, sshClient))
 	}
 
 	return nil

@@ -42,6 +42,47 @@ async function mount() {
 }
 
 describe('monitoring startup', () => {
+  it('announces stopping and ignores duplicate leave while cleanup is pending', async () => {
+    await mount();
+    let finishStop!: () => void;
+    invoke.mockImplementationOnce(() => new Promise<void>(resolve => { finishStop = resolve; }));
+    const leave = view.root.findAllByType('button')[0].props.onClick;
+    let leaving!: Promise<void>;
+    await act(async () => { leaving = leave(); void leave(); });
+    expect(view.root.findByProps({ role: 'status' }).children).toContain('monitoring.stopping');
+    expect(view.root.findAllByType('button')[0].props.disabled).toBe(true);
+    expect(view.root.findAllByType('button').some(button => button.children.includes('monitoring.leaveWithoutCleanup'))).toBe(false);
+    expect(invoke.mock.calls.filter(([command]) => command === 'stop_monitoring_stack')).toHaveLength(1);
+    expect(navigate).not.toHaveBeenCalled();
+    await act(async () => { finishStop(); await leaving; });
+    expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a cleanup failure visible and allows retry without navigating', async () => {
+    await mount();
+    invoke.mockRejectedValueOnce(new Error('stop timed out'));
+    await act(async () => { await view.root.findAllByType('button')[0].props.onClick(); });
+    expect(navigate).not.toHaveBeenCalled();
+    expect(view.root.findByProps({ role: 'alert' }).findAllByType('p')[1].children).toContain('Error: stop timed out');
+    const retry = view.root.findAllByType('button').find(button => button.children.includes('monitoring.retryStop'));
+    expect(retry).toBeDefined();
+    await act(async () => { await retry!.props.onClick(); });
+    expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the user explicitly leave after cleanup fails while warning monitoring may still run', async () => {
+    await mount();
+    invoke.mockRejectedValueOnce(new Error('Docker unavailable'));
+    await act(async () => { await view.root.findAllByType('button')[0].props.onClick(); });
+    expect(JSON.stringify(view.toJSON())).toContain('monitoring.cleanupIncomplete');
+    expect(navigate).not.toHaveBeenCalled();
+    const leave = view.root.findAllByType('button').find(button => button.children.includes('monitoring.leaveWithoutCleanup'));
+    expect(leave).toBeDefined();
+    await act(async () => leave!.props.onClick());
+    expect(navigate).toHaveBeenCalledWith('/logs', expect.anything());
+    expect(invoke.mock.calls.filter(([command]) => command === 'stop_monitoring_stack')).toHaveLength(1);
+  });
+
   it('shows an already healthy Grafana instead of staying on the loading screen', async () => {
     await mount();
     expect(view.root.findAllByType('iframe')).toHaveLength(1);

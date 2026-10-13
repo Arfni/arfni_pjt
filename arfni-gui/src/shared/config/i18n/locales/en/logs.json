@@ -162,6 +162,12 @@
     }
   },
   "monitoring": {
+    "stopping": "Stopping monitoring and closing connections…",
+    "stopFailed": "Monitoring could not be stopped. Check the error below, then retry to close connections and return.",
+    "retryStop": "Retry stopping and return",
+    "cleanupIncomplete": "Monitoring may still be running if you leave without cleanup.",
+    "leaveWithoutCleanup": "Leave without cleanup",
+    "back": "Back to logs",
     "title": "Monitoring Dashboard",
     "openDashboard": "Open Monitoring Dashboard",
     "description": "View real-time metrics and performance data in Grafana",
