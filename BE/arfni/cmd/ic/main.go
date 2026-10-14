@@ -7,12 +7,17 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/arfni/arfni/internal/events"
-	"github.com/arfni/arfni/internal/core/workflow"
 	"github.com/arfni/arfni/internal/core/stack"
+	"github.com/arfni/arfni/internal/core/workflow"
+	"github.com/arfni/arfni/internal/events"
+	"github.com/arfni/arfni/internal/utils/version"
 )
 
 func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-version") {
+		fmt.Println(version.GetFullVersion())
+		return
+	}
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "usage: %s <run|status> -f <stack.yaml>\n", filepath.Base(os.Args[0]))
 		os.Exit(2)

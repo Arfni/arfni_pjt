@@ -13,10 +13,15 @@ import (
 
 	"github.com/arfni/arfni/internal/deployment"
 	"github.com/arfni/arfni/internal/pricing"
+	"github.com/arfni/arfni/internal/utils/version"
 	"gopkg.in/yaml.v3"
 )
 
 func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-version") {
+		fmt.Println(version.GetFullVersion())
+		return
+	}
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/arfni/arfni/internal/core/monitoring"
+	"github.com/arfni/arfni/internal/utils/version"
 	"gopkg.in/yaml.v2"
 )
 
@@ -93,6 +94,10 @@ type EC2Config struct {
 }
 
 func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-version") {
+		fmt.Println(version.GetFullVersion())
+		return
+	}
 	// 배너 출력
 	printBanner()
 

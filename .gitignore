@@ -441,6 +441,7 @@ Cargo.lock
 **/env/[Ll]ib64
 [Ll]ocal
 [Ss]cripts
+!arfni-gui/scripts/
 pyvenv.cfg
 pip-selfcheck.json
 
